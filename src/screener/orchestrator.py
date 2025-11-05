@@ -306,6 +306,18 @@ class ScreenerPipeline:
             logger.warning(f"Volume or price columns not found - skipping volume filter")
             df['avgDollarVol_3m'] = 0  # Default value
 
+        # Validate we have enough stocks after filtering
+        if len(df) == 0:
+            raise ValueError(
+                f"❌ No stocks found matching your criteria:\n"
+                f"  • Min Market Cap: ${min_mcap/1e6:,.0f}M\n"
+                f"  • Min Daily Volume: ${min_vol/1e6:,.1f}M\n\n"
+                f"💡 Try lowering the minimum thresholds."
+            )
+
+        if len(df) < 10:
+            logger.warning(f"⚠️ Only {len(df)} stocks match your criteria. Consider lowering thresholds.")
+
         # Classify companies
         df['is_financial'] = df.apply(self._classify_financial, axis=1)
         df['is_REIT'] = df.apply(self._classify_reit, axis=1)
