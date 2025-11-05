@@ -158,6 +158,12 @@ class ScoringEngine:
                 roic_adjustment = roic_adjustment.clip(lower=0.5, upper=3.0)
 
                 df[f'{yield_metric}_adj'] = df[yield_metric] * roic_adjustment
+
+                # Log sample adjustments for debugging
+                if yield_metric == 'earnings_yield':
+                    logger.info(f"ROIC adjustment sample - mean: {roic_adjustment.mean():.2f}, "
+                               f"median: {roic_adjustment.median():.2f}, "
+                               f"range: [{roic_adjustment.min():.2f}, {roic_adjustment.max():.2f}]")
             else:
                 df[f'{yield_metric}_adj'] = None
 

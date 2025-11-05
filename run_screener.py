@@ -96,8 +96,16 @@ with tab1:
         buys_existing = (df_existing['decision'] == 'BUY').sum()
         monitors_existing = (df_existing['decision'] == 'MONITOR').sum()
         timestamp_existing = st.session_state.get('timestamp', datetime.now())
+        config_version = st.session_state.get('config_version', 'unknown')
 
-        st.success(f"📊 **Latest Results Available** (from {timestamp_existing.strftime('%Y-%m-%d %H:%M:%S')})")
+        # Check if results are from old config
+        CURRENT_VERSION = "QARP-v2"  # Updated when major scoring changes
+        is_stale = config_version != CURRENT_VERSION
+
+        if is_stale:
+            st.warning(f"⚠️ **Results are from older version** ({config_version}). Re-run screener to use latest QARP methodology with ROIC-adjusted yields.")
+        else:
+            st.success(f"📊 **Latest Results Available** (from {timestamp_existing.strftime('%Y-%m-%d %H:%M:%S')})")
 
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -110,7 +118,16 @@ with tab1:
             avg = df_existing['composite_0_100'].mean()
             st.metric("Avg Score", f"{avg:.1f}")
 
-        st.info("👉 Check **Results**, **Analytics**, and **Qualitative** tabs to explore the data")
+        col_btn1, col_btn2 = st.columns([3, 1])
+        with col_btn1:
+            st.info("👉 Check **Results**, **Analytics**, and **Qualitative** tabs to explore the data")
+        with col_btn2:
+            if st.button("🗑️ Clear Results", use_container_width=True):
+                for key in ['results', 'timestamp', 'config_version']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.rerun()
+
         st.markdown("---")
 
     col1, col2, col3 = st.columns(3)
@@ -177,6 +194,7 @@ with tab1:
                 # Save to session state
                 st.session_state['results'] = df
                 st.session_state['timestamp'] = datetime.now()
+                st.session_state['config_version'] = "QARP-v2"  # Track methodology version
                 st.session_state['output_csv'] = output_csv
 
                 # Show quick summary
@@ -232,6 +250,24 @@ with tab2:
         ]
 
         st.write(f"**{len(filtered)}** stocks match filters")
+
+        # Debug panel - show if ROIC-adjusted yields are present
+        config_version = st.session_state.get('config_version', 'unknown')
+        if config_version == 'QARP-v2' and 'earnings_yield_adj' in df.columns:
+            with st.expander("🔧 Debug: ROIC-Adjusted Yields Verification"):
+                st.caption("Verify that ROIC adjustments are working correctly")
+
+                # Show examples of adjustments
+                debug_cols = ['ticker', 'roic_%', 'earnings_yield', 'earnings_yield_adj',
+                             'value_score_0_100', 'quality_score_0_100', 'decision']
+                available_debug_cols = [col for col in debug_cols if col in df.columns]
+
+                if available_debug_cols:
+                    st.write("**Sample: Top 10 by Quality Score**")
+                    debug_df = df[available_debug_cols].sort_values('quality_score_0_100', ascending=False).head(10)
+                    st.dataframe(debug_df, use_container_width=True)
+
+                    st.caption("Expected: High ROIC companies should have earnings_yield_adj > earnings_yield")
 
         # Display table
         display_cols = [
