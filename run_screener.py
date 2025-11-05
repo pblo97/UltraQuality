@@ -209,11 +209,11 @@ with tab1:
         config_version = st.session_state.get('config_version', 'unknown')
 
         # Check if results are from old config
-        CURRENT_VERSION = "QARP-v2"  # Updated when major scoring changes
+        CURRENT_VERSION = "QARP-v3-Moat"  # Updated when major scoring changes (v3 = Moat Score added)
         is_stale = config_version != CURRENT_VERSION
 
         if is_stale:
-            st.warning(f"⚠️ **Results are from older version** ({config_version}). Re-run screener to use latest QARP methodology with ROIC-adjusted yields.")
+            st.warning(f"⚠️ **Results are from older version** ({config_version}). Re-run screener to use latest methodology with **Moat Score** (competitive advantages).")
         else:
             st.success(f"📊 **Latest Results Available** (from {timestamp_existing.strftime('%Y-%m-%d %H:%M:%S')})")
 
@@ -304,7 +304,7 @@ with tab1:
                 # Save to session state
                 st.session_state['results'] = df
                 st.session_state['timestamp'] = datetime.now()
-                st.session_state['config_version'] = "QARP-v2"  # Track methodology version
+                st.session_state['config_version'] = "QARP-v3-Moat"  # Track methodology version (v3 = Moat Score added)
                 st.session_state['output_csv'] = output_csv
 
                 # Show quick summary
@@ -365,7 +365,7 @@ with tab2:
 
         # Debug panel - show if ROIC-adjusted yields are present
         config_version = st.session_state.get('config_version', 'unknown')
-        if config_version == 'QARP-v2' and 'earnings_yield_adj' in df.columns:
+        if config_version in ['QARP-v2', 'QARP-v3-Moat'] and 'earnings_yield_adj' in df.columns:
             with st.expander("🔧 Debug: ROIC-Adjusted Yields Verification"):
                 st.caption("Verify that ROIC adjustments are working correctly")
 
