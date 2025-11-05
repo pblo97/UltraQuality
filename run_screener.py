@@ -144,9 +144,9 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
 
 # Scoring weights
 with st.sidebar.expander("⚖️ Scoring Weights", expanded=True):
-    weight_quality = st.slider("Quality Weight", 0.0, 1.0, 0.65, 0.05,
+    weight_quality = st.slider("Quality Weight", 0.0, 1.0, 0.70, 0.05,
                                 key='weight_quality_slider',
-                                help="QARP default: 0.65 (prioritize quality)")
+                                help="QARP default: 0.70 (prioritize exceptional companies with moats)")
     weight_value = 1.0 - weight_quality
     st.write(f"**Value Weight:** {weight_value:.2f}")
     st.caption("✨ Moving sliders will instantly recalculate results")
@@ -370,7 +370,7 @@ with tab2:
                 st.caption("Verify that ROIC adjustments are working correctly")
 
                 # Show examples of adjustments
-                debug_cols = ['ticker', 'roic_%', 'earnings_yield', 'earnings_yield_adj',
+                debug_cols = ['ticker', 'roic_%', 'moat_score', 'earnings_yield', 'earnings_yield_adj',
                              'value_score_0_100', 'quality_score_0_100', 'decision']
                 available_debug_cols = [col for col in debug_cols if col in df.columns]
 
@@ -385,6 +385,7 @@ with tab2:
         display_cols = [
             'ticker', 'name', 'sector',
             'roic_%',  # NEW: Show ROIC for transparency
+            'moat_score',  # NEW: Competitive advantages score
             'composite_0_100',
             'value_score_0_100', 'quality_score_0_100',
             'guardrail_status', 'decision', 'decision_reason'  # NEW: shows WHY
@@ -406,9 +407,10 @@ with tab2:
                 search_df = df[df['ticker'].str.upper().isin(tickers)]
 
                 if not search_df.empty:
-                    detail_cols = ['ticker', 'roic_%', 'earnings_yield', 'earnings_yield_adj',
+                    detail_cols = ['ticker', 'roic_%', 'moat_score', 'earnings_yield', 'earnings_yield_adj',
                                   'value_score_0_100', 'quality_score_0_100', 'composite_0_100',
-                                  'guardrail_status', 'decision', 'decision_reason']
+                                  'guardrail_status', 'decision', 'decision_reason',
+                                  'pricing_power_score', 'operating_leverage_score', 'roic_persistence_score']
                     available_detail_cols = [col for col in detail_cols if col in search_df.columns]
 
                     st.dataframe(search_df[available_detail_cols], use_container_width=True)

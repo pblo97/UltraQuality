@@ -297,6 +297,44 @@ class FeatureCalculator:
         else:
             features['cash_roa'] = None
 
+        # === MOAT SCORE (Competitive Advantages) ===
+        # Quantitative proxies using only FMP data - no LLMs, $0 cost
+        # Based on: Pricing Power, Operating Leverage, ROIC Persistence
+
+        # 1. Pricing Power (30% weight) - Gross Margin analysis
+        features['pricing_power_score'] = self._calc_pricing_power(
+            income, balance, symbol
+        )
+
+        # 2. Operating Leverage (25% weight) - Scale economies
+        features['operating_leverage_score'] = self._calc_operating_leverage(
+            income
+        )
+
+        # 3. ROIC Persistence (20% weight) - Quality durability
+        features['roic_persistence_score'] = self._calc_roic_persistence(
+            roic_quarterly
+        )
+
+        # Composite Moat Score (0-100)
+        moat_components = [
+            features['pricing_power_score'],
+            features['operating_leverage_score'],
+            features['roic_persistence_score']
+        ]
+
+        # Only calculate if we have at least 2 of 3 components
+        valid_components = [x for x in moat_components if x is not None]
+        if len(valid_components) >= 2:
+            features['moat_score'] = (
+                (features['pricing_power_score'] or 50) * 0.30 +
+                (features['operating_leverage_score'] or 50) * 0.25 +
+                (features['roic_persistence_score'] or 50) * 0.20 +
+                50 * 0.25  # Remaining 25% defaulted to median (future: add more components)
+            )
+        else:
+            features['moat_score'] = None
+
         # Fixed Charge Coverage = (EBIT + Operating Leases) / (Interest + Operating Leases)
         # Simplified: assume operating lease ~= operatingExpenses * 0.1 (rough proxy)
         # For better accuracy, would need footnote data (not in standard API)
@@ -649,3 +687,224 @@ class FeatureCalculator:
             return tax_expense / income_before_tax
 
         return 0.21  # US corporate rate default
+
+    def _calc_pricing_power(self, income: List[Dict], balance: List[Dict], symbol: str) -> Optional[float]:
+        """
+        Calculate Pricing Power Score (0-100) based on Gross Margin analysis.
+
+        Components:
+        1. Gross Margin Level (40%) - Absolute GM% vs benchmarks
+        2. Gross Margin Trend (30%) - Expanding/stable/declining
+        3. Gross Margin Stability (30%) - Consistency over time
+
+        High score = High, stable, expanding gross margins (pricing power)
+        """
+        if not income or len(income) < 4:
+            return None
+
+        try:
+            # Calculate quarterly gross margins for last 8 quarters (or available)
+            gross_margins = []
+            for i in range(min(8, len(income))):
+                revenue = income[i].get('revenue', 0)
+                gross_profit = income[i].get('grossProfit', 0)
+
+                if revenue and revenue > 0:
+                    gm = (gross_profit / revenue) * 100
+                    gross_margins.append(gm)
+
+            if len(gross_margins) < 4:
+                return None
+
+            # === Component 1: Gross Margin Level (40%) ===
+            # Benchmark: 40%+ = excellent, 30-40% = good, 20-30% = average, <20% = low
+            avg_gm = np.mean(gross_margins)
+
+            if avg_gm >= 40:
+                level_score = 100
+            elif avg_gm >= 30:
+                level_score = 70 + (avg_gm - 30) * 3  # Linear 70-100
+            elif avg_gm >= 20:
+                level_score = 40 + (avg_gm - 20) * 3  # Linear 40-70
+            else:
+                level_score = max(0, avg_gm * 2)  # Linear 0-40
+
+            # === Component 2: Gross Margin Trend (30%) ===
+            # Compare recent 4Q average vs older 4Q average
+            if len(gross_margins) >= 8:
+                recent_gm = np.mean(gross_margins[:4])  # Most recent 4Q
+                older_gm = np.mean(gross_margins[4:8])  # Previous 4Q
+
+                if older_gm > 0:
+                    gm_change_pct = ((recent_gm - older_gm) / older_gm) * 100
+
+                    # Expanding margins = good (pricing power)
+                    if gm_change_pct >= 5:
+                        trend_score = 100
+                    elif gm_change_pct >= 0:
+                        trend_score = 70 + (gm_change_pct * 6)  # Linear 70-100
+                    elif gm_change_pct >= -5:
+                        trend_score = 40 + ((gm_change_pct + 5) * 6)  # Linear 40-70
+                    else:
+                        trend_score = max(0, 40 + (gm_change_pct + 5) * 8)
+                else:
+                    trend_score = 50  # Neutral if can't calculate
+            else:
+                # Only have 4-7 quarters - use simple linear regression
+                x = np.arange(len(gross_margins))
+                slope, _ = np.polyfit(x, gross_margins, 1)
+
+                # Slope > 0.5 = expanding, < -0.5 = declining
+                if slope >= 0.5:
+                    trend_score = 100
+                elif slope >= 0:
+                    trend_score = 70 + (slope * 60)
+                elif slope >= -0.5:
+                    trend_score = 40 + ((slope + 0.5) * 60)
+                else:
+                    trend_score = max(0, 40 + (slope + 0.5) * 80)
+
+            # === Component 3: Gross Margin Stability (30%) ===
+            # Lower CV = more consistent = better (pricing power)
+            std_gm = np.std(gross_margins)
+            cv_gm = std_gm / abs(avg_gm) if avg_gm != 0 else 1.0
+
+            # CV < 0.05 = very stable, 0.05-0.15 = stable, 0.15-0.30 = moderate, >0.30 = volatile
+            if cv_gm <= 0.05:
+                stability_score = 100
+            elif cv_gm <= 0.15:
+                stability_score = 70 + (0.15 - cv_gm) * 300  # Linear 70-100
+            elif cv_gm <= 0.30:
+                stability_score = 40 + (0.30 - cv_gm) * 200  # Linear 40-70
+            else:
+                stability_score = max(0, 40 - (cv_gm - 0.30) * 100)
+
+            # === Composite Pricing Power Score ===
+            pricing_power = (
+                level_score * 0.40 +
+                trend_score * 0.30 +
+                stability_score * 0.30
+            )
+
+            return round(pricing_power, 2)
+
+        except Exception as e:
+            logger.warning(f"Error calculating pricing power for {symbol}: {e}")
+            return None
+
+    def _calc_operating_leverage(self, income: List[Dict]) -> Optional[float]:
+        """
+        Calculate Operating Leverage Score (0-100) based on OI growth vs Revenue growth.
+
+        Operating Leverage = Operating Income Growth / Revenue Growth
+
+        Leverage > 1.5x = excellent (scale economies, strong moat)
+        Leverage 1.0-1.5x = good (some operating leverage)
+        Leverage 0.5-1.0x = average
+        Leverage < 0.5x = poor (costs growing faster than revenue)
+        """
+        if not income or len(income) < 8:
+            return None
+
+        try:
+            # Get 3-year CAGR for Operating Income and Revenue
+            # Use quarterly data: Q0 (latest) vs Q12 (3 years ago)
+            if len(income) < 12:
+                # Use available data (at least 8 quarters = 2 years)
+                recent = income[0]
+                old = income[-1]
+            else:
+                recent = income[0]
+                old = income[11]  # 12 quarters ago = 3 years
+
+            recent_oi = recent.get('operatingIncome', 0)
+            recent_rev = recent.get('revenue', 0)
+            old_oi = old.get('operatingIncome', 0)
+            old_rev = old.get('revenue', 0)
+
+            if not all([recent_oi, recent_rev, old_oi, old_rev]) or old_oi <= 0 or old_rev <= 0:
+                return None
+
+            # Calculate growth rates
+            oi_growth = ((recent_oi / old_oi) - 1) * 100
+            rev_growth = ((recent_rev / old_rev) - 1) * 100
+
+            # Operating leverage ratio
+            if rev_growth > 1.0:  # Avoid division by near-zero
+                leverage_ratio = oi_growth / rev_growth
+            else:
+                # If revenue is flat/declining but OI growing = excellent
+                if oi_growth > 5:
+                    leverage_ratio = 2.0  # Treat as excellent
+                else:
+                    return 50  # Neutral if both flat
+
+            # Convert to score (0-100)
+            if leverage_ratio >= 1.5:
+                score = 100
+            elif leverage_ratio >= 1.0:
+                score = 70 + (leverage_ratio - 1.0) * 60  # Linear 70-100
+            elif leverage_ratio >= 0.5:
+                score = 40 + (leverage_ratio - 0.5) * 60  # Linear 40-70
+            else:
+                score = max(0, leverage_ratio * 80)  # Linear 0-40
+
+            return round(score, 2)
+
+        except Exception as e:
+            logger.warning(f"Error calculating operating leverage: {e}")
+            return None
+
+    def _calc_roic_persistence(self, roic_quarterly: List[float]) -> Optional[float]:
+        """
+        Calculate ROIC Persistence Score (0-100) based on ROIC stability.
+
+        Components:
+        1. ROIC Level (50%) - Absolute ROIC% (higher is better)
+        2. ROIC Stability (50%) - Consistency over 8 quarters (lower CV is better)
+
+        High score = High, stable ROIC (durable competitive advantage)
+        """
+        if not roic_quarterly or len(roic_quarterly) < 4:
+            return None
+
+        try:
+            # === Component 1: ROIC Level (50%) ===
+            avg_roic = np.mean(roic_quarterly)
+
+            # Benchmark: 25%+ = excellent, 15-25% = good, 10-15% = average, <10% = poor
+            if avg_roic >= 25:
+                level_score = 100
+            elif avg_roic >= 15:
+                level_score = 70 + (avg_roic - 15) * 3  # Linear 70-100
+            elif avg_roic >= 10:
+                level_score = 40 + (avg_roic - 10) * 6  # Linear 40-70
+            else:
+                level_score = max(0, avg_roic * 4)  # Linear 0-40
+
+            # === Component 2: ROIC Stability (50%) ===
+            # Lower CV = more consistent = better (durable moat)
+            std_roic = np.std(roic_quarterly)
+            cv_roic = std_roic / abs(avg_roic) if avg_roic != 0 else 1.0
+
+            # CV < 0.10 = very stable, 0.10-0.25 = stable, 0.25-0.50 = moderate, >0.50 = volatile
+            if cv_roic <= 0.10:
+                stability_score = 100
+            elif cv_roic <= 0.25:
+                stability_score = 70 + (0.25 - cv_roic) * 200  # Linear 70-100
+            elif cv_roic <= 0.50:
+                stability_score = 40 + (0.50 - cv_roic) * 120  # Linear 40-70
+            else:
+                stability_score = max(0, 40 - (cv_roic - 0.50) * 80)
+
+            # === Composite ROIC Persistence Score ===
+            persistence = (
+                level_score * 0.50 +
+                stability_score * 0.50
+            )
+
+            return round(persistence, 2)
+
+        except Exception as e:
+            logger.warning(f"Error calculating ROIC persistence: {e}")
+            return None
