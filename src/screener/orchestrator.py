@@ -258,26 +258,53 @@ class ScreenerPipeline:
 
         logger.info(f"Total profiles fetched: {len(df)}")
 
-        # Filter by country
-        if countries:
+        # Normalize column names (stock-screener uses different names than profile-bulk)
+        column_mapping = {
+            'marketCap': 'mktCap',          # stock-screener → profile-bulk
+            'volume': 'volAvg',             # stock-screener → profile-bulk
+            'companyName': 'name',          # sometimes different
+        }
+
+        for old_name, new_name in column_mapping.items():
+            if old_name in df.columns and new_name not in df.columns:
+                df[new_name] = df[old_name]
+                logger.debug(f"Mapped {old_name} → {new_name}")
+
+        # Log available columns for debugging
+        logger.info(f"DataFrame columns: {df.columns.tolist()[:10]}...")
+
+        # Filter by country (if column exists)
+        if countries and 'country' in df.columns:
             df = df[df['country'].isin(countries)]
             logger.info(f"After country filter: {len(df)}")
 
-        # Filter by exchange
-        if exchanges:
+        # Filter by exchange (if column exists)
+        if exchanges and 'exchangeShortName' in df.columns:
             df = df[df['exchangeShortName'].isin(exchanges)]
             logger.info(f"After exchange filter: {len(df)}")
 
-        # Filter by market cap
-        df = df[df['mktCap'] >= min_mcap]
-        logger.info(f"After market cap filter: {len(df)}")
+        # Filter by market cap (handle both field names)
+        if 'mktCap' in df.columns:
+            df = df[df['mktCap'] >= min_mcap]
+            logger.info(f"After market cap filter: {len(df)}")
+        elif 'marketCap' in df.columns:
+            df = df[df['marketCap'] >= min_mcap]
+            logger.info(f"After market cap filter: {len(df)}")
+        else:
+            logger.warning("No market cap field found - skipping market cap filter")
 
-        # Calculate avgDollarVol_3m (simplified: use volume * price)
-        # For accurate 3m avg, would need historical data
-        # Placeholder: use current volume * price as proxy
-        df['avgDollarVol_3m'] = df['volAvg'] * df['price']
-        df = df[df['avgDollarVol_3m'] >= min_vol]
-        logger.info(f"After volume filter: {len(df)}")
+        # Calculate avgDollarVol_3m
+        # Use volAvg (from profile-bulk) or volume (from stock-screener)
+        volume_col = 'volAvg' if 'volAvg' in df.columns else 'volume'
+        price_col = 'price'
+
+        if volume_col in df.columns and price_col in df.columns:
+            df['avgDollarVol_3m'] = df[volume_col] * df[price_col]
+            df = df[df['avgDollarVol_3m'] >= min_vol]
+            logger.info(f"After volume filter: {len(df)}")
+        else:
+            logger.warning(f"Volume or price columns not found - skipping volume filter")
+            df['avgDollarVol_3m'] = 0  # Default value
 
         # Classify companies
         df['is_financial'] = df.apply(self._classify_financial, axis=1)
