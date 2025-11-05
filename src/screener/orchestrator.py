@@ -379,7 +379,24 @@ class ScreenerPipeline:
 
         # Simple heuristic: rank by marketCap (larger = more liquid)
         df = self.df_universe.copy()
-        df['prelim_rank'] = df['marketCap'].rank(ascending=False)
+
+        # Handle potential duplicate columns
+        if 'marketCap' in df.columns:
+            # Ensure we're working with a Series, not DataFrame
+            market_cap_series = df['marketCap']
+            if isinstance(market_cap_series, pd.DataFrame):
+                # If multiple columns, take the first one
+                market_cap_series = market_cap_series.iloc[:, 0]
+            df['prelim_rank'] = market_cap_series.rank(ascending=False)
+        elif 'mktCap' in df.columns:
+            market_cap_series = df['mktCap']
+            if isinstance(market_cap_series, pd.DataFrame):
+                market_cap_series = market_cap_series.iloc[:, 0]
+            df['prelim_rank'] = market_cap_series.rank(ascending=False)
+        else:
+            # If no market cap column, use simple index-based ranking
+            logger.warning("No marketCap column found, using sequential ranking")
+            df['prelim_rank'] = range(1, len(df) + 1)
 
         # Select top K
         self.df_topk = df.nsmallest(top_k, 'prelim_rank').copy()
