@@ -1,0 +1,16 @@
+# UltraQuality Screener - Minimal Dependencies
+# Core libraries only (no visualization, no web frameworks)
+
+# Data manipulation
+pandas>=2.0.0,<3.0.0
+numpy>=1.24.0,<2.0.0
+
+# HTTP requests
+requests>=2.31.0,<3.0.0
+
+# Configuration
+pyyaml>=6.0,<7.0
+python-dotenv>=1.0.0,<2.0.0
+
+# Statistics (for z-score normalization)
+scipy>=1.11.0,<2.0.0
