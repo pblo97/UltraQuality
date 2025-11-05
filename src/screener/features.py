@@ -80,9 +80,10 @@ class FeatureCalculator:
             metrics_ttm = self.fmp.get_key_metrics_ttm(symbol)
             ratios_ttm = self.fmp.get_ratios_ttm(symbol)
             ev_data = self.fmp.get_enterprise_values(symbol, limit=4)
-            income = self.fmp.get_income_statement(symbol, period='quarter', limit=4)
-            balance = self.fmp.get_balance_sheet(symbol, period='quarter', limit=4)
-            cashflow = self.fmp.get_cash_flow(symbol, period='quarter', limit=4)
+            # Fetch 12 quarters for growth/trend analysis (3 years)
+            income = self.fmp.get_income_statement(symbol, period='quarter', limit=12)
+            balance = self.fmp.get_balance_sheet(symbol, period='quarter', limit=12)
+            cashflow = self.fmp.get_cash_flow(symbol, period='quarter', limit=12)
 
         except Exception as e:
             logger.warning(f"Failed to fetch data for {symbol}: {e}")
@@ -297,6 +298,55 @@ class FeatureCalculator:
         else:
             features['cash_roa'] = None
 
+        # === MOMENTUM & TREND METRICS ===
+        # Detect declining businesses (revenue falling, ROIC eroding, margins contracting)
+
+        # 1. Revenue Growth (3-year CAGR)
+        if len(income) >= 12:
+            revenue_latest = income[0].get('revenue', 0)
+            revenue_3y_ago = income[11].get('revenue', 0)
+
+            if revenue_latest and revenue_3y_ago and revenue_3y_ago > 0:
+                # CAGR formula: (Ending/Beginning)^(1/years) - 1
+                features['revenue_growth_3y'] = ((revenue_latest / revenue_3y_ago) ** (1/3) - 1) * 100
+            else:
+                features['revenue_growth_3y'] = None
+        else:
+            features['revenue_growth_3y'] = None
+
+        # 2. ROIC Trend (compare recent 4Q vs previous 4Q)
+        # Positive = ROIC improving, Negative = ROIC eroding
+        if len(roic_quarterly) >= 8:
+            roic_recent = np.mean(roic_quarterly[:4])  # Most recent 4Q
+            roic_previous = np.mean(roic_quarterly[4:8])  # Previous 4Q
+
+            if roic_previous != 0:
+                features['roic_trend'] = ((roic_recent - roic_previous) / abs(roic_previous)) * 100
+            else:
+                features['roic_trend'] = None
+        else:
+            features['roic_trend'] = None
+
+        # 3. Gross Margin Trend (compare recent 4Q vs previous 4Q)
+        # Positive = margins expanding, Negative = margins contracting
+        gross_margins_quarterly = []
+        for i in range(min(8, len(income))):
+            revenue_q = income[i].get('revenue', 0)
+            gross_profit_q = income[i].get('grossProfit', 0)
+            if revenue_q and revenue_q > 0:
+                gross_margins_quarterly.append((gross_profit_q / revenue_q) * 100)
+
+        if len(gross_margins_quarterly) >= 8:
+            gm_recent = np.mean(gross_margins_quarterly[:4])
+            gm_previous = np.mean(gross_margins_quarterly[4:8])
+
+            if gm_previous != 0:
+                features['margin_trend'] = ((gm_recent - gm_previous) / abs(gm_previous)) * 100
+            else:
+                features['margin_trend'] = None
+        else:
+            features['margin_trend'] = None
+
         # === MOAT SCORE (Competitive Advantages) ===
         # Quantitative proxies using only FMP data - no LLMs, $0 cost
         # Based on: Pricing Power, Operating Leverage, ROIC Persistence
@@ -326,12 +376,36 @@ class FeatureCalculator:
         # Only calculate if we have at least 2 of 3 components
         valid_components = [x for x in moat_components if x is not None]
         if len(valid_components) >= 2:
-            features['moat_score'] = (
+            base_moat_score = (
                 (features['pricing_power_score'] or 50) * 0.30 +
                 (features['operating_leverage_score'] or 50) * 0.25 +
                 (features['roic_persistence_score'] or 50) * 0.20 +
                 50 * 0.25  # Remaining 25% defaulted to median (future: add more components)
             )
+
+            # === MOMENTUM PENALTIES ===
+            # Penalize moat score if business is declining (revenue down, ROIC eroding, margins contracting)
+            # This prevents "false positives" of companies with high historical metrics but deteriorating fundamentals
+
+            penalty_multiplier = 1.0
+
+            # 1. Revenue Decline Penalty
+            if features['revenue_growth_3y'] is not None and features['revenue_growth_3y'] < 0:
+                # Declining revenue = moat erosion
+                penalty_multiplier *= 0.80  # 20% penalty
+
+            # 2. ROIC Erosion Penalty
+            if features['roic_trend'] is not None and features['roic_trend'] < -10:
+                # ROIC declining >10% = competitive position weakening
+                penalty_multiplier *= 0.85  # 15% penalty
+
+            # 3. Margin Contraction Penalty
+            if features['margin_trend'] is not None and features['margin_trend'] < -5:
+                # Gross margin contracting >5% = pricing power loss
+                penalty_multiplier *= 0.85  # 15% penalty
+
+            # Apply penalties (multiplicative)
+            features['moat_score'] = base_moat_score * penalty_multiplier
         else:
             features['moat_score'] = None
 

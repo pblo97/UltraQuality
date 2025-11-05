@@ -64,8 +64,8 @@ class GuardrailCalculator:
         }
 
         try:
-            # Fetch data
-            income = self.fmp.get_income_statement(symbol, period='quarter', limit=8)
+            # Fetch data (need 12 quarters for revenue growth trend)
+            income = self.fmp.get_income_statement(symbol, period='quarter', limit=12)
             balance = self.fmp.get_balance_sheet(symbol, period='quarter', limit=8)
             cashflow = self.fmp.get_cash_flow(symbol, period='quarter', limit=8)
 
@@ -82,6 +82,9 @@ class GuardrailCalculator:
             result['beneishM'] = self._calc_beneish_m(balance, income, cashflow)
             result['netShareIssuance_12m_%'] = self._calc_net_share_issuance(balance, cashflow)
             result['mna_flag'] = self._calc_mna_flag(balance)
+
+            # Calculate revenue growth (3-year CAGR) for declining business detection
+            result['revenue_growth_3y'] = self._calc_revenue_growth_3y(income)
 
             # Debt metrics (if available)
             # Note: debt maturity and rate mix require detailed debt schedules (often not in API)
@@ -533,6 +536,18 @@ class GuardrailCalculator:
             amber_flags += 1
             reasons.append("High M&A / goodwill growth")
 
+        # Revenue Decline (Declining Business)
+        revenue_growth = guardrails.get('revenue_growth_3y')
+        if revenue_growth is not None:
+            if revenue_growth < -5:
+                # Revenue declining >5% = serious concern (moat erosion)
+                amber_flags += 1
+                reasons.append(f"Revenue declining {revenue_growth:.1f}% (3Y)")
+            elif revenue_growth < 0:
+                # Any revenue decline = yellow flag
+                amber_flags += 1
+                reasons.append(f"Revenue flat/declining {revenue_growth:.1f}% (3Y)")
+
         # Determine status
         if red_flags > 0:
             status = 'ROJO'
@@ -545,3 +560,25 @@ class GuardrailCalculator:
             reasons.append("All checks OK")
 
         return status, '; '.join(reasons[:3])  # Limit to 3 reasons
+
+    def _calc_revenue_growth_3y(self, income: List[Dict]) -> Optional[float]:
+        """
+        Calculate 3-year revenue CAGR.
+        Negative growth = declining business (red flag for moat erosion).
+        """
+        if not income or len(income) < 12:
+            return None
+
+        try:
+            revenue_latest = income[0].get('revenue', 0)
+            revenue_3y_ago = income[11].get('revenue', 0)
+
+            if revenue_latest and revenue_3y_ago and revenue_3y_ago > 0:
+                # CAGR formula: (Ending/Beginning)^(1/years) - 1
+                growth = ((revenue_latest / revenue_3y_ago) ** (1/3) - 1) * 100
+                return growth
+            else:
+                return None
+        except Exception as e:
+            logger.warning(f"Error calculating revenue growth: {e}")
+            return None
