@@ -20,6 +20,75 @@ sys.path.insert(0, str(Path(__file__).parent / 'src'))
 # NOTE: We import ScreenerPipeline lazily inside the button click
 # to avoid blocking the UI load with heavy imports
 
+def recalculate_scores(df, weight_quality, weight_value, threshold_buy, threshold_monitor,
+                       threshold_quality_exceptional, exclude_reds):
+    """
+    Recalculate composite scores and decisions with new parameters.
+    This allows interactive adjustment without re-running the entire pipeline.
+    """
+    df = df.copy()
+
+    # Recalculate composite score with new weights
+    df['composite_0_100'] = (
+        weight_quality * df['quality_score_0_100'] +
+        weight_value * df['value_score_0_100']
+    )
+
+    # Recalculate decision logic
+    def decide(row):
+        composite = row.get('composite_0_100', 0)
+        quality = row.get('quality_score_0_100', 0)
+        status = row.get('guardrail_status', 'AMBAR')
+
+        # ROJO = Auto AVOID (accounting red flags)
+        if exclude_reds and status == 'ROJO':
+            return 'AVOID', 'RED guardrails (accounting concerns)'
+
+        # Exceptional composite score = BUY even with AMBAR
+        if composite >= 80:  # Hard-coded top 20%
+            return 'BUY', f'Exceptional score ({composite:.0f} ≥ 80)'
+
+        # Exceptional Quality companies = BUY even with moderate value
+        if quality >= threshold_quality_exceptional and composite >= 60:
+            return 'BUY', f'Exceptional quality ({quality:.0f} ≥ {threshold_quality_exceptional})'
+
+        # Good score + Clean guardrails = BUY
+        if composite >= threshold_buy and status == 'VERDE':
+            return 'BUY', f'Score {composite:.0f} ≥ {threshold_buy} + Clean'
+
+        # Middle tier = MONITOR
+        if composite >= threshold_monitor:
+            return 'MONITOR', f'Score {composite:.0f} in range [{threshold_monitor}, {threshold_buy})'
+
+        # Low score = AVOID
+        return 'AVOID', f'Score {composite:.0f} < {threshold_monitor}'
+
+    # Apply decision logic and capture reason
+    df[['decision', 'decision_reason']] = df.apply(lambda row: pd.Series(decide(row)), axis=1)
+
+    return df
+
+def get_results_with_current_params():
+    """
+    Get results from session_state and recalculate with current sidebar parameters.
+    Returns None if no results available.
+    """
+    if 'results' not in st.session_state:
+        return None
+
+    df = st.session_state['results']
+
+    # Get current sidebar parameters (these are defined later but accessible)
+    w_quality = st.session_state.get('weight_quality_slider', 0.65)
+    w_value = 1.0 - w_quality
+    t_buy = st.session_state.get('threshold_buy_slider', 65)
+    t_monitor = st.session_state.get('threshold_monitor_slider', 45)
+    t_quality_exc = st.session_state.get('threshold_quality_exceptional_slider', 80)
+    excl_reds = st.session_state.get('exclude_reds_checkbox', True)
+
+    # Recalculate with current parameters
+    return recalculate_scores(df, w_quality, w_value, t_buy, t_monitor, t_quality_exc, excl_reds)
+
 st.set_page_config(
     page_title="UltraQuality Screener",
     page_icon="📊",
@@ -64,12 +133,29 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     )
 
 # Scoring weights
-with st.sidebar.expander("⚖️ Scoring Weights"):
-    weight_value = st.slider("Value Weight", 0.0, 1.0, 0.5, 0.1)
-    weight_quality = 1.0 - weight_value
-    st.write(f"Quality Weight: {weight_quality:.1f}")
+with st.sidebar.expander("⚖️ Scoring Weights", expanded=True):
+    weight_quality = st.slider("Quality Weight", 0.0, 1.0, 0.65, 0.05,
+                                key='weight_quality_slider',
+                                help="QARP default: 0.65 (prioritize quality)")
+    weight_value = 1.0 - weight_quality
+    st.write(f"**Value Weight:** {weight_value:.2f}")
+    st.caption("✨ Moving sliders will instantly recalculate results")
 
-    exclude_reds = st.checkbox("Exclude RED Guardrails", value=True)
+# Decision thresholds
+with st.sidebar.expander("🎯 Decision Thresholds", expanded=True):
+    threshold_buy = st.slider("BUY Threshold", 50, 90, 65, 5,
+                               key='threshold_buy_slider',
+                               help="Minimum composite score for BUY (QARP default: 65)")
+    threshold_monitor = st.slider("MONITOR Threshold", 30, 70, 45, 5,
+                                   key='threshold_monitor_slider',
+                                   help="Minimum composite score for MONITOR (QARP default: 45)")
+    threshold_quality_exceptional = st.slider("Quality Exceptional", 70, 95, 80, 5,
+                                               key='threshold_quality_exceptional_slider',
+                                               help="If Quality ≥ this + Composite ≥ 60, force BUY (QARP default: 80)")
+
+    exclude_reds = st.checkbox("Exclude RED Guardrails", value=True,
+                               key='exclude_reds_checkbox',
+                               help="Auto-AVOID stocks with accounting red flags")
 
 # API Key status
 st.sidebar.markdown("---")
@@ -92,7 +178,8 @@ with tab1:
 
     # Show existing results summary if available
     if 'results' in st.session_state:
-        df_existing = st.session_state['results']
+        # Get recalculated results with current slider values
+        df_existing = get_results_with_current_params()
         buys_existing = (df_existing['decision'] == 'BUY').sum()
         monitors_existing = (df_existing['decision'] == 'MONITOR').sum()
         timestamp_existing = st.session_state.get('timestamp', datetime.now())
@@ -220,10 +307,12 @@ with tab2:
     st.header("Screening Results")
 
     if 'results' in st.session_state:
-        df = st.session_state['results']
+        # Get recalculated results with current slider values
+        df = get_results_with_current_params()
         timestamp = st.session_state['timestamp']
 
         st.caption(f"Last run: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+        st.caption(f"⚖️ Current weights: Quality {weight_quality:.0%}, Value {weight_value:.0%}")
 
         # Filters
         col1, col2, col3 = st.columns(3)
@@ -273,7 +362,7 @@ with tab2:
         display_cols = [
             'ticker', 'name', 'sector', 'composite_0_100',
             'value_score_0_100', 'quality_score_0_100',
-            'guardrail_status', 'decision', 'notes_short'
+            'guardrail_status', 'decision', 'decision_reason'  # NEW: shows WHY
         ]
 
         available_cols = [col for col in display_cols if col in filtered.columns]
@@ -283,6 +372,23 @@ with tab2:
             use_container_width=True,
             height=600
         )
+
+        # Show special cases
+        with st.expander("🔍 Investigate Specific Companies"):
+            search_ticker = st.text_input("Enter ticker(s) - comma separated (e.g., MA,V,GOOGL)", key="search_ticker")
+            if search_ticker:
+                tickers = [t.strip().upper() for t in search_ticker.split(',')]
+                search_df = df[df['ticker'].str.upper().isin(tickers)]
+
+                if not search_df.empty:
+                    detail_cols = ['ticker', 'roic_%', 'earnings_yield', 'earnings_yield_adj',
+                                  'value_score_0_100', 'quality_score_0_100', 'composite_0_100',
+                                  'guardrail_status', 'decision', 'decision_reason']
+                    available_detail_cols = [col for col in detail_cols if col in search_df.columns]
+
+                    st.dataframe(search_df[available_detail_cols], use_container_width=True)
+                else:
+                    st.warning(f"No results found for: {', '.join(tickers)}")
 
         # Download button
         csv = df.to_csv(index=False).encode('utf-8')
@@ -300,7 +406,8 @@ with tab3:
     st.header("📈 Analytics & Sector Breakdown")
 
     if 'results' in st.session_state:
-        df = st.session_state['results']
+        # Get recalculated results with current slider values
+        df = get_results_with_current_params()
 
         # Validate sufficient data
         if len(df) < 5:
@@ -494,7 +601,8 @@ with tab4:
     st.header("🔍 Qualitative Analysis")
 
     if 'results' in st.session_state:
-        df = st.session_state['results']
+        # Get recalculated results with current slider values
+        df = get_results_with_current_params()
 
         st.markdown("""
         Deep-dive qualitative analysis for individual stocks.
