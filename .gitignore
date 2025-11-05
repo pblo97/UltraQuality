@@ -40,9 +40,10 @@ logs/*.log
 logs/*.json
 !logs/.gitkeep
 
-# Environment
+# Environment & Secrets
 .env
 *.env
+.streamlit/secrets.toml
 
 # Testing
 .pytest_cache/
