@@ -18,8 +18,8 @@ universe:
 
 # Scoring Weights
 scoring:
-  weight_value: 0.35  # 35% Value (reasonable price)
-  weight_quality: 0.65  # 65% Quality (prioritize great companies)
+  weight_value: 0.30  # 30% Value (reasonable price)
+  weight_quality: 0.70  # 70% Quality (prioritize exceptional companies with moats)
   exclude_reds: true  # Exclude ROJO guardrails from final ranking
 
   # Decision thresholds (Quality at Reasonable Price philosophy)

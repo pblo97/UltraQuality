@@ -130,7 +130,8 @@ class ScoringEngine:
             'fcf_margin_%',
             'cfo_to_ni',
             'interestCoverage',
-            'cash_roa'  # NEW: Cash-based profitability
+            'cash_roa',    # NEW: Cash-based profitability
+            'moat_score'   # NEW: Competitive advantages (pricing power, operating leverage, ROIC persistence)
         ]
         quality_lower_better = [
             'netDebt_ebitda',
