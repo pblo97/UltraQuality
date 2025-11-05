@@ -186,46 +186,71 @@ class ScreenerPipeline:
         logger.info(f"Filters: min_mcap=${min_mcap:,.0f}, min_vol=${min_vol:,.0f}")
         logger.info(f"Countries: {countries}, Exchanges: {exchanges or 'All'}")
 
-        # Fetch universe using profile-bulk
-        # FMP profile-bulk uses pagination with 'part' parameter
+        # Fetch universe using stock-screener endpoint
+        # This is more reliable than profile-bulk and works with all plans
         all_profiles = []
 
-        for part in range(5):  # Fetch first 5 parts (covers most US stocks)
-            try:
-                logger.info(f"Fetching profile-bulk part {part}...")
+        logger.info("Using stock-screener endpoint (more reliable than profile-bulk)")
 
-                profiles = self.fmp._request(
-                    'profile-bulk',
-                    params={'part': part},
-                    cache=self.fmp.cache_universe
-                )
+        try:
+            # FMP stock-screener supports market cap and volume filters directly
+            profiles = self.fmp.get_stock_screener(
+                market_cap_more_than=min_mcap,
+                volume_more_than=min_vol // 1000,  # API expects volume in thousands
+                limit=10000  # Maximum results
+            )
 
-                if not profiles:
-                    logger.warning(f"Part {part} returned empty - stopping pagination")
-                    break
-
-                if isinstance(profiles, dict) and 'Error Message' in profiles:
-                    logger.error(f"FMP API Error: {profiles['Error Message']}")
-                    raise ValueError(f"FMP API Error: {profiles['Error Message']}")
-
+            if profiles:
                 all_profiles.extend(profiles)
-                logger.info(f"✓ Fetched {len(profiles)} profiles from part {part} (total: {len(all_profiles)})")
+                logger.info(f"✓ Fetched {len(profiles)} profiles from stock-screener")
+            else:
+                logger.warning("stock-screener returned empty, trying profile-bulk as fallback...")
 
-            except Exception as e:
-                logger.error(f"Failed to fetch part {part}: {type(e).__name__}: {e}")
-                if part == 0:
-                    # If first request fails, show detailed error
-                    logger.error(f"First request failed - this indicates a problem with API access")
-                    logger.error(f"Try manually: curl 'https://financialmodelingprep.com/api/v3/profile-bulk?part=0&apikey=YOUR_KEY'")
-                break
+                # Fallback to profile-bulk if screener fails
+                for part in range(5):
+                    logger.info(f"Fetching profile-bulk part {part}...")
+
+                    profiles = self.fmp._request(
+                        'profile-bulk',
+                        params={'part': part},
+                        cache=self.fmp.cache_universe
+                    )
+
+                    if not profiles:
+                        logger.warning(f"Part {part} returned empty")
+                        break
+
+                    all_profiles.extend(profiles)
+                    logger.info(f"✓ Fetched {len(profiles)} profiles from part {part}")
+
+        except Exception as e:
+            logger.error(f"Failed to fetch universe: {type(e).__name__}: {e}")
+            logger.error("Trying alternative: available-traded/list endpoint...")
+
+            # Last resort: get all traded symbols
+            try:
+                all_traded = self.fmp._request('available-traded/list', cache=self.fmp.cache_universe)
+                if all_traded:
+                    # Get profiles in batches
+                    symbols = [item['symbol'] for item in all_traded if item.get('exchangeShortName') in ['NYSE', 'NASDAQ']][:500]
+                    logger.info(f"Found {len(symbols)} NYSE/NASDAQ symbols, fetching profiles...")
+
+                    # Batch profile requests
+                    for i in range(0, len(symbols), 100):
+                        batch = symbols[i:i+100]
+                        batch_profiles = self.fmp.get_profile_bulk(batch)
+                        if batch_profiles:
+                            all_profiles.extend(batch_profiles)
+                            logger.info(f"✓ Fetched {len(batch_profiles)} profiles (batch {i//100 + 1})")
+            except Exception as e2:
+                logger.error(f"All fallback methods failed: {e2}")
 
         if not all_profiles:
             raise ValueError(
-                "No profiles fetched. Possible causes:\n"
-                f"  1. API endpoint returned empty (try different endpoint)\n"
-                f"  2. Network/firewall blocking FMP\n"
-                f"  3. API key lacks access to profile-bulk endpoint\n"
-                f"  4. Check logs above for HTTP status codes"
+                "No profiles fetched after trying multiple endpoints.\n"
+                f"Tried: stock-screener, profile-bulk, available-traded/list\n"
+                f"Your API key works but may not have access to these endpoints.\n"
+                f"Contact FMP support: support@financialmodelingprep.com"
             )
 
         # Convert to DataFrame
