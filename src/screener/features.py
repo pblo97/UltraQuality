@@ -97,34 +97,59 @@ class FeatureCalculator:
         bal = balance[0] if balance else {}
         cf = cashflow[0] if cashflow else {}
 
-        # === VALUE METRICS ===
+        # === VALUE METRICS (Modern Yields) ===
+        # Using yields (inverted multiples) per Greenblatt, Novy-Marx research
+        # Higher yields = better value
 
-        # EV/EBIT (TTM)
+        # Calculate base components
         market_cap = prof.get('mktCap') or met.get('marketCap')
         ebit_ttm = self._sum_ttm(income, 'operatingIncome')
+        ebitda_ttm = self._sum_ttm(income, 'ebitda')
         total_debt = bal.get('totalDebt', 0)
         cash = bal.get('cashAndCashEquivalents', 0)
         ev = market_cap + total_debt - cash if market_cap else None
 
-        if ev and ebit_ttm and ebit_ttm > 0:
-            features['ev_ebit_ttm'] = ev / ebit_ttm
-        else:
-            features['ev_ebit_ttm'] = None
-
-        # EV/FCF (TTM)
+        # Free Cash Flow & Operating Cash Flow (TTM)
         fcf_ttm = self._sum_ttm(cashflow, 'freeCashFlow')
-        if ev and fcf_ttm and fcf_ttm > 0:
-            features['ev_fcf_ttm'] = ev / fcf_ttm
+        cfo_ttm = self._sum_ttm(cashflow, 'operatingCashFlow')
+        capex_ttm = abs(self._sum_ttm(cashflow, 'capitalExpenditure'))  # Usually negative
+
+        # 1. Earnings Yield = EBIT / EV (Greenblatt Magic Formula)
+        if ev and ev > 0 and ebit_ttm and ebit_ttm > 0:
+            features['earnings_yield'] = (ebit_ttm / ev) * 100
         else:
-            features['ev_fcf_ttm'] = None
+            features['earnings_yield'] = None
 
-        # P/E (TTM)
-        features['pe_ttm'] = met.get('peRatioTTM') or rat.get('priceEarningsRatioTTM')
+        # 2. FCF Yield = FCF / EV (Modern standard)
+        if ev and ev > 0 and fcf_ttm and fcf_ttm > 0:
+            features['fcf_yield'] = (fcf_ttm / ev) * 100
+        else:
+            features['fcf_yield'] = None
 
-        # P/B (TTM)
-        features['pb_ttm'] = met.get('pbRatioTTM') or rat.get('priceToBookRatioTTM')
+        # 3. CFO Yield = Operating Cash Flow / EV (Stable alternative)
+        if ev and ev > 0 and cfo_ttm and cfo_ttm > 0:
+            features['cfo_yield'] = (cfo_ttm / ev) * 100
+        else:
+            features['cfo_yield'] = None
 
-        # Shareholder Yield % = (Dividends + Net Buybacks) / Market Cap
+        # 4. Gross Profit Yield = Gross Profit / EV (Novy-Marx)
+        gross_profit_ttm = self._sum_ttm(income, 'grossProfit')
+        if ev and ev > 0 and gross_profit_ttm and gross_profit_ttm > 0:
+            features['gross_profit_yield'] = (gross_profit_ttm / ev) * 100
+        else:
+            features['gross_profit_yield'] = None
+
+        # 5. EBITDA-CAPEX Yield = (EBITDA - CAPEX) / EV (O'Shaughnessy)
+        if ev and ev > 0 and ebitda_ttm:
+            ebitda_minus_capex = ebitda_ttm - capex_ttm
+            if ebitda_minus_capex > 0:
+                features['ebitda_capex_yield'] = (ebitda_minus_capex / ev) * 100
+            else:
+                features['ebitda_capex_yield'] = None
+        else:
+            features['ebitda_capex_yield'] = None
+
+        # Shareholder Yield % = (Dividends + Net Buybacks - Issuance) / Market Cap
         div_paid = abs(cf.get('dividendsPaid', 0))  # Usually negative
         stock_repurchase = abs(cf.get('commonStockRepurchased', 0)) if cf.get('commonStockRepurchased', 0) < 0 else 0
         stock_issued = cf.get('commonStockIssued', 0) if cf.get('commonStockIssued', 0) > 0 else 0
@@ -134,6 +159,12 @@ class FeatureCalculator:
             features['shareholder_yield_%'] = (shareholder_return / market_cap) * 100
         else:
             features['shareholder_yield_%'] = None
+
+        # Legacy metrics (keep for backward compatibility but not used in scoring)
+        features['ev_ebit_ttm'] = ev / ebit_ttm if ev and ebit_ttm and ebit_ttm > 0 else None
+        features['ev_fcf_ttm'] = ev / fcf_ttm if ev and fcf_ttm and fcf_ttm > 0 else None
+        features['pe_ttm'] = met.get('peRatioTTM') or rat.get('priceEarningsRatioTTM')
+        features['pb_ttm'] = met.get('pbRatioTTM') or rat.get('priceToBookRatioTTM')
 
         # === QUALITY METRICS ===
 
@@ -216,6 +247,53 @@ class FeatureCalculator:
         else:
             features['interestCoverage'] = None
 
+        # === QUALITY STABILITY METRICS ===
+        # Lower volatility = higher quality (Mohanram, Asness)
+
+        # ROA Stability = std(ROA) / mean(ROA) over last 4 quarters (lower is better)
+        roa_quarterly = []
+        for i in range(min(4, len(income))):
+            ni_q = income[i].get('netIncome', 0)
+            assets_q = balance[i].get('totalAssets', 0) if i < len(balance) else 0
+            if assets_q and assets_q > 0:
+                roa_quarterly.append((ni_q / assets_q) * 100)
+
+        if len(roa_quarterly) >= 3:
+            mean_roa = np.mean(roa_quarterly)
+            if mean_roa != 0:
+                features['roa_stability'] = np.std(roa_quarterly) / abs(mean_roa)
+            else:
+                features['roa_stability'] = None
+        else:
+            features['roa_stability'] = None
+
+        # Calculate TTM ROA while we have the data
+        if ni_ttm and total_assets and total_assets > 0:
+            features['roa_%'] = (ni_ttm / total_assets) * 100
+        else:
+            features['roa_%'] = None
+
+        # FCF Stability = std(FCF) / mean(FCF) over last 4 quarters (lower is better)
+        fcf_quarterly = []
+        for i in range(min(4, len(cashflow))):
+            fcf_q = cashflow[i].get('freeCashFlow', 0)
+            fcf_quarterly.append(fcf_q)
+
+        if len(fcf_quarterly) >= 3:
+            mean_fcf = np.mean(fcf_quarterly)
+            if mean_fcf != 0:
+                features['fcf_stability'] = np.std(fcf_quarterly) / abs(mean_fcf)
+            else:
+                features['fcf_stability'] = None
+        else:
+            features['fcf_stability'] = None
+
+        # Cash ROA = CFO / Assets (Piotroski - cash-based profitability)
+        if cfo_ttm and total_assets and total_assets > 0:
+            features['cash_roa'] = (cfo_ttm / total_assets) * 100
+        else:
+            features['cash_roa'] = None
+
         # Fixed Charge Coverage = (EBIT + Operating Leases) / (Interest + Operating Leases)
         # Simplified: assume operating lease ~= operatingExpenses * 0.1 (rough proxy)
         # For better accuracy, would need footnote data (not in standard API)
@@ -223,7 +301,6 @@ class FeatureCalculator:
 
         # Placeholder for non-financial-specific fields
         features['p_tangibleBook'] = None
-        features['roa_%'] = None
         features['roe_%'] = None
         features['efficiency_ratio'] = None
         features['nim_%'] = None

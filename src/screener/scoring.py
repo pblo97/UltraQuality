@@ -93,30 +93,59 @@ class ScoringEngine:
         """
         Score non-financial companies.
 
-        Value signals: ev_ebit_ttm, ev_fcf_ttm, pe_ttm, pb_ttm, shareholder_yield_%
-        Quality signals: roic_%, grossProfits_to_assets, fcf_margin_%, cfo_to_ni,
-                         netDebt_ebitda (inverted), interestCoverage
+        Value signals (Modern Yields - higher is better):
+            - earnings_yield: EBIT/EV (Greenblatt Magic Formula)
+            - fcf_yield: FCF/EV (Modern standard)
+            - cfo_yield: CFO/EV (Stable alternative)
+            - gross_profit_yield: GP/EV (Novy-Marx)
+            - shareholder_yield_%: Dividends + Buybacks - Issuance
 
-        Lower is better for valuation multiples (except shareholder_yield).
-        Higher is better for quality metrics (except netDebt_ebitda).
+        Quality signals (higher is better):
+            - roic_%: Return on Invested Capital
+            - grossProfits_to_assets: GP/Assets (Novy-Marx)
+            - fcf_margin_%: FCF/Revenue
+            - cfo_to_ni: Cash quality
+            - interestCoverage: EBIT/Interest
+            - cash_roa: CFO/Assets (Piotroski)
+
+        Quality signals (lower is better):
+            - netDebt_ebitda: Leverage
+            - roa_stability: Earnings volatility
+            - fcf_stability: Cash flow volatility
         """
         # Normalize by industry
-        value_metrics = ['ev_ebit_ttm', 'ev_fcf_ttm', 'pe_ttm', 'pb_ttm']
-        value_higher_better = ['shareholder_yield_%']
+        # Modern Value Yields (all higher is better)
+        value_metrics = [
+            'earnings_yield',      # EBIT / EV (Greenblatt)
+            'fcf_yield',          # FCF / EV
+            'cfo_yield',          # CFO / EV (stable)
+            'gross_profit_yield', # GP / EV (Novy-Marx)
+            'shareholder_yield_%' # Dividends + Buybacks
+        ]
 
-        quality_metrics = ['roic_%', 'grossProfits_to_assets', 'fcf_margin_%', 'cfo_to_ni', 'interestCoverage']
-        quality_lower_better = ['netDebt_ebitda']
+        quality_metrics = [
+            'roic_%',
+            'grossProfits_to_assets',
+            'fcf_margin_%',
+            'cfo_to_ni',
+            'interestCoverage',
+            'cash_roa'  # NEW: Cash-based profitability
+        ]
+        quality_lower_better = [
+            'netDebt_ebitda',
+            'roa_stability',   # NEW: Lower volatility = better
+            'fcf_stability'    # NEW: Lower volatility = better
+        ]
 
-        # Normalize value metrics (lower = better, so invert z-score)
-        df = self._normalize_by_industry(df, value_metrics, higher_is_better=False)
-        df = self._normalize_by_industry(df, value_higher_better, higher_is_better=True)
+        # Normalize value metrics (all yields - higher is better)
+        df = self._normalize_by_industry(df, value_metrics, higher_is_better=True)
 
         # Normalize quality metrics
         df = self._normalize_by_industry(df, quality_metrics, higher_is_better=True)
         df = self._normalize_by_industry(df, quality_lower_better, higher_is_better=False)
 
         # Aggregate scores
-        all_value_cols = [f"{m}_zscore" for m in value_metrics + value_higher_better]
+        all_value_cols = [f"{m}_zscore" for m in value_metrics]
         all_quality_cols = [f"{m}_zscore" for m in quality_metrics + quality_lower_better]
 
         df['value_score_0_100'] = df[all_value_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
@@ -246,6 +275,9 @@ class ScoringEngine:
         """
         Normalize metrics by industry using z-scores.
 
+        Fallback strategy: If industry has < 3 companies, use universe-wide normalization
+        to avoid returning z-score = 0 (which converts to percentile = 50).
+
         Args:
             df: DataFrame with 'industry' column
             metrics: List of metric column names
@@ -260,10 +292,26 @@ class ScoringEngine:
                 logger.warning(f"Metric '{metric}' not found in DataFrame")
                 continue
 
-            # Group by industry and calculate z-scores
+            # Try industry-level normalization first
             df[f'{metric}_zscore'] = df.groupby('industry')[metric].transform(
                 lambda x: self._robust_zscore(x, higher_is_better)
             )
+
+            # Check for failed normalizations (z-score = 0 from small industries)
+            # These happen when industry has < 3 companies or MAD = 0
+            failed_mask = (df[f'{metric}_zscore'] == 0) & (df[metric].notna())
+
+            if failed_mask.sum() > 0:
+                logger.warning(
+                    f"Metric '{metric}': {failed_mask.sum()} companies in small industries. "
+                    f"Using universe-wide normalization as fallback."
+                )
+
+                # Calculate universe-wide z-scores for failed companies
+                universe_zscore = self._robust_zscore(df[metric], higher_is_better)
+
+                # Replace failed z-scores with universe-wide scores
+                df.loc[failed_mask, f'{metric}_zscore'] = universe_zscore[failed_mask]
 
         return df
 
