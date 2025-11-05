@@ -10,7 +10,8 @@ from datetime import datetime
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
-from screener.orchestrator import ScreenerPipeline
+# NOTE: We import ScreenerPipeline lazily inside the button click
+# to avoid blocking the UI load with heavy imports
 
 st.set_page_config(
     page_title="UltraQuality Screener",
@@ -100,6 +101,12 @@ with tab1:
         status_text = st.empty()
 
         try:
+            status_text.text("Loading modules...")
+            progress_bar.progress(3)
+
+            # Lazy import to avoid blocking UI load
+            from screener.orchestrator import ScreenerPipeline
+
             status_text.text("Initializing pipeline...")
             progress_bar.progress(5)
 
