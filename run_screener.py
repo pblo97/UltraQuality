@@ -39,10 +39,10 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     min_mcap = st.number_input(
         "Min Market Cap ($M)",
         min_value=100,
-        max_value=50000,
-        value=500,
+        max_value=100000,
+        value=2000,
         step=100,
-        help="Minimum market capitalization in millions"
+        help="Minimum market capitalization in millions (default: $2B to avoid small caps)"
     )
 
     min_vol = st.number_input(
