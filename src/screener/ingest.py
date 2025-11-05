@@ -1,0 +1,339 @@
+"""
+FMP API Wrapper with caching, rate limiting, and backoff.
+"""
+import os
+import json
+import time
+import logging
+import hashlib
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timedelta
+import requests
+from functools import wraps
+
+logger = logging.getLogger(__name__)
+
+
+class RateLimiter:
+    """Token bucket rate limiter with jitter."""
+
+    def __init__(self, rate: float):
+        """
+        Args:
+            rate: Requests per second
+        """
+        self.rate = rate
+        self.interval = 1.0 / rate
+        self.last_request = 0.0
+
+    def wait(self):
+        """Wait if necessary to respect rate limit."""
+        now = time.time()
+        time_since_last = now - self.last_request
+        if time_since_last < self.interval:
+            sleep_time = self.interval - time_since_last
+            # Add small jitter (±10%)
+            jitter = sleep_time * 0.1 * (2 * (hash(str(now)) % 100) / 100 - 1)
+            time.sleep(sleep_time + jitter)
+        self.last_request = time.time()
+
+
+class FMPCache:
+    """Simple file-based cache for FMP responses."""
+
+    def __init__(self, cache_dir: str, ttl_hours: int = 48):
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.ttl = timedelta(hours=ttl_hours)
+        self.hits = 0
+        self.misses = 0
+
+    def _get_key(self, url: str, params: Dict) -> str:
+        """Generate cache key from URL and params."""
+        # Remove API key from cache key
+        cache_params = {k: v for k, v in params.items() if k != 'apikey'}
+        key_str = f"{url}:{json.dumps(cache_params, sort_keys=True)}"
+        return hashlib.sha256(key_str.encode()).hexdigest()
+
+    def get(self, url: str, params: Dict) -> Optional[Any]:
+        """Retrieve cached response if valid."""
+        key = self._get_key(url, params)
+        cache_file = self.cache_dir / f"{key}.json"
+
+        if cache_file.exists():
+            stat = cache_file.stat()
+            age = datetime.now() - datetime.fromtimestamp(stat.st_mtime)
+
+            if age < self.ttl:
+                with open(cache_file, 'r') as f:
+                    self.hits += 1
+                    logger.debug(f"Cache HIT: {url}")
+                    return json.load(f)
+
+        self.misses += 1
+        logger.debug(f"Cache MISS: {url}")
+        return None
+
+    def set(self, url: str, params: Dict, data: Any):
+        """Store response in cache."""
+        key = self._get_key(url, params)
+        cache_file = self.cache_dir / f"{key}.json"
+
+        with open(cache_file, 'w') as f:
+            json.dump(data, f)
+
+        logger.debug(f"Cached: {url}")
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Return cache statistics."""
+        total = self.hits + self.misses
+        hit_rate = self.hits / total if total > 0 else 0.0
+        return {
+            "hits": self.hits,
+            "misses": self.misses,
+            "hit_rate": hit_rate
+        }
+
+
+class FMPClient:
+    """
+    Financial Modeling Prep API client with:
+    - Rate limiting (configurable req/sec)
+    - Caching (file-based with TTL)
+    - Exponential backoff with jitter
+    - Request metrics tracking
+    """
+
+    def __init__(self, api_key: str, config: Dict):
+        self.api_key = api_key
+        self.base_url = config.get('base_url', 'https://financialmodelingprep.com/api/v3')
+        self.rate_limiter = RateLimiter(config.get('rate_limit_rps', 8))
+        self.max_retries = config.get('max_retries', 3)
+        self.timeout = config.get('timeout_seconds', 30)
+
+        # Caches with different TTLs
+        cache_dir = config.get('cache_dir', './cache')
+        self.cache_universe = FMPCache(f"{cache_dir}/universe", ttl_hours=12)
+        self.cache_symbol = FMPCache(f"{cache_dir}/symbol", ttl_hours=48)
+        self.cache_qualitative = FMPCache(f"{cache_dir}/qualitative", ttl_hours=24)
+
+        # Metrics
+        self.requests_by_endpoint = {}
+        self.total_requests = 0
+        self.total_cached = 0
+        self.errors = []
+
+    def _request(
+        self,
+        endpoint: str,
+        params: Optional[Dict] = None,
+        cache: Optional[FMPCache] = None,
+        retry_count: int = 0
+    ) -> Any:
+        """
+        Make HTTP request with rate limiting, caching, and retries.
+
+        Args:
+            endpoint: API endpoint (e.g., 'stock-screener')
+            params: Query parameters
+            cache: Cache instance to use (or None to skip caching)
+            retry_count: Current retry attempt
+
+        Returns:
+            JSON response data
+        """
+        url = f"{self.base_url}/{endpoint}"
+        params = params or {}
+        params['apikey'] = self.api_key
+
+        # Check cache first
+        if cache:
+            cached = cache.get(url, params)
+            if cached is not None:
+                self.total_cached += 1
+                return cached
+
+        # Rate limit
+        self.rate_limiter.wait()
+
+        # Track metrics
+        self.total_requests += 1
+        self.requests_by_endpoint[endpoint] = self.requests_by_endpoint.get(endpoint, 0) + 1
+
+        try:
+            logger.debug(f"GET {url} with params={params}")
+            response = requests.get(url, params=params, timeout=self.timeout)
+            response.raise_for_status()
+            data = response.json()
+
+            # Handle FMP error messages
+            if isinstance(data, dict) and 'Error Message' in data:
+                raise Exception(f"FMP API Error: {data['Error Message']}")
+
+            # Cache successful response
+            if cache:
+                cache.set(url, params, data)
+
+            return data
+
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Request failed for {url}: {e}")
+
+            # Retry with exponential backoff
+            if retry_count < self.max_retries:
+                wait_time = (2 ** retry_count) + (hash(url) % 100) / 100  # 2s, 4s, 8s + jitter
+                logger.info(f"Retrying in {wait_time:.2f}s (attempt {retry_count + 1}/{self.max_retries})")
+                time.sleep(wait_time)
+                return self._request(endpoint, params, cache, retry_count + 1)
+            else:
+                self.errors.append({"endpoint": endpoint, "error": str(e), "time": datetime.now().isoformat()})
+                logger.error(f"Max retries exceeded for {url}")
+                raise
+
+    # ========================
+    # Screener & Universe
+    # ========================
+
+    def get_stock_screener(
+        self,
+        market_cap_more_than: Optional[int] = None,
+        volume_more_than: Optional[int] = None,
+        exchange: Optional[str] = None,
+        limit: int = 10000
+    ) -> List[Dict]:
+        """
+        Endpoint: /stock-screener
+        Returns list of stocks matching criteria.
+        """
+        params = {'limit': limit}
+        if market_cap_more_than:
+            params['marketCapMoreThan'] = market_cap_more_than
+        if volume_more_than:
+            params['volumeMoreThan'] = volume_more_than
+        if exchange:
+            params['exchange'] = exchange
+
+        return self._request('stock-screener', params, cache=self.cache_universe)
+
+    def get_profile_bulk(self, symbols: List[str]) -> List[Dict]:
+        """
+        Endpoint: /profile/{symbol1,symbol2,...}
+        Bulk company profiles (sector, industry, market cap, etc.)
+        """
+        if not symbols:
+            return []
+
+        symbol_str = ','.join(symbols[:100])  # FMP limit ~100 symbols
+        return self._request(f'profile/{symbol_str}', cache=self.cache_symbol)
+
+    def get_profile(self, symbol: str) -> List[Dict]:
+        """Single symbol profile."""
+        return self._request(f'profile/{symbol}', cache=self.cache_symbol)
+
+    # ========================
+    # Financial Statements
+    # ========================
+
+    def get_income_statement(self, symbol: str, period: str = 'quarter', limit: int = 4) -> List[Dict]:
+        """
+        Endpoint: /income-statement/{symbol}
+        Args:
+            period: 'quarter' or 'annual'
+        """
+        params = {'period': period, 'limit': limit}
+        return self._request(f'income-statement/{symbol}', params, cache=self.cache_symbol)
+
+    def get_balance_sheet(self, symbol: str, period: str = 'quarter', limit: int = 4) -> List[Dict]:
+        """Endpoint: /balance-sheet-statement/{symbol}"""
+        params = {'period': period, 'limit': limit}
+        return self._request(f'balance-sheet-statement/{symbol}', params, cache=self.cache_symbol)
+
+    def get_cash_flow(self, symbol: str, period: str = 'quarter', limit: int = 4) -> List[Dict]:
+        """Endpoint: /cash-flow-statement/{symbol}"""
+        params = {'period': period, 'limit': limit}
+        return self._request(f'cash-flow-statement/{symbol}', params, cache=self.cache_symbol)
+
+    # ========================
+    # Ratios & Metrics (TTM preferred)
+    # ========================
+
+    def get_key_metrics_ttm(self, symbol: str) -> List[Dict]:
+        """
+        Endpoint: /key-metrics-ttm/{symbol}
+        TTM metrics including P/E, P/B, ROE, ROIC, etc.
+        """
+        return self._request(f'key-metrics-ttm/{symbol}', cache=self.cache_symbol)
+
+    def get_ratios_ttm(self, symbol: str) -> List[Dict]:
+        """
+        Endpoint: /ratios-ttm/{symbol}
+        TTM financial ratios.
+        """
+        return self._request(f'ratios-ttm/{symbol}', cache=self.cache_symbol)
+
+    def get_enterprise_values(self, symbol: str, period: str = 'quarter', limit: int = 4) -> List[Dict]:
+        """
+        Endpoint: /enterprise-values/{symbol}
+        EV, EV/EBITDA, EV/Sales, etc.
+        """
+        params = {'period': period, 'limit': limit}
+        return self._request(f'enterprise-values/{symbol}', params, cache=self.cache_symbol)
+
+    def get_financial_growth(self, symbol: str, period: str = 'quarter', limit: int = 4) -> List[Dict]:
+        """
+        Endpoint: /financial-growth/{symbol}
+        Growth metrics (revenue growth, earnings growth, etc.)
+        """
+        params = {'period': period, 'limit': limit}
+        return self._request(f'financial-growth/{symbol}', params, cache=self.cache_symbol)
+
+    # ========================
+    # Qualitative (on-demand)
+    # ========================
+
+    def get_stock_news(self, symbol: str, limit: int = 20) -> List[Dict]:
+        """Endpoint: /stock_news?tickers={symbol}"""
+        params = {'tickers': symbol, 'limit': limit}
+        return self._request('stock_news', params, cache=self.cache_qualitative)
+
+    def get_press_releases(self, symbol: str, limit: int = 20) -> List[Dict]:
+        """Endpoint: /press-releases/{symbol}"""
+        params = {'limit': limit}
+        return self._request(f'press-releases/{symbol}', params, cache=self.cache_qualitative)
+
+    def get_earnings_call_transcript(self, symbol: str, year: Optional[int] = None, quarter: Optional[int] = None) -> List[Dict]:
+        """
+        Endpoint: /earning_call_transcript/{symbol}
+        Latest transcript if year/quarter not specified.
+        """
+        params = {}
+        if year:
+            params['year'] = year
+        if quarter:
+            params['quarter'] = quarter
+
+        return self._request(f'earning_call_transcript/{symbol}', params, cache=self.cache_qualitative)
+
+    def get_stock_peers(self, symbol: str) -> List[Dict]:
+        """Endpoint: /stock_peers?symbol={symbol}"""
+        params = {'symbol': symbol}
+        return self._request('stock_peers', params, cache=self.cache_qualitative)
+
+    # ========================
+    # Metrics & Stats
+    # ========================
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """Return request metrics and cache stats."""
+        return {
+            "total_requests": self.total_requests,
+            "total_cached": self.total_cached,
+            "requests_by_endpoint": self.requests_by_endpoint,
+            "cache_stats": {
+                "universe": self.cache_universe.get_stats(),
+                "symbol": self.cache_symbol.get_stats(),
+                "qualitative": self.cache_qualitative.get_stats()
+            },
+            "errors": self.errors
+        }
