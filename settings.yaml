@@ -4,7 +4,7 @@
 fmp:
   api_key: "${FMP_API_KEY}"  # Set via environment variable
   base_url: "https://financialmodelingprep.com/api/v3"
-  rate_limit_rps: 8
+  rate_limit_rps: 21  # 21 RPS = 1260 calls/min (97% of 1300 limit, leaving margin for safety)
   max_retries: 3
   timeout_seconds: 60  # Increased for bulk requests
 
@@ -14,7 +14,7 @@ universe:
   exchanges: ["NYSE", "NASDAQ"]  # Empty list = all exchanges
   min_market_cap: 2_000_000_000  # $2B minimum (avoids small caps)
   min_avg_dollar_vol_3m: 5_000_000  # $5M daily volume
-  top_k: 150  # Top K symbols to deep-dive after preliminary ranking
+  top_k: 300  # Top K symbols to deep-dive after preliminary ranking (increased from 150 to use full API capacity)
 
 # Scoring Weights
 scoring:

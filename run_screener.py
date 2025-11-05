@@ -137,9 +137,9 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "Top-K Stocks to Analyze",
         min_value=20,
         max_value=300,
-        value=150,
+        value=300,
         step=10,
-        help="Number of stocks to deep-dive after preliminary ranking"
+        help="Number of stocks to deep-dive after preliminary ranking (increased to 300 to use full API capacity)"
     )
 
 # Scoring weights
