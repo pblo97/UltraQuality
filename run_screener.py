@@ -90,6 +90,29 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏠 Home", "📊 Results", "📈 Analy
 with tab1:
     st.header("Run Screener")
 
+    # Show existing results summary if available
+    if 'results' in st.session_state:
+        df_existing = st.session_state['results']
+        buys_existing = (df_existing['decision'] == 'BUY').sum()
+        monitors_existing = (df_existing['decision'] == 'MONITOR').sum()
+        timestamp_existing = st.session_state.get('timestamp', datetime.now())
+
+        st.success(f"📊 **Latest Results Available** (from {timestamp_existing.strftime('%Y-%m-%d %H:%M:%S')})")
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total Analyzed", len(df_existing))
+        with col2:
+            st.metric("🟢 BUY Signals", buys_existing)
+        with col3:
+            st.metric("🟡 MONITOR", monitors_existing)
+        with col4:
+            avg = df_existing['composite_0_100'].mean()
+            st.metric("Avg Score", f"{avg:.1f}")
+
+        st.info("👉 Check **Results**, **Analytics**, and **Qualitative** tabs to explore the data")
+        st.markdown("---")
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Universe", "2000+", "stocks")
@@ -143,27 +166,31 @@ with tab1:
 
             # Load and display results
             df = pd.read_csv(output_csv)
-            st.session_state['results'] = df
-            st.session_state['timestamp'] = datetime.now()
 
-            # Show summary
-            st.subheader("📈 Summary")
-            col1, col2, col3, col4 = st.columns(4)
+            # Validate results before saving
+            if len(df) == 0:
+                st.warning("⚠️ Screening completed but no stocks met the criteria.")
+                st.info("💡 Try lowering the minimum Market Cap or Volume thresholds.")
+                progress_bar.empty()
+                status_text.empty()
+            else:
+                # Save to session state
+                st.session_state['results'] = df
+                st.session_state['timestamp'] = datetime.now()
+                st.session_state['output_csv'] = output_csv
 
-            with col1:
-                st.metric("Total Analyzed", len(df))
-            with col2:
+                # Show quick summary
                 buys = (df['decision'] == 'BUY').sum()
-                st.metric("BUY Signals", buys, delta=None)
-            with col3:
                 monitors = (df['decision'] == 'MONITOR').sum()
-                st.metric("MONITOR", monitors)
-            with col4:
-                avg_score = df['composite_0_100'].mean()
-                st.metric("Avg Score", f"{avg_score:.1f}")
 
-            # Switch to results tab
-            st.info("👉 Check the **Results** tab to see detailed data")
+                st.success(f"✅ Found {buys} BUY signals and {monitors} MONITOR from {len(df)} stocks!")
+
+                # Clear progress indicators
+                progress_bar.empty()
+                status_text.empty()
+
+                # Force Streamlit to rerun so other tabs show the data
+                st.rerun()
 
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
