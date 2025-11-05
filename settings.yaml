@@ -12,7 +12,7 @@ fmp:
 universe:
   countries: ["US"]  # ISO country codes
   exchanges: ["NYSE", "NASDAQ"]  # Empty list = all exchanges
-  min_market_cap: 500_000_000  # $500M minimum
+  min_market_cap: 2_000_000_000  # $2B minimum (avoids small caps)
   min_avg_dollar_vol_3m: 5_000_000  # $5M daily volume
   top_k: 150  # Top K symbols to deep-dive after preliminary ranking
 

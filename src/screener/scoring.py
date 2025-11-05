@@ -50,8 +50,18 @@ class ScoringEngine:
         if not df_fin.empty:
             df_fin = self._score_financials(df_fin)
 
-        # Merge back
-        df_scored = pd.concat([df_nonfin, df_fin], ignore_index=True)
+        # Merge back - handle edge cases
+        if df_nonfin.empty and df_fin.empty:
+            raise ValueError("No stocks to score after filtering by company type")
+        elif df_nonfin.empty:
+            df_scored = df_fin.reset_index(drop=True)
+        elif df_fin.empty:
+            df_scored = df_nonfin.reset_index(drop=True)
+        else:
+            # Both have data: reset indices and concat
+            df_nonfin = df_nonfin.reset_index(drop=True)
+            df_fin = df_fin.reset_index(drop=True)
+            df_scored = pd.concat([df_nonfin, df_fin], ignore_index=True)
 
         # Decision logic
         df_scored = self._apply_decision_logic(df_scored)
@@ -152,7 +162,15 @@ class ScoringEngine:
             )
 
         # Merge REITs and financials back
-        # Reset indices to avoid duplicate index errors
+        # Handle edge cases: empty DataFrames
+        if df_fin_only.empty and df_reit.empty:
+            return pd.DataFrame()
+        elif df_fin_only.empty:
+            return df_reit.reset_index(drop=True)
+        elif df_reit.empty:
+            return df_fin_only.reset_index(drop=True)
+
+        # Both have data: reset indices and concat
         df_fin_only = df_fin_only.reset_index(drop=True)
         df_reit = df_reit.reset_index(drop=True)
         return pd.concat([df_fin_only, df_reit], ignore_index=True)
