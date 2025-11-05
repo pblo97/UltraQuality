@@ -53,28 +53,37 @@ class ScreenerPipeline:
 
         try:
             import streamlit as st
-            if hasattr(st, 'secrets') and 'FMP_API_KEY' in st.secrets:
-                api_key = st.secrets['FMP_API_KEY']
-                logger.info("Using API key from Streamlit secrets")
-        except (ImportError, FileNotFoundError):
-            pass
+            if hasattr(st, 'secrets'):
+                # Try FMP_API_KEY first (correct name)
+                if 'FMP_API_KEY' in st.secrets:
+                    api_key = st.secrets['FMP_API_KEY']
+                    logger.info(f"✓ Using API key from Streamlit secrets: FMP_API_KEY={api_key[:10]}...{api_key[-4:]}")
+                # Fallback to FMP (common mistake)
+                elif 'FMP' in st.secrets:
+                    api_key = st.secrets['FMP']
+                    logger.warning(f"⚠️  Found 'FMP' in secrets (should be 'FMP_API_KEY'). Using anyway: {api_key[:10]}...{api_key[-4:]}")
+                else:
+                    available_keys = list(st.secrets.keys())
+                    logger.error(f"❌ FMP_API_KEY not found in Streamlit secrets. Available keys: {available_keys}")
+        except (ImportError, FileNotFoundError) as e:
+            logger.debug(f"Streamlit not available or secrets not found: {e}")
 
         if not api_key:
             api_key = os.getenv('FMP_API_KEY')
             if api_key:
-                logger.info("Using API key from environment variable")
+                logger.info(f"✓ Using API key from environment variable: {api_key[:10]}...{api_key[-4:]}")
 
         if not api_key:
             api_key = self.config['fmp'].get('api_key')
             if api_key and not api_key.startswith('${'):
-                logger.info("Using API key from config file")
+                logger.info(f"✓ Using API key from config file: {api_key[:10]}...{api_key[-4:]}")
 
         if not api_key or api_key.startswith('${'):
             raise ValueError(
                 "FMP_API_KEY not found. Set it via:\n"
-                "  1. Streamlit secrets (st.secrets['FMP_API_KEY'])\n"
-                "  2. Environment variable (export FMP_API_KEY=...)\n"
-                "  3. .env file (FMP_API_KEY=...)"
+                "  1. Streamlit secrets: Add 'FMP_API_KEY = \"your_key\"' (NOT 'FMP')\n"
+                "  2. Environment variable: export FMP_API_KEY=your_key\n"
+                "  3. .env file: FMP_API_KEY=your_key"
             )
 
         self.fmp = FMPClient(api_key, self.config['fmp'])
