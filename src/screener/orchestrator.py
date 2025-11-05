@@ -45,9 +45,37 @@ class ScreenerPipeline:
         self._setup_logging()
 
         # Initialize FMP client
-        api_key = os.getenv('FMP_API_KEY') or self.config['fmp']['api_key']
+        # Try multiple sources for API key (in order of priority):
+        # 1. Streamlit secrets (if available)
+        # 2. Environment variable
+        # 3. Config file
+        api_key = None
+
+        try:
+            import streamlit as st
+            if hasattr(st, 'secrets') and 'FMP_API_KEY' in st.secrets:
+                api_key = st.secrets['FMP_API_KEY']
+                logger.info("Using API key from Streamlit secrets")
+        except (ImportError, FileNotFoundError):
+            pass
+
+        if not api_key:
+            api_key = os.getenv('FMP_API_KEY')
+            if api_key:
+                logger.info("Using API key from environment variable")
+
+        if not api_key:
+            api_key = self.config['fmp'].get('api_key')
+            if api_key and not api_key.startswith('${'):
+                logger.info("Using API key from config file")
+
         if not api_key or api_key.startswith('${'):
-            raise ValueError("FMP_API_KEY environment variable not set")
+            raise ValueError(
+                "FMP_API_KEY not found. Set it via:\n"
+                "  1. Streamlit secrets (st.secrets['FMP_API_KEY'])\n"
+                "  2. Environment variable (export FMP_API_KEY=...)\n"
+                "  3. .env file (FMP_API_KEY=...)"
+            )
 
         self.fmp = FMPClient(api_key, self.config['fmp'])
         logger.info("FMP client initialized")
