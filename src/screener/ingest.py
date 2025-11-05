@@ -162,8 +162,14 @@ class FMPClient:
         self.requests_by_endpoint[endpoint] = self.requests_by_endpoint.get(endpoint, 0) + 1
 
         try:
-            logger.debug(f"GET {url} with params={params}")
+            # Log request details (hide full API key)
+            safe_params = {k: (v[:10] + '...' if k == 'apikey' and v else v) for k, v in params.items()}
+            logger.info(f"→ API Request: GET {url} params={safe_params}")
+
             response = requests.get(url, params=params, timeout=self.timeout)
+
+            logger.info(f"← API Response: Status {response.status_code}, Size: {len(response.content)} bytes")
+
             response.raise_for_status()
             data = response.json()
 
