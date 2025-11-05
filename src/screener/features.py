@@ -166,6 +166,9 @@ class FeatureCalculator:
         features['pe_ttm'] = met.get('peRatioTTM') or rat.get('priceEarningsRatioTTM')
         features['pb_ttm'] = met.get('pbRatioTTM') or rat.get('priceToBookRatioTTM')
 
+        # NOTE: Quality-adjusted yields will be calculated later in scoring.py
+        # after ROIC is computed, since ROIC depends on data not yet available here
+
         # === QUALITY METRICS ===
 
         # ROIC = NOPAT / NOA

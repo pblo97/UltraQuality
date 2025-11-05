@@ -16,22 +16,25 @@ A comprehensive Python-based investment screening pipeline that combines **Quali
 
 #### Non-Financials (Manufacturing, Tech, Services, Consumer)
 
-**Value Metrics:**
-- EV/EBIT (TTM)
-- EV/FCF (TTM)
-- P/E (TTM)
-- P/B (TTM)
-- Shareholder Yield % (dividends + buybacks - issuance)
+**Value Metrics (Modern Yields - ROIC-Adjusted):**
+- **Earnings Yield**: EBIT / EV × (ROIC / 15%) - Greenblatt Magic Formula, adjusted for quality
+- **FCF Yield**: FCF / EV × (ROIC / 15%) - Modern standard, quality-adjusted
+- **CFO Yield**: Operating Cash Flow / EV × (ROIC / 15%) - More stable alternative
+- **Gross Profit Yield**: Gross Profit / EV × (ROIC / 15%) - Novy-Marx (2013)
+- **Shareholder Yield %**: (Dividends + Buybacks - Issuance) / Market Cap
+
+*Note: Yields are adjusted by ROIC to account for quality. High-ROIC companies (e.g., Adobe, Google) "deserve" higher valuations, so their yields are adjusted upward for fair comparison.*
 
 **Quality Metrics:**
-- ROIC % (Return on Invested Capital = NOPAT / NOA)
-- ROIC Persistence (std dev over 4 quarters)
-- Gross Profits / Assets (Novy-Marx)
-- FCF Margin %
-- CFO / Net Income
-- Net Debt / EBITDA
-- Interest Coverage
-- Fixed Charge Coverage
+- **ROIC %**: Return on Invested Capital = NOPAT / NOA
+- **Cash ROA**: Operating Cash Flow / Assets (Piotroski F-Score component)
+- **ROA Stability**: std(ROA) / mean(ROA) over 4 quarters (lower is better)
+- **FCF Stability**: std(FCF) / mean(FCF) over 4 quarters (lower is better)
+- **Gross Profits / Assets**: Novy-Marx profitability metric
+- **FCF Margin %**: FCF / Revenue
+- **CFO / Net Income**: Cash quality ratio
+- **Net Debt / EBITDA**: Leverage (lower is better)
+- **Interest Coverage**: EBIT / Interest Expense
 
 #### Financials (Banks, Insurance, Asset Management)
 
@@ -75,6 +78,34 @@ A comprehensive Python-based investment screening pipeline that combines **Quali
 - **M&A Flag**: Stock-financed acquisitions + goodwill growth
 - **Debt Maturity**: % maturing < 24 months (if available)
 - **Rate Mix**: Variable rate debt % (if available)
+
+### 🎯 Scoring Philosophy: "Quality at Reasonable Price" (QARP)
+
+**Weight Distribution:**
+- **65% Quality** (prioritize great companies)
+- **35% Value** (at reasonable prices)
+
+**Why Quality-Adjusted Yields?**
+
+Traditional value metrics penalize high-quality companies:
+- **Adobe**: ROIC 40%, Earnings Yield 5% → Looks "expensive"
+- **Normal Co**: ROIC 15%, Earnings Yield 8% → Looks "cheap"
+
+But Adobe's superior capital efficiency (ROIC 40%) **justifies** a higher valuation. Our adjustment:
+- **Adobe adjusted**: 5% × (40/15) = 13.3% equivalent yield ✅
+- **Normal Co adjusted**: 8% × (15/15) = 8.0% yield
+- Now Adobe shows as better value-for-quality
+
+**Decision Thresholds:**
+1. **BUY**: Composite Score ≥ 65 (top 35%) OR Quality ≥ 80 with Composite ≥ 60
+2. **MONITOR**: Composite Score ≥ 45 (middle tier)
+3. **AVOID**: Score < 45 or ROJO guardrails
+
+**Academic Foundation:**
+- Greenblatt (2005): Magic Formula = Earnings Yield + ROIC
+- Novy-Marx (2013): Gross Profitability Premium
+- Piotroski (2000): F-Score cash-based metrics
+- Mohanram (2005): Earnings stability for quality
 
 ## Installation
 

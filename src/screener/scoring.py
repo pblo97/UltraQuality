@@ -24,6 +24,7 @@ class ScoringEngine:
         self.threshold_buy = config.get('scoring', {}).get('threshold_buy', 70)
         self.threshold_monitor = config.get('scoring', {}).get('threshold_monitor', 50)
         self.threshold_buy_amber = config.get('scoring', {}).get('threshold_buy_amber', 80)
+        self.threshold_buy_quality_exceptional = config.get('scoring', {}).get('threshold_buy_quality_exceptional', 80)
         self.exclude_reds = config.get('scoring', {}).get('exclude_reds', True)
 
     def score_universe(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -137,15 +138,47 @@ class ScoringEngine:
             'fcf_stability'    # NEW: Lower volatility = better
         ]
 
+        # === QUALITY-ADJUSTED VALUE METRICS ===
+        # Concept: Companies with high ROIC "deserve" lower yields (higher valuations)
+        # Adjust yields upward for high-ROIC companies to make fair comparisons
+        #
+        # Example:
+        #   Adobe: EY=5%, ROIC=40% → Adj EY = 5% × (40/15) = 13.3%
+        #   Normal: EY=8%, ROIC=15% → Adj EY = 8% × (15/15) = 8%
+        #
+        # Research: PEG ratio concept (Price/Earnings/Growth), but using ROIC as quality proxy
+
+        benchmark_roic = 15.0  # Median ROIC for established companies
+
+        # Create adjusted yield columns
+        for yield_metric in ['earnings_yield', 'fcf_yield', 'cfo_yield', 'gross_profit_yield']:
+            if yield_metric in df.columns:
+                roic_adjustment = df['roic_%'].fillna(benchmark_roic) / benchmark_roic
+                # Cap adjustment at 3x to avoid extreme outliers
+                roic_adjustment = roic_adjustment.clip(lower=0.5, upper=3.0)
+
+                df[f'{yield_metric}_adj'] = df[yield_metric] * roic_adjustment
+            else:
+                df[f'{yield_metric}_adj'] = None
+
+        # Use adjusted yields for Value scoring
+        value_metrics_adj = [
+            'earnings_yield_adj',
+            'fcf_yield_adj',
+            'cfo_yield_adj',
+            'gross_profit_yield_adj',
+            'shareholder_yield_%'  # Not adjusted (already reflects returns to shareholders)
+        ]
+
         # Normalize value metrics (all yields - higher is better)
-        df = self._normalize_by_industry(df, value_metrics, higher_is_better=True)
+        df = self._normalize_by_industry(df, value_metrics_adj, higher_is_better=True)
 
         # Normalize quality metrics
         df = self._normalize_by_industry(df, quality_metrics, higher_is_better=True)
         df = self._normalize_by_industry(df, quality_lower_better, higher_is_better=False)
 
-        # Aggregate scores
-        all_value_cols = [f"{m}_zscore" for m in value_metrics]
+        # Aggregate scores (using adjusted yields)
+        all_value_cols = [f"{m}_zscore" for m in value_metrics_adj]
         all_quality_cols = [f"{m}_zscore" for m in quality_metrics + quality_lower_better]
 
         df['value_score_0_100'] = df[all_value_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
@@ -367,38 +400,45 @@ class ScoringEngine:
 
     def _apply_decision_logic(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Apply decision rules (based on Piotroski F-Score research):
+        Apply decision rules (Quality at Reasonable Price philosophy):
 
         BUY conditions:
-        1. Score >= 80 (top 20%) - exceptional quality/value, AMBAR allowed
-        2. Score >= 70 (top 30%) AND VERDE - good quality/value, clean guardrails
+        1. Score >= 80 (top 20%) - exceptional quality+value, AMBAR allowed
+        2. Quality >= 80 AND Composite >= 60 - exceptional quality companies (e.g., Google, Meta)
+        3. Score >= 65 (top 35%) AND VERDE - good quality+value, clean guardrails
 
         MONITOR conditions:
-        - Score >= 50 (middle 40%)
+        - Score >= 45 (middle tier)
 
         AVOID:
         - ROJO guardrails (if exclude_reds=True)
-        - Score < 50
+        - Score < 45
 
-        Research basis:
-        - Piotroski F-Score >= 7/9 (77.8%) shows strong outperformance
-        - Current thresholds align with academic literature
+        Philosophy: Prioritize Quality (65%) over Value (35%)
+        - Great companies at reasonable prices
+        - Allow high-quality companies even with moderate value scores
         """
         def decide(row):
             composite = row.get('composite_0_100', 0)
+            quality = row.get('quality_score_0_100', 0)
             status = row.get('guardrail_status', 'AMBAR')
 
             # ROJO = Auto AVOID (accounting red flags)
             if self.exclude_reds and status == 'ROJO':
                 return 'AVOID'
 
-            # Exceptional score = BUY even with AMBAR
+            # Exceptional composite score = BUY even with AMBAR
             # (top 20% quality+value can tolerate minor accounting concerns)
             if composite >= self.threshold_buy_amber:
                 return 'BUY'
 
+            # Exceptional Quality companies = BUY even with moderate value
+            # (e.g., Google, Meta, Microsoft - great companies at fair prices)
+            if quality >= self.threshold_buy_quality_exceptional and composite >= 60:
+                return 'BUY'
+
             # Good score + Clean guardrails = BUY
-            # (top 30% with no accounting concerns)
+            # (top 35% with no accounting concerns)
             if composite >= self.threshold_buy and status == 'VERDE':
                 return 'BUY'
 
