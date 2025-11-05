@@ -14,7 +14,7 @@ universe:
   exchanges: ["NYSE", "NASDAQ"]  # Empty list = all exchanges
   min_market_cap: 2_000_000_000  # $2B minimum (avoids small caps)
   min_avg_dollar_vol_3m: 5_000_000  # $5M daily volume
-  top_k: 300  # Top K symbols to deep-dive after preliminary ranking (increased from 150 to use full API capacity)
+  top_k: 500  # Top K symbols to deep-dive after preliminary ranking (500 stocks = ~4 min with 1300 calls/min)
 
 # Scoring Weights
 scoring:
