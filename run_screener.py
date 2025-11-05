@@ -152,8 +152,14 @@ with st.sidebar.expander("⚖️ Scoring Weights", expanded=True):
     st.caption("✨ Moving sliders will instantly recalculate results")
 
     # Guidance
-    if weight_quality < 0.70:
-        st.info("💡 **Tip:** High-quality companies (GOOGL, META) may be blocked by Value. Try 75-80% Quality weight.")
+    if weight_quality >= 0.75:
+        st.success("✅ **Optimal:** 75%+ Quality captures exceptional companies (Buffett-style)")
+    elif weight_quality >= 0.70:
+        st.success("✅ **Recommended:** 70% Quality = QARP balance (wonderful companies at fair prices)")
+    elif weight_quality >= 0.60:
+        st.info("💡 **Tip:** 60-70% Quality works but may miss some high-moat companies (GOOGL, META)")
+    else:
+        st.warning("⚠️ **Warning:** <60% Quality prioritizes value over excellence. Commodities may rank higher than tech giants.")
 
 # Decision thresholds
 with st.sidebar.expander("🎯 Decision Thresholds", expanded=True):
@@ -163,9 +169,9 @@ with st.sidebar.expander("🎯 Decision Thresholds", expanded=True):
     threshold_monitor = st.slider("MONITOR Threshold", 30, 70, 45, 5,
                                    key='threshold_monitor_slider',
                                    help="Minimum composite score for MONITOR (QARP default: 45)")
-    threshold_quality_exceptional = st.slider("Quality Exceptional", 70, 95, 80, 5,
+    threshold_quality_exceptional = st.slider("Quality Exceptional", 70, 95, 85, 5,
                                                key='threshold_quality_exceptional_slider',
-                                               help="If Quality ≥ this + Composite ≥ 60, force BUY (QARP default: 80)")
+                                               help="If Quality ≥ this, force BUY even with lower composite (only truly exceptional companies). Default: 85")
 
     exclude_reds = st.checkbox("Exclude RED Guardrails", value=True,
                                key='exclude_reds_checkbox',

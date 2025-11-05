@@ -26,7 +26,7 @@ scoring:
   threshold_buy: 65  # Top 35% - allows high-quality companies with moderate value
   threshold_monitor: 45  # Middle tier
   threshold_buy_amber: 80  # Allow AMBAR if exceptional score (top 20%)
-  threshold_buy_quality_exceptional: 80  # If Quality > 80, allow with composite > 60
+  threshold_buy_quality_exceptional: 85  # If Quality ≥ 85, force BUY even with lower composite (truly exceptional only)
 
 # Guardrail Thresholds (Non-Financials)
 guardrails:
