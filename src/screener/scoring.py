@@ -246,6 +246,9 @@ class ScoringEngine:
         """
         Normalize metrics by industry using z-scores.
 
+        Fallback strategy: If industry has < 3 companies, use universe-wide normalization
+        to avoid returning z-score = 0 (which converts to percentile = 50).
+
         Args:
             df: DataFrame with 'industry' column
             metrics: List of metric column names
@@ -260,10 +263,26 @@ class ScoringEngine:
                 logger.warning(f"Metric '{metric}' not found in DataFrame")
                 continue
 
-            # Group by industry and calculate z-scores
+            # Try industry-level normalization first
             df[f'{metric}_zscore'] = df.groupby('industry')[metric].transform(
                 lambda x: self._robust_zscore(x, higher_is_better)
             )
+
+            # Check for failed normalizations (z-score = 0 from small industries)
+            # These happen when industry has < 3 companies or MAD = 0
+            failed_mask = (df[f'{metric}_zscore'] == 0) & (df[metric].notna())
+
+            if failed_mask.sum() > 0:
+                logger.warning(
+                    f"Metric '{metric}': {failed_mask.sum()} companies in small industries. "
+                    f"Using universe-wide normalization as fallback."
+                )
+
+                # Calculate universe-wide z-scores for failed companies
+                universe_zscore = self._robust_zscore(df[metric], higher_is_better)
+
+                # Replace failed z-scores with universe-wide scores
+                df.loc[failed_mask, f'{metric}_zscore'] = universe_zscore[failed_mask]
 
         return df
 
