@@ -22,9 +22,10 @@ scoring:
   weight_quality: 0.5
   exclude_reds: true  # Exclude ROJO guardrails from final ranking
 
-  # Decision thresholds
-  threshold_buy: 75
-  threshold_monitor: 60
+  # Decision thresholds (based on Piotroski F-Score research)
+  threshold_buy: 70  # Top 30% - aligned with F-Score >= 7/9 (77.8%)
+  threshold_monitor: 50  # Middle 40%
+  threshold_buy_amber: 80  # Allow AMBAR if exceptional score (top 20%)
 
 # Guardrail Thresholds (Non-Financials)
 guardrails:
