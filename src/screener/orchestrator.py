@@ -192,6 +192,8 @@ class ScreenerPipeline:
 
         for part in range(5):  # Fetch first 5 parts (covers most US stocks)
             try:
+                logger.info(f"Fetching profile-bulk part {part}...")
+
                 profiles = self.fmp._request(
                     'profile-bulk',
                     params={'part': part},
@@ -199,17 +201,32 @@ class ScreenerPipeline:
                 )
 
                 if not profiles:
+                    logger.warning(f"Part {part} returned empty - stopping pagination")
                     break
 
+                if isinstance(profiles, dict) and 'Error Message' in profiles:
+                    logger.error(f"FMP API Error: {profiles['Error Message']}")
+                    raise ValueError(f"FMP API Error: {profiles['Error Message']}")
+
                 all_profiles.extend(profiles)
-                logger.info(f"Fetched {len(profiles)} profiles from part {part}")
+                logger.info(f"✓ Fetched {len(profiles)} profiles from part {part} (total: {len(all_profiles)})")
 
             except Exception as e:
-                logger.warning(f"Failed to fetch part {part}: {e}")
+                logger.error(f"Failed to fetch part {part}: {type(e).__name__}: {e}")
+                if part == 0:
+                    # If first request fails, show detailed error
+                    logger.error(f"First request failed - this indicates a problem with API access")
+                    logger.error(f"Try manually: curl 'https://financialmodelingprep.com/api/v3/profile-bulk?part=0&apikey=YOUR_KEY'")
                 break
 
         if not all_profiles:
-            raise ValueError("No profiles fetched. Check API key and connectivity.")
+            raise ValueError(
+                "No profiles fetched. Possible causes:\n"
+                f"  1. API endpoint returned empty (try different endpoint)\n"
+                f"  2. Network/firewall blocking FMP\n"
+                f"  3. API key lacks access to profile-bulk endpoint\n"
+                f"  4. Check logs above for HTTP status codes"
+            )
 
         # Convert to DataFrame
         df = pd.DataFrame(all_profiles)
