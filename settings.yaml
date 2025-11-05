@@ -18,14 +18,15 @@ universe:
 
 # Scoring Weights
 scoring:
-  weight_value: 0.5
-  weight_quality: 0.5
+  weight_value: 0.35  # 35% Value (reasonable price)
+  weight_quality: 0.65  # 65% Quality (prioritize great companies)
   exclude_reds: true  # Exclude ROJO guardrails from final ranking
 
-  # Decision thresholds (based on Piotroski F-Score research)
-  threshold_buy: 70  # Top 30% - aligned with F-Score >= 7/9 (77.8%)
-  threshold_monitor: 50  # Middle 40%
+  # Decision thresholds (Quality at Reasonable Price philosophy)
+  threshold_buy: 65  # Top 35% - allows high-quality companies with moderate value
+  threshold_monitor: 45  # Middle tier
   threshold_buy_amber: 80  # Allow AMBAR if exceptional score (top 20%)
+  threshold_buy_quality_exceptional: 80  # If Quality > 80, allow with composite > 60
 
 # Guardrail Thresholds (Non-Financials)
 guardrails:
