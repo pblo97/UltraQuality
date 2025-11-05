@@ -347,13 +347,32 @@ class FeatureCalculator:
         else:
             features['margin_trend'] = None
 
-        # === PIOTROSKI F-SCORE DELTA ===
-        # Simple quality deterioration detector (suggested by user)
-        # Score 0-9: higher = better quality
-        # Delta = current - 1Y ago: negative = deteriorating
+        # === QUALITY DEGRADATION SCORES ===
+        # Use appropriate score based on company type (Value vs Growth)
+
+        # Calculate P/B to classify
+        book_value = bal.get('totalStockholdersEquity', 0)
+        price_to_book = (market_cap / book_value) if book_value and book_value > 0 else None
+
+        # Piotroski F-Score (for Value stocks: P/B < 1.5)
         features['piotroski_fscore'], features['piotroski_fscore_delta'] = self._calc_piotroski_delta(
             income, balance, cashflow
         )
+
+        # Mohanram G-Score (for Growth stocks: P/B >= 1.5)
+        features['mohanram_gscore'], features['mohanram_gscore_delta'] = self._calc_mohanram_delta(
+            income, balance, cashflow, price_to_book
+        )
+
+        # Determine which score to use for blocking decisions
+        if price_to_book and price_to_book < 1.5:
+            features['quality_degradation_type'] = 'VALUE'
+            features['quality_degradation_score'] = features['piotroski_fscore']
+            features['quality_degradation_delta'] = features['piotroski_fscore_delta']
+        else:
+            features['quality_degradation_type'] = 'GROWTH'
+            features['quality_degradation_score'] = features['mohanram_gscore']
+            features['quality_degradation_delta'] = features['mohanram_gscore_delta']
 
         # === MOAT SCORE (Competitive Advantages) ===
         # Quantitative proxies using only FMP data - no LLMs, $0 cost
@@ -1132,4 +1151,146 @@ class FeatureCalculator:
 
         except Exception as e:
             logger.warning(f"Error calculating F-Score: {e}")
+            return None
+
+    def _calc_mohanram_delta(self, income: List[Dict], balance: List[Dict],
+                              cashflow: List[Dict], price_to_book: Optional[float]) -> Tuple[Optional[int], Optional[int]]:
+        """
+        Calculate Mohanram G-Score and delta (for Growth stocks).
+
+        G-Score = 8 binary signals (0-8 total):
+        - Profitability (3): ROA>median, CFO>median, ROA variance low
+        - Growth/Investment (3): R&D>0, Capex>avg, Revenue growth>avg
+        - Efficiency (2): Accrual quality, Gross margin improving
+
+        Delta = G-Score(now) - G-Score(1Y ago)
+        - Delta < 0: Quality deteriorating
+        - Delta = 0: Quality stable
+        - Delta > 0: Quality improving
+
+        Returns: (gscore_current, gscore_delta)
+        """
+        if not income or not balance or not cashflow:
+            return None, None
+
+        if len(income) < 8 or len(balance) < 8 or len(cashflow) < 8:
+            return None, None  # Need 2 years of data
+
+        try:
+            # Calculate G-Score for current year (Q0-Q3)
+            gscore_current = self._calc_gscore(
+                income[:4], balance[:4], cashflow[:4],
+                income[4:8], balance[4:8], cashflow[4:8]
+            )
+
+            # Calculate G-Score for 1 year ago (Q4-Q7)
+            gscore_1y_ago = self._calc_gscore(
+                income[4:8], balance[4:8], cashflow[4:8],
+                income[8:12] if len(income) >= 12 else None,
+                balance[8:12] if len(balance) >= 12 else None,
+                cashflow[8:12] if len(cashflow) >= 12 else None
+            )
+
+            if gscore_current is not None and gscore_1y_ago is not None:
+                delta = gscore_current - gscore_1y_ago
+                return gscore_current, delta
+            else:
+                return gscore_current, None
+
+        except Exception as e:
+            logger.warning(f"Error calculating Mohanram delta: {e}")
+            return None, None
+
+    def _calc_gscore(self, income_current: List[Dict], balance_current: List[Dict],
+                     cashflow_current: List[Dict],
+                     income_prev: Optional[List[Dict]], balance_prev: Optional[List[Dict]],
+                     cashflow_prev: Optional[List[Dict]]) -> Optional[int]:
+        """
+        Calculate Mohanram G-Score for a period (Growth stocks).
+
+        Returns score 0-8 (higher = better quality for growth).
+        """
+        try:
+            score = 0
+
+            # Sum TTM values
+            ni = sum(q.get('netIncome', 0) for q in income_current)
+            assets = balance_current[0].get('totalAssets', 0)
+            cfo = sum(q.get('operatingCashFlow', 0) for q in cashflow_current)
+            revenue = sum(q.get('revenue', 0) for q in income_current)
+            gross_profit = sum(q.get('grossProfit', 0) for q in income_current)
+
+            # === Profitability Signals (3) ===
+
+            # 1. ROA > benchmark (15% for growth)
+            if assets and assets > 0:
+                roa = (ni / assets) * 100
+                if roa > 15:  # Growth benchmark
+                    score += 1
+
+            # 2. CFO/Assets > benchmark (10%)
+            if assets and assets > 0:
+                cfo_ratio = (cfo / assets) * 100
+                if cfo_ratio > 10:
+                    score += 1
+
+            # 3. ROA variability low (if have history)
+            if income_prev and balance_prev and len(income_current) >= 4:
+                # Calculate ROA for last 4Q
+                roa_quarters = []
+                for i in range(4):
+                    ni_q = income_current[i].get('netIncome', 0)
+                    assets_q = balance_current[i].get('totalAssets', 0) if i < len(balance_current) else 0
+                    if assets_q and assets_q > 0:
+                        roa_quarters.append((ni_q / assets_q) * 100)
+
+                if len(roa_quarters) >= 3:
+                    cv_roa = np.std(roa_quarters) / abs(np.mean(roa_quarters)) if np.mean(roa_quarters) != 0 else 99
+                    if cv_roa < 0.15:  # Low variability = stable
+                        score += 1
+
+            # === Growth/Investment Signals (3) ===
+
+            # 4. R&D intensity (R&D/Sales > 0)
+            rd_expense = sum(q.get('researchAndDevelopmentExpenses', 0) for q in income_current)
+            if rd_expense and revenue and revenue > 0:
+                rd_ratio = (rd_expense / revenue) * 100
+                if rd_ratio > 5:  # Significant R&D investment
+                    score += 1
+
+            # 5. Capex intensity (Capex/Sales > 5%)
+            capex = sum(q.get('capitalExpenditure', 0) for q in cashflow_current)
+            if capex and revenue and revenue > 0:
+                capex_ratio = (abs(capex) / revenue) * 100  # Capex usually negative
+                if capex_ratio > 5:  # Investing in growth
+                    score += 1
+
+            # 6. Revenue growth > 10% (strong growth)
+            if income_prev and revenue > 0:
+                revenue_prev = sum(q.get('revenue', 0) for q in income_prev)
+                if revenue_prev and revenue_prev > 0:
+                    rev_growth = ((revenue / revenue_prev) - 1) * 100
+                    if rev_growth > 10:  # Double-digit growth
+                        score += 1
+
+            # === Efficiency Signals (2) ===
+
+            # 7. Accrual quality (CFO > NI = quality earnings)
+            if cfo > ni:
+                score += 1
+
+            # 8. Gross margin improving
+            if income_prev and revenue > 0:
+                gm = (gross_profit / revenue) * 100
+                revenue_prev = sum(q.get('revenue', 0) for q in income_prev)
+                gross_profit_prev = sum(q.get('grossProfit', 0) for q in income_prev)
+                if revenue_prev > 0:
+                    gm_prev = (gross_profit_prev / revenue_prev) * 100
+                    if gm > gm_prev:  # Margin expansion
+                        score += 1
+
+            return score
+
+        except Exception as e:
+            logger.warning(f"Error calculating G-Score: {e}")
             return None
