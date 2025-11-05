@@ -46,22 +46,35 @@ def recalculate_scores(df, weight_quality, weight_value, threshold_buy, threshol
             return 'AVOID', 'RED guardrails (accounting concerns)'
 
         # Exceptional composite score = BUY even with AMBAR
-        # BUT: Block if revenue declining (deteriorating business)
+        # BUT: Block if revenue declining OR quality deteriorating (Piotroski for VALUE, Mohanram for GROWTH)
         revenue_growth = row.get('revenue_growth_3y')
+        degradation_delta = row.get('quality_degradation_delta')
+        degradation_type = row.get('quality_degradation_type')
 
         if composite >= 85:  # Raised from 80 to 85 (more selective)
-            # Check for revenue decline (works for both value and growth)
+            # Check 1: Revenue decline (universal check)
             if revenue_growth is not None and revenue_growth < 0:
                 return 'MONITOR', f'High score ({composite:.0f}) but revenue declining ({revenue_growth:.1f}% 3Y)'
+
+            # Check 2: Quality degradation (Piotroski F-Score for VALUE, Mohanram G-Score for GROWTH)
+            if degradation_delta is not None and degradation_delta < 0:
+                score_name = 'F-Score' if degradation_type == 'VALUE' else 'G-Score'
+                return 'MONITOR', f'High score ({composite:.0f}) but {degradation_type} quality degrading ({score_name} Δ{degradation_delta})'
+
             return 'BUY', f'Exceptional score ({composite:.0f} ≥ 85)'
 
         # Exceptional Quality companies = BUY even with moderate composite
         # Relaxed for AMBAR: if very high quality, accept lower composite
-        # BUT: Block if revenue declining (works for both value and growth)
+        # BUT: Block if revenue declining OR quality deteriorating (Piotroski/Mohanram)
         if quality >= threshold_quality_exceptional:
-            # Check for revenue decline
+            # Check 1: Revenue decline
             if revenue_growth is not None and revenue_growth < 0:
                 return 'MONITOR', f'High quality (Q:{quality:.0f}) but revenue declining ({revenue_growth:.1f}% 3Y)'
+
+            # Check 2: Quality degradation (F-Score for VALUE, G-Score for GROWTH)
+            if degradation_delta is not None and degradation_delta < 0:
+                score_name = 'F-Score' if degradation_type == 'VALUE' else 'G-Score'
+                return 'MONITOR', f'High quality (Q:{quality:.0f}) but {degradation_type} quality degrading ({score_name} Δ{degradation_delta})'
 
             if composite >= 60:
                 return 'BUY', f'Exceptional quality (Q:{quality:.0f} ≥ {threshold_quality_exceptional}, C:{composite:.0f} ≥ 60)'
