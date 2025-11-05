@@ -347,6 +347,14 @@ class FeatureCalculator:
         else:
             features['margin_trend'] = None
 
+        # === PIOTROSKI F-SCORE DELTA ===
+        # Simple quality deterioration detector (suggested by user)
+        # Score 0-9: higher = better quality
+        # Delta = current - 1Y ago: negative = deteriorating
+        features['piotroski_fscore'], features['piotroski_fscore_delta'] = self._calc_piotroski_delta(
+            income, balance, cashflow
+        )
+
         # === MOAT SCORE (Competitive Advantages) ===
         # Quantitative proxies using only FMP data - no LLMs, $0 cost
         # Based on: Pricing Power, Operating Leverage, ROIC Persistence
@@ -981,4 +989,147 @@ class FeatureCalculator:
 
         except Exception as e:
             logger.warning(f"Error calculating ROIC persistence: {e}")
+            return None
+
+    def _calc_piotroski_delta(self, income: List[Dict], balance: List[Dict],
+                              cashflow: List[Dict]) -> Tuple[Optional[int], Optional[int]]:
+        """
+        Calculate Piotroski F-Score and delta (change from 1 year ago).
+
+        F-Score = 9 binary signals (0-9 total):
+        - Profitability (4): ROA>0, CFO>0, ΔROA>0, Accrual<0
+        - Leverage/Liquidity (3): ΔDebt<0, ΔCurrentRatio>0, NoEquityIssue
+        - Operating Efficiency (2): ΔGrossMargin>0, ΔAssetTurnover>0
+
+        Delta = F-Score(now) - F-Score(1Y ago)
+        - Delta < 0: Quality deteriorating
+        - Delta = 0: Quality stable
+        - Delta > 0: Quality improving
+
+        Returns: (fscore_current, fscore_delta)
+        """
+        if not income or not balance or not cashflow:
+            return None, None
+
+        if len(income) < 8 or len(balance) < 8 or len(cashflow) < 8:
+            return None, None  # Need 2 years of data (8Q)
+
+        try:
+            # Calculate F-Score for current year (Q0-Q3)
+            fscore_current = self._calc_fscore(
+                income[:4], balance[:4], cashflow[:4],
+                income[4:8], balance[4:8], cashflow[4:8]  # Previous year for deltas
+            )
+
+            # Calculate F-Score for 1 year ago (Q4-Q7)
+            fscore_1y_ago = self._calc_fscore(
+                income[4:8], balance[4:8], cashflow[4:8],
+                income[8:12] if len(income) >= 12 else None,
+                balance[8:12] if len(balance) >= 12 else None,
+                cashflow[8:12] if len(cashflow) >= 12 else None
+            )
+
+            if fscore_current is not None and fscore_1y_ago is not None:
+                delta = fscore_current - fscore_1y_ago
+                return fscore_current, delta
+            else:
+                return fscore_current, None
+
+        except Exception as e:
+            logger.warning(f"Error calculating Piotroski delta: {e}")
+            return None, None
+
+    def _calc_fscore(self, income_current: List[Dict], balance_current: List[Dict],
+                     cashflow_current: List[Dict],
+                     income_prev: Optional[List[Dict]], balance_prev: Optional[List[Dict]],
+                     cashflow_prev: Optional[List[Dict]]) -> Optional[int]:
+        """
+        Calculate Piotroski F-Score for a period.
+
+        Returns score 0-9 (higher = better quality).
+        """
+        try:
+            score = 0
+
+            # Sum TTM values
+            ni = sum(q.get('netIncome', 0) for q in income_current)
+            assets = balance_current[0].get('totalAssets', 0)
+            cfo = sum(q.get('operatingCashFlow', 0) for q in cashflow_current)
+            revenue = sum(q.get('revenue', 0) for q in income_current)
+            gross_profit = sum(q.get('grossProfit', 0) for q in income_current)
+
+            # 1. ROA > 0 (Profitability)
+            if assets and assets > 0:
+                roa = ni / assets
+                if roa > 0:
+                    score += 1
+
+                # 3. ΔROA > 0 (ROA improving)
+                if income_prev and balance_prev:
+                    ni_prev = sum(q.get('netIncome', 0) for q in income_prev)
+                    assets_prev = balance_prev[0].get('totalAssets', 0)
+                    if assets_prev and assets_prev > 0:
+                        roa_prev = ni_prev / assets_prev
+                        if roa > roa_prev:
+                            score += 1
+
+            # 2. CFO > 0 (Cash profitability)
+            if cfo > 0:
+                score += 1
+
+            # 4. Accrual < 0 (CFO > Net Income = quality earnings)
+            if cfo > ni:
+                score += 1
+
+            # 5. ΔDebt < 0 (Leverage decreasing)
+            if balance_prev:
+                debt = balance_current[0].get('totalDebt', 0)
+                debt_prev = balance_prev[0].get('totalDebt', 0)
+                if debt < debt_prev:
+                    score += 1
+
+            # 6. ΔCurrent Ratio > 0 (Liquidity improving)
+            if balance_prev:
+                current_assets = balance_current[0].get('totalCurrentAssets', 0)
+                current_liab = balance_current[0].get('totalCurrentLiabilities', 0)
+                current_assets_prev = balance_prev[0].get('totalCurrentAssets', 0)
+                current_liab_prev = balance_prev[0].get('totalCurrentLiabilities', 0)
+
+                if current_liab and current_liab > 0 and current_liab_prev and current_liab_prev > 0:
+                    cr = current_assets / current_liab
+                    cr_prev = current_assets_prev / current_liab_prev
+                    if cr > cr_prev:
+                        score += 1
+
+            # 7. No new equity issued (Shares outstanding not increasing)
+            if balance_prev:
+                shares = balance_current[0].get('commonStock', 0)
+                shares_prev = balance_prev[0].get('commonStock', 0)
+                if shares <= shares_prev:
+                    score += 1
+
+            # 8. ΔGross Margin > 0 (Operating efficiency improving)
+            if income_prev and revenue > 0:
+                gm = (gross_profit / revenue) * 100
+                revenue_prev = sum(q.get('revenue', 0) for q in income_prev)
+                gross_profit_prev = sum(q.get('grossProfit', 0) for q in income_prev)
+                if revenue_prev > 0:
+                    gm_prev = (gross_profit_prev / revenue_prev) * 100
+                    if gm > gm_prev:
+                        score += 1
+
+            # 9. ΔAsset Turnover > 0 (Asset productivity improving)
+            if balance_prev and revenue > 0 and assets > 0:
+                turnover = revenue / assets
+                revenue_prev = sum(q.get('revenue', 0) for q in income_prev)
+                assets_prev = balance_prev[0].get('totalAssets', 0)
+                if assets_prev and assets_prev > 0:
+                    turnover_prev = revenue_prev / assets_prev
+                    if turnover > turnover_prev:
+                        score += 1
+
+            return score
+
+        except Exception as e:
+            logger.warning(f"Error calculating F-Score: {e}")
             return None
