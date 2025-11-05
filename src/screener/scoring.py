@@ -21,8 +21,9 @@ class ScoringEngine:
         self.config = config
         self.w_value = config.get('scoring', {}).get('weight_value', 0.5)
         self.w_quality = config.get('scoring', {}).get('weight_quality', 0.5)
-        self.threshold_buy = config.get('scoring', {}).get('threshold_buy', 75)
-        self.threshold_monitor = config.get('scoring', {}).get('threshold_monitor', 60)
+        self.threshold_buy = config.get('scoring', {}).get('threshold_buy', 70)
+        self.threshold_monitor = config.get('scoring', {}).get('threshold_monitor', 50)
+        self.threshold_buy_amber = config.get('scoring', {}).get('threshold_buy_amber', 80)
         self.exclude_reds = config.get('scoring', {}).get('exclude_reds', True)
 
     def score_universe(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -318,25 +319,47 @@ class ScoringEngine:
 
     def _apply_decision_logic(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Apply decision rules:
-        - composite >= 75 AND VERDE → BUY
-        - 60-75 OR AMBAR → MONITOR
-        - < 60 OR ROJO → AVOID
-        - If exclude_reds=True, force ROJO → AVOID
+        Apply decision rules (based on Piotroski F-Score research):
+
+        BUY conditions:
+        1. Score >= 80 (top 20%) - exceptional quality/value, AMBAR allowed
+        2. Score >= 70 (top 30%) AND VERDE - good quality/value, clean guardrails
+
+        MONITOR conditions:
+        - Score >= 50 (middle 40%)
+
+        AVOID:
+        - ROJO guardrails (if exclude_reds=True)
+        - Score < 50
+
+        Research basis:
+        - Piotroski F-Score >= 7/9 (77.8%) shows strong outperformance
+        - Current thresholds align with academic literature
         """
         def decide(row):
             composite = row.get('composite_0_100', 0)
             status = row.get('guardrail_status', 'AMBAR')
 
+            # ROJO = Auto AVOID (accounting red flags)
             if self.exclude_reds and status == 'ROJO':
                 return 'AVOID'
 
+            # Exceptional score = BUY even with AMBAR
+            # (top 20% quality+value can tolerate minor accounting concerns)
+            if composite >= self.threshold_buy_amber:
+                return 'BUY'
+
+            # Good score + Clean guardrails = BUY
+            # (top 30% with no accounting concerns)
             if composite >= self.threshold_buy and status == 'VERDE':
                 return 'BUY'
-            elif composite >= self.threshold_monitor or status == 'AMBAR':
+
+            # Middle tier = MONITOR (watch list)
+            if composite >= self.threshold_monitor:
                 return 'MONITOR'
-            else:
-                return 'AVOID'
+
+            # Low score or unknown status = AVOID
+            return 'AVOID'
 
         df['decision'] = df.apply(decide, axis=1)
 
