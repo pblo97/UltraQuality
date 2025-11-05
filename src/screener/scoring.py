@@ -152,6 +152,9 @@ class ScoringEngine:
             )
 
         # Merge REITs and financials back
+        # Reset indices to avoid duplicate index errors
+        df_fin_only = df_fin_only.reset_index(drop=True)
+        df_reit = df_reit.reset_index(drop=True)
         return pd.concat([df_fin_only, df_reit], ignore_index=True)
 
     # =====================================
