@@ -58,9 +58,20 @@ class ScoringEngine:
         elif df_fin.empty:
             df_scored = df_nonfin.reset_index(drop=True)
         else:
-            # Both have data: reset indices and concat
+            # Both have data: reset indices and remove duplicate columns
             df_nonfin = df_nonfin.reset_index(drop=True)
             df_fin = df_fin.reset_index(drop=True)
+
+            # Remove duplicate columns if they exist
+            if df_nonfin.columns.duplicated().any():
+                logger.warning(f"Duplicate columns in df_nonfin: {df_nonfin.columns[df_nonfin.columns.duplicated()].tolist()}")
+                df_nonfin = df_nonfin.loc[:, ~df_nonfin.columns.duplicated()]
+
+            if df_fin.columns.duplicated().any():
+                logger.warning(f"Duplicate columns in df_fin: {df_fin.columns[df_fin.columns.duplicated()].tolist()}")
+                df_fin = df_fin.loc[:, ~df_fin.columns.duplicated()]
+
+            logger.info(f"Concatenating non-financials ({len(df_nonfin)}) + financials ({len(df_fin)})")
             df_scored = pd.concat([df_nonfin, df_fin], ignore_index=True)
 
         # Decision logic
@@ -170,9 +181,20 @@ class ScoringEngine:
         elif df_reit.empty:
             return df_fin_only.reset_index(drop=True)
 
-        # Both have data: reset indices and concat
+        # Both have data: reset indices, remove duplicates, and concat
         df_fin_only = df_fin_only.reset_index(drop=True)
         df_reit = df_reit.reset_index(drop=True)
+
+        # Remove duplicate columns if they exist
+        if df_fin_only.columns.duplicated().any():
+            logger.warning(f"Duplicate columns in df_fin_only: {df_fin_only.columns[df_fin_only.columns.duplicated()].tolist()}")
+            df_fin_only = df_fin_only.loc[:, ~df_fin_only.columns.duplicated()]
+
+        if df_reit.columns.duplicated().any():
+            logger.warning(f"Duplicate columns in df_reit: {df_reit.columns[df_reit.columns.duplicated()].tolist()}")
+            df_reit = df_reit.loc[:, ~df_reit.columns.duplicated()]
+
+        logger.info(f"Concatenating financials ({len(df_fin_only)}) + REITs ({len(df_reit)})")
         return pd.concat([df_fin_only, df_reit], ignore_index=True)
 
     # =====================================
