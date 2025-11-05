@@ -248,177 +248,177 @@ with tab3:
                 # Sector breakdown
                 st.subheader("Sector Distribution")
 
-                        col1, col2 = st.columns([2, 1])
+                col1, col2 = st.columns([2, 1])
                 
-                        with col1:
-                            # Sector counts by decision
-                            sector_decision = df.groupby(['sector', 'decision']).size().unstack(fill_value=0)
+                with col1:
+                    # Sector counts by decision
+                    sector_decision = df.groupby(['sector', 'decision']).size().unstack(fill_value=0)
                 
-                            # Create stacked bar chart
-                            import plotly.graph_objects as go
+                    # Create stacked bar chart
+                    import plotly.graph_objects as go
                 
-                            fig = go.Figure()
-                            for decision in ['BUY', 'MONITOR', 'AVOID']:
-                                if decision in sector_decision.columns:
-                                    fig.add_trace(go.Bar(
-                                        name=decision,
-                                        x=sector_decision.index,
-                                        y=sector_decision[decision],
-                                        marker_color='green' if decision == 'BUY' else 'orange' if decision == 'MONITOR' else 'red'
-                                    ))
-                
-                            fig.update_layout(
-                                barmode='stack',
-                                title="Stocks by Sector and Decision",
-                                xaxis_title="Sector",
-                                yaxis_title="Count",
-                                height=400,
-                                xaxis_tickangle=-45
-                            )
-                
-                            st.plotly_chart(fig, use_container_width=True)
-                
-                        with col2:
-                            # Sector summary table
-                            sector_summary = df.groupby('sector').agg({
-                                'composite_0_100': 'mean',
-                                'ticker': 'count'
-                            }).round(1)
-                            sector_summary.columns = ['Avg Score', 'Count']
-                            sector_summary = sector_summary.sort_values('Avg Score', ascending=False)
-                
-                            st.dataframe(
-                                sector_summary,
-                                use_container_width=True,
-                                height=400
-                            )
-                
-                        st.markdown("---")
-                
-                        # Rejection reasons analysis
-                        st.subheader("🚫 Rejection Analysis")
-                
-                        avoided = df[df['decision'] == 'AVOID']
-                
-                        col1, col2 = st.columns(2)
-                
-                        with col1:
-                            st.metric("Total AVOID", len(avoided), f"{len(avoided)/len(df)*100:.1f}%")
-                
-                            # Guardrail breakdown
-                            guardrail_breakdown = avoided['guardrail_status'].value_counts()
-                
-                            fig = go.Figure(data=[go.Pie(
-                                labels=guardrail_breakdown.index,
-                                values=guardrail_breakdown.values,
-                                marker=dict(colors=['red', 'orange', 'green']),
-                                hole=0.3
-                            )])
-                            fig.update_layout(title="Rejection by Guardrail Status", height=300)
-                            st.plotly_chart(fig, use_container_width=True)
-                
-                        with col2:
-                            # Top rejection reasons
-                            st.write("**Top Rejection Reasons:**")
-                
-                            if 'guardrail_reasons' in avoided.columns:
-                                all_reasons = []
-                                for reasons in avoided['guardrail_reasons'].dropna():
-                                    all_reasons.extend([r.strip() for r in str(reasons).split(';')])
-                
-                                if all_reasons:
-                                    from collections import Counter
-                                    reason_counts = Counter(all_reasons).most_common(10)
-                
-                                    reason_df = pd.DataFrame(reason_counts, columns=['Reason', 'Count'])
-                                    st.dataframe(reason_df, use_container_width=True, height=300)
-                                else:
-                                    st.info("No specific reasons recorded")
-                            else:
-                                st.info("Guardrail reasons not available")
-                
-                        st.markdown("---")
-                
-                        # Score distribution
-                        st.subheader("📊 Score Distribution")
-                
-                        col1, col2, col3 = st.columns(3)
-                
-                        with col1:
-                            fig = go.Figure(data=[go.Histogram(
-                                x=df['composite_0_100'],
-                                nbinsx=20,
-                                marker_color='lightblue'
-                            )])
-                            fig.update_layout(
-                                title="Composite Score Distribution",
-                                xaxis_title="Score (0-100)",
-                                yaxis_title="Count",
-                                height=300
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
-                
-                        with col2:
-                            fig = go.Figure(data=[go.Histogram(
-                                x=df['value_score_0_100'],
-                                nbinsx=20,
-                                marker_color='lightgreen'
-                            )])
-                            fig.update_layout(
-                                title="Value Score Distribution",
-                                xaxis_title="Score (0-100)",
-                                yaxis_title="Count",
-                                height=300
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
-                
-                        with col3:
-                            fig = go.Figure(data=[go.Histogram(
-                                x=df['quality_score_0_100'],
-                                nbinsx=20,
-                                marker_color='lightcoral'
-                            )])
-                            fig.update_layout(
-                                title="Quality Score Distribution",
-                                xaxis_title="Score (0-100)",
-                                yaxis_title="Count",
-                                height=300
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
-                
-                        st.markdown("---")
-                
-                        # Value vs Quality scatter
-                        st.subheader("💎 Value vs Quality Matrix")
-                
-                        fig = go.Figure()
-                
-                        for decision in ['BUY', 'MONITOR', 'AVOID']:
-                            mask = df['decision'] == decision
-                            fig.add_trace(go.Scatter(
-                                x=df[mask]['value_score_0_100'],
-                                y=df[mask]['quality_score_0_100'],
-                                mode='markers',
+                    fig = go.Figure()
+                    for decision in ['BUY', 'MONITOR', 'AVOID']:
+                        if decision in sector_decision.columns:
+                            fig.add_trace(go.Bar(
                                 name=decision,
-                                text=df[mask]['ticker'],
-                                marker=dict(
-                                    size=8,
-                                    color='green' if decision == 'BUY' else 'orange' if decision == 'MONITOR' else 'red',
-                                    opacity=0.6
-                                )
+                                x=sector_decision.index,
+                                y=sector_decision[decision],
+                                marker_color='green' if decision == 'BUY' else 'orange' if decision == 'MONITOR' else 'red'
                             ))
                 
-                        fig.add_hline(y=60, line_dash="dash", line_color="gray", annotation_text="Quality Threshold")
-                        fig.add_vline(x=60, line_dash="dash", line_color="gray", annotation_text="Value Threshold")
+                    fig.update_layout(
+                        barmode='stack',
+                        title="Stocks by Sector and Decision",
+                        xaxis_title="Sector",
+                        yaxis_title="Count",
+                        height=400,
+                        xaxis_tickangle=-45
+                    )
                 
-                        fig.update_layout(
-                            title="Value vs Quality Positioning",
-                            xaxis_title="Value Score (0-100)",
-                            yaxis_title="Quality Score (0-100)",
-                            height=500
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                with col2:
+                    # Sector summary table
+                    sector_summary = df.groupby('sector').agg({
+                        'composite_0_100': 'mean',
+                        'ticker': 'count'
+                    }).round(1)
+                    sector_summary.columns = ['Avg Score', 'Count']
+                    sector_summary = sector_summary.sort_values('Avg Score', ascending=False)
+                
+                    st.dataframe(
+                        sector_summary,
+                        use_container_width=True,
+                        height=400
+                    )
+                
+                st.markdown("---")
+                
+                # Rejection reasons analysis
+                st.subheader("🚫 Rejection Analysis")
+                
+                avoided = df[df['decision'] == 'AVOID']
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.metric("Total AVOID", len(avoided), f"{len(avoided)/len(df)*100:.1f}%")
+                
+                    # Guardrail breakdown
+                    guardrail_breakdown = avoided['guardrail_status'].value_counts()
+                
+                    fig = go.Figure(data=[go.Pie(
+                        labels=guardrail_breakdown.index,
+                        values=guardrail_breakdown.values,
+                        marker=dict(colors=['red', 'orange', 'green']),
+                        hole=0.3
+                    )])
+                    fig.update_layout(title="Rejection by Guardrail Status", height=300)
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                with col2:
+                    # Top rejection reasons
+                    st.write("**Top Rejection Reasons:**")
+                
+                    if 'guardrail_reasons' in avoided.columns:
+                        all_reasons = []
+                        for reasons in avoided['guardrail_reasons'].dropna():
+                            all_reasons.extend([r.strip() for r in str(reasons).split(';')])
+                
+                        if all_reasons:
+                            from collections import Counter
+                            reason_counts = Counter(all_reasons).most_common(10)
+                
+                            reason_df = pd.DataFrame(reason_counts, columns=['Reason', 'Count'])
+                            st.dataframe(reason_df, use_container_width=True, height=300)
+                        else:
+                            st.info("No specific reasons recorded")
+                    else:
+                        st.info("Guardrail reasons not available")
+                
+                st.markdown("---")
+                
+                # Score distribution
+                st.subheader("📊 Score Distribution")
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    fig = go.Figure(data=[go.Histogram(
+                        x=df['composite_0_100'],
+                        nbinsx=20,
+                        marker_color='lightblue'
+                    )])
+                    fig.update_layout(
+                        title="Composite Score Distribution",
+                        xaxis_title="Score (0-100)",
+                        yaxis_title="Count",
+                        height=300
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                with col2:
+                    fig = go.Figure(data=[go.Histogram(
+                        x=df['value_score_0_100'],
+                        nbinsx=20,
+                        marker_color='lightgreen'
+                    )])
+                    fig.update_layout(
+                        title="Value Score Distribution",
+                        xaxis_title="Score (0-100)",
+                        yaxis_title="Count",
+                        height=300
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                with col3:
+                    fig = go.Figure(data=[go.Histogram(
+                        x=df['quality_score_0_100'],
+                        nbinsx=20,
+                        marker_color='lightcoral'
+                    )])
+                    fig.update_layout(
+                        title="Quality Score Distribution",
+                        xaxis_title="Score (0-100)",
+                        yaxis_title="Count",
+                        height=300
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                st.markdown("---")
+                
+                # Value vs Quality scatter
+                st.subheader("💎 Value vs Quality Matrix")
+                
+                fig = go.Figure()
+                
+                for decision in ['BUY', 'MONITOR', 'AVOID']:
+                    mask = df['decision'] == decision
+                    fig.add_trace(go.Scatter(
+                        x=df[mask]['value_score_0_100'],
+                        y=df[mask]['quality_score_0_100'],
+                        mode='markers',
+                        name=decision,
+                        text=df[mask]['ticker'],
+                        marker=dict(
+                            size=8,
+                            color='green' if decision == 'BUY' else 'orange' if decision == 'MONITOR' else 'red',
+                            opacity=0.6
                         )
+                    ))
                 
-                        st.plotly_chart(fig, use_container_width=True)
+                fig.add_hline(y=60, line_dash="dash", line_color="gray", annotation_text="Quality Threshold")
+                fig.add_vline(x=60, line_dash="dash", line_color="gray", annotation_text="Value Threshold")
+                
+                fig.update_layout(
+                    title="Value vs Quality Positioning",
+                    xaxis_title="Value Score (0-100)",
+                    yaxis_title="Quality Score (0-100)",
+                    height=500
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
 
             except Exception as e:
                 st.error(f"❌ Error generating analytics: {str(e)}")
