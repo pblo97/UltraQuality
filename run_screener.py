@@ -38,6 +38,7 @@ def recalculate_scores(df, weight_quality, weight_value, threshold_buy, threshol
     def decide(row):
         composite = row.get('composite_0_100', 0)
         quality = row.get('quality_score_0_100', 0)
+        value = row.get('value_score_0_100', 0)
         status = row.get('guardrail_status', 'AMBAR')
 
         # ROJO = Auto AVOID (accounting red flags)
@@ -48,9 +49,18 @@ def recalculate_scores(df, weight_quality, weight_value, threshold_buy, threshol
         if composite >= 80:  # Hard-coded top 20%
             return 'BUY', f'Exceptional score ({composite:.0f} ≥ 80)'
 
-        # Exceptional Quality companies = BUY even with moderate value
-        if quality >= threshold_quality_exceptional and composite >= 60:
-            return 'BUY', f'Exceptional quality ({quality:.0f} ≥ {threshold_quality_exceptional})'
+        # Exceptional Quality companies = BUY even with moderate composite
+        # Relaxed for AMBAR: if very high quality, accept lower composite
+        if quality >= threshold_quality_exceptional:
+            if composite >= 60:
+                return 'BUY', f'Exceptional quality (Q:{quality:.0f} ≥ {threshold_quality_exceptional}, C:{composite:.0f} ≥ 60)'
+            elif composite >= 55 and status != 'ROJO':
+                return 'BUY', f'High quality override (Q:{quality:.0f} ≥ {threshold_quality_exceptional}, C:{composite:.0f} ≥ 55)'
+
+        # High Quality with AMBAR can still be BUY if composite is decent
+        # This prevents great companies (GOOGL, META) from being blocked by AMBAR
+        if quality >= 70 and composite >= threshold_buy and status == 'AMBAR':
+            return 'BUY', f'High quality + AMBAR (Q:{quality:.0f} ≥ 70, C:{composite:.0f} ≥ {threshold_buy})'
 
         # Good score + Clean guardrails = BUY
         if composite >= threshold_buy and status == 'VERDE':
@@ -141,6 +151,10 @@ with st.sidebar.expander("⚖️ Scoring Weights", expanded=True):
     st.write(f"**Value Weight:** {weight_value:.2f}")
     st.caption("✨ Moving sliders will instantly recalculate results")
 
+    # Guidance
+    if weight_quality < 0.70:
+        st.info("💡 **Tip:** High-quality companies (GOOGL, META) may be blocked by Value. Try 75-80% Quality weight.")
+
 # Decision thresholds
 with st.sidebar.expander("🎯 Decision Thresholds", expanded=True):
     threshold_buy = st.slider("BUY Threshold", 50, 90, 65, 5,
@@ -156,6 +170,15 @@ with st.sidebar.expander("🎯 Decision Thresholds", expanded=True):
     exclude_reds = st.checkbox("Exclude RED Guardrails", value=True,
                                key='exclude_reds_checkbox',
                                help="Auto-AVOID stocks with accounting red flags")
+
+    st.caption("""
+    **Guardrail Colors:**
+    - 🟢 VERDE: Clean accounting
+    - 🟡 AMBAR: Minor concerns (high-quality companies often have AMBAR)
+    - 🔴 ROJO: Red flags (manipulation risk)
+
+    **New:** Quality ≥70 + AMBAR can still be BUY
+    """)
 
 # API Key status
 st.sidebar.markdown("---")
@@ -360,7 +383,9 @@ with tab2:
 
         # Display table
         display_cols = [
-            'ticker', 'name', 'sector', 'composite_0_100',
+            'ticker', 'name', 'sector',
+            'roic_%',  # NEW: Show ROIC for transparency
+            'composite_0_100',
             'value_score_0_100', 'quality_score_0_100',
             'guardrail_status', 'decision', 'decision_reason'  # NEW: shows WHY
         ]
