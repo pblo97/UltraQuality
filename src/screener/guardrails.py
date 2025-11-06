@@ -596,6 +596,39 @@ class GuardrailCalculator:
             if keyword in industry_lower:
                 return False
 
+        # Oil & Gas Midstream (pipelines, storage - regulated, asset-light operations)
+        # These are fee-based businesses with regulated rates, similar to utilities
+        oil_gas_midstream_keywords = [
+            'oil & gas midstream', 'midstream', 'pipeline'
+        ]
+
+        for keyword in oil_gas_midstream_keywords:
+            if keyword in industry_lower:
+                return False
+
+        # Personal & Business Services (labor-intensive, asset-light)
+        # Service businesses with minimal capital requirements
+        personal_services_keywords = [
+            'personal products & services', 'personal services',
+            'staffing', 'employment services', 'consulting'
+        ]
+
+        for keyword in personal_services_keywords:
+            if keyword in industry_lower:
+                return False
+
+        # Consumer Electronics & Computer Hardware (asset-light, inventory-light)
+        # Modern tech hardware companies outsource manufacturing (Fabless model)
+        # Apple, NetApp, etc. - low working capital, high IP value
+        electronics_hardware_keywords = [
+            'consumer electronics', 'computer hardware',
+            'communication equipment', 'electronic equipment'
+        ]
+
+        for keyword in electronics_hardware_keywords:
+            if keyword in industry_lower:
+                return False
+
         # For all other industries, Z-Score is applicable
         return True
 
