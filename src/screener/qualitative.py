@@ -1473,6 +1473,14 @@ class QualitativeAnalyzer:
                 # Normalized FCF = OCF - Maintenance Capex only
                 base_cf = ocf - maintenance_capex
 
+                # Debug logging
+                logger.info(f"DCF Base CF Debug for {symbol}:")
+                logger.info(f"  OCF (annual): ${ocf:,.0f}")
+                logger.info(f"  Capex (annual): ${capex:,.0f}")
+                logger.info(f"  Revenue growth: {revenue_growth:.1%}")
+                logger.info(f"  Maintenance capex: ${maintenance_capex:,.0f}")
+                logger.info(f"  Base CF: ${base_cf:,.0f}")
+
             elif company_type == 'reit':
                 # Use FFO (Funds From Operations)
                 # FFO = Net Income + Depreciation - Gains on Sales
@@ -1564,6 +1572,19 @@ class QualitativeAnalyzer:
 
             # Per share
             value_per_share = equity_value / shares
+
+            # Debug logging
+            logger.info(f"DCF Debug for {symbol}:")
+            logger.info(f"  base_cf: ${base_cf:,.0f}")
+            logger.info(f"  fcf_pv (5yr): ${fcf_pv:,.0f}")
+            logger.info(f"  terminal_pv: ${terminal_pv:,.0f}")
+            logger.info(f"  ev: ${ev:,.0f}")
+            logger.info(f"  total_debt: ${total_debt:,.0f}")
+            logger.info(f"  cash: ${cash:,.0f}")
+            logger.info(f"  net_debt: ${net_debt:,.0f}")
+            logger.info(f"  equity_value: ${equity_value:,.0f}")
+            logger.info(f"  shares: {shares:,.0f}")
+            logger.info(f"  value_per_share: ${value_per_share:.2f}")
 
             return value_per_share if value_per_share > 0 else None
 
