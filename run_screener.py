@@ -935,6 +935,100 @@ with tab5:
 
                 st.markdown("---")
 
+                # Intrinsic Value Estimation
+                st.subheader("💰 Intrinsic Value Estimation")
+                intrinsic = analysis.get('intrinsic_value', {})
+
+                if intrinsic and intrinsic.get('current_price'):
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.metric("Current Price", f"${intrinsic.get('current_price', 0):.2f}")
+
+                    with col2:
+                        if intrinsic.get('dcf_value'):
+                            st.metric("DCF Value", f"${intrinsic.get('dcf_value', 0):.2f}")
+                        else:
+                            st.metric("DCF Value", "N/A")
+
+                    with col3:
+                        if intrinsic.get('forward_multiple_value'):
+                            st.metric("Forward Multiple", f"${intrinsic.get('forward_multiple_value', 0):.2f}")
+                        else:
+                            st.metric("Forward Multiple", "N/A")
+
+                    with col4:
+                        if intrinsic.get('weighted_value'):
+                            st.metric("Fair Value", f"${intrinsic.get('weighted_value', 0):.2f}")
+                        else:
+                            st.metric("Fair Value", "N/A")
+
+                    # Upside/Downside
+                    if intrinsic.get('upside_downside_%') is not None:
+                        upside = intrinsic.get('upside_downside_%', 0)
+                        assessment = intrinsic.get('valuation_assessment', 'Unknown')
+                        confidence = intrinsic.get('confidence', 'Low')
+
+                        # Color based on assessment
+                        if assessment == 'Undervalued':
+                            color = 'green'
+                            emoji = '🟢'
+                        elif assessment == 'Overvalued':
+                            color = 'red'
+                            emoji = '🔴'
+                        else:
+                            color = 'orange'
+                            emoji = '🟡'
+
+                        st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
+                        st.caption(f"Confidence: {confidence} | {', '.join(intrinsic.get('notes', []))}")
+
+                        # Explanation
+                        with st.expander("📖 Valuation Methodology"):
+                            company_type = stock_data.get('company_type', 'non_financial')
+
+                            if company_type == 'non_financial':
+                                dcf_basis = "Free Cash Flow (FCF adjusted for growth capex)"
+                                multiple_basis = "EV/EBIT vs peer average"
+                                wacc_rate = "10%"
+                            elif company_type == 'reit':
+                                dcf_basis = "Funds From Operations (FFO)"
+                                multiple_basis = "P/FFO vs peer average"
+                                wacc_rate = "9%"
+                            else:
+                                dcf_basis = "Net Income"
+                                multiple_basis = "P/B (Price to Book) vs peer average"
+                                wacc_rate = "12%"
+
+                            st.markdown(f"""
+                            **Methods Used:**
+
+                            1. **DCF (Discounted Cash Flow)**: {dcf_basis}
+                               - **Key Feature**: Growth capex is NOT penalized (it's valuable investment)
+                               - Only maintenance capex is subtracted from cash flow
+                               - 5-year projection + terminal value (3% perpetual growth)
+
+                            2. **Forward Multiple**: {multiple_basis}
+                               - Projects forward metrics based on recent growth trends
+                               - Compares to peer group average multiples
+                               - Focus on operating metrics, not earnings
+
+                            3. **Historical Multiple**: Based on sector historical averages
+                               - Conservative baseline using long-term market data
+
+                            **Weighted Average**: DCF (40%) + Forward Multiple (40%) + Historical (20%)
+
+                            **Key Assumptions:**
+                            - WACC: {wacc_rate}
+                            - Growth: Derived from recent revenue/FCF trends
+                            - Terminal Growth: 3% perpetual
+                            - Maintenance Capex: Estimated based on revenue growth rate
+                            """)
+                else:
+                    st.info("Valuation analysis not available")
+
+                st.markdown("---")
+
                 # Fundamental Metrics Deep Dive
                 st.subheader("📊 Fundamental Metrics")
 
