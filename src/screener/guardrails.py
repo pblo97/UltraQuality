@@ -383,39 +383,36 @@ class GuardrailCalculator:
         """
         Net Share Issuance % over last 12 months:
 
-        Method 1: (Shares_t - Shares_t-2) / Shares_t-2 * 100 * 2 (annualized from 6mo)
+        Method 1: (Shares_t - Shares_t-4) / Shares_t-4 * 100 (12-month change)
         Method 2: (Stock Issued - Stock Repurchased) / Equity * 100
 
         Returns: % change (positive = dilution, negative = buybacks)
 
-        FIXED v2:
-        - Use 2-quarter comparison (more reliable than 4-quarter)
+        FIXED v2.1:
+        - Use 4-quarter comparison (stable, reliable)
         - Detect stock splits (45-55%, 90-110%, etc.)
         - Cross-validate with cash flow method
         - Cap at ±50% (values >50% likely data errors or splits)
         """
-        if len(balance) < 3:
+        if len(balance) < 5:
             return None
 
-        # Method 1: Share count change (2 quarters = 6 months)
+        # Method 1: Share count change (4 quarters = 12 months)
         # IMPORTANT: Use weightedAverageShsOut or commonStockSharesOutstanding
         # DO NOT use 'commonStock' (that's par value, not share count)
         shares_t = (balance[0].get('weightedAverageShsOut') or
                     balance[0].get('commonStockSharesOutstanding') or
                     balance[0].get('weightedAverageShsOutDil'))
 
-        # Use 2-quarter lookback (more reliable than 4-quarter)
-        shares_t2 = (balance[2].get('weightedAverageShsOut') or
-                     balance[2].get('commonStockSharesOutstanding') or
-                     balance[2].get('weightedAverageShsOutDil'))
+        # Use 4-quarter lookback for stable 12-month measurement
+        shares_t4 = (balance[4].get('weightedAverageShsOut') or
+                     balance[4].get('commonStockSharesOutstanding') or
+                     balance[4].get('weightedAverageShsOutDil'))
 
         method1_result = None
-        if shares_t and shares_t2 and shares_t2 > 0:
-            # 6-month change
-            six_month_pct = ((shares_t - shares_t2) / shares_t2) * 100
-
-            # Annualize (multiply by 2 for 12-month estimate)
-            net_issuance_pct = six_month_pct * 2
+        if shares_t and shares_t4 and shares_t4 > 0:
+            # 12-month change
+            net_issuance_pct = ((shares_t - shares_t4) / shares_t4) * 100
 
             # Stock split detection: If close to 50%, 100%, 200%, likely a split
             # Splits should be adjusted by FMP but sometimes aren't
