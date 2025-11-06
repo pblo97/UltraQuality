@@ -819,10 +819,47 @@ with tab5:
             if st.button(f"🔍 Run Deep Analysis for {selected_ticker}", type="primary"):
                 with st.spinner(f"Analyzing {selected_ticker}... This may take 30-60 seconds"):
                     try:
-                        from qualitative.analyst import QualitativeAnalyst
+                        import yaml
+                        import os
+                        from screener.qualitative import QualitativeAnalyzer
+                        from screener.ingest import FMPClient
 
-                        analyst = QualitativeAnalyst('settings.yaml')
-                        analysis = analyst.analyze_symbol(selected_ticker)
+                        # Load config
+                        with open('settings.yaml', 'r') as f:
+                            config = yaml.safe_load(f)
+
+                        # Get API key (same logic as orchestrator)
+                        api_key = None
+                        if 'FMP_API_KEY' in st.secrets:
+                            api_key = st.secrets['FMP_API_KEY']
+                        elif 'FMP' in st.secrets:
+                            api_key = st.secrets['FMP']
+
+                        if not api_key:
+                            api_key = os.getenv('FMP_API_KEY')
+
+                        if not api_key:
+                            api_key = config['fmp'].get('api_key')
+
+                        if not api_key or api_key.startswith('${'):
+                            st.error("FMP_API_KEY not found. Please configure it in Streamlit secrets.")
+                            st.stop()
+
+                        # Initialize FMP client and analyzer
+                        fmp_client = FMPClient(api_key, config['fmp'])
+                        analyzer = QualitativeAnalyzer(fmp_client, config)
+
+                        # Get company data from results for context
+                        df = st.session_state['results']
+                        stock_data = df[df['ticker'] == selected_ticker].iloc[0]
+                        company_type = stock_data.get('company_type', 'unknown')
+
+                        # Run analysis
+                        analysis = analyzer.analyze_symbol(
+                            selected_ticker,
+                            company_type=company_type,
+                            peers_df=df
+                        )
 
                         if analysis and 'error' not in analysis:
                             st.session_state[f'qual_{selected_ticker}'] = analysis
