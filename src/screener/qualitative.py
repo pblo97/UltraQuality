@@ -1079,6 +1079,19 @@ class QualitativeAnalyzer:
 
                 base_cf = ffo - maintenance_capex  # AFFO
 
+            elif company_type == 'utility':
+                # Utilities: Use OCF - Maintenance Capex
+                # Similar to non_financial but with different maintenance % assumptions
+
+                ocf = cashflow[0].get('operatingCashFlow', 0)
+                capex = abs(cashflow[0].get('capitalExpenditure', 0))
+
+                # Utilities: Typically mature with steady capex
+                # Assume 80% maintenance, 20% growth
+                maintenance_capex = capex * 0.80
+
+                base_cf = ocf - maintenance_capex
+
             else:  # Financial
                 # Use earnings (net income)
                 base_cf = income[0].get('netIncome', 0)
@@ -1109,6 +1122,8 @@ class QualitativeAnalyzer:
                 wacc = 0.12  # Higher for financials
             elif company_type == 'reit':
                 wacc = 0.09  # Lower for REITs (stable cash flows)
+            elif company_type == 'utility':
+                wacc = 0.08  # Lowest for utilities (regulated, stable, low risk)
             else:
                 wacc = 0.10  # Standard
 
@@ -1257,6 +1272,35 @@ class QualitativeAnalyzer:
 
                 return fair_value
 
+            elif company_type == 'utility':
+                # Use EV/EBITDA (capital-intensive like utilities prefer this)
+
+                ebitda_ttm = income[0].get('ebitda', 0)
+
+                # Forward EBITDA (low growth assumption ~3%)
+                growth_rate = 0.03
+
+                ebitda_forward = ebitda_ttm * (1 + growth_rate)
+
+                if ebitda_forward <= 0:
+                    return None
+
+                # Peer EV/EBITDA for utilities (typically 10-14x)
+                peer_multiple = 11  # Conservative
+
+                # Fair EV = EBITDA_forward * Peer_EV_EBITDA
+                fair_ev = ebitda_forward * peer_multiple
+
+                # Convert to equity value
+                total_debt = balance[0].get('totalDebt', 0)
+                cash = balance[0].get('cashAndCashEquivalents', 0)
+                net_debt = total_debt - cash
+
+                equity_value = fair_ev - net_debt
+                fair_value_per_share = equity_value / shares
+
+                return fair_value_per_share if fair_value_per_share > 0 else None
+
             else:  # Financial
                 # Use P/B (Price to Book) for financials instead of P/E
 
@@ -1361,6 +1405,28 @@ class QualitativeAnalyzer:
                 fair_value = ffo_per_share * historical_p_ffo
 
                 return fair_value if fair_value > 0 else None
+
+            elif company_type == 'utility':
+                # Use current EBITDA with historical average EV/EBITDA (10-12x)
+                ebitda_ttm = income[0].get('ebitda', 0)
+
+                if ebitda_ttm <= 0:
+                    return None
+
+                # Historical sector average EV/EBITDA for utilities
+                historical_ev_ebitda = 11  # Conservative 11x
+
+                fair_ev = ebitda_ttm * historical_ev_ebitda
+
+                # Convert to equity
+                total_debt = balance[0].get('totalDebt', 0)
+                cash = balance[0].get('cashAndCashEquivalents', 0)
+                net_debt = total_debt - cash
+
+                equity_value = fair_ev - net_debt
+                fair_value_per_share = equity_value / shares
+
+                return fair_value_per_share if fair_value_per_share > 0 else None
 
             else:  # Financial
                 # Use book value multiple (typically 1.0-1.5x for banks)
