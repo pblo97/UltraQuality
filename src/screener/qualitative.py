@@ -1440,14 +1440,10 @@ class QualitativeAnalyzer:
             if not (income and balance and cashflow):
                 return None
 
-            # Get shares outstanding
+            # Get shares outstanding (keep in actual count, not millions)
             shares = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
             if shares <= 0:
                 return None
-
-            # Convert shares to millions if needed
-            if shares > 1_000_000_000:
-                shares = shares / 1_000_000
 
             # === Type-specific base cash flow ===
 
@@ -1596,13 +1592,10 @@ class QualitativeAnalyzer:
             if not (income and balance):
                 return None
 
+            # Get shares outstanding (keep in actual count, not millions)
             shares = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
             if shares <= 0:
                 return None
-
-            # Convert shares if needed
-            if shares > 1_000_000_000:
-                shares = shares / 1_000_000
 
             # === Get peer multiples ===
 
@@ -1775,13 +1768,10 @@ class QualitativeAnalyzer:
             if not (income and balance):
                 return None
 
+            # Get shares outstanding (keep in actual count, not millions)
             shares = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
             if shares <= 0:
                 return None
-
-            # Convert shares if needed
-            if shares > 1_000_000_000:
-                shares = shares / 1_000_000
 
             if company_type == 'non_financial':
                 # Use current EBIT with historical average EV/EBIT (10-12x)
