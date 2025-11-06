@@ -27,6 +27,13 @@ class GuardrailAnalyzer:
         self.df = results_df.copy()
         self.total_companies = len(self.df)
 
+    @staticmethod
+    def _safe_percentage(numerator: float, denominator: float) -> float:
+        """Calculate percentage safely, handling division by zero."""
+        if denominator == 0 or pd.isna(denominator):
+            return 0.0
+        return (numerator / denominator) * 100
+
     def generate_full_report(self) -> str:
         """Generate comprehensive calibration report for all guardrails."""
         report = []
@@ -72,7 +79,7 @@ class GuardrailAnalyzer:
 
         for status in ['VERDE', 'AMBAR', 'ROJO']:
             count = status_counts.get(status, 0)
-            pct = (count / total) * 100
+            pct = self._safe_percentage(count, total)
             lines.append(f"{status:8s}: {count:4d} companies ({pct:5.1f}%)")
 
         # Top guardrail reasons
@@ -80,7 +87,7 @@ class GuardrailAnalyzer:
         if 'guardrail_reasons' in self.df.columns:
             reasons = self.df['guardrail_reasons'].value_counts().head(15)
             for i, (reason, count) in enumerate(reasons.items(), 1):
-                pct = (count / total) * 100
+                pct = self._safe_percentage(count, total)
                 lines.append(f"  {i:2d}. {reason:60s} {count:4d} ({pct:4.1f}%)")
 
         return "\n".join(lines)
@@ -129,7 +136,7 @@ class GuardrailAnalyzer:
 
         for zone_name, mask in zones:
             count = mask.sum()
-            pct = (count / len(beneish_df)) * 100
+            pct = self._safe_percentage(count, len(beneish_df))
             lines.append(f"  {zone_name:30s}: {count:4d} ({pct:5.1f}%)")
 
         # Companies flagged by Beneish (ROJO or AMBAR due to Beneish)
@@ -206,7 +213,7 @@ class GuardrailAnalyzer:
 
         for zone_name, mask in zones:
             count = mask.sum()
-            pct = (count / len(altman_df)) * 100
+            pct = self._safe_percentage(count, len(altman_df))
             lines.append(f"  {zone_name:30s}: {count:4d} ({pct:5.1f}%)")
 
         # Distress zone companies
@@ -278,7 +285,7 @@ class GuardrailAnalyzer:
 
         for tier_name, mask in tiers:
             count = mask.sum()
-            pct = (count / len(rev_df)) * 100
+            pct = self._safe_percentage(count, len(rev_df))
             avg_quality = rev_df[mask]['quality_score_0_100'].mean() if count > 0 else 0
             lines.append(f"  {tier_name:30s}: {count:4d} ({pct:5.1f}%) - Avg Q: {avg_quality:4.1f}")
 
@@ -340,7 +347,7 @@ class GuardrailAnalyzer:
 
         for flag in ['LOW', 'MODERATE', 'HIGH']:
             count = flag_counts.get(flag, 0)
-            pct = (count / total) * 100
+            pct = self._safe_percentage(count, total)
             avg_quality = mna_df[mna_df['mna_flag'] == flag]['quality_score_0_100'].mean() if count > 0 else 0
             lines.append(f"  {flag:10s}: {count:4d} ({pct:5.1f}%) - Avg Quality: {avg_quality:4.1f}")
 
@@ -414,7 +421,7 @@ class GuardrailAnalyzer:
 
         for tier_name, mask in tiers:
             count = mask.sum()
-            pct = (count / len(dil_df)) * 100
+            pct = self._safe_percentage(count, len(dil_df))
             lines.append(f"  {tier_name:35s}: {count:4d} ({pct:5.1f}%)")
 
         # High dilution companies
@@ -561,7 +568,7 @@ class GuardrailAnalyzer:
             distress = altman_df[altman_df['altmanZ'] < 1.8]
             extreme = altman_df[altman_df['altmanZ'] < 1.0]
 
-            pct_distress = (len(distress) / len(altman_df)) * 100
+            pct_distress = self._safe_percentage(len(distress), len(altman_df))
             if pct_distress > 20:
                 recommendations.append(
                     f"⚠️  ALTMAN Z: {pct_distress:.1f}% in distress zone - unusually high.\n"
@@ -583,7 +590,7 @@ class GuardrailAnalyzer:
             declining = rev_df[rev_df['revenue_growth_3y'] < 0]
             high_q_declining = declining[declining['quality_score_0_100'] >= 80]
 
-            pct_declining = (len(declining) / len(rev_df)) * 100
+            pct_declining = self._safe_percentage(len(declining), len(rev_df))
             if pct_declining > 30:
                 recommendations.append(
                     f"⚠️  REVENUE: {pct_declining:.1f}% declining - higher than expected.\n"
@@ -606,7 +613,7 @@ class GuardrailAnalyzer:
             high_mna = mna_df[mna_df['mna_flag'] == 'HIGH']
             high_q_mna = high_mna[high_mna['quality_score_0_100'] >= 70]
 
-            pct_high_mna = (len(high_mna) / len(mna_df)) * 100
+            pct_high_mna = self._safe_percentage(len(high_mna), len(mna_df))
             if pct_high_mna > 15:
                 recommendations.append(
                     f"⚠️  M&A FLAG: {pct_high_mna:.1f}% flagged as HIGH M&A.\n"
