@@ -935,6 +935,120 @@ with tab5:
 
                 st.markdown("---")
 
+                # Intrinsic Value Estimation
+                st.subheader("💰 Intrinsic Value Estimation")
+                intrinsic = analysis.get('intrinsic_value', {})
+
+                if intrinsic and intrinsic.get('current_price'):
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.metric("Current Price", f"${intrinsic.get('current_price', 0):.2f}")
+
+                    with col2:
+                        if intrinsic.get('dcf_value'):
+                            st.metric("DCF Value", f"${intrinsic.get('dcf_value', 0):.2f}")
+                        else:
+                            st.metric("DCF Value", "N/A")
+
+                    with col3:
+                        if intrinsic.get('forward_multiple_value'):
+                            st.metric("Forward Multiple", f"${intrinsic.get('forward_multiple_value', 0):.2f}")
+                        else:
+                            st.metric("Forward Multiple", "N/A")
+
+                    with col4:
+                        if intrinsic.get('weighted_value'):
+                            st.metric("Fair Value", f"${intrinsic.get('weighted_value', 0):.2f}")
+                        else:
+                            st.metric("Fair Value", "N/A")
+
+                    # Upside/Downside
+                    if intrinsic.get('upside_downside_%') is not None:
+                        upside = intrinsic.get('upside_downside_%', 0)
+                        assessment = intrinsic.get('valuation_assessment', 'Unknown')
+                        confidence = intrinsic.get('confidence', 'Low')
+
+                        # Color based on assessment
+                        if assessment == 'Undervalued':
+                            color = 'green'
+                            emoji = '🟢'
+                        elif assessment == 'Overvalued':
+                            color = 'red'
+                            emoji = '🔴'
+                        else:
+                            color = 'orange'
+                            emoji = '🟡'
+
+                        # Display industry profile
+                        industry_profile = intrinsic.get('industry_profile', 'unknown').replace('_', ' ').title()
+                        primary_metric = intrinsic.get('primary_metric', 'EV/EBIT')
+
+                        st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
+                        st.caption(f"**Industry Profile:** {industry_profile} | **Primary Metric:** {primary_metric}")
+                        st.caption(f"**Confidence:** {confidence} | {', '.join(intrinsic.get('notes', []))}")
+
+                        # Explanation
+                        with st.expander("📖 Research-Based Valuation Methodology"):
+                            st.markdown(f"""
+                            ### Industry-Specific Approach
+
+                            **Industry Profile:** {industry_profile}
+                            **Primary Metric:** {primary_metric}
+
+                            This valuation uses academic research (Damodaran, NYU Stern; Harbula 2009) to select
+                            optimal metrics by industry characteristics:
+
+                            **Valuation Framework:**
+
+                            1. **Capital-Intensive** (Oil/Gas, Utilities, Manufacturing):
+                               - Primary: **EV/EBIT** (D&A reflects actual capex needs)
+                               - Research: More stable than EBITDA for capex-heavy businesses
+                               - Typical multiples: 8-12x EV/EBIT
+
+                            2. **Asset-Light / High-Growth** (Software, Biotech):
+                               - Primary: **EV/Revenue** or **EV/EBITDA**
+                               - Research: Damodaran 2025 - Software ~98x, Biotech ~62x
+                               - Higher multiples reflect growth potential
+
+                            3. **Asset-Based** (Banks, REITs):
+                               - Primary: **P/B** or **P/FFO**
+                               - Research: Book value best for tangible assets
+                               - Conservative multiples: 1.0-1.5x for banks
+
+                            4. **Mature/Stable** (Consumer Staples, Healthcare):
+                               - Primary: **FCF Yield**
+                               - Research: Predictable cash flows enable accurate DCF
+                               - Higher DCF weighting (50%)
+
+                            5. **Cyclical** (Retail, Consumer Discretionary):
+                               - Primary: **EV/EBITDA**
+                               - Research: Use normalized earnings to avoid peak/trough
+                               - Lower DCF weight (harder to project cycles)
+
+                            ---
+
+                            ### DCF Method
+                            - **Growth Capex Adjustment**: Only maintenance capex subtracted
+                            - High growth (>10% revenue): 50% capex = maintenance
+                            - Moderate (5-10%): 70% maintenance
+                            - Mature (<5%): 90% maintenance
+                            - **WACC**: Industry-adjusted based on risk profile
+                            - **Terminal Growth**: 3% perpetual
+
+                            ### Weighting
+                            - **Varies by industry** (not fixed 40/40/20)
+                            - High-growth: 30% DCF, 70% Multiples
+                            - Stable: 50% DCF, 50% Multiples
+                            - Default: 40% DCF, 60% Multiples
+
+                            **No P/E ratios used** - Focus on cash flow and operating metrics per best practices.
+                            """)
+                else:
+                    st.info("Valuation analysis not available")
+
+                st.markdown("---")
+
                 # Fundamental Metrics Deep Dive
                 st.subheader("📊 Fundamental Metrics")
 

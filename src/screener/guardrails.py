@@ -546,8 +546,8 @@ class GuardrailCalculator:
         if not industry:
             return True  # Default to applicable if unknown
 
-        # Financial services - use different metrics entirely
-        if company_type in ['financial', 'reit']:
+        # Financial services and utilities - use different metrics entirely
+        if company_type in ['financial', 'reit', 'utility']:
             return False
 
         industry_lower = industry.lower()
@@ -764,6 +764,27 @@ class GuardrailCalculator:
             cfg = thresholds.get('reit', {})
             # FFO payout, occupancy, debt/assets (from features)
             # Placeholder
+
+        elif company_type == 'utility':
+            cfg = thresholds.get('utility', thresholds.get('non_financial', {}))
+
+            # Altman Z - NOT applicable for utilities (already exempted in _is_altman_z_applicable)
+
+            # Utilities use ROE-based quality, not ROIC
+            # No specific guardrails here - rely on Beneish, dilution, and features
+
+            # Debt/Equity - Utilities typically have higher debt (1.0-2.0x acceptable)
+            # Flag only if extreme (>3.0x)
+            debt_equity = guardrails.get('debt_to_equity')
+            if debt_equity and debt_equity > 3.0:
+                amber_flags += 1
+                reasons.append(f"Debt/Equity={debt_equity:.2f} >3.0 (high leverage for utility)")
+
+            # Interest Coverage - Below 3x is concerning for regulated utility
+            interest_cov = guardrails.get('interestCoverage')
+            if interest_cov and interest_cov < 3.0:
+                amber_flags += 1
+                reasons.append(f"Interest Coverage={interest_cov:.2f} <3.0 (weak)")
 
         # Beneish M-Score (all types) - INDUSTRY-ADJUSTED THRESHOLDS
         m = guardrails.get('beneishM')

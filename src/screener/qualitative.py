@@ -53,14 +53,19 @@ class QualitativeAnalyzer:
             'business_summary': '',
             'peers_list': [],
             'peer_snapshot': [],
-            'moats': {},
+            'moats': [],  # Changed to list for UI compatibility
+            'moats_raw': {},  # Keep raw data
             'skin_in_the_game': {},
+            'insider_trading': {},  # UI expects this
             'news_TLDR': [],
+            'recent_news': [],  # UI expects this
             'news_tags': [],
             'pr_highlights': [],
             'transcript_TLDR': {},
             'mna_recent': [],
-            'top_risks': []
+            'top_risks': [],
+            'risks': [],  # UI expects this
+            'intrinsic_value': {}  # New: valuation analysis
         }
 
         try:
@@ -73,18 +78,23 @@ class QualitativeAnalyzer:
             )
 
             # 3. Moats (competitive advantages)
-            summary['moats'] = self._assess_moats(
+            summary['moats_raw'] = self._assess_moats(
                 symbol,
                 summary['business_summary'],
                 summary['peer_snapshot']
             )
+            # Format moats as readable list
+            summary['moats'] = self._format_moats(summary['moats_raw'])
 
             # 4. Skin in the game (insiders & dilution)
             summary['skin_in_the_game'] = self._assess_skin_in_game(symbol)
+            summary['insider_trading'] = summary['skin_in_the_game']  # UI compatibility
 
             # 5. News & PR (last 60-90 days)
             summary['news_TLDR'], summary['news_tags'] = self._summarize_news(symbol, days=90)
             summary['pr_highlights'] = self._summarize_press_releases(symbol, days=90)
+            # Format news for UI
+            summary['recent_news'] = self._format_news(summary['news_TLDR'], summary['news_tags'])
 
             # 6. Latest earnings transcript
             summary['transcript_TLDR'] = self._summarize_transcript(symbol)
@@ -98,6 +108,15 @@ class QualitativeAnalyzer:
                 summary['transcript_TLDR'],
                 summary['news_TLDR'],
                 summary['news_tags']
+            )
+            # Format risks for UI
+            summary['risks'] = self._format_risks(summary['top_risks'])
+
+            # 9. Intrinsic value estimation
+            summary['intrinsic_value'] = self._estimate_intrinsic_value(
+                symbol,
+                company_type,
+                peers_df
             )
 
         except Exception as e:
@@ -606,6 +625,824 @@ class QualitativeAnalyzer:
 
         # Limit to top 3
         return risks[:3]
+
+    # ===================================
+    # Formatting Functions (UI Compatibility)
+    # ===================================
+
+    def _format_moats(self, moats_raw: Dict) -> List[str]:
+        """
+        Convert raw moats dict to readable list.
+
+        Example:
+        {'switching_costs': 'Probable', 'network_effects': 'No', ...}
+        -> ["✓ Switching Costs: High customer lock-in", "✗ Network Effects: Not evident"]
+        """
+        formatted = []
+
+        moat_labels = {
+            'switching_costs': 'Switching Costs',
+            'network_effects': 'Network Effects',
+            'brand_IP': 'Brand & Intellectual Property',
+            'scale_efficiency': 'Scale & Cost Advantages',
+            'regulatory_assets': 'Regulatory Barriers'
+        }
+
+        moat_descriptions = {
+            'switching_costs': 'High customer switching costs lock in revenue',
+            'network_effects': 'Platform grows stronger with each user',
+            'brand_IP': 'Strong brand recognition or proprietary technology',
+            'scale_efficiency': 'Economies of scale create cost advantages',
+            'regulatory_assets': 'Licenses or regulations limit competition'
+        }
+
+        for key, value in moats_raw.items():
+            if key == 'notes':
+                continue
+
+            label = moat_labels.get(key, key)
+            desc = moat_descriptions.get(key, '')
+
+            if value in ['Yes', 'Probable']:
+                formatted.append(f"✓ {label}: {desc}")
+            else:
+                formatted.append(f"✗ {label}: Not evident")
+
+        # Add summary note if available
+        notes = moats_raw.get('notes', '')
+        if notes:
+            formatted.append(f"📝 {notes}")
+
+        return formatted if formatted else ["No clear moats identified from business description"]
+
+    def _format_news(self, news_tldr: List[str], news_tags: List[str]) -> List[Dict]:
+        """
+        Format news for UI display.
+
+        Returns list of dicts with date, headline, summary, tags.
+        """
+        if not news_tldr:
+            return []
+
+        formatted_news = []
+        today = datetime.now()
+
+        for i, tldr in enumerate(news_tldr):
+            # Extract approximate date (news are ordered newest first)
+            days_ago = i * 15  # Rough estimate: 15 days apart
+            news_date = (today - timedelta(days=days_ago)).strftime('%Y-%m-%d')
+
+            # Split TLDR into headline and summary
+            if ':' in tldr:
+                headline, summary = tldr.split(':', 1)
+            else:
+                headline = tldr[:50]
+                summary = tldr[50:] if len(tldr) > 50 else ''
+
+            formatted_news.append({
+                'date': news_date,
+                'headline': headline.strip(),
+                'summary': summary.strip()
+            })
+
+        return formatted_news
+
+    def _format_risks(self, top_risks: List[Dict]) -> List[str]:
+        """
+        Format risks for simple UI display.
+
+        Input: [{'risk': 'text', 'prob': 'Med', 'severity': 'High', ...}]
+        Output: ["High Severity: Risk description", ...]
+        """
+        if not top_risks:
+            return []
+
+        formatted = []
+        for risk_dict in top_risks:
+            severity = risk_dict.get('severity', 'Med')
+            risk_text = risk_dict.get('risk', '')
+
+            # Emoji based on severity
+            emoji = '🔴' if severity == 'High' else '🟡' if severity == 'Med' else '🟢'
+
+            formatted.append(f"{emoji} {severity} Severity: {risk_text}")
+
+        return formatted
+
+    # ===================================
+    # Intrinsic Value Estimation
+    # ===================================
+
+    def _get_industry_valuation_profile(self, symbol: str) -> Dict:
+        """
+        Determine optimal valuation metrics based on industry characteristics.
+
+        Based on academic research (Damodaran, NYU Stern; Harbula, 2009):
+        - Capital-intensive: EV/EBIT preferred (D&A reflects capex)
+        - Asset-light/High-growth: EV/Revenue or EV/EBITDA
+        - Asset-heavy: P/B (Book value)
+        - Mature/Stable: FCF yield (predictable cash flows)
+
+        Returns dict with:
+        - primary_metric: str
+        - secondary_metric: str
+        - wacc: float
+        - expected_multiple_range: tuple
+        """
+        try:
+            profile_data = self.fmp.get_profile(symbol)
+            if not profile_data:
+                return self._default_valuation_profile()
+
+            industry = profile_data[0].get('industry', '').lower()
+            sector = profile_data[0].get('sector', '').lower()
+
+            # Asset-light, high-growth industries (Software, Biotech, Internet)
+            # Research: Damodaran 2025 - Software EV/EBITDA ~98x, Biotech ~62x
+            if any(kw in industry + sector for kw in [
+                'software', 'internet', 'biotechnology', 'pharmaceutical',
+                'semiconductor', 'application', 'saas'
+            ]):
+                return {
+                    'profile': 'high_growth_asset_light',
+                    'primary_metric': 'EV/Revenue',  # For high growth with negative FCF
+                    'secondary_metric': 'EV/EBITDA',
+                    'wacc': 0.11,  # Higher risk
+                    'expected_multiple_ebitda': (30, 60),  # Damodaran: 46-98x
+                    'dcf_weight': 0.30,  # Lower weight (harder to project)
+                    'multiple_weight': 0.70
+                }
+
+            # Capital-intensive industries (Manufacturing, Oil/Gas, Utilities, Telecom)
+            # Research: EV/EBIT preferred - D&A reflects real capex needs
+            elif any(kw in industry + sector for kw in [
+                'oil', 'gas', 'energy', 'utility', 'utilities', 'telecom',
+                'manufacturing', 'steel', 'mining', 'automotive', 'transportation',
+                'airline', 'railroad', 'pipeline', 'midstream'
+            ]):
+                return {
+                    'profile': 'capital_intensive',
+                    'primary_metric': 'EV/EBIT',  # Better than EBITDA for capex-heavy
+                    'secondary_metric': 'EV/FCF',
+                    'wacc': 0.09,  # Lower for utilities, 0.10 for others
+                    'expected_multiple_ebit': (8, 12),  # Typical range
+                    'dcf_weight': 0.45,  # Higher weight (stable cash flows)
+                    'multiple_weight': 0.55
+                }
+
+            # Asset-based industries (Real Estate, Banks, Insurance)
+            # Research: P/B well-suited for tangible assets
+            elif any(kw in industry + sector for kw in [
+                'real estate', 'reit', 'bank', 'insurance', 'financial'
+            ]):
+                return {
+                    'profile': 'asset_based',
+                    'primary_metric': 'P/B',
+                    'secondary_metric': 'P/FFO' if 'reit' in industry else 'P/TBV',
+                    'wacc': 0.12 if 'bank' in industry else 0.09,  # REITs lower
+                    'expected_multiple_pb': (1.0, 1.5),  # Conservative
+                    'dcf_weight': 0.40,
+                    'multiple_weight': 0.60
+                }
+
+            # Mature, stable industries (Consumer Staples, Healthcare Products)
+            # Research: FCF yield reliable for predictable cash flows
+            elif any(kw in industry + sector for kw in [
+                'consumer staples', 'consumer defensive', 'beverage', 'food',
+                'tobacco', 'household products', 'medical devices', 'healthcare products'
+            ]):
+                return {
+                    'profile': 'mature_stable',
+                    'primary_metric': 'FCF_Yield',
+                    'secondary_metric': 'EV/EBIT',
+                    'wacc': 0.08,  # Lower risk
+                    'expected_multiple_ebit': (12, 18),  # Higher for quality
+                    'dcf_weight': 0.50,  # Highest weight (very predictable)
+                    'multiple_weight': 0.50
+                }
+
+            # Cyclical industries (Retail, Consumer Cyclical)
+            # Research: Use normalized earnings, avoid peak/trough
+            elif any(kw in industry + sector for kw in [
+                'retail', 'consumer cyclical', 'restaurant', 'hotel',
+                'leisure', 'apparel', 'automotive retail'
+            ]):
+                return {
+                    'profile': 'cyclical',
+                    'primary_metric': 'EV/EBITDA',  # More stable than EBIT
+                    'secondary_metric': 'EV/Revenue',
+                    'wacc': 0.10,
+                    'expected_multiple_ebitda': (8, 14),
+                    'dcf_weight': 0.35,  # Lower weight (hard to normalize)
+                    'multiple_weight': 0.65
+                }
+
+            # Default: Diversified/Mixed
+            else:
+                return self._default_valuation_profile()
+
+        except Exception as e:
+            logger.warning(f"Failed to determine industry profile for {symbol}: {e}")
+            return self._default_valuation_profile()
+
+    def _default_valuation_profile(self) -> Dict:
+        """Default valuation profile for mixed/unknown industries."""
+        return {
+            'profile': 'default',
+            'primary_metric': 'EV/EBIT',
+            'secondary_metric': 'FCF_Yield',
+            'wacc': 0.10,
+            'expected_multiple_ebit': (10, 15),
+            'dcf_weight': 0.40,
+            'multiple_weight': 0.60
+        }
+
+    def _estimate_intrinsic_value(
+        self,
+        symbol: str,
+        company_type: str,
+        peers_df: Optional[Any]
+    ) -> Dict:
+        """
+        Estimate intrinsic value using multiple approaches:
+        1. DCF (simple 2-stage model)
+        2. Forward multiples vs peers
+        3. Historical average multiple
+
+        Returns:
+        {
+            'current_price': float,
+            'dcf_value': float,
+            'forward_multiple_value': float,
+            'historical_multiple_value': float,
+            'weighted_value': float,
+            'upside_downside_%': float,
+            'valuation_assessment': 'Undervalued|Fair|Overvalued',
+            'confidence': 'Low|Med|High'
+        }
+        """
+        # Get industry-specific valuation profile
+        industry_profile = self._get_industry_valuation_profile(symbol)
+
+        valuation = {
+            'current_price': None,
+            'dcf_value': None,
+            'forward_multiple_value': None,
+            'historical_multiple_value': None,
+            'weighted_value': None,
+            'upside_downside_%': None,
+            'valuation_assessment': 'Unknown',
+            'confidence': 'Low',
+            'industry_profile': industry_profile.get('profile', 'unknown'),
+            'primary_metric': industry_profile.get('primary_metric', 'EV/EBIT'),
+            'notes': []
+        }
+
+        try:
+            # Get current price
+            quote = self.fmp.get_quote(symbol)
+            if not quote:
+                valuation['notes'].append("Price data unavailable")
+                return valuation
+
+            current_price = quote[0].get('price', 0)
+            valuation['current_price'] = current_price
+
+            if current_price <= 0:
+                valuation['notes'].append("Invalid price data")
+                return valuation
+
+            # Use industry-specific WACC
+            industry_wacc = industry_profile.get('wacc', 0.10)
+
+            # 1. DCF Valuation (with industry-specific WACC)
+            dcf_value = self._calculate_dcf(symbol, company_type, wacc_override=industry_wacc)
+            if dcf_value and dcf_value > 0:
+                valuation['dcf_value'] = dcf_value
+                valuation['confidence'] = 'Med'
+
+            # 2. Forward Multiple Valuation
+            forward_value = self._calculate_forward_multiple(symbol, company_type, peers_df)
+            if forward_value and forward_value > 0:
+                valuation['forward_multiple_value'] = forward_value
+                valuation['confidence'] = 'High' if valuation['confidence'] == 'Med' else 'Med'
+
+            # 3. Historical Multiple
+            historical_value = self._calculate_historical_multiple(symbol, company_type)
+            if historical_value and historical_value > 0:
+                valuation['historical_multiple_value'] = historical_value
+
+            # Weighted average using INDUSTRY-SPECIFIC WEIGHTS
+            estimates = []
+            weights = []
+            values = []
+
+            # DCF weight (varies by industry: 0.30 for high-growth, 0.50 for stable)
+            if dcf_value and dcf_value > 0:
+                estimates.append('DCF')
+                dcf_weight = industry_profile.get('dcf_weight', 0.40)
+                weights.append(dcf_weight)
+                values.append(dcf_value)
+
+            # Multiple weight (varies by industry)
+            if forward_value and forward_value > 0:
+                estimates.append('Forward Multiple')
+                multiple_weight = industry_profile.get('multiple_weight', 0.60)
+                # Split between forward and historical
+                weights.append(multiple_weight * 0.70)  # 70% to forward
+                values.append(forward_value)
+
+            if historical_value and historical_value > 0:
+                estimates.append('Historical')
+                multiple_weight = industry_profile.get('multiple_weight', 0.60)
+                weights.append(multiple_weight * 0.30)  # 30% to historical
+                values.append(historical_value)
+
+            if values:
+                # Normalize weights to sum to 1.0
+                total_weight = sum(weights)
+                weights = [w / total_weight for w in weights]
+
+                weighted = sum(v * w for v, w in zip(values, weights))
+                valuation['weighted_value'] = weighted
+
+                # Calculate upside/downside
+                upside = ((weighted - current_price) / current_price) * 100
+                valuation['upside_downside_%'] = upside
+
+                # Assessment (industry-adjusted thresholds)
+                # High-growth industries get more lenient thresholds
+                if industry_profile.get('profile') == 'high_growth_asset_light':
+                    undervalued_threshold = 30
+                    overvalued_threshold = -20
+                else:
+                    undervalued_threshold = 25
+                    overvalued_threshold = -15
+
+                if upside > undervalued_threshold:
+                    valuation['valuation_assessment'] = 'Undervalued'
+                elif upside < overvalued_threshold:
+                    valuation['valuation_assessment'] = 'Overvalued'
+                else:
+                    valuation['valuation_assessment'] = 'Fair Value'
+
+                # Add detailed notes
+                profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
+                primary_metric = industry_profile.get('primary_metric', 'EV/EBIT')
+                valuation['notes'].append(f"Industry: {profile_name}")
+                valuation['notes'].append(f"Primary metric: {primary_metric}")
+                valuation['notes'].append(f"Methods: {', '.join(estimates)}")
+                valuation['notes'].append(f"WACC: {industry_wacc:.1%}")
+            else:
+                valuation['notes'].append("Insufficient data for valuation")
+
+        except Exception as e:
+            logger.warning(f"Failed to estimate intrinsic value for {symbol}: {e}")
+            valuation['notes'].append(f"Error: {str(e)}")
+
+        return valuation
+
+    def _calculate_dcf(self, symbol: str, company_type: str, wacc_override: Optional[float] = None) -> Optional[float]:
+        """
+        Company-specific DCF valuation.
+
+        Non-financial: FCF-based (adjusted for growth capex)
+        Financial: Earnings-based
+        REIT: FFO-based
+
+        Key: Don't penalize growth capex - it's valuable investment
+
+        Args:
+            symbol: Stock ticker
+            company_type: 'non_financial', 'financial', or 'reit'
+            wacc_override: Optional industry-specific WACC (from research)
+        """
+        try:
+            # Get financials
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
+            cashflow = self.fmp.get_cash_flow_statement(symbol, period='annual', limit=2)
+
+            if not (income and balance and cashflow):
+                return None
+
+            # Get shares outstanding
+            shares = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
+            if shares <= 0:
+                return None
+
+            # Convert shares to millions if needed
+            if shares > 1_000_000_000:
+                shares = shares / 1_000_000
+
+            # === Type-specific base cash flow ===
+
+            if company_type == 'non_financial':
+                # Use Operating Cash Flow - Maintenance Capex
+                # Don't subtract growth capex!
+
+                ocf = cashflow[0].get('operatingCashFlow', 0)
+                capex = abs(cashflow[0].get('capitalExpenditure', 0))
+                revenue = income[0].get('revenue', 1)
+                revenue_prev = income[1].get('revenue', 1) if len(income) > 1 else revenue
+
+                # Estimate maintenance capex (historical average or 2-3% of revenue)
+                # If revenue growing fast, assume more capex is growth
+                revenue_growth = (revenue - revenue_prev) / revenue_prev if revenue_prev > 0 else 0
+
+                if revenue_growth > 0.10:  # Growing > 10%
+                    # High growth: assume 50% of capex is maintenance, 50% is growth
+                    maintenance_capex = capex * 0.5
+                elif revenue_growth > 0.05:  # Moderate growth
+                    # Moderate: 70% maintenance
+                    maintenance_capex = capex * 0.7
+                else:
+                    # Mature: 90% maintenance
+                    maintenance_capex = capex * 0.9
+
+                # Normalized FCF = OCF - Maintenance Capex only
+                base_cf = ocf - maintenance_capex
+
+            elif company_type == 'reit':
+                # Use FFO (Funds From Operations)
+                # FFO = Net Income + Depreciation - Gains on Sales
+
+                net_income = income[0].get('netIncome', 0)
+                depreciation = abs(cashflow[0].get('depreciationAndAmortization', 0))
+
+                # Simplified FFO
+                ffo = net_income + depreciation
+
+                # Maintenance capex for REITs (typically lower, ~15-20% of FFO)
+                capex = abs(cashflow[0].get('capitalExpenditure', 0))
+                maintenance_capex = min(capex, ffo * 0.20)
+
+                base_cf = ffo - maintenance_capex  # AFFO
+
+            elif company_type == 'utility':
+                # Utilities: Use OCF - Maintenance Capex
+                # Similar to non_financial but with different maintenance % assumptions
+
+                ocf = cashflow[0].get('operatingCashFlow', 0)
+                capex = abs(cashflow[0].get('capitalExpenditure', 0))
+
+                # Utilities: Typically mature with steady capex
+                # Assume 80% maintenance, 20% growth
+                maintenance_capex = capex * 0.80
+
+                base_cf = ocf - maintenance_capex
+
+            else:  # Financial
+                # Use earnings (net income)
+                base_cf = income[0].get('netIncome', 0)
+
+            if base_cf <= 0:
+                return None
+
+            # === Growth assumptions ===
+
+            # Estimate growth from recent history
+            if len(income) > 1 and len(cashflow) > 1:
+                revenue_growth = (income[0].get('revenue', 0) - income[1].get('revenue', 1)) / income[1].get('revenue', 1)
+                revenue_growth = max(0, min(revenue_growth, 0.30))  # Cap at 30%
+            else:
+                revenue_growth = 0.08  # Default 8%
+
+            # Stage 1 growth (5 years): taper from current to 10%
+            growth_stage1 = (revenue_growth + 0.10) / 2  # Average of current and 10%
+
+            # Stage 2 (terminal): 3% perpetual
+            terminal_growth = 0.03
+
+            # === WACC (use industry-specific if provided) ===
+
+            if wacc_override:
+                wacc = wacc_override
+            elif company_type == 'financial':
+                wacc = 0.12  # Higher for financials
+            elif company_type == 'reit':
+                wacc = 0.09  # Lower for REITs (stable cash flows)
+            elif company_type == 'utility':
+                wacc = 0.08  # Lowest for utilities (regulated, stable, low risk)
+            else:
+                wacc = 0.10  # Standard
+
+            # === DCF calculation ===
+
+            # Project 5 years
+            fcf_pv = 0
+            for year in range(1, 6):
+                fcf_projected = base_cf * ((1 + growth_stage1) ** year)
+                pv = fcf_projected / ((1 + wacc) ** year)
+                fcf_pv += pv
+
+            # Terminal value
+            fcf_year5 = base_cf * ((1 + growth_stage1) ** 5)
+            terminal_fcf = fcf_year5 * (1 + terminal_growth)
+            terminal_value = terminal_fcf / (wacc - terminal_growth)
+            terminal_pv = terminal_value / ((1 + wacc) ** 5)
+
+            # Enterprise value
+            ev = fcf_pv + terminal_pv
+
+            # Convert to equity value
+            total_debt = balance[0].get('totalDebt', 0)
+            cash = balance[0].get('cashAndCashEquivalents', 0)
+            net_debt = total_debt - cash
+
+            equity_value = ev - net_debt
+
+            # Per share
+            value_per_share = equity_value / shares
+
+            return value_per_share if value_per_share > 0 else None
+
+        except Exception as e:
+            logger.warning(f"DCF calculation failed for {symbol}: {e}")
+            return None
+
+    def _calculate_forward_multiple(
+        self,
+        symbol: str,
+        company_type: str,
+        peers_df: Optional[Any]
+    ) -> Optional[float]:
+        """
+        Value using forward multiples vs peers.
+
+        For non-financial: Prefer EV/EBIT (more robust than P/E)
+        For financial: Use P/E
+        For REIT: Use P/FFO
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
+            cashflow = self.fmp.get_cash_flow_statement(symbol, period='annual', limit=1)
+
+            if not (income and balance):
+                return None
+
+            shares = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
+            if shares <= 0:
+                return None
+
+            # Convert shares if needed
+            if shares > 1_000_000_000:
+                shares = shares / 1_000_000
+
+            # === Get peer multiples ===
+
+            peer_multiple = None
+            metric_name = ''
+
+            if company_type == 'non_financial':
+                # Use EV/EBIT (better for capital-intensive businesses)
+
+                ebit_ttm = income[0].get('ebitda', 0) - abs(income[0].get('depreciationAndAmortization', 0))
+
+                # Estimate forward EBIT (with growth)
+                if len(income) > 1:
+                    revenue_growth = (income[0].get('revenue', 0) - income[1].get('revenue', 1)) / income[1].get('revenue', 1)
+                    growth_rate = max(0, min(revenue_growth, 0.20))  # Cap at 20%
+                else:
+                    growth_rate = 0.08
+
+                ebit_forward = ebit_ttm * (1 + growth_rate)
+
+                if ebit_forward <= 0:
+                    return None
+
+                # Get peer EV/EBIT
+                if peers_df is not None and 'ev_ebit_ttm' in peers_df.columns:
+                    stock_peers = self.fmp.get_stock_peers(symbol)
+                    if stock_peers and 'peersList' in stock_peers[0]:
+                        peer_symbols = stock_peers[0]['peersList'][:5]
+
+                        peer_multiples = []
+                        for peer in peer_symbols:
+                            if peer in peers_df.index:
+                                ev_ebit = peers_df.loc[peer, 'ev_ebit_ttm']
+                                if ev_ebit and ev_ebit > 0 and ev_ebit < 30:  # Sanity check
+                                    peer_multiples.append(ev_ebit)
+
+                        if peer_multiples:
+                            peer_multiple = sum(peer_multiples) / len(peer_multiples)
+
+                # Fallback: sector average
+                if not peer_multiple:
+                    peer_multiple = 12  # EV/EBIT ~12x
+
+                # Fair EV = EBIT_forward * Peer_EV_EBIT
+                fair_ev = ebit_forward * peer_multiple
+
+                # Convert to equity value
+                total_debt = balance[0].get('totalDebt', 0)
+                cash = balance[0].get('cashAndCashEquivalents', 0)
+                net_debt = total_debt - cash
+
+                equity_value = fair_ev - net_debt
+                fair_value_per_share = equity_value / shares
+
+                return fair_value_per_share if fair_value_per_share > 0 else None
+
+            elif company_type == 'reit':
+                # Use P/FFO
+
+                net_income = income[0].get('netIncome', 0)
+                depreciation = abs(cashflow[0].get('depreciationAndAmortization', 0))
+                ffo = net_income + depreciation
+
+                # Forward FFO
+                if len(income) > 1:
+                    revenue_growth = (income[0].get('revenue', 0) - income[1].get('revenue', 1)) / income[1].get('revenue', 1)
+                    growth_rate = max(0, min(revenue_growth, 0.10))
+                else:
+                    growth_rate = 0.05
+
+                ffo_forward = ffo * (1 + growth_rate)
+                ffo_per_share = ffo_forward / shares
+
+                if ffo_per_share <= 0:
+                    return None
+
+                # Peer P/FFO (use P/E as proxy if not available)
+                peer_multiple = 15  # Default P/FFO for REITs
+
+                fair_value = ffo_per_share * peer_multiple
+
+                return fair_value
+
+            elif company_type == 'utility':
+                # Use EV/EBITDA (capital-intensive like utilities prefer this)
+
+                ebitda_ttm = income[0].get('ebitda', 0)
+
+                # Forward EBITDA (low growth assumption ~3%)
+                growth_rate = 0.03
+
+                ebitda_forward = ebitda_ttm * (1 + growth_rate)
+
+                if ebitda_forward <= 0:
+                    return None
+
+                # Peer EV/EBITDA for utilities (typically 10-14x)
+                peer_multiple = 11  # Conservative
+
+                # Fair EV = EBITDA_forward * Peer_EV_EBITDA
+                fair_ev = ebitda_forward * peer_multiple
+
+                # Convert to equity value
+                total_debt = balance[0].get('totalDebt', 0)
+                cash = balance[0].get('cashAndCashEquivalents', 0)
+                net_debt = total_debt - cash
+
+                equity_value = fair_ev - net_debt
+                fair_value_per_share = equity_value / shares
+
+                return fair_value_per_share if fair_value_per_share > 0 else None
+
+            else:  # Financial
+                # Use P/B (Price to Book) for financials instead of P/E
+
+                book_value = balance[0].get('totalStockholdersEquity', 0)
+                shares_ttm = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
+
+                if shares_ttm <= 0 or book_value <= 0:
+                    return None
+
+                # Convert shares if needed
+                if shares_ttm > 1_000_000_000:
+                    shares_ttm = shares_ttm / 1_000_000
+
+                book_per_share = book_value / shares_ttm
+
+                # Get peer P/B
+                peer_pb = None
+                if peers_df is not None and 'pb_ttm' in peers_df.columns:
+                    stock_peers = self.fmp.get_stock_peers(symbol)
+                    if stock_peers and 'peersList' in stock_peers[0]:
+                        peer_symbols = stock_peers[0]['peersList'][:5]
+
+                        peer_pbs = []
+                        for peer in peer_symbols:
+                            if peer in peers_df.index:
+                                pb = peers_df.loc[peer, 'pb_ttm']
+                                if pb and pb > 0 and pb < 3:  # Sanity check for financials
+                                    peer_pbs.append(pb)
+
+                        if peer_pbs:
+                            peer_pb = sum(peer_pbs) / len(peer_pbs)
+
+                # Fallback: sector average P/B for financials
+                if not peer_pb:
+                    peer_pb = 1.2  # P/B ~1.2x for financials
+
+                fair_value = book_per_share * peer_pb
+
+                return fair_value if fair_value > 0 else None
+
+        except Exception as e:
+            logger.warning(f"Forward multiple calculation failed for {symbol}: {e}")
+            return None
+
+    def _calculate_historical_multiple(self, symbol: str, company_type: str) -> Optional[float]:
+        """
+        Value using historical EV/EBIT or EV/FCF average.
+
+        For non-financial: Use EV/EBIT historical average
+        For financial: Use book value multiple
+        For REIT: Use historical FFO yield
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=3)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=3)
+            cashflow = self.fmp.get_cash_flow_statement(symbol, period='annual', limit=3)
+
+            if not (income and balance):
+                return None
+
+            shares = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
+            if shares <= 0:
+                return None
+
+            # Convert shares if needed
+            if shares > 1_000_000_000:
+                shares = shares / 1_000_000
+
+            if company_type == 'non_financial':
+                # Use current EBIT with historical average EV/EBIT (10-12x)
+                ebit_ttm = income[0].get('ebitda', 0) - abs(income[0].get('depreciationAndAmortization', 0))
+
+                if ebit_ttm <= 0:
+                    return None
+
+                # Historical sector average EV/EBIT
+                historical_ev_ebit = 11  # Conservative 11x
+
+                fair_ev = ebit_ttm * historical_ev_ebit
+
+                # Convert to equity
+                total_debt = balance[0].get('totalDebt', 0)
+                cash = balance[0].get('cashAndCashEquivalents', 0)
+                net_debt = total_debt - cash
+
+                equity_value = fair_ev - net_debt
+                fair_value_per_share = equity_value / shares
+
+                return fair_value_per_share if fair_value_per_share > 0 else None
+
+            elif company_type == 'reit':
+                # Use FFO with historical P/FFO (14-16x)
+                net_income = income[0].get('netIncome', 0)
+                depreciation = abs(cashflow[0].get('depreciationAndAmortization', 0))
+                ffo = net_income + depreciation
+
+                ffo_per_share = ffo / shares
+
+                # Historical P/FFO
+                historical_p_ffo = 14
+
+                fair_value = ffo_per_share * historical_p_ffo
+
+                return fair_value if fair_value > 0 else None
+
+            elif company_type == 'utility':
+                # Use current EBITDA with historical average EV/EBITDA (10-12x)
+                ebitda_ttm = income[0].get('ebitda', 0)
+
+                if ebitda_ttm <= 0:
+                    return None
+
+                # Historical sector average EV/EBITDA for utilities
+                historical_ev_ebitda = 11  # Conservative 11x
+
+                fair_ev = ebitda_ttm * historical_ev_ebitda
+
+                # Convert to equity
+                total_debt = balance[0].get('totalDebt', 0)
+                cash = balance[0].get('cashAndCashEquivalents', 0)
+                net_debt = total_debt - cash
+
+                equity_value = fair_ev - net_debt
+                fair_value_per_share = equity_value / shares
+
+                return fair_value_per_share if fair_value_per_share > 0 else None
+
+            else:  # Financial
+                # Use book value multiple (typically 1.0-1.5x for banks)
+                book_value = balance[0].get('totalStockholdersEquity', 0)
+                book_per_share = book_value / shares
+
+                # Historical P/B for financials
+                historical_pb = 1.2
+
+                fair_value = book_per_share * historical_pb
+
+                return fair_value if fair_value > 0 else None
+
+        except Exception as e:
+            logger.warning(f"Historical multiple calculation failed for {symbol}: {e}")
+            return None
 
     # ===================================
     # Export JSON

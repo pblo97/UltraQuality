@@ -601,11 +601,17 @@ class ScreenerPipeline:
     # ===================================
 
     def _get_company_type(self, row) -> str:
-        """Determine company type for metric calculation."""
+        """
+        Determine company type for metric calculation.
+
+        Returns: 'reit', 'financial', 'utility', or 'non_financial'
+        """
         if row.get('is_REIT', False):
             return 'reit'
         elif row.get('is_financial', False):
             return 'financial'
+        elif row.get('is_utility', False):
+            return 'utility'
         else:
             return 'non_financial'
 

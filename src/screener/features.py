@@ -27,7 +27,7 @@ class FeatureCalculator:
 
         Args:
             symbol: Stock ticker
-            company_type: 'non_financial', 'financial', or 'reit'
+            company_type: 'non_financial', 'financial', 'reit', or 'utility'
 
         Returns:
             Dict with all calculated metrics (None for N/A)
@@ -39,6 +39,8 @@ class FeatureCalculator:
                 return self._calc_financial(symbol)
             elif company_type == 'reit':
                 return self._calc_reit(symbol)
+            elif company_type == 'utility':
+                return self._calc_utility(symbol)
             else:
                 logger.warning(f"Unknown company type '{company_type}' for {symbol}")
                 return {}
@@ -750,6 +752,208 @@ class FeatureCalculator:
         features['combined_ratio_%'] = None
         features['cet1_or_leverage_ratio_%'] = None
         features['loans_to_deposits'] = None
+
+        return features
+
+    # =====================================
+    # UTILITIES
+    # =====================================
+
+    def _calc_utility(self, symbol: str) -> Dict:
+        """
+        Utilities (Regulated Electric, Gas, Water, Telecom)
+
+        Key differences from non-financials:
+        - Asset-heavy, capital-intensive, regulated
+        - ROIC typically LOW (4-8%) due to regulation
+        - ROE regulated by CPUC/FERC (typically 9-12%)
+        - Stability > Growth
+        - Rate of Return (ROR) model
+        - Focus: Dividend yield, regulatory assets, stable cash flows
+
+        Research: Utilities should NOT use ROIC benchmarks from unregulated companies
+        """
+        features = {}
+
+        income = self.fmp.get_income_statement(symbol, period='quarter', limit=8)
+        balance = self.fmp.get_balance_sheet(symbol, period='quarter', limit=8)
+        cashflow = self.fmp.get_cash_flow_statement(symbol, period='quarter', limit=8)
+
+        if not income or not balance or not cashflow:
+            return {}
+
+        # === VALUE METRICS ===
+
+        market_cap = balance[0].get('marketCap', 0)
+        total_debt = balance[0].get('totalDebt', 0)
+        cash = balance[0].get('cashAndCashEquivalents', 0)
+        enterprise_value = market_cap + total_debt - cash if market_cap else 0
+
+        features['market_cap'] = market_cap
+        features['enterprise_value'] = enterprise_value
+
+        # EV/EBITDA (preferred for capital-intensive)
+        ebitda_ttm = self._sum_ttm(income, 'ebitda')
+        features['ev_ebitda_ttm'] = enterprise_value / ebitda_ttm if enterprise_value and ebitda_ttm and ebitda_ttm > 0 else None
+
+        # P/E
+        earnings_ttm = self._sum_ttm(income, 'netIncome')
+        shares = balance[0].get('weightedAverageShsOut') or 1
+        eps_ttm = earnings_ttm / shares if earnings_ttm and shares else None
+        price = balance[0].get('price', 0)
+        features['pe_ttm'] = price / eps_ttm if price and eps_ttm and eps_ttm > 0 else None
+
+        # P/B
+        book_value = balance[0].get('totalStockholdersEquity', 0)
+        book_per_share = book_value / shares if shares else None
+        features['pb_ttm'] = price / book_per_share if price and book_per_share and book_per_share > 0 else None
+
+        # Dividend Yield (critical for utilities)
+        dividends_ttm = abs(self._sum_ttm(cashflow, 'dividendsPaid') or 0)
+        features['dividend_yield_%'] = (dividends_ttm / market_cap) * 100 if market_cap else None
+
+        # Shareholder Yield (dividends + buybacks)
+        buybacks_ttm = abs(self._sum_ttm(cashflow, 'commonStockRepurchased') or 0)
+        shareholder_payout = dividends_ttm + buybacks_ttm
+        features['shareholder_yield_%'] = (shareholder_payout / market_cap) * 100 if market_cap else None
+
+        # === QUALITY METRICS (Utility-Specific) ===
+
+        # ROE (more relevant than ROIC for utilities)
+        # Regulated utilities target ROE of 9-12%
+        avg_equity = (balance[0].get('totalStockholdersEquity', 0) + balance[1].get('totalStockholdersEquity', 0)) / 2 if len(balance) > 1 else balance[0].get('totalStockholdersEquity', 0)
+
+        if earnings_ttm and avg_equity and avg_equity > 0:
+            features['roe_%'] = (earnings_ttm / avg_equity) * 100
+        else:
+            features['roe_%'] = None
+
+        # ROA (supplementary)
+        avg_assets = (balance[0].get('totalAssets', 0) + balance[1].get('totalAssets', 0)) / 2 if len(balance) > 1 else balance[0].get('totalAssets', 0)
+
+        if earnings_ttm and avg_assets and avg_assets > 0:
+            features['roa_%'] = (earnings_ttm / avg_assets) * 100
+        else:
+            features['roa_%'] = None
+
+        # ROIC (for consistency, but NOT used in scoring for utilities)
+        # Utilities will have low ROIC by design - this is EXPECTED
+        features['roic_%'] = None  # Explicitly None - not applicable
+        features['roic_persistence'] = None
+
+        # Operating Cash Flow Margin (stability indicator)
+        revenue_ttm = self._sum_ttm(income, 'revenue')
+        ocf_ttm = self._sum_ttm(cashflow, 'operatingCashFlow')
+
+        features['ocf_margin_%'] = (ocf_ttm / revenue_ttm) * 100 if ocf_ttm and revenue_ttm and revenue_ttm > 0 else None
+
+        # FCF Margin (after capex)
+        capex_ttm = abs(self._sum_ttm(cashflow, 'capitalExpenditure') or 0)
+        fcf_ttm = ocf_ttm - capex_ttm if ocf_ttm else None
+
+        features['fcf_margin_%'] = (fcf_ttm / revenue_ttm) * 100 if fcf_ttm and revenue_ttm and revenue_ttm > 0 else None
+
+        # Regulated Asset Base / Total Assets (utility-specific quality metric)
+        # Higher = more regulated, lower risk
+        property_plant_equipment = balance[0].get('propertyPlantEquipmentNet', 0)
+        total_assets = balance[0].get('totalAssets', 0)
+
+        features['regulated_asset_ratio'] = (property_plant_equipment / total_assets) if total_assets > 0 else None
+
+        # === LEVERAGE ===
+
+        # Debt/Equity (utilities typically 1.0-2.0x)
+        equity = balance[0].get('totalStockholdersEquity', 0)
+        features['debt_to_equity'] = total_debt / equity if equity > 0 else None
+
+        # Debt/EBITDA (coverage)
+        features['netDebt_ebitda'] = (total_debt - cash) / ebitda_ttm if ebitda_ttm and ebitda_ttm > 0 else None
+
+        # Interest Coverage
+        interest_expense = abs(self._sum_ttm(income, 'interestExpense') or 0)
+        ebit_ttm = self._sum_ttm(income, 'operatingIncome')
+
+        features['interestCoverage'] = ebit_ttm / interest_expense if ebit_ttm and interest_expense > 0 else None
+
+        # === REGULATORY STABILITY SCORE ===
+        # Utility-specific: Higher = more stable, lower risk
+        # Factors: ROE within regulated range (9-12%), stable dividend, manageable debt
+
+        stability_score = 50  # Base
+
+        if features['roe_%']:
+            if 9 <= features['roe_%'] <= 12:
+                stability_score += 20  # Within regulated target
+            elif 7 <= features['roe_%'] <= 14:
+                stability_score += 10  # Close to target
+            else:
+                stability_score -= 10  # Outside normal range
+
+        if features['dividend_yield_%'] and features['dividend_yield_%'] >= 3:
+            stability_score += 15  # Strong dividend
+
+        if features['debt_to_equity']:
+            if features['debt_to_equity'] <= 2.0:
+                stability_score += 15  # Manageable debt
+            elif features['debt_to_equity'] > 3.0:
+                stability_score -= 20  # High leverage risk
+
+        features['utility_stability_score'] = max(0, min(100, stability_score))
+
+        # === MOAT SCORE ===
+        # Utilities have natural monopolies (regulatory moats)
+        # Base score: 70 (regulatory barriers to entry)
+        # Adjusted by stability
+
+        moat_base = 70  # Regulatory moat
+
+        if features['regulated_asset_ratio'] and features['regulated_asset_ratio'] > 0.7:
+            moat_base += 10  # High regulated asset base
+
+        if features['utility_stability_score'] >= 70:
+            moat_base += 10  # Financial stability adds to moat
+
+        features['moat_score'] = min(100, moat_base)
+
+        # === PRICING POWER & OPERATING LEVERAGE ===
+        # For utilities, these are regulated - set to moderate defaults
+        features['pricing_power_score'] = 50  # Regulated prices
+        features['operating_leverage_score'] = 50  # Fixed asset base
+        features['roic_persistence_score'] = None  # Not applicable
+
+        # === QUALITY DEGRADATION (Piotroski) ===
+        # Use Piotroski for utilities (value-oriented, not growth)
+        features['piotroski_fscore'] = self._calculate_piotroski(income, balance, cashflow)
+        features['piotroski_fscore_delta'] = None  # Placeholder
+        features['mohanram_gscore'] = None  # Not applicable (utilities are value, not growth)
+        features['mohanram_gscore_delta'] = None
+
+        features['quality_degradation_type'] = 'VALUE'
+        features['quality_degradation_score'] = features['piotroski_fscore']
+        features['quality_degradation_delta'] = features['piotroski_fscore_delta']
+
+        # === PROFITABILITY & TREND ===
+        features['grossProfits_to_assets'] = None  # Not standard for utilities
+        features['gross_margin_%'] = None
+        features['roic_trend'] = None
+        features['gross_margin_trend'] = None
+        features['revenue_growth_ttm_%'] = None  # Typically low/stable
+
+        # === NOT APPLICABLE FOR UTILITIES ===
+        features['fcf_yield'] = None
+        features['ebitda_capex_yield'] = None
+        features['ev_ebit_ttm'] = None
+        features['ev_fcf_ttm'] = None
+        features['roic_stability'] = None
+        features['efficiency_ratio'] = None
+        features['nim_%'] = None
+        features['combined_ratio_%'] = None
+        features['cet1_or_leverage_ratio_%'] = None
+        features['loans_to_deposits'] = None
+        features['p_ffo'] = None
+        features['ffo_payout_%'] = None
+        features['occupancy_%'] = None
+        features['p_tangibleBook'] = None
 
         return features
 
