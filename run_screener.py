@@ -681,6 +681,7 @@ with tab4:
                 "Select Analysis Type",
                 options=[
                     'Full Report',
+                    '🔍 High-Quality ROJO Deep Dive',
                     'Beneish M-Score',
                     'Altman Z-Score',
                     'Revenue Growth',
@@ -694,6 +695,8 @@ with tab4:
                 with st.spinner("Analyzing guardrails..."):
                     if analysis_type == 'Full Report':
                         report = analyzer.generate_full_report()
+                    elif analysis_type == '🔍 High-Quality ROJO Deep Dive':
+                        report = analyzer.analyze_high_quality_rojo_deep_dive()
                     elif analysis_type == 'Beneish M-Score':
                         report = analyzer._analyze_beneish()
                     elif analysis_type == 'Altman Z-Score':

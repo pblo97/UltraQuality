@@ -643,6 +643,342 @@ class GuardrailAnalyzer:
 
         return "\n".join(lines)
 
+    def analyze_high_quality_rojo_deep_dive(self) -> str:
+        """
+        Deep analysis of high-quality companies flagged as ROJO.
+
+        For each company, provides:
+        - Detailed business metrics
+        - Specific guardrail components causing flags
+        - Assessment of whether flag is legitimate or false positive
+        - Actionable recommendations
+        """
+        lines = []
+        lines.append("=" * 80)
+        lines.append("HIGH-QUALITY ROJO COMPANIES - DEEP DIVE ANALYSIS")
+        lines.append("=" * 80)
+        lines.append("")
+        lines.append("🎯 OBJECTIVE: Determine if flags are LEGITIMATE or FALSE POSITIVES")
+        lines.append("")
+
+        # Filter high-quality ROJO
+        high_q_rojo = self.df[
+            (self.df['quality_score_0_100'] >= 80) &
+            (self.df['guardrail_status'] == 'ROJO')
+        ].copy()
+        high_q_rojo = high_q_rojo.sort_values('quality_score_0_100', ascending=False)
+
+        lines.append(f"Found {len(high_q_rojo)} high-quality ROJO companies (Quality ≥80)")
+        lines.append("")
+
+        if len(high_q_rojo) == 0:
+            lines.append("✅ No high-quality companies are blocked - calibration looks good!")
+            return "\n".join(lines)
+
+        lines.append("-" * 80)
+        lines.append("COMPANY-BY-COMPANY ANALYSIS")
+        lines.append("-" * 80)
+
+        for idx, row in high_q_rojo.iterrows():
+            symbol = row['symbol']
+            name = row.get('name', 'N/A')
+            industry = row.get('industry', 'N/A')
+            quality = row.get('quality_score_0_100', 0)
+            composite = row.get('composite_0_100', 0)
+
+            lines.append("")
+            lines.append("=" * 80)
+            lines.append(f"{symbol} - {name}")
+            lines.append("=" * 80)
+
+            # Overview
+            lines.append("")
+            lines.append("📊 OVERVIEW:")
+            lines.append(f"  Industry: {industry}")
+            lines.append(f"  Quality Score: {quality:.1f}")
+            lines.append(f"  Composite Score: {composite:.1f}")
+            market_cap = row.get('marketCap', 0)
+            if market_cap:
+                lines.append(f"  Market Cap: ${market_cap/1e9:.1f}B")
+
+            # Guardrail flags
+            lines.append("")
+            lines.append("🚨 GUARDRAIL FLAGS:")
+            lines.append(f"  Status: {row.get('guardrail_status', 'N/A')}")
+            reasons = str(row.get('guardrail_reasons', 'N/A')).split(';')
+            for i, reason in enumerate(reasons, 1):
+                lines.append(f"    {i}. {reason.strip()}")
+
+            # Quality metrics
+            lines.append("")
+            lines.append("📈 BUSINESS QUALITY METRICS:")
+            roic = row.get('roic', 0) or 0
+            roe = row.get('roe', 0) or 0
+            roa = row.get('roa', 0) or 0
+            gross_margin = row.get('grossMargin', 0) or 0
+            op_margin = row.get('opMargin', 0) or 0
+            net_margin = row.get('netMargin', 0) or 0
+
+            lines.append(f"  ROIC: {roic:.1f}%")
+            lines.append(f"  ROE:  {roe:.1f}%")
+            lines.append(f"  ROA:  {roa:.1f}%")
+            lines.append(f"  Gross Margin: {gross_margin:.1f}%")
+            lines.append(f"  Operating Margin: {op_margin:.1f}%")
+            lines.append(f"  Net Margin: {net_margin:.1f}%")
+
+            # Growth metrics
+            lines.append("")
+            lines.append("📊 GROWTH METRICS:")
+            rev_growth = row.get('revenueGrowth', 0) or 0
+            rev_growth_3y = row.get('revenue_growth_3y', 0) or 0
+            eps_growth = row.get('epsGrowth', 0) or 0
+
+            lines.append(f"  Revenue Growth: {rev_growth:.1f}%")
+            lines.append(f"  Revenue Growth 3Y: {rev_growth_3y:.1f}%")
+            lines.append(f"  EPS Growth: {eps_growth:.1f}%")
+
+            # Moat metrics
+            lines.append("")
+            lines.append("🏰 MOAT METRICS:")
+            moat = row.get('moat_score', 0) or 0
+            pricing_power = row.get('pricing_power_score', 0) or 0
+            roic_persistence = row.get('roic_persistence_score', 0) or 0
+
+            lines.append(f"  Moat Score: {moat:.1f}")
+            lines.append(f"  Pricing Power: {pricing_power:.1f}")
+            lines.append(f"  ROIC Persistence: {roic_persistence:.1f}")
+
+            # Guardrail details
+            lines.append("")
+            lines.append("⚠️  GUARDRAIL DETAILS:")
+            m_score = row.get('beneishM', None)
+            z_score = row.get('altmanZ', None)
+            accruals = row.get('accruals_noa_%', None)
+            dilution = row.get('netShareIssuance_12m_%', None)
+            mna = row.get('mna_flag', None)
+
+            if m_score is not None and pd.notna(m_score):
+                lines.append(f"  Beneish M-Score: {m_score:.2f}")
+            if z_score is not None and pd.notna(z_score):
+                lines.append(f"  Altman Z-Score: {z_score:.2f}")
+            if accruals is not None and pd.notna(accruals):
+                lines.append(f"  Accruals/NOA: {accruals:.1f}%")
+            if dilution is not None and pd.notna(dilution):
+                lines.append(f"  Share Dilution: {dilution:.1f}%")
+            if mna:
+                lines.append(f"  M&A Flag: {mna}")
+
+            # Quality degradation
+            lines.append("")
+            lines.append("📉 QUALITY TREND:")
+            piot = row.get('piotroski_fscore', None)
+            piot_delta = row.get('piotroski_fscore_delta', None)
+            mohan = row.get('mohanram_gscore', None)
+            mohan_delta = row.get('mohanram_gscore_delta', None)
+            deg_delta = row.get('quality_degradation_delta', None)
+
+            if piot is not None and pd.notna(piot) and pd.notna(piot_delta):
+                lines.append(f"  Piotroski F-Score: {piot:.0f} (Δ {piot_delta:+.0f})")
+            if mohan is not None and pd.notna(mohan) and pd.notna(mohan_delta):
+                lines.append(f"  Mohanram G-Score: {mohan:.0f} (Δ {mohan_delta:+.0f})")
+            if deg_delta is not None and pd.notna(deg_delta):
+                if deg_delta < -1:
+                    lines.append(f"  Quality Trend: DETERIORATING (Δ {deg_delta:+.0f})")
+                elif deg_delta > 1:
+                    lines.append(f"  Quality Trend: IMPROVING (Δ {deg_delta:+.0f})")
+                else:
+                    lines.append(f"  Quality Trend: STABLE (Δ {deg_delta:+.0f})")
+
+            # Analysis and recommendation
+            lines.append("")
+            lines.append("💡 DETAILED ANALYSIS:")
+
+            # Analyze each guardrail
+            has_issues = []
+            is_false_positive = []
+
+            # Beneish analysis
+            if m_score is not None and pd.notna(m_score):
+                if m_score > -1.5:
+                    severity = "CRITICAL"
+                    has_issues.append(f"Beneish M={m_score:.2f} (CRITICAL)")
+                    lines.append(f"  • Beneish M={m_score:.2f} ({severity} manipulation risk)")
+                    lines.append(f"    → Flag appears LEGITIMATE - high accounting manipulation risk")
+                elif m_score > -1.78:
+                    severity = "HIGH"
+                    has_issues.append(f"Beneish M={m_score:.2f} (HIGH)")
+                    lines.append(f"  • Beneish M={m_score:.2f} ({severity} risk)")
+
+                    # Check if should be permissive
+                    industry_lower = industry.lower()
+                    if any(kw in industry_lower for kw in ['communication equipment', 'fintech', 'specialty']):
+                        is_false_positive.append(f"Beneish borderline for {industry}")
+                        lines.append(f"    → Flag may be FALSE POSITIVE - industry ({industry}) often has high M-Scores")
+                    else:
+                        lines.append(f"    → Flag appears LEGITIMATE - needs further investigation")
+                elif m_score > -2.22:
+                    severity = "BORDERLINE"
+                    lines.append(f"  • Beneish M={m_score:.2f} ({severity})")
+                    is_false_positive.append(f"Beneish borderline M={m_score:.2f}")
+                    lines.append(f"    → Flag is FALSE POSITIVE - borderline range, likely normal variation")
+
+            # Altman Z analysis
+            if z_score is not None and pd.notna(z_score):
+                if z_score < 1.8:
+                    lines.append(f"  • Altman Z={z_score:.2f} (DISTRESS zone)")
+
+                    # Check if should be exempt
+                    industry_lower = industry.lower()
+                    exempt_keywords = ['software', 'saas', 'internet', 'utility', 'restaurant',
+                                      'oil & gas midstream', 'personal', 'consumer electronics',
+                                      'communication equipment', 'electronic gaming']
+
+                    if any(kw in industry_lower for kw in exempt_keywords):
+                        is_false_positive.append(f"Altman Z not applicable to {industry}")
+                        lines.append(f"    → Flag is FALSE POSITIVE - {industry} should be exempt (asset-light/regulated)")
+                    else:
+                        has_issues.append(f"Altman Z={z_score:.2f} (distress)")
+                        lines.append(f"    → Flag may be LEGITIMATE - check capital structure and business model")
+                elif z_score < 3.0:
+                    lines.append(f"  • Altman Z={z_score:.2f} (GRAY zone)")
+                    lines.append(f"    → Flag is BORDERLINE - may be normal for this industry")
+
+            # Dilution analysis
+            if dilution is not None and pd.notna(dilution) and abs(dilution) > 5:
+                lines.append(f"  • Share Dilution: {dilution:.1f}%")
+
+                industry_lower = industry.lower()
+                growth_keywords = ['biotech', 'pharmaceutical', 'software', 'semiconductor']
+
+                if dilution > 20:
+                    has_issues.append(f"Dilution {dilution:.1f}% excessive")
+                    lines.append(f"    → Flag appears LEGITIMATE - excessive dilution even for growth company")
+                elif dilution > 10:
+                    if any(kw in industry_lower for kw in growth_keywords):
+                        lines.append(f"    → Flag may be FALSE POSITIVE - growth industry, capital raising expected")
+                    else:
+                        has_issues.append(f"Dilution {dilution:.1f}% high")
+                        lines.append(f"    → Flag appears LEGITIMATE - high dilution for mature company")
+
+            # Overall business quality assessment
+            lines.append("")
+            lines.append("  • Overall Business Quality:")
+
+            has_excellent_fundamentals = roic > 20 and roe > 15 and op_margin > 15
+            has_good_fundamentals = roic > 15 and roe > 12 and op_margin > 10
+            has_improving_quality = deg_delta is not None and pd.notna(deg_delta) and deg_delta > 1
+            has_deteriorating_quality = deg_delta is not None and pd.notna(deg_delta) and deg_delta < -1
+
+            if has_excellent_fundamentals:
+                lines.append(f"    → EXCELLENT fundamentals (ROIC {roic:.0f}%, ROE {roe:.0f}%, Margin {op_margin:.0f}%)")
+                if len(is_false_positive) > 0:
+                    lines.append(f"    → Strong evidence of FALSE POSITIVES")
+            elif has_good_fundamentals:
+                lines.append(f"    → GOOD fundamentals (ROIC {roic:.0f}%, ROE {roe:.0f}%, Margin {op_margin:.0f}%)")
+                lines.append(f"    → Guardrail flags need case-by-case review")
+            else:
+                lines.append(f"    → MIXED fundamentals (ROIC {roic:.0f}%, ROE {roe:.0f}%, Margin {op_margin:.0f}%)")
+                lines.append(f"    → Guardrail flags may be legitimate warnings")
+
+            if has_deteriorating_quality:
+                lines.append(f"    ⚠️  Quality DETERIORATING - guardrails may be early warning signals")
+            elif has_improving_quality:
+                lines.append(f"    ✅ Quality IMPROVING - some flags may be stale/false positive")
+
+            # Final recommendation
+            lines.append("")
+            lines.append("🎯 RECOMMENDATION:")
+
+            if has_excellent_fundamentals and len(is_false_positive) >= 2:
+                lines.append(f"  ► STRONG FALSE POSITIVE - Consider unblocking")
+                lines.append(f"    Reasons:")
+                for reason in is_false_positive:
+                    lines.append(f"      • {reason}")
+                lines.append(f"    Excellent fundamentals suggest flags are technical/industry-specific")
+            elif has_excellent_fundamentals and len(is_false_positive) >= 1:
+                lines.append(f"  ► LIKELY FALSE POSITIVE - Review for unblocking")
+                lines.append(f"    Reasons:")
+                for reason in is_false_positive:
+                    lines.append(f"      • {reason}")
+            elif len(has_issues) >= 2:
+                lines.append(f"  ► LEGITIMATE FLAGS - Keep blocked")
+                lines.append(f"    Concerns:")
+                for issue in has_issues:
+                    lines.append(f"      • {issue}")
+            elif has_deteriorating_quality:
+                lines.append(f"  ► DETERIORATING - Keep blocked")
+                lines.append(f"    Quality trend is negative, flags are warning signals")
+            else:
+                lines.append(f"  ► NEEDS MANUAL REVIEW")
+                lines.append(f"    Mixed signals - check company-specific context")
+                lines.append(f"    Research: investor presentations, recent news, SEC filings")
+
+        # Summary
+        lines.append("")
+        lines.append("=" * 80)
+        lines.append("SUMMARY & RECOMMENDATIONS")
+        lines.append("=" * 80)
+        lines.append("")
+
+        # Count recommendations
+        strong_fp = 0
+        likely_fp = 0
+        legitimate = 0
+        needs_review = 0
+
+        for idx, row in high_q_rojo.iterrows():
+            m_score = row.get('beneishM', None)
+            z_score = row.get('altmanZ', None)
+            roic = row.get('roic', 0) or 0
+            roe = row.get('roe', 0) or 0
+            op_margin = row.get('opMargin', 0) or 0
+
+            has_excellent = roic > 20 and roe > 15 and op_margin > 15
+
+            fp_count = 0
+            if m_score is not None and pd.notna(m_score) and -2.22 < m_score < -1.78:
+                fp_count += 1
+            if z_score is not None and pd.notna(z_score) and z_score < 1.8:
+                industry_lower = row.get('industry', '').lower()
+                if any(kw in industry_lower for kw in ['software', 'internet', 'oil & gas midstream', 'consumer electronics']):
+                    fp_count += 1
+
+            if has_excellent and fp_count >= 2:
+                strong_fp += 1
+            elif has_excellent and fp_count >= 1:
+                likely_fp += 1
+            elif m_score is not None and m_score > -1.5:
+                legitimate += 1
+            else:
+                needs_review += 1
+
+        lines.append(f"Distribution of Recommendations:")
+        lines.append(f"  STRONG FALSE POSITIVE:  {strong_fp} companies")
+        lines.append(f"  LIKELY FALSE POSITIVE:  {likely_fp} companies")
+        lines.append(f"  LEGITIMATE FLAGS:       {legitimate} companies")
+        lines.append(f"  NEEDS MANUAL REVIEW:    {needs_review} companies")
+        lines.append("")
+
+        total_fp = strong_fp + likely_fp
+        if total_fp > 0:
+            lines.append(f"⚠️  {total_fp} companies ({self._safe_percentage(total_fp, len(high_q_rojo)):.0f}%) appear to be false positives")
+            lines.append(f"   Consider:")
+            lines.append(f"   1. Expanding Altman Z exemptions for asset-light industries")
+            lines.append(f"   2. Adjusting Beneish thresholds for industries with naturally high M-Scores")
+            lines.append(f"   3. Adding industry-specific context to guardrail evaluation")
+
+        if legitimate > 0:
+            lines.append(f"✅ {legitimate} companies have legitimate accounting concerns - correctly blocked")
+
+        lines.append("")
+        lines.append("Next Steps:")
+        lines.append("1. Review companies marked as 'STRONG FALSE POSITIVE' first")
+        lines.append("2. Research 'NEEDS MANUAL REVIEW' companies individually")
+        lines.append("3. For confirmed false positives, adjust thresholds or add exemptions")
+        lines.append("4. For legitimate flags, consider if risk tolerance should change")
+
+        return "\n".join(lines)
+
 
 def main():
     """Run guardrail analysis from command line."""
