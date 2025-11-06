@@ -351,10 +351,20 @@ class GuardrailCalculator:
 
             noa = (total_assets - cash_t) - (total_liabilities - total_debt)
 
-            if noa > 0:
+            # Require meaningful NOA to avoid division by small numbers
+            # NOA should be at least 10% of total assets for meaningful ratio
+            min_noa = total_assets * 0.1
+
+            if noa > min_noa:
                 accruals_pct = (accruals / noa) * 100
+
+                # Cap at ±100% to handle edge cases and outliers
+                # Accruals >100% of NOA is extremely rare and likely data error
+                accruals_pct = max(-100, min(100, accruals_pct))
+
                 return accruals_pct
             else:
+                # NOA too small or negative - ratio not meaningful
                 return None
 
         except Exception as e:
@@ -377,16 +387,29 @@ class GuardrailCalculator:
         Method 2: (Stock Issued - Stock Repurchased) / Market Cap * 100
 
         Returns: % change (positive = dilution, negative = buybacks)
+
+        FIXED: Use actual share count, not commonStock par value
+        Cap at ±100% to avoid calculation errors
         """
         if len(balance) < 5:
             return None
 
         # Method 1: Share count change
-        shares_t = balance[0].get('commonStock') or balance[0].get('weightedAverageShsOut')
-        shares_t4 = balance[4].get('commonStock') or balance[4].get('weightedAverageShsOut')
+        # IMPORTANT: Use weightedAverageShsOut or commonStockSharesOutstanding
+        # DO NOT use 'commonStock' (that's par value, not share count)
+        shares_t = (balance[0].get('weightedAverageShsOut') or
+                    balance[0].get('commonStockSharesOutstanding') or
+                    balance[0].get('weightedAverageShsOutDil'))
+        shares_t4 = (balance[4].get('weightedAverageShsOut') or
+                     balance[4].get('commonStockSharesOutstanding') or
+                     balance[4].get('weightedAverageShsOutDil'))
 
         if shares_t and shares_t4 and shares_t4 > 0:
             net_issuance_pct = ((shares_t - shares_t4) / shares_t4) * 100
+
+            # Cap at ±100% to handle edge cases and data errors
+            net_issuance_pct = max(-100, min(100, net_issuance_pct))
+
             return net_issuance_pct
 
         # Method 2: Cash flow from financing
@@ -399,7 +422,10 @@ class GuardrailCalculator:
             equity = balance[0].get('totalStockholdersEquity', 1)
             net_flow = stock_issued + stock_repurchased  # repurchased is negative
             if equity > 0:
-                return (net_flow / equity) * 100
+                dilution = (net_flow / equity) * 100
+                # Cap at ±100%
+                dilution = max(-100, min(100, dilution))
+                return dilution
 
         return None
 
@@ -454,6 +480,90 @@ class GuardrailCalculator:
     # Assessment
     # ===========================
 
+    def _is_altman_z_applicable(self, industry: str, company_type: str) -> bool:
+        """
+        Determine if Altman Z-Score is applicable for this industry.
+
+        Altman Z-Score was designed in 1968 for manufacturing companies.
+        It does NOT apply well to:
+
+        1. Asset-light businesses (Software, SaaS, Internet)
+           - Low working capital by design
+           - Intangibles not counted in Z-Score formula
+           - High growth = low retained earnings initially
+
+        2. Regulated utilities
+           - Capital structure dictated by regulators
+           - High debt is normal/expected
+           - Rate base coverage is better metric
+
+        3. Service businesses with operating leases (post-ASC 842)
+           - Restaurants, Hotels, Airlines, Retail
+           - Operating leases now on balance sheet = appears high debt
+           - Lease-adjusted metrics are better
+
+        4. Financial services
+           - Completely different business model
+           - Use different metrics (CET1, leverage ratio, etc.)
+
+        Returns: True if Z-Score applicable, False if should skip
+        """
+        if not industry:
+            return True  # Default to applicable if unknown
+
+        # Financial services - use different metrics entirely
+        if company_type in ['financial', 'reit']:
+            return False
+
+        industry_lower = industry.lower()
+
+        # Asset-light businesses (Software, SaaS, Internet)
+        asset_light_keywords = [
+            'software', 'saas', 'application', 'infrastructure',
+            'information technology', 'internet', 'content',
+            'electronic gaming', 'multimedia', 'social media',
+            'data & stock exchanges', 'data processing'
+        ]
+
+        for keyword in asset_light_keywords:
+            if keyword in industry_lower:
+                return False
+
+        # Regulated utilities
+        utility_keywords = [
+            'regulated electric', 'gas utility', 'water utility',
+            'electric utility', 'multi-utilities', 'utility'
+        ]
+
+        for keyword in utility_keywords:
+            if keyword in industry_lower:
+                return False
+
+        # Service businesses with operating leases
+        operating_lease_keywords = [
+            'restaurants', 'hotel', 'lodging', 'resort',
+            'airlines', 'airport', 'cruise',
+            'rental', 'leasing',
+            'retail', 'department store', 'specialty retail',
+            'apparel retail', 'discount store'
+        ]
+
+        for keyword in operating_lease_keywords:
+            if keyword in industry_lower:
+                return False
+
+        # Semiconductors and chip manufacturers (capital intensive but different model)
+        semiconductor_keywords = [
+            'semiconductor', 'chip', 'integrated circuit'
+        ]
+
+        for keyword in semiconductor_keywords:
+            if keyword in industry_lower:
+                return False
+
+        # For all other industries, Z-Score is applicable
+        return True
+
     def _get_beneish_threshold_for_industry(self, industry: str) -> float:
         """
         Get industry-adjusted Beneish M-Score threshold for ROJO classification.
@@ -500,7 +610,9 @@ class GuardrailCalculator:
             'software', 'saas', 'technology', 'internet', 'information technology',
             'construction', 'engineering', 'contractor', 'infrastructure',
             'healthcare', 'biotechnology', 'pharmaceutical', 'medical', 'biotech',
-            'entertainment', 'gaming', 'media production'
+            'entertainment', 'gaming', 'media production',
+            'semiconductor', 'chip', 'integrated circuit',  # High R&D/Capex creates accruals
+            'computer hardware', 'hardware equipment', 'communication equipment'  # Capital intensive
         ]
 
         for keyword in permissive_keywords:
@@ -541,9 +653,9 @@ class GuardrailCalculator:
         if company_type == 'non_financial':
             cfg = thresholds.get('non_financial', {})
 
-            # Altman Z
+            # Altman Z - ONLY if applicable to this industry
             z = guardrails.get('altmanZ')
-            if z is not None:
+            if z is not None and self._is_altman_z_applicable(industry, company_type):
                 if z < cfg.get('altman_z_red', 1.8):
                     red_flags += 1
                     reasons.append(f"Altman Z={z:.2f} <1.8 (distress)")
@@ -551,14 +663,22 @@ class GuardrailCalculator:
                     amber_flags += 1
                     reasons.append(f"Altman Z={z:.2f} gray zone")
 
-            # Accruals
+            # Accruals - industry-adjusted threshold
             accruals = guardrails.get('accruals_noa_%')
             if accruals is not None:
-                # Would need industry distribution to compute percentile
-                # Simplified: flag if > 15%
-                if accruals > 15:
+                # Tech/growth companies: Higher threshold (20%)
+                # Mature/value companies: Standard threshold (15%)
+                industry_lower = industry.lower() if industry else ''
+
+                growth_keywords = ['software', 'technology', 'internet', 'biotech',
+                                  'semiconductor', 'growth', 'saas']
+                is_growth = any(kw in industry_lower for kw in growth_keywords)
+
+                threshold = 20 if is_growth else 15
+
+                if accruals > threshold:
                     amber_flags += 1
-                    reasons.append(f"Accruals/NOA={accruals:.1f}% high")
+                    reasons.append(f"Accruals/NOA={accruals:.1f}% >{threshold}%")
 
             # Interest Coverage
             # (Not directly in guardrails dict; would come from features)
