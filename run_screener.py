@@ -224,7 +224,7 @@ except:
     st.sidebar.warning("⚠️ Secrets not accessible")
 
 # Main content
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏠 Home", "📊 Results", "📈 Analytics", "🔍 Qualitative", "ℹ️ About"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Home", "📊 Results", "📈 Analytics", "🔎 Calibration", "🔍 Qualitative", "ℹ️ About"])
 
 with tab1:
     st.header("Run Screener")
@@ -655,6 +655,109 @@ with tab3:
         st.info("👈 Run the screener first to see analytics")
 
 with tab4:
+    st.header("🔎 Guardrail Calibration Analysis")
+
+    if 'results' in st.session_state:
+        df = get_results_with_current_params()
+
+        st.markdown("""
+        **Analyze guardrail effectiveness and detect potential false positives.**
+
+        This tool helps you calibrate the screener by showing:
+        - Distribution of each guardrail metric
+        - Companies affected by each guardrail
+        - High-quality companies potentially blocked incorrectly
+        - Recommendations for threshold adjustments
+        """)
+
+        # Import analyzer
+        try:
+            from analyze_guardrails import GuardrailAnalyzer
+
+            analyzer = GuardrailAnalyzer(df)
+
+            # Analysis type selector
+            analysis_type = st.selectbox(
+                "Select Analysis Type",
+                options=[
+                    'Full Report',
+                    'Beneish M-Score',
+                    'Altman Z-Score',
+                    'Revenue Growth',
+                    'M&A / Goodwill',
+                    'Share Dilution',
+                    'Accruals / NOA'
+                ]
+            )
+
+            if st.button("🔍 Generate Analysis", type="primary"):
+                with st.spinner("Analyzing guardrails..."):
+                    if analysis_type == 'Full Report':
+                        report = analyzer.generate_full_report()
+                    elif analysis_type == 'Beneish M-Score':
+                        report = analyzer._analyze_beneish()
+                    elif analysis_type == 'Altman Z-Score':
+                        report = analyzer._analyze_altman_z()
+                    elif analysis_type == 'Revenue Growth':
+                        report = analyzer._analyze_revenue_decline()
+                    elif analysis_type == 'M&A / Goodwill':
+                        report = analyzer._analyze_mna_flag()
+                    elif analysis_type == 'Share Dilution':
+                        report = analyzer._analyze_dilution()
+                    elif analysis_type == 'Accruals / NOA':
+                        report = analyzer._analyze_accruals()
+
+                    # Display in code block for better formatting
+                    st.code(report, language="text")
+
+                    # Download button
+                    st.download_button(
+                        label="📥 Download Report",
+                        data=report,
+                        file_name=f"guardrail_analysis_{analysis_type.lower().replace(' ', '_').replace('/', '_')}.txt",
+                        mime="text/plain"
+                    )
+
+            # Quick stats
+            st.subheader("📊 Quick Stats")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                verde_count = (df['guardrail_status'] == 'VERDE').sum()
+                verde_pct = (verde_count / len(df)) * 100
+                st.metric("VERDE (Clean)", f"{verde_count}", f"{verde_pct:.1f}%")
+
+            with col2:
+                ambar_count = (df['guardrail_status'] == 'AMBAR').sum()
+                ambar_pct = (ambar_count / len(df)) * 100
+                st.metric("AMBAR (Warning)", f"{ambar_count}", f"{ambar_pct:.1f}%")
+
+            with col3:
+                rojo_count = (df['guardrail_status'] == 'ROJO').sum()
+                rojo_pct = (rojo_count / len(df)) * 100
+                st.metric("ROJO (Blocked)", f"{rojo_count}", f"{rojo_pct:.1f}%")
+
+            # Top guardrail reasons
+            if 'guardrail_reasons' in df.columns:
+                st.subheader("🔝 Top 10 Guardrail Reasons")
+                reasons = df['guardrail_reasons'].value_counts().head(10)
+                reasons_df = pd.DataFrame({
+                    'Reason': reasons.index,
+                    'Count': reasons.values,
+                    'Percentage': (reasons.values / len(df) * 100).round(1)
+                })
+                st.dataframe(reasons_df, use_container_width=True)
+
+        except ImportError as e:
+            st.error(f"❌ Error loading analysis tool: {str(e)}")
+            st.info("Make sure analyze_guardrails.py is in the project directory")
+        except Exception as e:
+            st.error(f"❌ Error during analysis: {str(e)}")
+
+    else:
+        st.info("👈 Run the screener first to analyze guardrails")
+
+with tab5:
     st.header("🔍 Qualitative Analysis")
 
     if 'results' in st.session_state:
@@ -831,7 +934,7 @@ with tab4:
     else:
         st.info("👈 Run the screener first to access qualitative analysis")
 
-with tab5:
+with tab6:
     st.header("About UltraQuality Screener")
 
     st.markdown("""
