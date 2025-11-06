@@ -903,22 +903,55 @@ with tab5:
 
                 st.markdown("---")
 
-                # Insider Activity
-                st.subheader("👔 Insider Activity")
+                # Insider Activity & Ownership
+                st.subheader("👔 Insider Activity & Ownership")
                 insider = analysis.get('insider_trading', {})
 
                 if insider:
-                    col1, col2, col3 = st.columns(3)
+                    # Ownership metrics
+                    col1, col2, col3, col4 = st.columns(4)
 
                     with col1:
-                        st.metric("Insider Buys (6M)", insider.get('buys_6m', 0))
+                        insider_own = insider.get('insider_ownership_pct')
+                        if insider_own is not None:
+                            st.metric("Insider Ownership", f"{insider_own:.2f}%")
+                        else:
+                            st.metric("Insider Ownership", "N/A")
+
                     with col2:
-                        st.metric("Insider Sells (6M)", insider.get('sells_6m', 0))
+                        inst_own = insider.get('institutional_ownership_pct')
+                        if inst_own is not None:
+                            st.metric("Institutional Own.", f"{inst_own:.1f}%")
+                        else:
+                            st.metric("Institutional Own.", "N/A")
+
                     with col3:
-                        sentiment = "Bullish" if insider.get('buys_6m', 0) > insider.get('sells_6m', 0) else "Bearish" if insider.get('sells_6m', 0) > insider.get('buys_6m', 0) else "Neutral"
-                        st.metric("Sentiment", sentiment)
+                        dilution = insider.get('net_share_issuance_12m_%')
+                        if dilution is not None:
+                            delta_color = "inverse" if dilution > 0 else "normal"
+                            st.metric("Share Change (12M)", f"{dilution:+.1f}%",
+                                     delta="Dilution" if dilution > 0 else "Buyback" if dilution < 0 else "Flat",
+                                     delta_color=delta_color)
+                        else:
+                            st.metric("Share Change (12M)", "N/A")
+
+                    with col4:
+                        assessment = insider.get('assessment', 'neutral')
+                        emoji_map = {'positive': '🟢', 'neutral': '🟡', 'negative': '🔴'}
+                        emoji = emoji_map.get(assessment, '🟡')
+                        st.metric("Assessment", f"{emoji} {assessment.title()}")
+
+                    # Additional context
+                    if insider_own is not None:
+                        if insider_own >= 15:
+                            st.success("✓ Strong insider ownership (≥15%) indicates good alignment with shareholders")
+                        elif insider_own >= 5:
+                            st.info("✓ Moderate insider ownership (5-15%)")
+                        elif insider_own < 1:
+                            st.warning("⚠️ Low insider ownership (<1%) - weak alignment signal")
+
                 else:
-                    st.info("Insider data not available")
+                    st.info("Ownership data not available")
 
                 st.markdown("---")
 
@@ -1044,6 +1077,49 @@ with tab5:
 
                             **No P/E ratios used** - Focus on cash flow and operating metrics per best practices.
                             """)
+
+                    # === PRICE PROJECTIONS ===
+                    projections = intrinsic.get('price_projections', {})
+                    if projections and 'scenarios' in projections:
+                        st.markdown("---")
+                        st.markdown("### 📈 Price Projections by Scenario")
+
+                        scenarios = projections.get('scenarios', {})
+
+                        if scenarios:
+                            # Display as table
+                            scenario_names = list(scenarios.keys())
+
+                            # Create columns for each scenario
+                            cols = st.columns(len(scenario_names))
+
+                            for i, (scenario_name, data) in enumerate(scenarios.items()):
+                                with cols[i]:
+                                    # Emoji based on scenario
+                                    if 'Bear' in scenario_name:
+                                        emoji = '🐻'
+                                        color = '#ff6b6b'
+                                    elif 'Bull' in scenario_name:
+                                        emoji = '🐂'
+                                        color = '#51cf66'
+                                    else:
+                                        emoji = '📊'
+                                        color = '#ffd43b'
+
+                                    st.markdown(f"**{emoji} {scenario_name}**")
+                                    st.caption(data.get('description', ''))
+                                    st.caption(f"Growth: {data.get('growth_assumption', 'N/A')}")
+
+                                    st.markdown("**Price Targets:**")
+                                    st.metric("1 Year", f"${data.get('1Y_target', 0):.2f}",
+                                             delta=data.get('1Y_return', 'N/A'))
+                                    st.metric("3 Year", f"${data.get('3Y_target', 0):.2f}",
+                                             delta=data.get('3Y_cagr', 'N/A') + " CAGR")
+                                    st.metric("5 Year", f"${data.get('5Y_target', 0):.2f}",
+                                             delta=data.get('5Y_cagr', 'N/A') + " CAGR")
+
+                            st.caption("**Note:** Projections combine revenue growth (70%) with mean reversion to fair value (30%). Not investment advice.")
+
                 else:
                     st.info("Valuation analysis not available")
 
