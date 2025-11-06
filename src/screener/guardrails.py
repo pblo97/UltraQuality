@@ -383,51 +383,89 @@ class GuardrailCalculator:
         """
         Net Share Issuance % over last 12 months:
 
-        Method 1: (Shares_t - Shares_t-4) / Shares_t-4 * 100
-        Method 2: (Stock Issued - Stock Repurchased) / Market Cap * 100
+        Method 1: (Shares_t - Shares_t-2) / Shares_t-2 * 100 * 2 (annualized from 6mo)
+        Method 2: (Stock Issued - Stock Repurchased) / Equity * 100
 
         Returns: % change (positive = dilution, negative = buybacks)
 
-        FIXED: Use actual share count, not commonStock par value
-        Cap at ±100% to avoid calculation errors
+        FIXED v2:
+        - Use 2-quarter comparison (more reliable than 4-quarter)
+        - Detect stock splits (45-55%, 90-110%, etc.)
+        - Cross-validate with cash flow method
+        - Cap at ±50% (values >50% likely data errors or splits)
         """
-        if len(balance) < 5:
+        if len(balance) < 3:
             return None
 
-        # Method 1: Share count change
+        # Method 1: Share count change (2 quarters = 6 months)
         # IMPORTANT: Use weightedAverageShsOut or commonStockSharesOutstanding
         # DO NOT use 'commonStock' (that's par value, not share count)
         shares_t = (balance[0].get('weightedAverageShsOut') or
                     balance[0].get('commonStockSharesOutstanding') or
                     balance[0].get('weightedAverageShsOutDil'))
-        shares_t4 = (balance[4].get('weightedAverageShsOut') or
-                     balance[4].get('commonStockSharesOutstanding') or
-                     balance[4].get('weightedAverageShsOutDil'))
 
-        if shares_t and shares_t4 and shares_t4 > 0:
-            net_issuance_pct = ((shares_t - shares_t4) / shares_t4) * 100
+        # Use 2-quarter lookback (more reliable than 4-quarter)
+        shares_t2 = (balance[2].get('weightedAverageShsOut') or
+                     balance[2].get('commonStockSharesOutstanding') or
+                     balance[2].get('weightedAverageShsOutDil'))
 
-            # Cap at ±100% to handle edge cases and data errors
-            net_issuance_pct = max(-100, min(100, net_issuance_pct))
+        method1_result = None
+        if shares_t and shares_t2 and shares_t2 > 0:
+            # 6-month change
+            six_month_pct = ((shares_t - shares_t2) / shares_t2) * 100
 
-            return net_issuance_pct
+            # Annualize (multiply by 2 for 12-month estimate)
+            net_issuance_pct = six_month_pct * 2
 
-        # Method 2: Cash flow from financing
-        if cashflow:
-            cf = cashflow[0]
-            stock_issued = cf.get('commonStockIssued', 0)
-            stock_repurchased = cf.get('commonStockRepurchased', 0)  # Usually negative
+            # Stock split detection: If close to 50%, 100%, 200%, likely a split
+            # Splits should be adjusted by FMP but sometimes aren't
+            abs_pct = abs(net_issuance_pct)
+            is_likely_split = (
+                (45 <= abs_pct <= 55) or    # 3:2 or 2:3 split
+                (90 <= abs_pct <= 110) or   # 2:1 or 1:2 split
+                (190 <= abs_pct <= 210) or  # 3:1 split
+                (290 <= abs_pct <= 310)     # 4:1 split
+            )
 
-            # Approximate market cap from balance sheet equity
+            if is_likely_split:
+                # Likely a stock split, not actual dilution - ignore
+                logger.debug(f"Detected potential stock split: {net_issuance_pct:.1f}% change")
+                net_issuance_pct = 0.0
+
+            # Cap at ±50% (values >50% after split detection are likely data errors)
+            net_issuance_pct = max(-50, min(50, net_issuance_pct))
+            method1_result = net_issuance_pct
+
+        # Method 2: Cash flow from financing (validation)
+        method2_result = None
+        if cashflow and len(cashflow) >= 4:
+            # Sum last 4 quarters for annual figure
+            total_issued = sum(cf.get('commonStockIssued', 0) for cf in cashflow[:4])
+            total_repurchased = sum(cf.get('commonStockRepurchased', 0) for cf in cashflow[:4])
+
             equity = balance[0].get('totalStockholdersEquity', 1)
-            net_flow = stock_issued + stock_repurchased  # repurchased is negative
-            if equity > 0:
-                dilution = (net_flow / equity) * 100
-                # Cap at ±100%
-                dilution = max(-100, min(100, dilution))
-                return dilution
+            net_flow = total_issued + total_repurchased  # repurchased is negative
 
-        return None
+            if equity > 0 and abs(net_flow) > 0:
+                dilution = (net_flow / equity) * 100
+                # Cap at ±50%
+                dilution = max(-50, min(50, dilution))
+                method2_result = dilution
+
+        # Cross-validation: If both methods available and disagree significantly, prefer Method 2
+        if method1_result is not None and method2_result is not None:
+            disagreement = abs(method1_result - method2_result)
+            if disagreement > 20:
+                # Methods disagree by >20pp - likely data quality issue
+                # Prefer cash flow method (more reliable)
+                logger.debug(f"Dilution methods disagree: M1={method1_result:.1f}%, M2={method2_result:.1f}% - using M2")
+                return method2_result
+            else:
+                # Methods agree - use Method 1 (more precise)
+                return method1_result
+
+        # Return whichever method succeeded
+        return method1_result if method1_result is not None else method2_result
 
     # ===========================
     # M&A Flag
@@ -711,15 +749,57 @@ class GuardrailCalculator:
                 amber_flags += 1
                 reasons.append(f"Beneish M={m:.2f} borderline")
 
-        # Net Share Issuance (all types)
+        # Net Share Issuance (all types) - Industry-adjusted thresholds
         dilution = guardrails.get('netShareIssuance_12m_%')
         if dilution is not None:
-            if dilution > 10:
-                red_flags += 1
-                reasons.append(f"Dilution={dilution:.1f}% >10%")
-            elif dilution > 5:
-                amber_flags += 1
-                reasons.append(f"Dilution={dilution:.1f}% >5%")
+            # Industry-specific dilution tolerance
+            industry_lower = industry.lower() if industry else ''
+
+            # Growth companies: Higher tolerance (raising capital for growth is normal)
+            # Biotech, early-stage tech, high-growth sectors
+            growth_high_dilution_keywords = [
+                'biotech', 'pharmaceutical', 'drug', 'clinical',
+                'genomics', 'life sciences',
+                'software - infrastructure', 'software - application',
+                'semiconductor', 'solar', 'renewable',
+                'electric vehicle', 'aerospace', 'space'
+            ]
+
+            # Mature companies: Low tolerance (dilution is red flag)
+            # Financials, consumer staples, utilities
+            mature_low_dilution_keywords = [
+                'bank', 'financial services', 'insurance', 'capital markets',
+                'consumer staples', 'household', 'packaged foods', 'beverages',
+                'tobacco', 'utilities', 'reit'
+            ]
+
+            is_high_growth = any(kw in industry_lower for kw in growth_high_dilution_keywords)
+            is_mature = any(kw in industry_lower for kw in mature_low_dilution_keywords)
+
+            if is_high_growth:
+                # Growth companies: ROJO >20%, AMBAR >10%
+                if dilution > 20:
+                    red_flags += 1
+                    reasons.append(f"Dilution={dilution:.1f}% >20% (growth co.)")
+                elif dilution > 10:
+                    amber_flags += 1
+                    reasons.append(f"Dilution={dilution:.1f}% >10% (growth co.)")
+            elif is_mature:
+                # Mature companies: ROJO >5%, AMBAR >2%
+                if dilution > 5:
+                    red_flags += 1
+                    reasons.append(f"Dilution={dilution:.1f}% >5% (mature co.)")
+                elif dilution > 2:
+                    amber_flags += 1
+                    reasons.append(f"Dilution={dilution:.1f}% >2% (mature co.)")
+            else:
+                # Standard companies: ROJO >10%, AMBAR >5%
+                if dilution > 10:
+                    red_flags += 1
+                    reasons.append(f"Dilution={dilution:.1f}% >10%")
+                elif dilution > 5:
+                    amber_flags += 1
+                    reasons.append(f"Dilution={dilution:.1f}% >5%")
 
         # M&A Flag
         mna = guardrails.get('mna_flag')
