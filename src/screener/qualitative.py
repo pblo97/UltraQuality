@@ -733,6 +733,130 @@ class QualitativeAnalyzer:
     # Intrinsic Value Estimation
     # ===================================
 
+    def _get_industry_valuation_profile(self, symbol: str) -> Dict:
+        """
+        Determine optimal valuation metrics based on industry characteristics.
+
+        Based on academic research (Damodaran, NYU Stern; Harbula, 2009):
+        - Capital-intensive: EV/EBIT preferred (D&A reflects capex)
+        - Asset-light/High-growth: EV/Revenue or EV/EBITDA
+        - Asset-heavy: P/B (Book value)
+        - Mature/Stable: FCF yield (predictable cash flows)
+
+        Returns dict with:
+        - primary_metric: str
+        - secondary_metric: str
+        - wacc: float
+        - expected_multiple_range: tuple
+        """
+        try:
+            profile_data = self.fmp.get_profile(symbol)
+            if not profile_data:
+                return self._default_valuation_profile()
+
+            industry = profile_data[0].get('industry', '').lower()
+            sector = profile_data[0].get('sector', '').lower()
+
+            # Asset-light, high-growth industries (Software, Biotech, Internet)
+            # Research: Damodaran 2025 - Software EV/EBITDA ~98x, Biotech ~62x
+            if any(kw in industry + sector for kw in [
+                'software', 'internet', 'biotechnology', 'pharmaceutical',
+                'semiconductor', 'application', 'saas'
+            ]):
+                return {
+                    'profile': 'high_growth_asset_light',
+                    'primary_metric': 'EV/Revenue',  # For high growth with negative FCF
+                    'secondary_metric': 'EV/EBITDA',
+                    'wacc': 0.11,  # Higher risk
+                    'expected_multiple_ebitda': (30, 60),  # Damodaran: 46-98x
+                    'dcf_weight': 0.30,  # Lower weight (harder to project)
+                    'multiple_weight': 0.70
+                }
+
+            # Capital-intensive industries (Manufacturing, Oil/Gas, Utilities, Telecom)
+            # Research: EV/EBIT preferred - D&A reflects real capex needs
+            elif any(kw in industry + sector for kw in [
+                'oil', 'gas', 'energy', 'utility', 'utilities', 'telecom',
+                'manufacturing', 'steel', 'mining', 'automotive', 'transportation',
+                'airline', 'railroad', 'pipeline', 'midstream'
+            ]):
+                return {
+                    'profile': 'capital_intensive',
+                    'primary_metric': 'EV/EBIT',  # Better than EBITDA for capex-heavy
+                    'secondary_metric': 'EV/FCF',
+                    'wacc': 0.09,  # Lower for utilities, 0.10 for others
+                    'expected_multiple_ebit': (8, 12),  # Typical range
+                    'dcf_weight': 0.45,  # Higher weight (stable cash flows)
+                    'multiple_weight': 0.55
+                }
+
+            # Asset-based industries (Real Estate, Banks, Insurance)
+            # Research: P/B well-suited for tangible assets
+            elif any(kw in industry + sector for kw in [
+                'real estate', 'reit', 'bank', 'insurance', 'financial'
+            ]):
+                return {
+                    'profile': 'asset_based',
+                    'primary_metric': 'P/B',
+                    'secondary_metric': 'P/FFO' if 'reit' in industry else 'P/TBV',
+                    'wacc': 0.12 if 'bank' in industry else 0.09,  # REITs lower
+                    'expected_multiple_pb': (1.0, 1.5),  # Conservative
+                    'dcf_weight': 0.40,
+                    'multiple_weight': 0.60
+                }
+
+            # Mature, stable industries (Consumer Staples, Healthcare Products)
+            # Research: FCF yield reliable for predictable cash flows
+            elif any(kw in industry + sector for kw in [
+                'consumer staples', 'consumer defensive', 'beverage', 'food',
+                'tobacco', 'household products', 'medical devices', 'healthcare products'
+            ]):
+                return {
+                    'profile': 'mature_stable',
+                    'primary_metric': 'FCF_Yield',
+                    'secondary_metric': 'EV/EBIT',
+                    'wacc': 0.08,  # Lower risk
+                    'expected_multiple_ebit': (12, 18),  # Higher for quality
+                    'dcf_weight': 0.50,  # Highest weight (very predictable)
+                    'multiple_weight': 0.50
+                }
+
+            # Cyclical industries (Retail, Consumer Cyclical)
+            # Research: Use normalized earnings, avoid peak/trough
+            elif any(kw in industry + sector for kw in [
+                'retail', 'consumer cyclical', 'restaurant', 'hotel',
+                'leisure', 'apparel', 'automotive retail'
+            ]):
+                return {
+                    'profile': 'cyclical',
+                    'primary_metric': 'EV/EBITDA',  # More stable than EBIT
+                    'secondary_metric': 'EV/Revenue',
+                    'wacc': 0.10,
+                    'expected_multiple_ebitda': (8, 14),
+                    'dcf_weight': 0.35,  # Lower weight (hard to normalize)
+                    'multiple_weight': 0.65
+                }
+
+            # Default: Diversified/Mixed
+            else:
+                return self._default_valuation_profile()
+
+        except Exception as e:
+            logger.warning(f"Failed to determine industry profile for {symbol}: {e}")
+            return self._default_valuation_profile()
+
+    def _default_valuation_profile(self) -> Dict:
+        """Default valuation profile for mixed/unknown industries."""
+        return {
+            'profile': 'default',
+            'primary_metric': 'EV/EBIT',
+            'secondary_metric': 'FCF_Yield',
+            'wacc': 0.10,
+            'expected_multiple_ebit': (10, 15),
+            'dcf_weight': 0.40,
+            'multiple_weight': 0.60
+        }
+
     def _estimate_intrinsic_value(
         self,
         symbol: str,
@@ -757,6 +881,9 @@ class QualitativeAnalyzer:
             'confidence': 'Low|Med|High'
         }
         """
+        # Get industry-specific valuation profile
+        industry_profile = self._get_industry_valuation_profile(symbol)
+
         valuation = {
             'current_price': None,
             'dcf_value': None,
@@ -766,6 +893,8 @@ class QualitativeAnalyzer:
             'upside_downside_%': None,
             'valuation_assessment': 'Unknown',
             'confidence': 'Low',
+            'industry_profile': industry_profile.get('profile', 'unknown'),
+            'primary_metric': industry_profile.get('primary_metric', 'EV/EBIT'),
             'notes': []
         }
 
@@ -783,42 +912,54 @@ class QualitativeAnalyzer:
                 valuation['notes'].append("Invalid price data")
                 return valuation
 
-            # 1. DCF Valuation (simplified)
-            dcf_value = self._calculate_dcf(symbol, company_type)
-            if dcf_value:
+            # Use industry-specific WACC
+            industry_wacc = industry_profile.get('wacc', 0.10)
+
+            # 1. DCF Valuation (with industry-specific WACC)
+            dcf_value = self._calculate_dcf(symbol, company_type, wacc_override=industry_wacc)
+            if dcf_value and dcf_value > 0:
                 valuation['dcf_value'] = dcf_value
                 valuation['confidence'] = 'Med'
 
             # 2. Forward Multiple Valuation
             forward_value = self._calculate_forward_multiple(symbol, company_type, peers_df)
-            if forward_value:
+            if forward_value and forward_value > 0:
                 valuation['forward_multiple_value'] = forward_value
                 valuation['confidence'] = 'High' if valuation['confidence'] == 'Med' else 'Med'
 
             # 3. Historical Multiple
             historical_value = self._calculate_historical_multiple(symbol, company_type)
-            if historical_value:
+            if historical_value and historical_value > 0:
                 valuation['historical_multiple_value'] = historical_value
 
-            # Weighted average (if we have multiple estimates)
-            estimates = [v for v in [dcf_value, forward_value, historical_value] if v]
+            # Weighted average using INDUSTRY-SPECIFIC WEIGHTS
+            estimates = []
+            weights = []
+            values = []
 
-            if estimates:
-                # Weight: DCF 40%, Forward 40%, Historical 20%
-                weights = []
-                values = []
+            # DCF weight (varies by industry: 0.30 for high-growth, 0.50 for stable)
+            if dcf_value and dcf_value > 0:
+                estimates.append('DCF')
+                dcf_weight = industry_profile.get('dcf_weight', 0.40)
+                weights.append(dcf_weight)
+                values.append(dcf_value)
 
-                if dcf_value:
-                    weights.append(0.4)
-                    values.append(dcf_value)
-                if forward_value:
-                    weights.append(0.4)
-                    values.append(forward_value)
-                if historical_value:
-                    weights.append(0.2)
-                    values.append(historical_value)
+            # Multiple weight (varies by industry)
+            if forward_value and forward_value > 0:
+                estimates.append('Forward Multiple')
+                multiple_weight = industry_profile.get('multiple_weight', 0.60)
+                # Split between forward and historical
+                weights.append(multiple_weight * 0.70)  # 70% to forward
+                values.append(forward_value)
 
-                # Normalize weights
+            if historical_value and historical_value > 0:
+                estimates.append('Historical')
+                multiple_weight = industry_profile.get('multiple_weight', 0.60)
+                weights.append(multiple_weight * 0.30)  # 30% to historical
+                values.append(historical_value)
+
+            if values:
+                # Normalize weights to sum to 1.0
                 total_weight = sum(weights)
                 weights = [w / total_weight for w in weights]
 
@@ -829,15 +970,29 @@ class QualitativeAnalyzer:
                 upside = ((weighted - current_price) / current_price) * 100
                 valuation['upside_downside_%'] = upside
 
-                # Assessment
-                if upside > 25:
+                # Assessment (industry-adjusted thresholds)
+                # High-growth industries get more lenient thresholds
+                if industry_profile.get('profile') == 'high_growth_asset_light':
+                    undervalued_threshold = 30
+                    overvalued_threshold = -20
+                else:
+                    undervalued_threshold = 25
+                    overvalued_threshold = -15
+
+                if upside > undervalued_threshold:
                     valuation['valuation_assessment'] = 'Undervalued'
-                elif upside < -15:
+                elif upside < overvalued_threshold:
                     valuation['valuation_assessment'] = 'Overvalued'
                 else:
                     valuation['valuation_assessment'] = 'Fair Value'
 
-                valuation['notes'].append(f"Based on {len(estimates)} valuation methods")
+                # Add detailed notes
+                profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
+                primary_metric = industry_profile.get('primary_metric', 'EV/EBIT')
+                valuation['notes'].append(f"Industry: {profile_name}")
+                valuation['notes'].append(f"Primary metric: {primary_metric}")
+                valuation['notes'].append(f"Methods: {', '.join(estimates)}")
+                valuation['notes'].append(f"WACC: {industry_wacc:.1%}")
             else:
                 valuation['notes'].append("Insufficient data for valuation")
 
@@ -847,15 +1002,20 @@ class QualitativeAnalyzer:
 
         return valuation
 
-    def _calculate_dcf(self, symbol: str, company_type: str) -> Optional[float]:
+    def _calculate_dcf(self, symbol: str, company_type: str, wacc_override: Optional[float] = None) -> Optional[float]:
         """
         Company-specific DCF valuation.
 
         Non-financial: FCF-based (adjusted for growth capex)
-        Financial: Earnings-based (P/E approach)
+        Financial: Earnings-based
         REIT: FFO-based
 
         Key: Don't penalize growth capex - it's valuable investment
+
+        Args:
+            symbol: Stock ticker
+            company_type: 'non_financial', 'financial', or 'reit'
+            wacc_override: Optional industry-specific WACC (from research)
         """
         try:
             # Get financials
@@ -941,9 +1101,11 @@ class QualitativeAnalyzer:
             # Stage 2 (terminal): 3% perpetual
             terminal_growth = 0.03
 
-            # === WACC ===
+            # === WACC (use industry-specific if provided) ===
 
-            if company_type == 'financial':
+            if wacc_override:
+                wacc = wacc_override
+            elif company_type == 'financial':
                 wacc = 0.12  # Higher for financials
             elif company_type == 'reit':
                 wacc = 0.09  # Lower for REITs (stable cash flows)

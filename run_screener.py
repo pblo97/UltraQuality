@@ -980,49 +980,69 @@ with tab5:
                             color = 'orange'
                             emoji = '🟡'
 
+                        # Display industry profile
+                        industry_profile = intrinsic.get('industry_profile', 'unknown').replace('_', ' ').title()
+                        primary_metric = intrinsic.get('primary_metric', 'EV/EBIT')
+
                         st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
-                        st.caption(f"Confidence: {confidence} | {', '.join(intrinsic.get('notes', []))}")
+                        st.caption(f"**Industry Profile:** {industry_profile} | **Primary Metric:** {primary_metric}")
+                        st.caption(f"**Confidence:** {confidence} | {', '.join(intrinsic.get('notes', []))}")
 
                         # Explanation
-                        with st.expander("📖 Valuation Methodology"):
-                            company_type = stock_data.get('company_type', 'non_financial')
-
-                            if company_type == 'non_financial':
-                                dcf_basis = "Free Cash Flow (FCF adjusted for growth capex)"
-                                multiple_basis = "EV/EBIT vs peer average"
-                                wacc_rate = "10%"
-                            elif company_type == 'reit':
-                                dcf_basis = "Funds From Operations (FFO)"
-                                multiple_basis = "P/FFO vs peer average"
-                                wacc_rate = "9%"
-                            else:
-                                dcf_basis = "Net Income"
-                                multiple_basis = "P/B (Price to Book) vs peer average"
-                                wacc_rate = "12%"
-
+                        with st.expander("📖 Research-Based Valuation Methodology"):
                             st.markdown(f"""
-                            **Methods Used:**
+                            ### Industry-Specific Approach
 
-                            1. **DCF (Discounted Cash Flow)**: {dcf_basis}
-                               - **Key Feature**: Growth capex is NOT penalized (it's valuable investment)
-                               - Only maintenance capex is subtracted from cash flow
-                               - 5-year projection + terminal value (3% perpetual growth)
+                            **Industry Profile:** {industry_profile}
+                            **Primary Metric:** {primary_metric}
 
-                            2. **Forward Multiple**: {multiple_basis}
-                               - Projects forward metrics based on recent growth trends
-                               - Compares to peer group average multiples
-                               - Focus on operating metrics, not earnings
+                            This valuation uses academic research (Damodaran, NYU Stern; Harbula 2009) to select
+                            optimal metrics by industry characteristics:
 
-                            3. **Historical Multiple**: Based on sector historical averages
-                               - Conservative baseline using long-term market data
+                            **Valuation Framework:**
 
-                            **Weighted Average**: DCF (40%) + Forward Multiple (40%) + Historical (20%)
+                            1. **Capital-Intensive** (Oil/Gas, Utilities, Manufacturing):
+                               - Primary: **EV/EBIT** (D&A reflects actual capex needs)
+                               - Research: More stable than EBITDA for capex-heavy businesses
+                               - Typical multiples: 8-12x EV/EBIT
 
-                            **Key Assumptions:**
-                            - WACC: {wacc_rate}
-                            - Growth: Derived from recent revenue/FCF trends
-                            - Terminal Growth: 3% perpetual
-                            - Maintenance Capex: Estimated based on revenue growth rate
+                            2. **Asset-Light / High-Growth** (Software, Biotech):
+                               - Primary: **EV/Revenue** or **EV/EBITDA**
+                               - Research: Damodaran 2025 - Software ~98x, Biotech ~62x
+                               - Higher multiples reflect growth potential
+
+                            3. **Asset-Based** (Banks, REITs):
+                               - Primary: **P/B** or **P/FFO**
+                               - Research: Book value best for tangible assets
+                               - Conservative multiples: 1.0-1.5x for banks
+
+                            4. **Mature/Stable** (Consumer Staples, Healthcare):
+                               - Primary: **FCF Yield**
+                               - Research: Predictable cash flows enable accurate DCF
+                               - Higher DCF weighting (50%)
+
+                            5. **Cyclical** (Retail, Consumer Discretionary):
+                               - Primary: **EV/EBITDA**
+                               - Research: Use normalized earnings to avoid peak/trough
+                               - Lower DCF weight (harder to project cycles)
+
+                            ---
+
+                            ### DCF Method
+                            - **Growth Capex Adjustment**: Only maintenance capex subtracted
+                            - High growth (>10% revenue): 50% capex = maintenance
+                            - Moderate (5-10%): 70% maintenance
+                            - Mature (<5%): 90% maintenance
+                            - **WACC**: Industry-adjusted based on risk profile
+                            - **Terminal Growth**: 3% perpetual
+
+                            ### Weighting
+                            - **Varies by industry** (not fixed 40/40/20)
+                            - High-growth: 30% DCF, 70% Multiples
+                            - Stable: 50% DCF, 50% Multiples
+                            - Default: 40% DCF, 60% Multiples
+
+                            **No P/E ratios used** - Focus on cash flow and operating metrics per best practices.
                             """)
                 else:
                     st.info("Valuation analysis not available")
