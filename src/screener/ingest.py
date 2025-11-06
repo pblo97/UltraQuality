@@ -326,6 +326,10 @@ class FMPClient:
         params = {'symbol': symbol}
         return self._request('stock_peers', params, cache=self.cache_qualitative)
 
+    def get_key_executives(self, symbol: str) -> List[Dict]:
+        """Endpoint: /key-executives/{symbol}"""
+        return self._request(f'key-executives/{symbol}', cache=self.cache_qualitative)
+
     # ========================
     # Metrics & Stats
     # ========================

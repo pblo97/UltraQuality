@@ -685,12 +685,38 @@ class QualitativeAnalyzer:
         try:
             balance = self.fmp.get_balance_sheet(symbol, period='quarter', limit=5)
             if balance and len(balance) >= 5:
-                shares_t = balance[0].get('commonStock') or balance[0].get('weightedAverageShsOut')
-                shares_t4 = balance[4].get('commonStock') or balance[4].get('weightedAverageShsOut')
+                # IMPORTANT: Use weightedAverageShsOut or commonStockSharesOutstanding
+                # DO NOT use 'commonStock' (that's par value, not share count)
+                shares_t = (balance[0].get('weightedAverageShsOut') or
+                           balance[0].get('commonStockSharesOutstanding') or
+                           balance[0].get('weightedAverageShsOutDil'))
+
+                # Use 4-quarter lookback for stable 12-month measurement
+                shares_t4 = (balance[4].get('weightedAverageShsOut') or
+                            balance[4].get('commonStockSharesOutstanding') or
+                            balance[4].get('weightedAverageShsOutDil'))
 
                 if shares_t and shares_t4 and shares_t4 > 0:
-                    dilution = ((shares_t - shares_t4) / shares_t4) * 100
-                    skin['net_share_issuance_12m_%'] = dilution
+                    # 12-month change
+                    net_issuance_pct = ((shares_t - shares_t4) / shares_t4) * 100
+
+                    # Stock split detection: If close to 50%, 100%, 200%, likely a split
+                    # Splits should be adjusted by FMP but sometimes aren't
+                    abs_pct = abs(net_issuance_pct)
+                    is_likely_split = (
+                        (45 <= abs_pct <= 55) or    # 3:2 or 2:3 split
+                        (90 <= abs_pct <= 110) or   # 2:1 or 1:2 split
+                        (190 <= abs_pct <= 210) or  # 3:1 split
+                        (290 <= abs_pct <= 310)     # 4:1 split
+                    )
+
+                    if is_likely_split:
+                        # Likely a stock split, not actual dilution - set to 0
+                        logger.debug(f"Detected potential stock split for {symbol}: {net_issuance_pct:.1f}% change")
+                        skin['net_share_issuance_12m_%'] = 0.0
+                        skin['notes'] = 'Recent stock split detected'
+                    else:
+                        skin['net_share_issuance_12m_%'] = net_issuance_pct
 
         except Exception as e:
             logger.warning(f"Failed to assess dilution for {symbol}: {e}")
@@ -1272,29 +1298,19 @@ class QualitativeAnalyzer:
         }
 
         try:
-            # Get current price (try multiple sources)
+            # Get current price from profile endpoint
             current_price = 0
 
-            # Try 1: Quote endpoint
             try:
-                quote = self.fmp.get_quote(symbol)
-                if quote and len(quote) > 0:
-                    current_price = quote[0].get('price', 0)
+                profile = self.fmp.get_profile(symbol)
+                if profile and len(profile) > 0:
+                    current_price = profile[0].get('price', 0)
             except Exception as e:
-                logger.debug(f"Quote endpoint failed for {symbol}: {e}")
+                logger.error(f"Failed to get price for {symbol}: {e}")
 
-            # Try 2: Profile endpoint (fallback)
-            if current_price <= 0:
-                try:
-                    profile = self.fmp.get_profile(symbol)
-                    if profile and len(profile) > 0:
-                        current_price = profile[0].get('price', 0)
-                except Exception as e:
-                    logger.debug(f"Profile endpoint failed for {symbol}: {e}")
-
-            if current_price <= 0:
+            if not current_price or current_price <= 0:
                 valuation['notes'].append("Price data unavailable")
-                logger.warning(f"Could not get price for {symbol}")
+                logger.warning(f"Could not get price for {symbol} - price: {current_price}")
                 return valuation
 
             valuation['current_price'] = current_price
@@ -1419,7 +1435,7 @@ class QualitativeAnalyzer:
             # Get financials
             income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
             balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
-            cashflow = self.fmp.get_cash_flow_statement(symbol, period='annual', limit=2)
+            cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=2)
 
             if not (income and balance and cashflow):
                 return None
@@ -1575,7 +1591,7 @@ class QualitativeAnalyzer:
         try:
             income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
             balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
-            cashflow = self.fmp.get_cash_flow_statement(symbol, period='annual', limit=1)
+            cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=1)
 
             if not (income and balance):
                 return None
@@ -1754,7 +1770,7 @@ class QualitativeAnalyzer:
         try:
             income = self.fmp.get_income_statement(symbol, period='annual', limit=3)
             balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=3)
-            cashflow = self.fmp.get_cash_flow_statement(symbol, period='annual', limit=3)
+            cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=3)
 
             if not (income and balance):
                 return None
