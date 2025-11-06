@@ -454,6 +454,73 @@ class GuardrailCalculator:
     # Assessment
     # ===========================
 
+    def _get_beneish_threshold_for_industry(self, industry: str) -> float:
+        """
+        Get industry-adjusted Beneish M-Score threshold for ROJO classification.
+
+        Academic Foundation:
+        - Beneish (1999): Original threshold -2.22 for manipulation detection
+        - Omar et al. (2014): Industries with complex revenue recognition have naturally higher M-Scores
+        - Repousis (2016): Suggests sector-specific adjustments to reduce false positives
+        - Tarjo & Herawati (2015): High-accrual industries require adjusted thresholds
+
+        Threshold Tiers:
+
+        Tier 1 - PERMISSIVE (-1.5): Complex revenue recognition, naturally high accruals
+            - Travel/Hospitality: Booking vs. consumption timing, deferred revenue
+            - E-commerce/Retail: High receivables, inventory accounting complexity
+            - Software/SaaS: Deferred revenue, R&D capitalization
+            - Construction: Percentage-of-completion accounting
+            - Healthcare/Biotech: R&D capitalization, clinical trial expenses
+
+        Tier 2 - MODERATE (-1.78): Standard accounting practices
+            - Industrials/Manufacturing: Traditional accounting
+            - Consumer Goods: Standard inventory/revenue recognition
+            - Telecommunications/Media: Regulated but complex
+            - Energy/Materials: Commodity accounting
+            - Real Estate (non-REIT): Property accounting
+
+        Tier 3 - STRICT (-2.0): Highly regulated/standardized accounting
+            - Financial Services: GAAP-regulated, accruals well-defined
+            - Insurance: Regulated reserves and claims accounting
+            - REITs: Standardized FFO/AFFO reporting
+            - Utilities: Rate-regulated, stable accounting
+
+        Returns: threshold (lower = more strict, higher = more permissive)
+        """
+        if not industry:
+            return -1.78  # Default to original Beneish threshold
+
+        industry_lower = industry.lower()
+
+        # Tier 1: PERMISSIVE (-1.5) - Complex revenue recognition
+        permissive_keywords = [
+            'travel', 'hospitality', 'hotel', 'airline', 'cruise', 'leisure', 'resort',
+            'ecommerce', 'retail', 'consumer cyclical', 'apparel', 'department store',
+            'software', 'saas', 'technology', 'internet', 'information technology',
+            'construction', 'engineering', 'contractor', 'infrastructure',
+            'healthcare', 'biotechnology', 'pharmaceutical', 'medical', 'biotech',
+            'entertainment', 'gaming', 'media production'
+        ]
+
+        for keyword in permissive_keywords:
+            if keyword in industry_lower:
+                return -1.5  # More permissive for complex accounting models
+
+        # Tier 3: STRICT (-2.0) - Regulated accounting
+        strict_keywords = [
+            'bank', 'financial services', 'insurance', 'asset management',
+            'reit', 'real estate investment',
+            'utility', 'electric', 'gas utility', 'water utility'
+        ]
+
+        for keyword in strict_keywords:
+            if keyword in industry_lower:
+                return -2.0  # More strict for regulated industries
+
+        # Tier 2: MODERATE (-1.78) - Default for all others
+        return -1.78  # Original Beneish threshold
+
     def _assess_guardrails(
         self,
         guardrails: Dict,
@@ -510,13 +577,17 @@ class GuardrailCalculator:
             # FFO payout, occupancy, debt/assets (from features)
             # Placeholder
 
-        # Beneish M-Score (all types)
+        # Beneish M-Score (all types) - INDUSTRY-ADJUSTED THRESHOLDS
         m = guardrails.get('beneishM')
         if m is not None:
-            if m > -1.78:
+            # Get industry-specific threshold for ROJO classification
+            rojo_threshold = self._get_beneish_threshold_for_industry(industry)
+            amber_threshold = -2.22  # Standard amber threshold (Beneish original)
+
+            if m > rojo_threshold:
                 red_flags += 1
-                reasons.append(f"Beneish M={m:.2f} >-1.78 (manip.?)")
-            elif m > -2.22:
+                reasons.append(f"Beneish M={m:.2f} >{rojo_threshold:.2f} (manip.?)")
+            elif m > amber_threshold:
                 amber_flags += 1
                 reasons.append(f"Beneish M={m:.2f} borderline")
 
