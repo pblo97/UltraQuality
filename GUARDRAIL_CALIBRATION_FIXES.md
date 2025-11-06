@@ -310,6 +310,243 @@ if accruals > threshold:
 
 ---
 
+## 🔧 FIX #5: Dilution Calculation v2 & Industry Thresholds
+
+### **Problem:**
+
+After FIX #1, dilution calculation improved but still showing issues:
+- **MA (Mastercard)**: 61.1% dilution (suspicious for mature company)
+- **CL (Colgate-Palmolive)**: 60.3% dilution (suspicious for mature company)
+- **ROJO rate still 44%** (down from 64.4%, target 10-20%)
+
+**Root Causes:**
+1. **4-quarter comparison period too long** - capturing historical artifacts, data quality issues
+2. **No stock split detection** - FMP should adjust for splits but sometimes doesn't
+3. **No cross-validation** - Method 1 (share count) can have data errors
+4. **Fixed threshold (10%)** - doesn't account for industry differences
+
+**Statistics from Second Calibration:**
+- Mean dilution: -1.5% (reasonable)
+- Max dilution: 61.1% (MA), 60.3% (CL) - at cap limit, suspicious
+- Many high-quality companies (MA Q=94.3) blocked by dilution
+
+---
+
+### **Solution 1: Improved Calculation**
+
+**Changes to `_calc_net_share_issuance()` (Lines 378-468):**
+
+#### **A. Shorter Time Period (2 quarters instead of 4)**
+
+```python
+# BEFORE: 4-quarter lookback
+shares_t4 = balance[4].get('weightedAverageShsOut')
+net_issuance_pct = ((shares_t - shares_t4) / shares_t4) * 100
+
+# AFTER: 2-quarter lookback, annualized
+shares_t2 = balance[2].get('weightedAverageShsOut')
+six_month_pct = ((shares_t - shares_t2) / shares_t2) * 100
+net_issuance_pct = six_month_pct * 2  # Annualize
+```
+
+**Rationale:**
+- 2-quarter comparison less affected by historical data quality issues
+- Annualizing (x2) gives 12-month estimate
+- More responsive to recent changes
+- Less likely to capture stock splits from a year ago
+
+---
+
+#### **B. Stock Split Detection**
+
+```python
+# Detect common stock split ratios
+abs_pct = abs(net_issuance_pct)
+is_likely_split = (
+    (45 <= abs_pct <= 55) or    # 3:2 or 2:3 split
+    (90 <= abs_pct <= 110) or   # 2:1 or 1:2 split
+    (190 <= abs_pct <= 210) or  # 3:1 split
+    (290 <= abs_pct <= 310)     # 4:1 split
+)
+
+if is_likely_split:
+    # Not real dilution - just a split
+    net_issuance_pct = 0.0
+```
+
+**Rationale:**
+- FMP should adjust for stock splits but sometimes has lag
+- If share count change matches common split ratios (50%, 100%, 200%), it's likely a split
+- Splits are neutral events (no value change), shouldn't trigger ROJO
+
+---
+
+#### **C. Cross-Validation with Cash Flow Method**
+
+```python
+# Method 1: Share count change (primary)
+method1_result = calculate_from_share_count()
+
+# Method 2: Cash flow statement (validation)
+method2_result = calculate_from_cashflow()
+
+# If methods disagree by >20pp, prefer cash flow (more reliable)
+if abs(method1_result - method2_result) > 20:
+    return method2_result  # Cash flow more reliable
+else:
+    return method1_result  # Share count more precise
+```
+
+**Rationale:**
+- Share count data can have quality issues (missing data, incorrect values)
+- Cash flow statement tracks actual cash paid/received
+- If two methods disagree significantly, likely a data error
+- Cash flow method is more reliable but less precise (uses equity approximation)
+
+---
+
+#### **D. Tighter Cap (±50% instead of ±100%)**
+
+```python
+# Cap at ±50% (values >50% after split detection are likely data errors)
+net_issuance_pct = max(-50, min(50, net_issuance_pct))
+```
+
+**Rationale:**
+- After split detection, values >50% are almost always data errors
+- Real dilution of 50% in 12 months would be extreme even for growth companies
+- Tighter cap prevents garbage data from causing ROJO
+
+---
+
+### **Solution 2: Industry-Adjusted Thresholds**
+
+**Changes to `_assess_guardrails()` (Lines 752-802):**
+
+Created three-tier threshold system based on company maturity and industry:
+
+#### **Tier 1: Growth Companies (Permissive)**
+
+**Thresholds:** ROJO >20%, AMBAR >10%
+
+**Industries:**
+- Biotech, Pharmaceutical, Clinical, Genomics, Life Sciences
+- Software Infrastructure, Software Application
+- Semiconductor, Solar, Renewable Energy
+- Electric Vehicle, Aerospace, Space
+
+**Rationale:**
+- Growth companies raise capital to fund R&D, expansion, acquisitions
+- Dilution is normal and expected for high-growth sectors
+- 10-20% annual dilution is acceptable if driving growth
+- 20%+ dilution deserves scrutiny even for growth companies
+
+**Example:**
+```
+Moderna (mRNA): Biotech
+Dilution: 15%
+Old system: ROJO ❌ (>10%)
+New system: AMBAR ✅ (>10% but <20% for biotech)
+Rationale: Raising capital for vaccine development is normal
+```
+
+---
+
+#### **Tier 2: Standard Companies (Moderate)**
+
+**Thresholds:** ROJO >10%, AMBAR >5%
+
+**Industries:**
+- Manufacturing, Industrials
+- Retail, Consumer Discretionary
+- Healthcare Services
+- Telecommunications
+- Media & Entertainment
+
+**Rationale:**
+- Standard operating companies with moderate growth
+- Some dilution acceptable (equity compensation, small acquisitions)
+- 5-10% dilution is caution zone
+- 10%+ dilution is concerning
+
+**Example:**
+```
+Nike (NKE): Apparel
+Dilution: 7%
+System: AMBAR ✅ (>5% but <10%)
+Rationale: Modest dilution, monitor but not blocking
+```
+
+---
+
+#### **Tier 3: Mature Companies (Strict)**
+
+**Thresholds:** ROJO >5%, AMBAR >2%
+
+**Industries:**
+- Banks, Financial Services, Insurance, Capital Markets
+- Consumer Staples, Household Products, Packaged Foods, Beverages
+- Tobacco
+- Utilities
+- REITs
+
+**Rationale:**
+- Mature companies should return capital, not dilute
+- These industries typically do buybacks
+- Any dilution >5% is red flag (financial distress or poor capital allocation)
+- 2-5% dilution is yellow flag (needs explanation)
+
+**Example:**
+```
+MA (Mastercard): Capital Markets
+Dilution: 3% (after new calculation)
+Old system: ROJO ❌ (61.1% from old calc)
+New system: AMBAR ✅ (>2% but <5% for mature co.)
+Rationale: Slight dilution, monitor but reasonable for mature fintech
+```
+
+---
+
+### **Expected Impact:**
+
+**Calculation Improvements:**
+- MA: 61.1% → ~3-5% (realistic value after 2Q comparison + split detection)
+- CL: 60.3% → ~2-4% (similar improvement)
+- Most companies: More realistic dilution values (shorter period, cross-validation)
+- Unblock: ~30-40 companies with data quality issues
+
+**Threshold Improvements:**
+- Growth companies: Unblock ~20-30 biotech/software companies with 10-20% dilution
+- Mature companies: Correctly flag ~10-15 financials/staples with >5% dilution
+- Total: ~50-70 companies affected
+
+**Overall ROJO Reduction:**
+- Current: 44% (220/500)
+- Expected: 25-30% (125-150/500)
+- Target: 10-20% (will need further iteration)
+
+---
+
+### **Code Changes:**
+
+**src/screener/guardrails.py:**
+
+**Lines 378-468: `_calc_net_share_issuance()` (COMPLETE REWRITE)**
+- Changed from 4-quarter to 2-quarter comparison
+- Added stock split detection (45-55%, 90-110%, etc.)
+- Added cross-validation with cash flow method
+- Changed cap from ±100% to ±50%
+- Improved Method 2 to sum 4 quarters of cash flow
+
+**Lines 752-802: Dilution evaluation (INDUSTRY-ADJUSTED)**
+- Added three-tier threshold system
+- Growth companies: 20%/10% (ROJO/AMBAR)
+- Standard companies: 10%/5%
+- Mature companies: 5%/2%
+- Industry keyword matching for classification
+
+---
+
 ## 📊 Expected Overall Impact
 
 ### **Before Fixes:**
@@ -341,13 +578,16 @@ False Positive Rate: <3% (estimated <4 high-quality ROJO)
 
 | Fix | Companies Unblocked | Key Examples |
 |-----|---------------------|--------------|
-| **Dilution** | ~46 | MA, FAST, ORLY, PSTG |
-| **Altman Z Exempt** | ~150 | VRSN, NFLX, YUM, NVDA, Netflix |
-| **Beneish Semiconductors** | ~12 | NVDA (directly), semiconductor peers |
-| **Accruals** | ~24 | NTNX, NVDA, tech companies |
-| **TOTAL** | ~232 | **Nearly half of ROJO companies!** |
+| **Dilution v1 (Fix #1)** | ~46 | Extreme values capped (PSTG 8M% → reasonable) |
+| **Altman Z Exempt (Fix #2)** | ~150 | VRSN, NFLX, YUM, SNOW (software/utilities) |
+| **Beneish Semiconductors (Fix #3)** | ~12 | Semiconductor peers (NVDA still borderline) |
+| **Accruals (Fix #4)** | ~24 | NTNX, tech companies (calc fixed, growth threshold) |
+| **Dilution v2 + Industry (Fix #5)** | ~50-70 | **MA, CL** (calc improved), biotech companies |
+| **TOTAL (with Fix #5)** | ~282-312 | **Should reduce ROJO from 322 to ~100** |
 
-**Note:** Some companies affected by multiple issues, so total may be ~180-200 actual unblocks.
+**Note (Fixes #1-4):** Some companies affected by multiple issues, so total actual unblocks ~180-200 (ROJO: 64% → 44%).
+
+**Expected (Fixes #1-5):** Additional ~50-70 unblocks from dilution fix (ROJO: 44% → 20%).
 
 ---
 
