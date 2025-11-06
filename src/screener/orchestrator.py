@@ -529,6 +529,14 @@ class ScreenerPipeline:
             'altmanZ', 'beneishM', 'accruals_noa_%', 'netShareIssuance_12m_%',
             'mna_flag', 'debt_maturity_<24m_%', 'rate_mix_variable_%',
             'guardrail_status', 'guardrail_reasons',
+            # Momentum & Trend Filters
+            'revenue_growth_3y', 'roic_trend', 'margin_trend',
+            # Moat Score
+            'moat_score', 'pricing_power_score', 'operating_leverage_score', 'roic_persistence_score',
+            # Quality Degradation Scores (Piotroski for VALUE, Mohanram for GROWTH)
+            'piotroski_fscore', 'piotroski_fscore_delta',
+            'mohanram_gscore', 'mohanram_gscore_delta',
+            'quality_degradation_type', 'quality_degradation_score', 'quality_degradation_delta',
             # Scores & decision
             'value_score_0_100', 'quality_score_0_100', 'composite_0_100',
             'decision', 'notes_short'
