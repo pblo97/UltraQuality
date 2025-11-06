@@ -680,7 +680,7 @@ class GuardrailAnalyzer:
         lines.append("-" * 80)
 
         for idx, row in high_q_rojo.iterrows():
-            symbol = row['symbol']
+            ticker = row['ticker']
             name = row.get('name', 'N/A')
             industry = row.get('industry', 'N/A')
             quality = row.get('quality_score_0_100', 0)
@@ -688,7 +688,7 @@ class GuardrailAnalyzer:
 
             lines.append("")
             lines.append("=" * 80)
-            lines.append(f"{symbol} - {name}")
+            lines.append(f"{ticker} - {name}")
             lines.append("=" * 80)
 
             # Overview
