@@ -1441,9 +1441,26 @@ class QualitativeAnalyzer:
                 return None
 
             # Get shares outstanding (keep in actual count, not millions)
-            shares = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
-            if shares <= 0:
-                return None
+            # CRITICAL: weightedAverageShsOut might not be in annual balance sheets
+            # Try multiple sources
+            shares = (balance[0].get('weightedAverageShsOut') or
+                     balance[0].get('commonStockSharesOutstanding') or
+                     balance[0].get('weightedAverageShsOutDil'))
+
+            # Add debug info to notes
+            valuation['notes'].append(f"DEBUG: shares from balance sheet: {shares:,.0f}" if shares else "DEBUG: No shares found in balance sheet")
+
+            if not shares or shares <= 0:
+                # Last resort: get from profile
+                profile = self.fmp.get_profile(symbol)
+                if profile and len(profile) > 0:
+                    shares = profile[0].get('sharesOutstanding', 0)
+                    if shares > 0:
+                        valuation['notes'].append(f"DEBUG: Using shares from profile: {shares:,.0f}")
+
+            if not shares or shares <= 0:
+                valuation['notes'].append("DEBUG: Could not find valid share count")
+                return valuation
 
             # === Type-specific base cash flow ===
 
@@ -1586,6 +1603,9 @@ class QualitativeAnalyzer:
             logger.info(f"  shares: {shares:,.0f}")
             logger.info(f"  value_per_share: ${value_per_share:.2f}")
 
+            # Add debug to valuation notes (visible in UI)
+            valuation['notes'].append(f"DEBUG DCF: equity_value=${equity_value/1e9:.2f}B, shares={shares/1e9:.2f}B")
+
             return value_per_share if value_per_share > 0 else None
 
         except Exception as e:
@@ -1614,8 +1634,17 @@ class QualitativeAnalyzer:
                 return None
 
             # Get shares outstanding (keep in actual count, not millions)
-            shares = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
-            if shares <= 0:
+            shares = (balance[0].get('weightedAverageShsOut') or
+                     balance[0].get('commonStockSharesOutstanding') or
+                     balance[0].get('weightedAverageShsOutDil'))
+
+            if not shares or shares <= 0:
+                # Fallback to profile
+                profile = self.fmp.get_profile(symbol)
+                if profile and len(profile) > 0:
+                    shares = profile[0].get('sharesOutstanding', 0)
+
+            if not shares or shares <= 0:
                 return None
 
             # === Get peer multiples ===
@@ -1790,8 +1819,17 @@ class QualitativeAnalyzer:
                 return None
 
             # Get shares outstanding (keep in actual count, not millions)
-            shares = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
-            if shares <= 0:
+            shares = (balance[0].get('weightedAverageShsOut') or
+                     balance[0].get('commonStockSharesOutstanding') or
+                     balance[0].get('weightedAverageShsOutDil'))
+
+            if not shares or shares <= 0:
+                # Fallback to profile
+                profile = self.fmp.get_profile(symbol)
+                if profile and len(profile) > 0:
+                    shares = profile[0].get('sharesOutstanding', 0)
+
+            if not shares or shares <= 0:
                 return None
 
             if company_type == 'non_financial':
