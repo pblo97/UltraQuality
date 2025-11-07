@@ -1323,17 +1323,26 @@ class QualitativeAnalyzer:
             if dcf_value and dcf_value > 0:
                 valuation['dcf_value'] = dcf_value
                 valuation['confidence'] = 'Med'
+                valuation['notes'].append(f"DEBUG: DCF=${dcf_value:.2f}")
+            else:
+                valuation['notes'].append(f"DEBUG: DCF calculation returned None or <=0")
 
             # 2. Forward Multiple Valuation
             forward_value = self._calculate_forward_multiple(symbol, company_type, peers_df)
             if forward_value and forward_value > 0:
                 valuation['forward_multiple_value'] = forward_value
                 valuation['confidence'] = 'High' if valuation['confidence'] == 'Med' else 'Med'
+                valuation['notes'].append(f"DEBUG: Forward Multiple=${forward_value:.2f}")
+            else:
+                valuation['notes'].append(f"DEBUG: Forward Multiple calculation returned None or <=0")
 
             # 3. Historical Multiple
             historical_value = self._calculate_historical_multiple(symbol, company_type)
             if historical_value and historical_value > 0:
                 valuation['historical_multiple_value'] = historical_value
+                valuation['notes'].append(f"DEBUG: Historical=${historical_value:.2f}")
+            else:
+                valuation['notes'].append(f"DEBUG: Historical calculation returned None or <=0")
 
             # Weighted average using INDUSTRY-SPECIFIC WEIGHTS
             estimates = []
@@ -1447,20 +1456,14 @@ class QualitativeAnalyzer:
                      balance[0].get('commonStockSharesOutstanding') or
                      balance[0].get('weightedAverageShsOutDil'))
 
-            # Add debug info to notes
-            valuation['notes'].append(f"DEBUG: shares from balance sheet: {shares:,.0f}" if shares else "DEBUG: No shares found in balance sheet")
-
             if not shares or shares <= 0:
                 # Last resort: get from profile
                 profile = self.fmp.get_profile(symbol)
                 if profile and len(profile) > 0:
                     shares = profile[0].get('sharesOutstanding', 0)
-                    if shares > 0:
-                        valuation['notes'].append(f"DEBUG: Using shares from profile: {shares:,.0f}")
 
             if not shares or shares <= 0:
-                valuation['notes'].append("DEBUG: Could not find valid share count")
-                return valuation
+                return None
 
             # === Type-specific base cash flow ===
 
@@ -1489,14 +1492,6 @@ class QualitativeAnalyzer:
 
                 # Normalized FCF = OCF - Maintenance Capex only
                 base_cf = ocf - maintenance_capex
-
-                # Debug logging
-                logger.info(f"DCF Base CF Debug for {symbol}:")
-                logger.info(f"  OCF (annual): ${ocf:,.0f}")
-                logger.info(f"  Capex (annual): ${capex:,.0f}")
-                logger.info(f"  Revenue growth: {revenue_growth:.1%}")
-                logger.info(f"  Maintenance capex: ${maintenance_capex:,.0f}")
-                logger.info(f"  Base CF: ${base_cf:,.0f}")
 
             elif company_type == 'reit':
                 # Use FFO (Funds From Operations)
@@ -1589,22 +1584,6 @@ class QualitativeAnalyzer:
 
             # Per share
             value_per_share = equity_value / shares
-
-            # Debug logging
-            logger.info(f"DCF Debug for {symbol}:")
-            logger.info(f"  base_cf: ${base_cf:,.0f}")
-            logger.info(f"  fcf_pv (5yr): ${fcf_pv:,.0f}")
-            logger.info(f"  terminal_pv: ${terminal_pv:,.0f}")
-            logger.info(f"  ev: ${ev:,.0f}")
-            logger.info(f"  total_debt: ${total_debt:,.0f}")
-            logger.info(f"  cash: ${cash:,.0f}")
-            logger.info(f"  net_debt: ${net_debt:,.0f}")
-            logger.info(f"  equity_value: ${equity_value:,.0f}")
-            logger.info(f"  shares: {shares:,.0f}")
-            logger.info(f"  value_per_share: ${value_per_share:.2f}")
-
-            # Add debug to valuation notes (visible in UI)
-            valuation['notes'].append(f"DEBUG DCF: equity_value=${equity_value/1e9:.2f}B, shares={shares/1e9:.2f}B")
 
             return value_per_share if value_per_share > 0 else None
 
