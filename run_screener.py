@@ -1123,8 +1123,11 @@ with tab5:
                 else:
                     st.info("Valuation analysis not available")
                     # Show debug notes even when valuation failed
+                    st.caption(f"🔍 DEBUG CODE VERSION: 9c3733b | Notes count: {len(intrinsic.get('notes', []))}")
                     if intrinsic.get('notes'):
                         st.caption(f"Debug info: {', '.join(intrinsic.get('notes', []))}")
+                    else:
+                        st.caption("⚠️ DEBUG: No notes found in intrinsic value dict")
 
                 st.markdown("---")
 
