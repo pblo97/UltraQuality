@@ -1122,6 +1122,9 @@ with tab5:
 
                 else:
                     st.info("Valuation analysis not available")
+                    # Show debug notes even when valuation failed
+                    if intrinsic.get('notes'):
+                        st.caption(f"Debug info: {', '.join(intrinsic.get('notes', []))}")
 
                 st.markdown("---")
 
