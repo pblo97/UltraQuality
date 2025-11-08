@@ -298,6 +298,7 @@ class QualitativeAnalyzer:
             industry = (prof.get('industry', '')).lower()
             sector = (prof.get('sector', '')).lower()
             market_cap = prof.get('mktCap', 0)
+            company_name = prof.get('companyName', '')
 
             summary_lower = business_summary.lower()
             combined_text = f"{summary_lower} {industry} {sector}"
@@ -1303,38 +1304,65 @@ class QualitativeAnalyzer:
 
             try:
                 profile = self.fmp.get_profile(symbol)
+                valuation['notes'].append(f"DEBUG: Profile response type: {type(profile)}, len: {len(profile) if profile else 0}")
+
                 if profile and len(profile) > 0:
-                    current_price = profile[0].get('price', 0)
+                    prof_data = profile[0]
+                    valuation['notes'].append(f"DEBUG: Profile keys: {list(prof_data.keys())[:10]}")
+
+                    # Try multiple possible price fields
+                    current_price = (prof_data.get('price') or
+                                   prof_data.get('lastPrice') or
+                                   prof_data.get('regularMarketPrice') or
+                                   0)
+
+                    valuation['notes'].append(f"DEBUG: Profile price={current_price}")
+                else:
+                    valuation['notes'].append("DEBUG: Profile returned empty or None")
             except Exception as e:
-                logger.error(f"Failed to get price for {symbol}: {e}")
+                logger.error(f"Failed to get price from profile for {symbol}: {e}")
+                valuation['notes'].append(f"DEBUG: Profile price failed: {str(e)}")
+
+            # Always set current_price (even if 0) so UI displays the section
+            valuation['current_price'] = current_price if current_price and current_price > 0 else 0
 
             if not current_price or current_price <= 0:
-                valuation['notes'].append("Price data unavailable")
-                logger.warning(f"Could not get price for {symbol} - price: {current_price}")
-                return valuation
-
-            valuation['current_price'] = current_price
+                valuation['notes'].append(f"WARNING: Current price unavailable - showing intrinsic values only")
+                logger.warning(f"Could not get price for {symbol} - proceeding with intrinsic calculations")
+                valuation['confidence'] = 'Low'
 
             # Use industry-specific WACC
             industry_wacc = industry_profile.get('wacc', 0.10)
 
             # 1. DCF Valuation (with industry-specific WACC)
-            dcf_value = self._calculate_dcf(symbol, company_type, wacc_override=industry_wacc)
-            if dcf_value and dcf_value > 0:
-                valuation['dcf_value'] = dcf_value
-                valuation['confidence'] = 'Med'
-                valuation['notes'].append(f"DEBUG: DCF=${dcf_value:.2f}")
-            else:
-                valuation['notes'].append(f"DEBUG: DCF calculation returned None or <=0")
+            valuation['notes'].append(f"DEBUG: Calling _calculate_dcf for {symbol}, type={company_type}, wacc={industry_wacc}")
+            try:
+                dcf_value = self._calculate_dcf(symbol, company_type, wacc_override=industry_wacc)
+                valuation['notes'].append(f"DEBUG: DCF returned: {dcf_value}")
+                if dcf_value and dcf_value > 0:
+                    valuation['dcf_value'] = dcf_value
+                    valuation['confidence'] = 'Med'
+                    valuation['notes'].append(f"✓ DCF Value: ${dcf_value:.2f}")
+                else:
+                    valuation['notes'].append(f"✗ DCF calculation returned {dcf_value}")
+            except Exception as e:
+                valuation['notes'].append(f"✗ DCF ERROR: {str(e)}")
+                logger.error(f"DCF calculation error for {symbol}: {e}", exc_info=True)
 
             # 2. Forward Multiple Valuation
-            forward_value = self._calculate_forward_multiple(symbol, company_type, peers_df)
-            if forward_value and forward_value > 0:
-                valuation['forward_multiple_value'] = forward_value
-                valuation['confidence'] = 'High' if valuation['confidence'] == 'Med' else 'Med'
-                valuation['notes'].append(f"DEBUG: Forward Multiple=${forward_value:.2f}")
-            else:
-                valuation['notes'].append(f"DEBUG: Forward Multiple calculation returned None or <=0")
+            valuation['notes'].append(f"DEBUG: Calling _calculate_forward_multiple for {symbol}")
+            try:
+                forward_value = self._calculate_forward_multiple(symbol, company_type, peers_df)
+                valuation['notes'].append(f"DEBUG: Forward Multiple returned: {forward_value}")
+                if forward_value and forward_value > 0:
+                    valuation['forward_multiple_value'] = forward_value
+                    valuation['confidence'] = 'High' if valuation['confidence'] == 'Med' else 'Med'
+                    valuation['notes'].append(f"✓ Forward Multiple: ${forward_value:.2f}")
+                else:
+                    valuation['notes'].append(f"✗ Forward Multiple returned {forward_value}")
+            except Exception as e:
+                valuation['notes'].append(f"✗ Forward Multiple ERROR: {str(e)}")
+                logger.error(f"Forward Multiple error for {symbol}: {e}", exc_info=True)
 
             # 3. Historical Multiple
             historical_value = self._calculate_historical_multiple(symbol, company_type)
@@ -1378,36 +1406,40 @@ class QualitativeAnalyzer:
                 weighted = sum(v * w for v, w in zip(values, weights))
                 valuation['weighted_value'] = weighted
 
-                # Calculate upside/downside
-                upside = ((weighted - current_price) / current_price) * 100
-                valuation['upside_downside_%'] = upside
+                # Calculate upside/downside ONLY if we have a valid current price
+                if current_price and current_price > 0:
+                    upside = ((weighted - current_price) / current_price) * 100
+                    valuation['upside_downside_%'] = upside
 
-                # Assessment (industry-adjusted thresholds)
-                # High-growth industries get more lenient thresholds
-                if industry_profile.get('profile') == 'high_growth_asset_light':
-                    undervalued_threshold = 30
-                    overvalued_threshold = -20
+                    # Assessment (industry-adjusted thresholds)
+                    # High-growth industries get more lenient thresholds
+                    if industry_profile.get('profile') == 'high_growth_asset_light':
+                        undervalued_threshold = 30
+                        overvalued_threshold = -20
+                    else:
+                        undervalued_threshold = 25
+                        overvalued_threshold = -15
+
+                    if upside > undervalued_threshold:
+                        valuation['valuation_assessment'] = 'Undervalued'
+                    elif upside < overvalued_threshold:
+                        valuation['valuation_assessment'] = 'Overvalued'
+                    else:
+                        valuation['valuation_assessment'] = 'Fair Value'
+
+                    # === PRICE PROJECTIONS ===
+                    # Calculate price targets with different growth assumptions
+                    valuation['price_projections'] = self._calculate_price_projections(
+                        symbol,
+                        current_price,
+                        dcf_value,
+                        forward_value,
+                        company_type,
+                        industry_wacc
+                    )
                 else:
-                    undervalued_threshold = 25
-                    overvalued_threshold = -15
-
-                if upside > undervalued_threshold:
-                    valuation['valuation_assessment'] = 'Undervalued'
-                elif upside < overvalued_threshold:
-                    valuation['valuation_assessment'] = 'Overvalued'
-                else:
-                    valuation['valuation_assessment'] = 'Fair Value'
-
-                # === PRICE PROJECTIONS ===
-                # Calculate price targets with different growth assumptions
-                valuation['price_projections'] = self._calculate_price_projections(
-                    symbol,
-                    current_price,
-                    dcf_value,
-                    forward_value,
-                    company_type,
-                    industry_wacc
-                )
+                    valuation['notes'].append("Upside/downside not calculated (no current price)")
+                    valuation['valuation_assessment'] = 'Unknown'
 
                 # Add detailed notes
                 profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
@@ -1442,11 +1474,15 @@ class QualitativeAnalyzer:
         """
         try:
             # Get financials
+            logger.debug(f"DCF: Fetching financials for {symbol}")
             income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
             balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
             cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=2)
 
+            logger.debug(f"DCF: Got income={bool(income)}, balance={bool(balance)}, cashflow={bool(cashflow)}")
+
             if not (income and balance and cashflow):
+                logger.debug(f"DCF: Missing financials - returning None")
                 return None
 
             # Get shares outstanding (keep in actual count, not millions)
@@ -1526,7 +1562,10 @@ class QualitativeAnalyzer:
                 # Use earnings (net income)
                 base_cf = income[0].get('netIncome', 0)
 
+            logger.debug(f"DCF: Calculated base_cf={base_cf} for {company_type}")
+
             if base_cf <= 0:
+                logger.debug(f"DCF: base_cf <= 0, returning None")
                 return None
 
             # === Growth assumptions ===
@@ -1585,10 +1624,14 @@ class QualitativeAnalyzer:
             # Per share
             value_per_share = equity_value / shares
 
-            return value_per_share if value_per_share > 0 else None
+            logger.debug(f"DCF: ev={ev:.0f}, net_debt={net_debt:.0f}, equity_value={equity_value:.0f}, shares={shares:.0f}, value_per_share={value_per_share:.2f}")
+
+            result = value_per_share if value_per_share > 0 else None
+            logger.debug(f"DCF: Final result for {symbol}: {result}")
+            return result
 
         except Exception as e:
-            logger.warning(f"DCF calculation failed for {symbol}: {e}")
+            logger.warning(f"DCF calculation failed for {symbol}: {e}", exc_info=True)
             return None
 
     def _calculate_forward_multiple(
@@ -1605,11 +1648,15 @@ class QualitativeAnalyzer:
         For REIT: Use P/FFO
         """
         try:
+            logger.debug(f"Forward Multiple: Fetching financials for {symbol}")
             income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
             balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
             cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=1)
 
+            logger.debug(f"Forward Multiple: Got income={bool(income)}, balance={bool(balance)}, cashflow={bool(cashflow)}")
+
             if not (income and balance):
+                logger.debug(f"Forward Multiple: Missing financials - returning None")
                 return None
 
             # Get shares outstanding (keep in actual count, not millions)
