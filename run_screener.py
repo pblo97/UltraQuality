@@ -972,27 +972,37 @@ with tab5:
                 st.subheader("💰 Intrinsic Value Estimation")
                 intrinsic = analysis.get('intrinsic_value', {})
 
-                if intrinsic and intrinsic.get('current_price'):
+                # Show section if we have intrinsic_value dict (even if current_price is missing)
+                if intrinsic and 'current_price' in intrinsic:
                     col1, col2, col3, col4 = st.columns(4)
 
+                    current_price = intrinsic.get('current_price', 0)
+
                     with col1:
-                        st.metric("Current Price", f"${intrinsic.get('current_price', 0):.2f}")
+                        if current_price and current_price > 0:
+                            st.metric("Current Price", f"${current_price:.2f}")
+                        else:
+                            st.metric("Current Price", "N/A")
+                            st.caption("⚠️ Price data unavailable")
 
                     with col2:
-                        if intrinsic.get('dcf_value'):
-                            st.metric("DCF Value", f"${intrinsic.get('dcf_value', 0):.2f}")
+                        dcf_val = intrinsic.get('dcf_value')
+                        if dcf_val and dcf_val > 0:
+                            st.metric("DCF Value", f"${dcf_val:.2f}")
                         else:
                             st.metric("DCF Value", "N/A")
 
                     with col3:
-                        if intrinsic.get('forward_multiple_value'):
-                            st.metric("Forward Multiple", f"${intrinsic.get('forward_multiple_value', 0):.2f}")
+                        fwd_val = intrinsic.get('forward_multiple_value')
+                        if fwd_val and fwd_val > 0:
+                            st.metric("Forward Multiple", f"${fwd_val:.2f}")
                         else:
                             st.metric("Forward Multiple", "N/A")
 
                     with col4:
-                        if intrinsic.get('weighted_value'):
-                            st.metric("Fair Value", f"${intrinsic.get('weighted_value', 0):.2f}")
+                        fair_val = intrinsic.get('weighted_value')
+                        if fair_val and fair_val > 0:
+                            st.metric("Fair Value", f"${fair_val:.2f}")
                         else:
                             st.metric("Fair Value", "N/A")
 
