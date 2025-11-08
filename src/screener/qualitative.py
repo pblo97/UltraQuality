@@ -298,6 +298,7 @@ class QualitativeAnalyzer:
             industry = (prof.get('industry', '')).lower()
             sector = (prof.get('sector', '')).lower()
             market_cap = prof.get('mktCap', 0)
+            company_name = prof.get('companyName', '')
 
             summary_lower = business_summary.lower()
             combined_text = f"{summary_lower} {industry} {sector}"
@@ -1303,17 +1304,34 @@ class QualitativeAnalyzer:
 
             try:
                 profile = self.fmp.get_profile(symbol)
+                valuation['notes'].append(f"DEBUG: Profile response type: {type(profile)}, len: {len(profile) if profile else 0}")
+
                 if profile and len(profile) > 0:
-                    current_price = profile[0].get('price', 0)
+                    prof_data = profile[0]
+                    valuation['notes'].append(f"DEBUG: Profile keys: {list(prof_data.keys())[:10]}")
+
+                    # Try multiple possible price fields
+                    current_price = (prof_data.get('price') or
+                                   prof_data.get('lastPrice') or
+                                   prof_data.get('regularMarketPrice') or
+                                   0)
+
+                    valuation['notes'].append(f"DEBUG: Profile price={current_price}")
+                else:
+                    valuation['notes'].append("DEBUG: Profile returned empty or None")
             except Exception as e:
-                logger.error(f"Failed to get price for {symbol}: {e}")
+                logger.error(f"Failed to get price from profile for {symbol}: {e}")
+                valuation['notes'].append(f"DEBUG: Profile price failed: {str(e)}")
 
             if not current_price or current_price <= 0:
-                valuation['notes'].append("Price data unavailable")
+                valuation['notes'].append(f"ERROR: Price data unavailable (got {current_price})")
                 logger.warning(f"Could not get price for {symbol} - price: {current_price}")
-                return valuation
-
-            valuation['current_price'] = current_price
+                # Don't return early - continue with calculations using available data
+                # Just mark as low confidence
+                valuation['confidence'] = 'Low'
+                valuation['current_price'] = None
+            else:
+                valuation['current_price'] = current_price
 
             # Use industry-specific WACC
             industry_wacc = industry_profile.get('wacc', 0.10)
