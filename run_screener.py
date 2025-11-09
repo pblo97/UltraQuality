@@ -262,6 +262,88 @@ def create_qualitative_excel(analysis: dict, ticker: str, timestamp: datetime) -
                 tg_df = pd.DataFrame(tg_data)
                 tg_df.to_excel(writer, sheet_name='Terminal Growth Sensitivity', index=False)
 
+        # Sheet 9: Balance Sheet Strength
+        balance_sheet = intrinsic.get('balance_sheet_strength', {})
+        if balance_sheet:
+            bs_data = {
+                'Metric': ['Overall Assessment', 'Debt/Equity', 'Current Ratio', 'Quick Ratio',
+                          'Interest Coverage', 'Debt/EBITDA', 'Cash & Equivalents', 'Net Debt', 'Debt Trend YoY'],
+                'Value': [
+                    balance_sheet.get('overall_assessment', 'N/A'),
+                    f"{balance_sheet.get('debt_to_equity', {}).get('value', 0):.2f}x",
+                    f"{balance_sheet.get('current_ratio', {}).get('value', 0):.2f}x",
+                    f"{balance_sheet.get('quick_ratio', {}).get('value', 0):.2f}x",
+                    f"{balance_sheet.get('interest_coverage', {}).get('value', 0):.1f}x" if balance_sheet.get('interest_coverage', {}).get('value') else 'N/A',
+                    f"{balance_sheet.get('debt_to_ebitda', {}).get('value', 0):.1f}x",
+                    balance_sheet.get('cash', {}).get('formatted', 'N/A'),
+                    balance_sheet.get('net_debt', {}).get('formatted', 'N/A'),
+                    f"{balance_sheet.get('debt_trend', {}).get('yoy_change_%', 0):+.1f}%" if balance_sheet.get('debt_trend') else 'N/A'
+                ],
+                'Assessment': [
+                    ', '.join(balance_sheet.get('warnings', [])) if balance_sheet.get('warnings') else 'No warnings',
+                    balance_sheet.get('debt_to_equity', {}).get('assessment', ''),
+                    balance_sheet.get('current_ratio', {}).get('assessment', ''),
+                    balance_sheet.get('quick_ratio', {}).get('assessment', ''),
+                    balance_sheet.get('interest_coverage', {}).get('assessment', ''),
+                    balance_sheet.get('debt_to_ebitda', {}).get('assessment', ''),
+                    '',
+                    balance_sheet.get('net_debt', {}).get('assessment', ''),
+                    balance_sheet.get('debt_trend', {}).get('direction', '')
+                ]
+            }
+            pd.DataFrame(bs_data).to_excel(writer, sheet_name='Balance Sheet', index=False)
+
+        # Sheet 10: Valuation Multiples
+        valuation_multiples = intrinsic.get('valuation_multiples', {})
+        if valuation_multiples:
+            company_vals = valuation_multiples.get('company', {})
+            peers_avg = valuation_multiples.get('peers_avg', {})
+            vs_peers = valuation_multiples.get('vs_peers', {})
+
+            mult_data = []
+            for metric in ['pe', 'pb', 'ps', 'ev_ebitda', 'peg']:
+                company_val = company_vals.get(metric)
+                peer_val = peers_avg.get(metric)
+                vs_peer = vs_peers.get(metric, {})
+
+                if company_val or peer_val:
+                    mult_data.append({
+                        'Multiple': metric.upper().replace('_', '/'),
+                        'Company': f"{company_val:.2f}x" if company_val else 'N/A',
+                        'Peers Avg': f"{peer_val:.2f}x" if peer_val else 'N/A',
+                        'Premium/Discount %': f"{vs_peer.get('premium_discount_%', 0):+.1f}%" if vs_peer.get('premium_discount_%') is not None else 'N/A',
+                        'Assessment': vs_peer.get('assessment', 'N/A')
+                    })
+
+            if mult_data:
+                pd.DataFrame(mult_data).to_excel(writer, sheet_name='Valuation Multiples', index=False)
+
+        # Sheet 11: Growth Consistency
+        growth_consistency = intrinsic.get('growth_consistency', {})
+        if growth_consistency:
+            gc_data = []
+            for category in ['revenue', 'earnings', 'fcf']:
+                cat_data = growth_consistency.get(category, {})
+                if cat_data:
+                    gc_data.append({
+                        'Metric': category.upper(),
+                        'Years': cat_data.get('years', 0),
+                        'Avg Growth %/yr': f"{cat_data.get('avg_growth_%', 0):.1f}%",
+                        'Std Dev': f"{cat_data.get('std_dev', 0):.1f}%",
+                        'Consistency': cat_data.get('consistency', 'N/A'),
+                        'Trend': cat_data.get('trend', 'N/A'),
+                        'Last 5Y History ($B)': ', '.join([f"{h:.1f}" for h in cat_data.get('history', [])[:5]])
+                    })
+
+            if gc_data:
+                pd.DataFrame(gc_data).to_excel(writer, sheet_name='Growth Consistency', index=False)
+
+            # Add overall assessment
+            overall_assess = growth_consistency.get('overall_assessment', '')
+            if overall_assess:
+                assess_df = pd.DataFrame({'Overall Assessment': [overall_assess]})
+                assess_df.to_excel(writer, sheet_name='Growth Assessment', index=False)
+
         # Auto-adjust all sheets
         for sheet_name in writer.sheets:
             worksheet = writer.sheets[sheet_name]
@@ -1561,7 +1643,303 @@ with tab5:
                                              delta=f"{fcf.get('current', 0) - fcf.get('avg_3y', 0):.1f}% vs 3Y avg")
                                     st.caption(fcf.get('trend', '→ stable'))
 
-                        # 4. Red Flags
+                        # 4. Balance Sheet Strength
+                        balance_sheet = intrinsic.get('balance_sheet_strength', {})
+                        if balance_sheet:
+                            st.markdown("---")
+                            st.markdown("### 🏦 Balance Sheet Health")
+
+                            # Overall assessment banner
+                            overall = balance_sheet.get('overall_assessment', 'Unknown')
+                            warnings_list = balance_sheet.get('warnings', [])
+
+                            if overall == 'Strong':
+                                st.success(f"**Overall: {overall}** - Solid financial position")
+                            elif overall == 'Concerning':
+                                st.error(f"**Overall: {overall}** - {', '.join(warnings_list)}")
+                            else:
+                                st.warning(f"**Overall: {overall}**")
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                de_ratio = balance_sheet.get('debt_to_equity', {})
+                                if de_ratio:
+                                    st.metric("Debt/Equity",
+                                            f"{de_ratio.get('value', 0):.2f}x",
+                                            help="Total Debt / Shareholders Equity")
+                                    st.caption(de_ratio.get('assessment', ''))
+
+                            with col2:
+                                current_r = balance_sheet.get('current_ratio', {})
+                                if current_r:
+                                    st.metric("Current Ratio",
+                                            f"{current_r.get('value', 0):.2f}x",
+                                            help="Current Assets / Current Liabilities")
+                                    st.caption(current_r.get('assessment', ''))
+
+                            with col3:
+                                interest_cov = balance_sheet.get('interest_coverage', {})
+                                if interest_cov:
+                                    val = interest_cov.get('value')
+                                    if val is not None:
+                                        st.metric("Interest Coverage",
+                                                f"{val:.1f}x",
+                                                help="EBIT / Interest Expense")
+                                    else:
+                                        st.metric("Interest Coverage", "N/A")
+                                    st.caption(interest_cov.get('assessment', ''))
+
+                            with col4:
+                                debt_ebitda = balance_sheet.get('debt_to_ebitda', {})
+                                if debt_ebitda:
+                                    st.metric("Debt/EBITDA",
+                                            f"{debt_ebitda.get('value', 0):.1f}x",
+                                            help="Total Debt / EBITDA")
+                                    st.caption(debt_ebitda.get('assessment', ''))
+
+                            # Second row: Cash, Net Debt, Debt Trend
+                            st.markdown("")
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                cash_info = balance_sheet.get('cash', {})
+                                if cash_info:
+                                    st.metric("Cash & Equivalents",
+                                            cash_info.get('formatted', 'N/A'),
+                                            help="Cash + Short-term Investments")
+
+                            with col2:
+                                net_debt_info = balance_sheet.get('net_debt', {})
+                                if net_debt_info:
+                                    st.metric("Net Debt",
+                                            net_debt_info.get('formatted', 'N/A'),
+                                            help="Total Debt - Cash")
+                                    st.caption(net_debt_info.get('assessment', ''))
+
+                            with col3:
+                                debt_trend = balance_sheet.get('debt_trend', {})
+                                if debt_trend:
+                                    st.metric("Debt Trend (YoY)",
+                                            f"{debt_trend.get('yoy_change_%', 0):+.1f}%")
+                                    st.caption(debt_trend.get('direction', ''))
+
+                            with col4:
+                                quick_r = balance_sheet.get('quick_ratio', {})
+                                if quick_r:
+                                    st.metric("Quick Ratio",
+                                            f"{quick_r.get('value', 0):.2f}x",
+                                            help="(Current Assets - Inventory) / Current Liabilities")
+                                    st.caption(quick_r.get('assessment', ''))
+
+                        # 5. Valuation Multiples vs Peers
+                        valuation_multiples = intrinsic.get('valuation_multiples', {})
+                        if valuation_multiples:
+                            st.markdown("---")
+                            st.markdown("### 📊 Valuation Multiples vs Peers")
+
+                            company_vals = valuation_multiples.get('company', {})
+                            peers_avg = valuation_multiples.get('peers_avg', {})
+                            vs_peers = valuation_multiples.get('vs_peers', {})
+
+                            if company_vals:
+                                col1, col2, col3, col4, col5 = st.columns(5)
+
+                                with col1:
+                                    pe = company_vals.get('pe')
+                                    if pe:
+                                        peer_pe = peers_avg.get('pe')
+                                        if peer_pe:
+                                            delta_info = vs_peers.get('pe', {})
+                                            delta_val = delta_info.get('premium_discount_%', 0)
+                                            st.metric("P/E Ratio",
+                                                    f"{pe:.1f}x",
+                                                    delta=f"{delta_val:+.1f}% vs peers")
+                                            st.caption(f"Peers: {peer_pe:.1f}x")
+                                        else:
+                                            st.metric("P/E Ratio", f"{pe:.1f}x")
+
+                                with col2:
+                                    pb = company_vals.get('pb')
+                                    if pb:
+                                        peer_pb = peers_avg.get('pb')
+                                        if peer_pb:
+                                            delta_info = vs_peers.get('pb', {})
+                                            delta_val = delta_info.get('premium_discount_%', 0)
+                                            st.metric("P/B Ratio",
+                                                    f"{pb:.2f}x",
+                                                    delta=f"{delta_val:+.1f}% vs peers")
+                                            st.caption(f"Peers: {peer_pb:.2f}x")
+                                        else:
+                                            st.metric("P/B Ratio", f"{pb:.2f}x")
+
+                                with col3:
+                                    ps = company_vals.get('ps')
+                                    if ps:
+                                        peer_ps = peers_avg.get('ps')
+                                        if peer_ps:
+                                            delta_info = vs_peers.get('ps', {})
+                                            delta_val = delta_info.get('premium_discount_%', 0)
+                                            st.metric("P/S Ratio",
+                                                    f"{ps:.2f}x",
+                                                    delta=f"{delta_val:+.1f}% vs peers")
+                                            st.caption(f"Peers: {peer_ps:.2f}x")
+                                        else:
+                                            st.metric("P/S Ratio", f"{ps:.2f}x")
+
+                                with col4:
+                                    ev_ebitda = company_vals.get('ev_ebitda')
+                                    if ev_ebitda:
+                                        peer_ev = peers_avg.get('ev_ebitda')
+                                        if peer_ev:
+                                            delta_info = vs_peers.get('ev_ebitda', {})
+                                            delta_val = delta_info.get('premium_discount_%', 0)
+                                            st.metric("EV/EBITDA",
+                                                    f"{ev_ebitda:.1f}x",
+                                                    delta=f"{delta_val:+.1f}% vs peers")
+                                            st.caption(f"Peers: {peer_ev:.1f}x")
+                                        else:
+                                            st.metric("EV/EBITDA", f"{ev_ebitda:.1f}x")
+
+                                with col5:
+                                    peg = company_vals.get('peg')
+                                    if peg:
+                                        peer_peg = peers_avg.get('peg')
+                                        eps_growth = company_vals.get('eps_growth_%', 0)
+                                        if peer_peg:
+                                            delta_info = vs_peers.get('peg', {})
+                                            delta_val = delta_info.get('premium_discount_%', 0)
+                                            st.metric("PEG Ratio",
+                                                    f"{peg:.2f}",
+                                                    delta=f"{delta_val:+.1f}% vs peers")
+                                            st.caption(f"Growth: {eps_growth:.1f}%")
+                                        else:
+                                            st.metric("PEG Ratio", f"{peg:.2f}")
+                                            st.caption(f"Growth: {eps_growth:.1f}%")
+
+                                # Summary assessment
+                                premium_count = sum(1 for m in vs_peers.values() if m.get('assessment') == 'Premium')
+                                discount_count = sum(1 for m in vs_peers.values() if m.get('assessment') == 'Discount')
+
+                                st.markdown("")
+                                if premium_count > discount_count:
+                                    st.warning(f"⚠️ Trading at a **premium** to peers on {premium_count}/{len(vs_peers)} metrics")
+                                elif discount_count > premium_count:
+                                    st.success(f"✅ Trading at a **discount** to peers on {discount_count}/{len(vs_peers)} metrics")
+                                else:
+                                    st.info(f"📊 **In-line** with peer valuations")
+
+                        # 6. Growth Consistency (Historical Trends)
+                        growth_consistency = intrinsic.get('growth_consistency', {})
+                        if growth_consistency:
+                            st.markdown("---")
+                            st.markdown("### 📈 Growth Consistency & Historical Trends")
+
+                            overall_assess = growth_consistency.get('overall_assessment', '')
+                            if 'Highly Consistent' in overall_assess:
+                                st.success(f"**{overall_assess}**")
+                            elif 'Volatile' in overall_assess:
+                                st.error(f"**{overall_assess}**")
+                            else:
+                                st.info(f"**{overall_assess}**")
+
+                            # Revenue
+                            revenue_data = growth_consistency.get('revenue', {})
+                            if revenue_data:
+                                st.markdown("#### 💵 Revenue Growth")
+                                col1, col2, col3, col4 = st.columns(4)
+
+                                with col1:
+                                    st.metric("Avg Growth",
+                                            f"{revenue_data.get('avg_growth_%', 0):.1f}%/yr",
+                                            help=f"Over {revenue_data.get('years', 0)} years")
+
+                                with col2:
+                                    st.metric("Consistency",
+                                            revenue_data.get('consistency', 'Unknown'),
+                                            help="Based on standard deviation")
+                                    st.caption(f"σ = {revenue_data.get('std_dev', 0):.1f}%")
+
+                                with col3:
+                                    trend = revenue_data.get('trend', 'Unknown')
+                                    if trend == 'Growing':
+                                        st.success(f"**{trend}**")
+                                    elif trend == 'Declining':
+                                        st.error(f"**{trend}**")
+                                    else:
+                                        st.info(f"**{trend}**")
+
+                                with col4:
+                                    history = revenue_data.get('history', [])
+                                    if history:
+                                        st.caption("Last 5Y Revenue ($B):")
+                                        st.caption(", ".join([f"{h:.1f}" for h in history[:5]]))
+
+                            # Earnings
+                            earnings_data = growth_consistency.get('earnings', {})
+                            if earnings_data:
+                                st.markdown("#### 💰 Earnings Growth")
+                                col1, col2, col3, col4 = st.columns(4)
+
+                                with col1:
+                                    st.metric("Avg Growth",
+                                            f"{earnings_data.get('avg_growth_%', 0):.1f}%/yr",
+                                            help=f"Over {earnings_data.get('years', 0)} years")
+
+                                with col2:
+                                    st.metric("Consistency",
+                                            earnings_data.get('consistency', 'Unknown'),
+                                            help="Based on standard deviation")
+                                    st.caption(f"σ = {earnings_data.get('std_dev', 0):.1f}%")
+
+                                with col3:
+                                    trend = earnings_data.get('trend', 'Unknown')
+                                    if trend == 'Growing':
+                                        st.success(f"**{trend}**")
+                                    elif trend == 'Declining':
+                                        st.error(f"**{trend}**")
+                                    else:
+                                        st.info(f"**{trend}**")
+
+                                with col4:
+                                    history = earnings_data.get('history', [])
+                                    if history:
+                                        st.caption("Last 5Y Earnings ($B):")
+                                        st.caption(", ".join([f"{h:.1f}" for h in history[:5]]))
+
+                            # FCF
+                            fcf_data = growth_consistency.get('fcf', {})
+                            if fcf_data:
+                                st.markdown("#### 💸 Free Cash Flow Growth")
+                                col1, col2, col3, col4 = st.columns(4)
+
+                                with col1:
+                                    st.metric("Avg Growth",
+                                            f"{fcf_data.get('avg_growth_%', 0):.1f}%/yr",
+                                            help=f"Over {fcf_data.get('years', 0)} years")
+
+                                with col2:
+                                    st.metric("Consistency",
+                                            fcf_data.get('consistency', 'Unknown'),
+                                            help="Based on standard deviation")
+                                    st.caption(f"σ = {fcf_data.get('std_dev', 0):.1f}%")
+
+                                with col3:
+                                    trend = fcf_data.get('trend', 'Unknown')
+                                    if trend == 'Growing':
+                                        st.success(f"**{trend}**")
+                                    elif trend == 'Declining':
+                                        st.error(f"**{trend}**")
+                                    else:
+                                        st.info(f"**{trend}**")
+
+                                with col4:
+                                    history = fcf_data.get('history', [])
+                                    if history:
+                                        st.caption("Last 5Y FCF ($B):")
+                                        st.caption(", ".join([f"{h:.1f}" for h in history[:5]]))
+
+                        # 7. Red Flags
                         red_flags = intrinsic.get('red_flags', [])
                         if red_flags:
                             st.markdown("### 🚩 Red Flags Detected")
@@ -1931,7 +2309,303 @@ with tab6:
                                  delta=f"{fcf.get('current', 0) - fcf.get('avg_3y', 0):.1f}% vs 3Y avg")
                         st.caption(fcf.get('trend', '→ stable'))
 
-            # 4. Price Projections by Scenario
+            # 4. Balance Sheet Strength
+            balance_sheet = intrinsic.get('balance_sheet_strength', {})
+            if balance_sheet:
+                st.markdown("---")
+                st.markdown("### 🏦 Balance Sheet Health")
+
+                # Overall assessment banner
+                overall = balance_sheet.get('overall_assessment', 'Unknown')
+                warnings_list = balance_sheet.get('warnings', [])
+
+                if overall == 'Strong':
+                    st.success(f"**Overall: {overall}** - Solid financial position")
+                elif overall == 'Concerning':
+                    st.error(f"**Overall: {overall}** - {', '.join(warnings_list)}")
+                else:
+                    st.warning(f"**Overall: {overall}**")
+
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    de_ratio = balance_sheet.get('debt_to_equity', {})
+                    if de_ratio:
+                        st.metric("Debt/Equity",
+                                f"{de_ratio.get('value', 0):.2f}x",
+                                help="Total Debt / Shareholders Equity")
+                        st.caption(de_ratio.get('assessment', ''))
+
+                with col2:
+                    current_r = balance_sheet.get('current_ratio', {})
+                    if current_r:
+                        st.metric("Current Ratio",
+                                f"{current_r.get('value', 0):.2f}x",
+                                help="Current Assets / Current Liabilities")
+                        st.caption(current_r.get('assessment', ''))
+
+                with col3:
+                    interest_cov = balance_sheet.get('interest_coverage', {})
+                    if interest_cov:
+                        val = interest_cov.get('value')
+                        if val is not None:
+                            st.metric("Interest Coverage",
+                                    f"{val:.1f}x",
+                                    help="EBIT / Interest Expense")
+                        else:
+                            st.metric("Interest Coverage", "N/A")
+                        st.caption(interest_cov.get('assessment', ''))
+
+                with col4:
+                    debt_ebitda = balance_sheet.get('debt_to_ebitda', {})
+                    if debt_ebitda:
+                        st.metric("Debt/EBITDA",
+                                f"{debt_ebitda.get('value', 0):.1f}x",
+                                help="Total Debt / EBITDA")
+                        st.caption(debt_ebitda.get('assessment', ''))
+
+                # Second row: Cash, Net Debt, Debt Trend
+                st.markdown("")
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    cash_info = balance_sheet.get('cash', {})
+                    if cash_info:
+                        st.metric("Cash & Equivalents",
+                                cash_info.get('formatted', 'N/A'),
+                                help="Cash + Short-term Investments")
+
+                with col2:
+                    net_debt_info = balance_sheet.get('net_debt', {})
+                    if net_debt_info:
+                        st.metric("Net Debt",
+                                net_debt_info.get('formatted', 'N/A'),
+                                help="Total Debt - Cash")
+                        st.caption(net_debt_info.get('assessment', ''))
+
+                with col3:
+                    debt_trend = balance_sheet.get('debt_trend', {})
+                    if debt_trend:
+                        st.metric("Debt Trend (YoY)",
+                                f"{debt_trend.get('yoy_change_%', 0):+.1f}%")
+                        st.caption(debt_trend.get('direction', ''))
+
+                with col4:
+                    quick_r = balance_sheet.get('quick_ratio', {})
+                    if quick_r:
+                        st.metric("Quick Ratio",
+                                f"{quick_r.get('value', 0):.2f}x",
+                                help="(Current Assets - Inventory) / Current Liabilities")
+                        st.caption(quick_r.get('assessment', ''))
+
+            # 5. Valuation Multiples vs Peers
+            valuation_multiples = intrinsic.get('valuation_multiples', {})
+            if valuation_multiples:
+                st.markdown("---")
+                st.markdown("### 📊 Valuation Multiples vs Peers")
+
+                company_vals = valuation_multiples.get('company', {})
+                peers_avg = valuation_multiples.get('peers_avg', {})
+                vs_peers = valuation_multiples.get('vs_peers', {})
+
+                if company_vals:
+                    col1, col2, col3, col4, col5 = st.columns(5)
+
+                    with col1:
+                        pe = company_vals.get('pe')
+                        if pe:
+                            peer_pe = peers_avg.get('pe')
+                            if peer_pe:
+                                delta_info = vs_peers.get('pe', {})
+                                delta_val = delta_info.get('premium_discount_%', 0)
+                                st.metric("P/E Ratio",
+                                        f"{pe:.1f}x",
+                                        delta=f"{delta_val:+.1f}% vs peers")
+                                st.caption(f"Peers: {peer_pe:.1f}x")
+                            else:
+                                st.metric("P/E Ratio", f"{pe:.1f}x")
+
+                    with col2:
+                        pb = company_vals.get('pb')
+                        if pb:
+                            peer_pb = peers_avg.get('pb')
+                            if peer_pb:
+                                delta_info = vs_peers.get('pb', {})
+                                delta_val = delta_info.get('premium_discount_%', 0)
+                                st.metric("P/B Ratio",
+                                        f"{pb:.2f}x",
+                                        delta=f"{delta_val:+.1f}% vs peers")
+                                st.caption(f"Peers: {peer_pb:.2f}x")
+                            else:
+                                st.metric("P/B Ratio", f"{pb:.2f}x")
+
+                    with col3:
+                        ps = company_vals.get('ps')
+                        if ps:
+                            peer_ps = peers_avg.get('ps')
+                            if peer_ps:
+                                delta_info = vs_peers.get('ps', {})
+                                delta_val = delta_info.get('premium_discount_%', 0)
+                                st.metric("P/S Ratio",
+                                        f"{ps:.2f}x",
+                                        delta=f"{delta_val:+.1f}% vs peers")
+                                st.caption(f"Peers: {peer_ps:.2f}x")
+                            else:
+                                st.metric("P/S Ratio", f"{ps:.2f}x")
+
+                    with col4:
+                        ev_ebitda = company_vals.get('ev_ebitda')
+                        if ev_ebitda:
+                            peer_ev = peers_avg.get('ev_ebitda')
+                            if peer_ev:
+                                delta_info = vs_peers.get('ev_ebitda', {})
+                                delta_val = delta_info.get('premium_discount_%', 0)
+                                st.metric("EV/EBITDA",
+                                        f"{ev_ebitda:.1f}x",
+                                        delta=f"{delta_val:+.1f}% vs peers")
+                                st.caption(f"Peers: {peer_ev:.1f}x")
+                            else:
+                                st.metric("EV/EBITDA", f"{ev_ebitda:.1f}x")
+
+                    with col5:
+                        peg = company_vals.get('peg')
+                        if peg:
+                            peer_peg = peers_avg.get('peg')
+                            eps_growth = company_vals.get('eps_growth_%', 0)
+                            if peer_peg:
+                                delta_info = vs_peers.get('peg', {})
+                                delta_val = delta_info.get('premium_discount_%', 0)
+                                st.metric("PEG Ratio",
+                                        f"{peg:.2f}",
+                                        delta=f"{delta_val:+.1f}% vs peers")
+                                st.caption(f"Growth: {eps_growth:.1f}%")
+                            else:
+                                st.metric("PEG Ratio", f"{peg:.2f}")
+                                st.caption(f"Growth: {eps_growth:.1f}%")
+
+                    # Summary assessment
+                    premium_count = sum(1 for m in vs_peers.values() if m.get('assessment') == 'Premium')
+                    discount_count = sum(1 for m in vs_peers.values() if m.get('assessment') == 'Discount')
+
+                    st.markdown("")
+                    if premium_count > discount_count:
+                        st.warning(f"⚠️ Trading at a **premium** to peers on {premium_count}/{len(vs_peers)} metrics")
+                    elif discount_count > premium_count:
+                        st.success(f"✅ Trading at a **discount** to peers on {discount_count}/{len(vs_peers)} metrics")
+                    else:
+                        st.info(f"📊 **In-line** with peer valuations")
+
+            # 6. Growth Consistency (Historical Trends)
+            growth_consistency = intrinsic.get('growth_consistency', {})
+            if growth_consistency:
+                st.markdown("---")
+                st.markdown("### 📈 Growth Consistency & Historical Trends")
+
+                overall_assess = growth_consistency.get('overall_assessment', '')
+                if 'Highly Consistent' in overall_assess:
+                    st.success(f"**{overall_assess}**")
+                elif 'Volatile' in overall_assess:
+                    st.error(f"**{overall_assess}**")
+                else:
+                    st.info(f"**{overall_assess}**")
+
+                # Revenue
+                revenue_data = growth_consistency.get('revenue', {})
+                if revenue_data:
+                    st.markdown("#### 💵 Revenue Growth")
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.metric("Avg Growth",
+                                f"{revenue_data.get('avg_growth_%', 0):.1f}%/yr",
+                                help=f"Over {revenue_data.get('years', 0)} years")
+
+                    with col2:
+                        st.metric("Consistency",
+                                revenue_data.get('consistency', 'Unknown'),
+                                help="Based on standard deviation")
+                        st.caption(f"σ = {revenue_data.get('std_dev', 0):.1f}%")
+
+                    with col3:
+                        trend = revenue_data.get('trend', 'Unknown')
+                        if trend == 'Growing':
+                            st.success(f"**{trend}**")
+                        elif trend == 'Declining':
+                            st.error(f"**{trend}**")
+                        else:
+                            st.info(f"**{trend}**")
+
+                    with col4:
+                        history = revenue_data.get('history', [])
+                        if history:
+                            st.caption("Last 5Y Revenue ($B):")
+                            st.caption(", ".join([f"{h:.1f}" for h in history[:5]]))
+
+                # Earnings
+                earnings_data = growth_consistency.get('earnings', {})
+                if earnings_data:
+                    st.markdown("#### 💰 Earnings Growth")
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.metric("Avg Growth",
+                                f"{earnings_data.get('avg_growth_%', 0):.1f}%/yr",
+                                help=f"Over {earnings_data.get('years', 0)} years")
+
+                    with col2:
+                        st.metric("Consistency",
+                                earnings_data.get('consistency', 'Unknown'),
+                                help="Based on standard deviation")
+                        st.caption(f"σ = {earnings_data.get('std_dev', 0):.1f}%")
+
+                    with col3:
+                        trend = earnings_data.get('trend', 'Unknown')
+                        if trend == 'Growing':
+                            st.success(f"**{trend}**")
+                        elif trend == 'Declining':
+                            st.error(f"**{trend}**")
+                        else:
+                            st.info(f"**{trend}**")
+
+                    with col4:
+                        history = earnings_data.get('history', [])
+                        if history:
+                            st.caption("Last 5Y Earnings ($B):")
+                            st.caption(", ".join([f"{h:.1f}" for h in history[:5]]))
+
+                # FCF
+                fcf_data = growth_consistency.get('fcf', {})
+                if fcf_data:
+                    st.markdown("#### 💸 Free Cash Flow Growth")
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        st.metric("Avg Growth",
+                                f"{fcf_data.get('avg_growth_%', 0):.1f}%/yr",
+                                help=f"Over {fcf_data.get('years', 0)} years")
+
+                    with col2:
+                        st.metric("Consistency",
+                                fcf_data.get('consistency', 'Unknown'),
+                                help="Based on standard deviation")
+                        st.caption(f"σ = {fcf_data.get('std_dev', 0):.1f}%")
+
+                    with col3:
+                        trend = fcf_data.get('trend', 'Unknown')
+                        if trend == 'Growing':
+                            st.success(f"**{trend}**")
+                        elif trend == 'Declining':
+                            st.error(f"**{trend}**")
+                        else:
+                            st.info(f"**{trend}**")
+
+                    with col4:
+                        history = fcf_data.get('history', [])
+                        if history:
+                            st.caption("Last 5Y FCF ($B):")
+                            st.caption(", ".join([f"{h:.1f}" for h in history[:5]]))
+
+            # 7. Price Projections by Scenario
             projections = intrinsic.get('price_projections', {})
             if projections and 'scenarios' in projections:
                 st.markdown("---")
