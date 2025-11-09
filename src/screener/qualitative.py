@@ -116,7 +116,8 @@ class QualitativeAnalyzer:
             summary['intrinsic_value'] = self._estimate_intrinsic_value(
                 symbol,
                 company_type,
-                peers_df
+                peers_df,
+                summary.get('peers_list', [])
             )
 
         except Exception as e:
@@ -1296,7 +1297,8 @@ class QualitativeAnalyzer:
         self,
         symbol: str,
         company_type: str,
-        peers_df: Optional[Any]
+        peers_df: Optional[Any],
+        peers_list: Optional[List[str]] = None
     ) -> Dict:
         """
         Estimate intrinsic value using multiple approaches:
@@ -1527,6 +1529,21 @@ class QualitativeAnalyzer:
                     )
                     if dcf_sensitivity:
                         valuation['dcf_sensitivity'] = dcf_sensitivity
+
+                # 7. Balance Sheet Strength
+                balance_sheet = self._calculate_balance_sheet_strength(symbol)
+                if balance_sheet:
+                    valuation['balance_sheet_strength'] = balance_sheet
+
+                # 8. Valuation Multiples vs Peers
+                multiples = self._calculate_valuation_multiples(symbol, peers_list)
+                if multiples:
+                    valuation['valuation_multiples'] = multiples
+
+                # 9. Growth Consistency
+                growth_consistency = self._calculate_growth_consistency(symbol)
+                if growth_consistency:
+                    valuation['growth_consistency'] = growth_consistency
 
                 # Add detailed notes
                 profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
@@ -2843,6 +2860,438 @@ class QualitativeAnalyzer:
 
         except Exception as e:
             logger.warning(f"DCF sensitivity calculation failed for {symbol}: {e}")
+            return {}
+
+    def _calculate_balance_sheet_strength(self, symbol: str) -> Dict:
+        """
+        Calculate balance sheet health metrics:
+        - Debt/Equity ratio
+        - Current Ratio (liquidity)
+        - Quick Ratio
+        - Interest Coverage (ability to pay interest)
+        - Cash & Equivalents
+        - Debt/EBITDA
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=1)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=2)
+
+            if not (income and balance and len(balance) >= 1):
+                return {}
+
+            current_balance = balance[0]
+
+            # Get key balance sheet items
+            total_debt = (current_balance.get('totalDebt', 0) or
+                         (current_balance.get('shortTermDebt', 0) + current_balance.get('longTermDebt', 0)))
+            total_equity = current_balance.get('totalStockholdersEquity', 0) or current_balance.get('totalEquity', 0)
+            current_assets = current_balance.get('totalCurrentAssets', 0)
+            current_liabilities = current_balance.get('totalCurrentLiabilities', 0)
+            cash = current_balance.get('cashAndCashEquivalents', 0) + current_balance.get('shortTermInvestments', 0)
+            inventory = current_balance.get('inventory', 0)
+
+            # Income statement items
+            ebitda = income[0].get('ebitda', 0)
+            ebit = income[0].get('operatingIncome', 0)  # EBIT = Operating Income
+            interest_expense = abs(income[0].get('interestExpense', 0))
+
+            # Calculate ratios
+            result = {}
+
+            # 1. Debt/Equity
+            if total_equity > 0:
+                debt_to_equity = total_debt / total_equity
+                result['debt_to_equity'] = {
+                    'value': round(debt_to_equity, 2),
+                    'assessment': self._assess_debt_to_equity(debt_to_equity)
+                }
+
+            # 2. Current Ratio (liquidity)
+            if current_liabilities > 0:
+                current_ratio = current_assets / current_liabilities
+                result['current_ratio'] = {
+                    'value': round(current_ratio, 2),
+                    'assessment': 'Strong' if current_ratio >= 1.5 else 'Adequate' if current_ratio >= 1.0 else 'Weak'
+                }
+
+            # 3. Quick Ratio (acid test - exclude inventory)
+            if current_liabilities > 0:
+                quick_assets = current_assets - inventory
+                quick_ratio = quick_assets / current_liabilities
+                result['quick_ratio'] = {
+                    'value': round(quick_ratio, 2),
+                    'assessment': 'Strong' if quick_ratio >= 1.0 else 'Adequate' if quick_ratio >= 0.7 else 'Weak'
+                }
+
+            # 4. Interest Coverage (EBIT / Interest Expense)
+            if interest_expense > 0 and ebit > 0:
+                interest_coverage = ebit / interest_expense
+                result['interest_coverage'] = {
+                    'value': round(interest_coverage, 1),
+                    'assessment': 'Strong' if interest_coverage >= 5 else 'Adequate' if interest_coverage >= 2.5 else 'Risky'
+                }
+            elif interest_expense == 0:
+                result['interest_coverage'] = {
+                    'value': None,
+                    'assessment': 'No debt'
+                }
+
+            # 5. Debt/EBITDA
+            if ebitda > 0 and total_debt > 0:
+                debt_to_ebitda = total_debt / ebitda
+                result['debt_to_ebitda'] = {
+                    'value': round(debt_to_ebitda, 1),
+                    'assessment': 'Conservative' if debt_to_ebitda <= 2 else 'Moderate' if debt_to_ebitda <= 4 else 'High'
+                }
+
+            # 6. Cash position
+            result['cash'] = {
+                'value': cash,
+                'formatted': f"${cash / 1e9:.2f}B" if cash >= 1e9 else f"${cash / 1e6:.1f}M"
+            }
+
+            # 7. Net Debt (Total Debt - Cash)
+            net_debt = total_debt - cash
+            result['net_debt'] = {
+                'value': net_debt,
+                'formatted': f"${net_debt / 1e9:.2f}B" if abs(net_debt) >= 1e9 else f"${net_debt / 1e6:.1f}M",
+                'assessment': 'Net cash' if net_debt < 0 else 'Net debt'
+            }
+
+            # 8. Debt trend (YoY change)
+            if len(balance) >= 2:
+                prev_debt = (balance[1].get('totalDebt', 0) or
+                            (balance[1].get('shortTermDebt', 0) + balance[1].get('longTermDebt', 0)))
+                if prev_debt > 0:
+                    debt_change = ((total_debt - prev_debt) / prev_debt) * 100
+                    result['debt_trend'] = {
+                        'yoy_change_%': round(debt_change, 1),
+                        'direction': '↗ increasing' if debt_change > 5 else '↘ decreasing' if debt_change < -5 else '→ stable'
+                    }
+
+            # Overall assessment
+            flags = []
+            if result.get('debt_to_equity', {}).get('value', 0) > 2:
+                flags.append('High leverage')
+            if result.get('current_ratio', {}).get('value', 0) < 1:
+                flags.append('Liquidity concern')
+            if result.get('interest_coverage', {}).get('value', 999) < 2.5:
+                flags.append('Weak interest coverage')
+
+            result['overall_assessment'] = 'Strong' if not flags else 'Concerning' if len(flags) >= 2 else 'Adequate'
+            result['warnings'] = flags
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Balance sheet strength calculation failed for {symbol}: {e}")
+            return {}
+
+    def _assess_debt_to_equity(self, ratio: float) -> str:
+        """Assess debt/equity ratio."""
+        if ratio < 0.3:
+            return 'Very Conservative'
+        elif ratio < 0.5:
+            return 'Conservative'
+        elif ratio < 1.0:
+            return 'Moderate'
+        elif ratio < 2.0:
+            return 'Elevated'
+        else:
+            return 'High Leverage'
+
+    def _calculate_valuation_multiples(self, symbol: str, peers_list: List[str] = None) -> Dict:
+        """
+        Calculate key valuation multiples and compare to peers:
+        - P/E ratio
+        - P/B ratio
+        - P/S ratio
+        - PEG ratio (P/E to Growth)
+        - EV/EBITDA
+        """
+        try:
+            # Get company data
+            profile = self.fmp.get_profile(symbol)
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
+
+            if not (profile and income and balance):
+                return {}
+
+            prof = profile[0]
+            current_price = prof.get('price', 0)
+            market_cap = prof.get('mktCap', 0)
+            shares = prof.get('sharesOutstanding', 0)
+
+            if not (current_price > 0 and market_cap > 0):
+                return {}
+
+            result = {'company': {}, 'peers_avg': {}, 'vs_peers': {}}
+
+            # Calculate company multiples
+            inc = income[0]
+            bal = balance[0]
+
+            # P/E
+            eps = inc.get('eps', 0) or (inc.get('netIncome', 0) / shares if shares > 0 else 0)
+            if eps > 0:
+                pe_ratio = current_price / eps
+                result['company']['pe'] = round(pe_ratio, 1)
+
+            # P/B
+            total_equity = bal.get('totalStockholdersEquity', 0) or bal.get('totalEquity', 0)
+            if total_equity > 0 and shares > 0:
+                book_value_per_share = total_equity / shares
+                pb_ratio = current_price / book_value_per_share
+                result['company']['pb'] = round(pb_ratio, 2)
+
+            # P/S
+            revenue = inc.get('revenue', 0)
+            if revenue > 0:
+                ps_ratio = market_cap / revenue
+                result['company']['ps'] = round(ps_ratio, 2)
+
+            # EV/EBITDA
+            total_debt = (bal.get('totalDebt', 0) or
+                         (bal.get('shortTermDebt', 0) + bal.get('longTermDebt', 0)))
+            cash = bal.get('cashAndCashEquivalents', 0)
+            enterprise_value = market_cap + total_debt - cash
+            ebitda = inc.get('ebitda', 0)
+
+            if ebitda > 0:
+                ev_ebitda = enterprise_value / ebitda
+                result['company']['ev_ebitda'] = round(ev_ebitda, 1)
+
+            # PEG (P/E to Growth)
+            if len(income) >= 2 and eps > 0:
+                prev_eps = income[1].get('eps', 0) or (income[1].get('netIncome', 0) / shares if shares > 0 else 0)
+                if prev_eps > 0:
+                    eps_growth = ((eps - prev_eps) / prev_eps) * 100
+                    if eps_growth > 0:
+                        peg = result['company'].get('pe', 0) / eps_growth
+                        result['company']['peg'] = round(peg, 2)
+                        result['company']['eps_growth_%'] = round(eps_growth, 1)
+
+            # Compare to peers if available
+            if peers_list and len(peers_list) > 0:
+                peer_multiples = self._get_peer_multiples(peers_list[:5])  # Max 5 peers
+
+                if peer_multiples:
+                    # Calculate peer averages
+                    for metric in ['pe', 'pb', 'ps', 'ev_ebitda', 'peg']:
+                        values = [p.get(metric) for p in peer_multiples if p.get(metric)]
+                        if values:
+                            avg = sum(values) / len(values)
+                            result['peers_avg'][metric] = round(avg, 2)
+
+                            # Calculate vs peers
+                            company_val = result['company'].get(metric)
+                            if company_val:
+                                premium_discount = ((company_val - avg) / avg) * 100
+                                result['vs_peers'][metric] = {
+                                    'premium_discount_%': round(premium_discount, 1),
+                                    'assessment': 'Premium' if premium_discount > 15 else 'Discount' if premium_discount < -15 else 'In-line'
+                                }
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Valuation multiples calculation failed for {symbol}: {e}")
+            return {}
+
+    def _get_peer_multiples(self, peers_list: List[str]) -> List[Dict]:
+        """Get valuation multiples for a list of peers."""
+        peer_multiples = []
+
+        try:
+            for peer in peers_list:
+                try:
+                    profile = self.fmp.get_profile(peer)
+                    income = self.fmp.get_income_statement(peer, period='annual', limit=2)
+                    balance = self.fmp.get_balance_sheet(peer, period='annual', limit=1)
+
+                    if not (profile and income and balance):
+                        continue
+
+                    prof = profile[0]
+                    inc = income[0]
+                    bal = balance[0]
+
+                    price = prof.get('price', 0)
+                    market_cap = prof.get('mktCap', 0)
+                    shares = prof.get('sharesOutstanding', 0)
+
+                    if not (price > 0 and market_cap > 0):
+                        continue
+
+                    multiples = {'symbol': peer}
+
+                    # P/E
+                    eps = inc.get('eps', 0)
+                    if eps > 0:
+                        multiples['pe'] = price / eps
+
+                    # P/B
+                    equity = bal.get('totalStockholdersEquity', 0)
+                    if equity > 0 and shares > 0:
+                        multiples['pb'] = price / (equity / shares)
+
+                    # P/S
+                    revenue = inc.get('revenue', 0)
+                    if revenue > 0:
+                        multiples['ps'] = market_cap / revenue
+
+                    # EV/EBITDA
+                    debt = bal.get('totalDebt', 0) or 0
+                    cash = bal.get('cashAndCashEquivalents', 0)
+                    ev = market_cap + debt - cash
+                    ebitda = inc.get('ebitda', 0)
+                    if ebitda > 0:
+                        multiples['ev_ebitda'] = ev / ebitda
+
+                    # PEG
+                    if len(income) >= 2 and eps > 0:
+                        prev_eps = income[1].get('eps', 0)
+                        if prev_eps > 0:
+                            growth = ((eps - prev_eps) / prev_eps) * 100
+                            if growth > 0 and 'pe' in multiples:
+                                multiples['peg'] = multiples['pe'] / growth
+
+                    peer_multiples.append(multiples)
+
+                except Exception as e:
+                    logger.warning(f"Failed to get multiples for peer {peer}: {e}")
+                    continue
+
+            return peer_multiples
+
+        except Exception as e:
+            logger.warning(f"Peer multiples fetch failed: {e}")
+            return []
+
+    def _calculate_growth_consistency(self, symbol: str) -> Dict:
+        """
+        Calculate historical growth trends to assess consistency:
+        - Revenue growth (5 years)
+        - Earnings growth (5 years)
+        - FCF growth (5 years)
+        - Standard deviation of growth rates (consistency measure)
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=6)
+            cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=6)
+
+            if not (income and cashflow and len(income) >= 3):
+                return {}
+
+            result = {
+                'revenue': {},
+                'earnings': {},
+                'fcf': {},
+                'overall_assessment': ''
+            }
+
+            # Calculate revenue growth
+            revenues = [inc.get('revenue', 0) for inc in income if inc.get('revenue', 0) > 0]
+            if len(revenues) >= 3:
+                growth_rates = []
+                for i in range(len(revenues) - 1):
+                    if revenues[i+1] > 0:
+                        growth = ((revenues[i] - revenues[i+1]) / revenues[i+1]) * 100
+                        growth_rates.append(growth)
+
+                if growth_rates:
+                    avg_growth = sum(growth_rates) / len(growth_rates)
+                    # Calculate standard deviation
+                    variance = sum((g - avg_growth) ** 2 for g in growth_rates) / len(growth_rates)
+                    std_dev = variance ** 0.5
+
+                    result['revenue'] = {
+                        'years': len(revenues),
+                        'avg_growth_%': round(avg_growth, 1),
+                        'std_dev': round(std_dev, 1),
+                        'consistency': 'High' if std_dev < 5 else 'Moderate' if std_dev < 15 else 'Volatile',
+                        'trend': 'Growing' if avg_growth > 5 else 'Stable' if avg_growth > 0 else 'Declining',
+                        'history': [round(r / 1e9, 2) for r in revenues[:5]]  # Last 5 years in billions
+                    }
+
+            # Calculate earnings growth
+            net_incomes = [inc.get('netIncome', 0) for inc in income if inc.get('netIncome')]
+            if len(net_incomes) >= 3:
+                growth_rates = []
+                for i in range(len(net_incomes) - 1):
+                    if net_incomes[i+1] != 0:
+                        growth = ((net_incomes[i] - net_incomes[i+1]) / abs(net_incomes[i+1])) * 100
+                        # Cap extreme values
+                        if -500 < growth < 500:
+                            growth_rates.append(growth)
+
+                if growth_rates:
+                    avg_growth = sum(growth_rates) / len(growth_rates)
+                    variance = sum((g - avg_growth) ** 2 for g in growth_rates) / len(growth_rates)
+                    std_dev = variance ** 0.5
+
+                    result['earnings'] = {
+                        'years': len(net_incomes),
+                        'avg_growth_%': round(avg_growth, 1),
+                        'std_dev': round(std_dev, 1),
+                        'consistency': 'High' if std_dev < 15 else 'Moderate' if std_dev < 30 else 'Volatile',
+                        'trend': 'Growing' if avg_growth > 5 else 'Stable' if avg_growth > 0 else 'Declining',
+                        'history': [round(ni / 1e9, 2) for ni in net_incomes[:5]]  # Last 5 years in billions
+                    }
+
+            # Calculate FCF growth
+            fcfs = []
+            for i in range(min(len(cashflow), len(income))):
+                ocf = cashflow[i].get('operatingCashFlow', 0)
+                capex = abs(cashflow[i].get('capitalExpenditure', 0))
+                fcf = ocf - capex
+                if ocf > 0:  # Only include if we have OCF data
+                    fcfs.append(fcf)
+
+            if len(fcfs) >= 3:
+                growth_rates = []
+                for i in range(len(fcfs) - 1):
+                    if fcfs[i+1] != 0:
+                        growth = ((fcfs[i] - fcfs[i+1]) / abs(fcfs[i+1])) * 100
+                        # Cap extreme values
+                        if -500 < growth < 500:
+                            growth_rates.append(growth)
+
+                if growth_rates:
+                    avg_growth = sum(growth_rates) / len(growth_rates)
+                    variance = sum((g - avg_growth) ** 2 for g in growth_rates) / len(growth_rates)
+                    std_dev = variance ** 0.5
+
+                    result['fcf'] = {
+                        'years': len(fcfs),
+                        'avg_growth_%': round(avg_growth, 1),
+                        'std_dev': round(std_dev, 1),
+                        'consistency': 'High' if std_dev < 20 else 'Moderate' if std_dev < 40 else 'Volatile',
+                        'trend': 'Growing' if avg_growth > 5 else 'Stable' if avg_growth > 0 else 'Declining',
+                        'history': [round(fcf / 1e9, 2) for fcf in fcfs[:5]]  # Last 5 years in billions
+                    }
+
+            # Overall assessment
+            consistencies = []
+            if result.get('revenue', {}).get('consistency'):
+                consistencies.append(result['revenue']['consistency'])
+            if result.get('earnings', {}).get('consistency'):
+                consistencies.append(result['earnings']['consistency'])
+            if result.get('fcf', {}).get('consistency'):
+                consistencies.append(result['fcf']['consistency'])
+
+            if 'High' in consistencies and 'Volatile' not in consistencies:
+                result['overall_assessment'] = 'Highly Consistent - Predictable business'
+            elif 'Volatile' in consistencies or consistencies.count('Moderate') >= 2:
+                result['overall_assessment'] = 'Volatile - Unpredictable performance'
+            else:
+                result['overall_assessment'] = 'Moderately Consistent - Some variability'
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Growth consistency calculation failed for {symbol}: {e}")
             return {}
 
     # ===================================
