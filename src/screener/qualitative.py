@@ -2343,15 +2343,27 @@ class QualitativeAnalyzer:
                     oi = income[i].get('operatingIncome', 0)
                     tr = abs(income[i].get('incomeTaxExpense', 0)) / income[i].get('incomeBeforeTax', 1) if income[i].get('incomeBeforeTax', 0) > 0 else 0.21
                     tr = min(max(tr, 0), 0.50)
-                    np = oi * (1 - tr)
+                    nopat = oi * (1 - tr)
 
-                    ta = balance[i].get('totalAssets', 0)
-                    c = balance[i].get('cashAndCashEquivalents', 0)
-                    cl = balance[i].get('totalCurrentLiabilities', 0)
-                    ic = ta - c - cl
+                    # Invested Capital: Use simpler formula
+                    # IC = Total Debt + Total Equity (more robust)
+                    total_debt = balance[i].get('totalDebt', 0) or (balance[i].get('shortTermDebt', 0) + balance[i].get('longTermDebt', 0))
+                    total_equity = balance[i].get('totalStockholdersEquity', 0) or balance[i].get('totalEquity', 0)
+                    ic = total_debt + total_equity
 
-                    if ic > 0:
-                        roic = (np / ic) * 100
+                    # Fallback: If debt+equity method fails, use total assets - cash - non-interest liabilities
+                    if ic <= 0:
+                        ta = balance[i].get('totalAssets', 0)
+                        cash = balance[i].get('cashAndCashEquivalents', 0)
+                        # More conservative: only subtract non-interest bearing liabilities
+                        # Approximate as current liabilities minus current debt
+                        cl = balance[i].get('totalCurrentLiabilities', 0)
+                        short_debt = balance[i].get('shortTermDebt', 0)
+                        non_interest_cl = max(cl - short_debt, 0)  # Ensure non-negative
+                        ic = ta - cash - non_interest_cl
+
+                    if ic > 0 and nopat != 0:  # Also check NOPAT is non-zero
+                        roic = (nopat / ic) * 100
                         history.append(roic)
 
             if not history:
