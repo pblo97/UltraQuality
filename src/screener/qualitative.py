@@ -1541,24 +1541,41 @@ class QualitativeAnalyzer:
             # Get shares outstanding (keep in actual count, not millions)
             # CRITICAL: weightedAverageShsOut might not be in annual balance sheets
             # Try multiple sources
+
+            # Debug: Log all available fields in balance sheet
+            logger.info(f"DCF: {symbol} balance sheet keys: {list(balance[0].keys())}")
+
             shares = (balance[0].get('weightedAverageShsOut') or
                      balance[0].get('commonStockSharesOutstanding') or
                      balance[0].get('weightedAverageShsOutDil'))
 
             logger.info(f"DCF: {symbol} shares from balance sheet: {shares}")
+            add_note(f"ℹ️ Balance sheet shares attempts: weightedAverageShsOut={balance[0].get('weightedAverageShsOut')}, commonStockSharesOutstanding={balance[0].get('commonStockSharesOutstanding')}, weightedAverageShsOutDil={balance[0].get('weightedAverageShsOutDil')}")
 
             if not shares or shares <= 0:
                 # Last resort: get from profile
                 logger.info(f"DCF: {symbol} shares not in balance sheet, trying profile")
                 profile = self.fmp.get_profile(symbol)
                 if profile and len(profile) > 0:
+                    logger.info(f"DCF: {symbol} profile keys: {list(profile[0].keys())}")
                     shares = profile[0].get('sharesOutstanding', 0)
                     logger.info(f"DCF: {symbol} shares from profile: {shares}")
+                    add_note(f"ℹ️ Profile sharesOutstanding: {shares}")
+
+                    # If still no shares, try calculating from mktCap / price
+                    if not shares or shares <= 0:
+                        mkt_cap = profile[0].get('mktCap')
+                        price = profile[0].get('price')
+                        if mkt_cap and price and price > 0:
+                            shares = int(mkt_cap / price)
+                            logger.info(f"DCF: {symbol} calculated shares from mktCap/price: {shares:,}")
+                            add_note(f"💡 Calculated shares from mktCap ({mkt_cap:,}) / price ({price}): {shares:,}")
 
             if not shares or shares <= 0:
                 msg = f"DCF: Could not get shares outstanding (got {shares})"
                 logger.warning(f"{symbol} {msg}")
                 add_note(f"✗ {msg}")
+                add_note(f"ℹ️ Available balance sheet fields: {', '.join(list(balance[0].keys())[:20])}")
                 return None
 
             # === Type-specific base cash flow ===
@@ -1757,11 +1774,24 @@ class QualitativeAnalyzer:
                      balance[0].get('commonStockSharesOutstanding') or
                      balance[0].get('weightedAverageShsOutDil'))
 
+            logger.info(f"Forward Multiple: {symbol} shares from balance sheet: {shares}")
+
             if not shares or shares <= 0:
                 # Fallback to profile
+                logger.info(f"Forward Multiple: {symbol} shares not in balance sheet, trying profile")
                 profile = self.fmp.get_profile(symbol)
                 if profile and len(profile) > 0:
                     shares = profile[0].get('sharesOutstanding', 0)
+                    logger.info(f"Forward Multiple: {symbol} shares from profile: {shares}")
+
+                    # If still no shares, try calculating from mktCap / price
+                    if not shares or shares <= 0:
+                        mkt_cap = profile[0].get('mktCap')
+                        price = profile[0].get('price')
+                        if mkt_cap and price and price > 0:
+                            shares = int(mkt_cap / price)
+                            logger.info(f"Forward Multiple: {symbol} calculated shares from mktCap/price: {shares:,}")
+                            add_note(f"💡 Calculated shares from mktCap ({mkt_cap:,}) / price ({price}): {shares:,}")
 
             if not shares or shares <= 0:
                 msg = f"Forward Multiple: Could not get shares outstanding (got {shares})"
@@ -1975,13 +2005,26 @@ class QualitativeAnalyzer:
                      balance[0].get('commonStockSharesOutstanding') or
                      balance[0].get('weightedAverageShsOutDil'))
 
+            logger.info(f"Historical Multiple: {symbol} shares from balance sheet: {shares}")
+
             if not shares or shares <= 0:
                 # Fallback to profile
+                logger.info(f"Historical Multiple: {symbol} shares not in balance sheet, trying profile")
                 profile = self.fmp.get_profile(symbol)
                 if profile and len(profile) > 0:
                     shares = profile[0].get('sharesOutstanding', 0)
+                    logger.info(f"Historical Multiple: {symbol} shares from profile: {shares}")
+
+                    # If still no shares, try calculating from mktCap / price
+                    if not shares or shares <= 0:
+                        mkt_cap = profile[0].get('mktCap')
+                        price = profile[0].get('price')
+                        if mkt_cap and price and price > 0:
+                            shares = int(mkt_cap / price)
+                            logger.info(f"Historical Multiple: {symbol} calculated shares from mktCap/price: {shares:,}")
 
             if not shares or shares <= 0:
+                logger.warning(f"Historical Multiple: {symbol} Could not get shares outstanding (got {shares})")
                 return None
 
             if company_type == 'non_financial':
