@@ -1743,7 +1743,7 @@ with tab6:
         with st.spinner(f"🔄 Analyzing {custom_ticker}... This may take 30-60 seconds"):
             try:
                 # Import dependencies
-                from screener.pipeline import ScreenerPipeline
+                from screener.orchestrator import ScreenerPipeline
                 from screener.qualitative import QualitativeAnalyzer
 
                 # Get config
