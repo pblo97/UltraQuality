@@ -2155,22 +2155,31 @@ class QualitativeAnalyzer:
 
             if revenue_prev > 0:
                 current_growth = (revenue_current - revenue_prev) / revenue_prev
-                current_growth = max(0, min(current_growth, 0.30))  # Cap at 30%
+                current_growth = max(0, min(current_growth, 0.50))  # Cap at 50% (allow higher growth for tech/high-growth companies)
             else:
-                current_growth = 0.08  # Default
+                current_growth = 0.08  # Default 8%
 
-            # Define scenarios
+            # Define scenarios with intelligent logic
+            # Bear: Conservative scenario (3% or half of current growth, whichever is higher)
+            bear_growth = max(0.03, current_growth * 0.5)
+
+            # Base: Current trend (as-is)
+            base_growth = current_growth
+
+            # Bull: Optimistic acceleration (1.5x current, but at least 1.5x base to ensure bull > base)
+            bull_growth = max(current_growth * 1.5, base_growth * 1.2)  # At least 20% higher than base
+
             scenarios = {
                 'Bear Case': {
-                    'growth_rate': 0.03,  # 3% growth
+                    'growth_rate': bear_growth,
                     'description': 'Conservative: Slow growth, market challenges'
                 },
                 'Base Case': {
-                    'growth_rate': current_growth,
-                    'description': f'Current trend: {current_growth:.1%} revenue growth'
+                    'growth_rate': base_growth,
+                    'description': f'Current trend: {base_growth:.1%} revenue growth'
                 },
                 'Bull Case': {
-                    'growth_rate': min(current_growth * 1.5, 0.20),  # 1.5x current or 20% max
+                    'growth_rate': bull_growth,
                     'description': 'Optimistic: Accelerated growth, market expansion'
                 }
             }
