@@ -874,6 +874,25 @@ with tab5:
             if f'qual_{selected_ticker}' in st.session_state:
                 analysis = st.session_state[f'qual_{selected_ticker}']
 
+                # Check if analysis is from old version (has DEBUG messages)
+                intrinsic = analysis.get('intrinsic_value', {})
+                notes = intrinsic.get('notes', [])
+                has_old_debug = any('DEBUG:' in str(note) for note in notes)
+
+                if has_old_debug:
+                    st.warning(f"⚠️ Cached analysis for {selected_ticker} is from an older version with outdated diagnostics.")
+                    # Clear the cache
+                    del st.session_state[f'qual_{selected_ticker}']
+                    st.info("🔄 Cache cleared automatically. Click '🔍 Run Deep Analysis' button above to get updated results with:")
+                    st.markdown("""
+                    - ✅ Auto-detection of company type
+                    - ✅ Detailed error messages showing exact failure points
+                    - ✅ Values for data fields (OCF, EBIT, capex, etc.)
+                    - ✅ Color-coded diagnostic messages
+                    """)
+                    # Stop rendering old analysis
+                    st.stop()
+
                 # Business Summary
                 st.subheader("📝 Business Summary")
                 st.write(analysis.get('business_summary', 'Not available'))
