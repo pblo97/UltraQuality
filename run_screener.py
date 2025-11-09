@@ -484,7 +484,7 @@ except:
     st.sidebar.warning("⚠️ Secrets not accessible")
 
 # Main content
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Home", "📊 Results", "📈 Analytics", "🔎 Calibration", "🔍 Qualitative", "ℹ️ About"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🏠 Home", "📊 Results", "📈 Analytics", "🔎 Calibration", "🔍 Qualitative", "🎯 Custom Analysis", "ℹ️ About"])
 
 with tab1:
     st.header("Run Screener")
@@ -1713,6 +1713,289 @@ with tab5:
             st.info("👈 Run the screener first to access qualitative analysis")
 
 with tab6:
+    st.header("🎯 Custom Company Analysis")
+    st.markdown("""
+    Analyze **any company** (quality + valuation) without needing to run the full screener.
+    Perfect for researching specific tickers that caught your attention.
+    """)
+
+    # Ticker input
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        custom_ticker = st.text_input(
+            "Enter Ticker Symbol",
+            placeholder="e.g., MSFT, GOOGL, BRK.B",
+            help="Enter any valid stock ticker"
+        ).upper().strip()
+
+    with col2:
+        st.markdown("")  # Spacing
+        st.markdown("")  # Spacing
+        analyze_button = st.button(
+            f"🔍 Analyze {custom_ticker if custom_ticker else 'Company'}",
+            disabled=not custom_ticker,
+            use_container_width=True,
+            type="primary"
+        )
+
+    if analyze_button and custom_ticker:
+        with st.spinner(f"🔄 Analyzing {custom_ticker}... This may take 30-60 seconds"):
+            try:
+                # Import dependencies
+                from screener.pipeline import ScreenerPipeline
+                from screener.qualitative import QualitativeAnalyzer
+
+                # Get config
+                import yaml
+                config_path = Path(__file__).parent / 'config' / 'screener_config.yaml'
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+
+                # Initialize pipeline to get FMP client
+                pipeline = ScreenerPipeline(config)
+
+                # Initialize qualitative analyzer
+                qual_analyzer = QualitativeAnalyzer(pipeline.fmp, config)
+
+                # Run full analysis (without needing screener results)
+                analysis = qual_analyzer.analyze(custom_ticker)
+
+                if analysis and 'error' not in analysis:
+                    st.session_state[f'custom_{custom_ticker}'] = analysis
+                    st.success(f"✅ Analysis for {custom_ticker} complete!")
+                    st.rerun()
+                else:
+                    error_msg = analysis.get('error', 'Unknown error') if analysis else 'Failed to retrieve data'
+                    st.error(f"❌ Analysis failed: {error_msg}")
+                    st.info("💡 Make sure the ticker is valid and try again. Some tickers may have limited data.")
+
+            except Exception as e:
+                st.error(f"❌ Analysis failed: {str(e)}")
+                st.info("💡 Please check that the ticker is valid and try again.")
+
+    # Display cached analysis if available
+    if custom_ticker and f'custom_{custom_ticker}' in st.session_state:
+        analysis = st.session_state[f'custom_{custom_ticker}']
+
+        st.markdown("---")
+
+        # Company Info
+        st.subheader(f"📊 {custom_ticker} - Company Overview")
+
+        # Business Summary
+        with st.expander("📝 Business Summary", expanded=False):
+            st.write(analysis.get('business_summary', 'Not available'))
+
+        st.markdown("---")
+
+        # === INTRINSIC VALUE SECTION (Same as Qualitative tab) ===
+        st.subheader("💰 Intrinsic Value Estimation")
+        intrinsic = analysis.get('intrinsic_value', {})
+
+        if intrinsic and 'current_price' in intrinsic:
+            col1, col2, col3, col4 = st.columns(4)
+
+            current_price = intrinsic.get('current_price', 0)
+
+            with col1:
+                if current_price and current_price > 0:
+                    st.metric("Current Price", f"${current_price:.2f}")
+                else:
+                    st.metric("Current Price", "N/A")
+
+            with col2:
+                dcf_val = intrinsic.get('dcf_value')
+                if dcf_val and dcf_val > 0:
+                    st.metric("DCF Value", f"${dcf_val:.2f}")
+                else:
+                    st.metric("DCF Value", "N/A")
+
+            with col3:
+                fwd_val = intrinsic.get('forward_multiple_value')
+                if fwd_val and fwd_val > 0:
+                    st.metric("Forward Multiple", f"${fwd_val:.2f}")
+                else:
+                    st.metric("Forward Multiple", "N/A")
+
+            with col4:
+                fair_val = intrinsic.get('weighted_value')
+                if fair_val and fair_val > 0:
+                    st.metric("Fair Value", f"${fair_val:.2f}")
+                else:
+                    st.metric("Fair Value", "N/A")
+
+            # Upside/Downside
+            if intrinsic.get('upside_downside_%') is not None:
+                upside = intrinsic.get('upside_downside_%', 0)
+                assessment = intrinsic.get('valuation_assessment', 'Unknown')
+                confidence = intrinsic.get('confidence', 'Low')
+
+                if assessment == 'Undervalued':
+                    color = 'green'
+                    emoji = '🟢'
+                elif assessment == 'Overvalued':
+                    color = 'red'
+                    emoji = '🔴'
+                else:
+                    color = 'orange'
+                    emoji = '🟡'
+
+                st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
+                st.caption(f"**Confidence:** {confidence}")
+
+            # Advanced Metrics (same as Qualitative tab)
+            st.markdown("---")
+
+            # 1. ROIC vs WACC
+            capital_efficiency = intrinsic.get('capital_efficiency', {})
+            if capital_efficiency:
+                st.markdown("### ⚙️ Capital Efficiency (ROIC vs WACC)")
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    roic = capital_efficiency.get('roic', 0)
+                    st.metric("ROIC", f"{roic:.1f}%")
+                    st.caption(f"3Y Avg: {capital_efficiency.get('avg_roic_3y', 0):.1f}%")
+
+                with col2:
+                    wacc = capital_efficiency.get('wacc', 0)
+                    st.metric("WACC", f"{wacc:.1f}%")
+
+                with col3:
+                    spread = capital_efficiency.get('spread', 0)
+                    trend = capital_efficiency.get('trend', 'stable')
+                    st.metric("Spread (ROIC - WACC)", f"{spread:+.1f}%", delta=trend)
+
+                value_creation = capital_efficiency.get('value_creation', False)
+                assessment_text = capital_efficiency.get('assessment', '')
+
+                if value_creation:
+                    st.success(f"✅ {assessment_text} - ROIC exceeds WACC")
+                else:
+                    st.error(f"⚠️ {assessment_text} - ROIC below WACC")
+
+            # 2. Quality of Earnings
+            earnings_quality = intrinsic.get('earnings_quality', {})
+            if earnings_quality:
+                st.markdown("### 🎯 Quality of Earnings")
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    cf_to_ni = earnings_quality.get('cash_flow_to_net_income', 0)
+                    st.metric("OCF / Net Income", f"{cf_to_ni:.2f}")
+                    st.caption(">1.0 is excellent")
+
+                with col2:
+                    accruals = earnings_quality.get('accruals_ratio', 0)
+                    st.metric("Accruals Ratio", f"{accruals:.2f}%")
+                    st.caption("<5% is good")
+
+                with col3:
+                    wc_trend = earnings_quality.get('working_capital_trend', 'unknown')
+                    st.metric("Working Capital", wc_trend.title())
+
+                with col4:
+                    grade = earnings_quality.get('grade', 'C')
+                    if grade in ['A', 'B']:
+                        st.success(f"**Grade: {grade}**")
+                    elif grade == 'C':
+                        st.warning(f"**Grade: {grade}**")
+                    else:
+                        st.error(f"**Grade: {grade}**")
+
+            # 3. Profitability Margins
+            profitability = intrinsic.get('profitability_analysis', {})
+            if profitability:
+                st.markdown("### 📊 Profitability Margins & Trends")
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    gross = profitability.get('gross_margin', {})
+                    if gross:
+                        st.metric("Gross Margin", f"{gross.get('current', 0):.1f}%",
+                                 delta=f"{gross.get('current', 0) - gross.get('avg_3y', 0):.1f}% vs 3Y avg")
+                        st.caption(gross.get('trend', '→ stable'))
+
+                with col2:
+                    operating = profitability.get('operating_margin', {})
+                    if operating:
+                        st.metric("Operating Margin", f"{operating.get('current', 0):.1f}%",
+                                 delta=f"{operating.get('current', 0) - operating.get('avg_3y', 0):.1f}% vs 3Y avg")
+                        st.caption(operating.get('trend', '→ stable'))
+
+                with col3:
+                    fcf = profitability.get('fcf_margin', {})
+                    if fcf:
+                        st.metric("FCF Margin", f"{fcf.get('current', 0):.1f}%",
+                                 delta=f"{fcf.get('current', 0) - fcf.get('avg_3y', 0):.1f}% vs 3Y avg")
+                        st.caption(fcf.get('trend', '→ stable'))
+
+            # 4. Red Flags
+            red_flags = intrinsic.get('red_flags', [])
+            if red_flags:
+                st.markdown("### 🚩 Red Flags Detected")
+                for flag in red_flags:
+                    st.error(flag)
+            else:
+                if 'red_flags' in intrinsic:
+                    st.markdown("### ✅ No Red Flags Detected")
+                    st.success("All financial health checks passed")
+
+            # 5. Reverse DCF
+            reverse_dcf = intrinsic.get('reverse_dcf', {})
+            if reverse_dcf:
+                st.markdown("### 🔄 Reverse DCF: Market Expectations")
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    implied_growth = reverse_dcf.get('implied_growth_rate', 0)
+                    st.metric("Implied Growth", f"{implied_growth:.1f}%")
+                    st.caption("What market expects")
+
+                with col2:
+                    current_growth = reverse_dcf.get('current_growth_rate', 0)
+                    st.metric("Actual Growth", f"{current_growth:.1f}%")
+                    st.caption("Current reality")
+
+                with col3:
+                    implied_multiple = reverse_dcf.get('implied_ev_ebit')
+                    if implied_multiple:
+                        st.metric("Implied EV/EBIT", f"{implied_multiple:.1f}x")
+
+                interpretation = reverse_dcf.get('interpretation', '')
+                if interpretation:
+                    if "acceleration" in interpretation.lower():
+                        st.info(f"💭 {interpretation}")
+                    elif "above" in interpretation.lower():
+                        st.warning(f"⚠️ {interpretation}")
+                    elif "continuation" in interpretation.lower():
+                        st.success(f"✅ {interpretation}")
+                    else:
+                        st.error(f"📉 {interpretation}")
+
+            # Export to Excel
+            st.markdown("---")
+            st.markdown("### 📥 Export Analysis")
+
+            try:
+                excel_data = create_qualitative_excel(analysis, custom_ticker, datetime.now())
+                st.download_button(
+                    label="📊 Download Complete Analysis (Excel)",
+                    data=excel_data,
+                    file_name=f"{custom_ticker}_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    help="Download full analysis with all metrics"
+                )
+                st.caption("📋 Includes: Valuation, Capital Efficiency, Earnings Quality, Margins, Red Flags, Reverse DCF, and more")
+            except Exception as e:
+                st.error(f"Excel export failed: {e}")
+
+        else:
+            st.info(f"💡 Enter a ticker above and click 'Analyze' to see detailed quality and valuation analysis")
+
+with tab7:
     st.header("About UltraQuality Screener")
 
     st.markdown("""
