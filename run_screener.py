@@ -1931,20 +1931,65 @@ with tab6:
                                  delta=f"{fcf.get('current', 0) - fcf.get('avg_3y', 0):.1f}% vs 3Y avg")
                         st.caption(fcf.get('trend', '→ stable'))
 
-            # 4. Red Flags
+            # 4. Price Projections by Scenario
+            projections = intrinsic.get('price_projections', {})
+            if projections and 'scenarios' in projections:
+                st.markdown("---")
+                st.markdown("### 📈 Price Projections by Scenario")
+
+                scenarios = projections.get('scenarios', {})
+
+                if scenarios:
+                    # Display as table
+                    scenario_names = list(scenarios.keys())
+
+                    # Create columns for each scenario
+                    cols = st.columns(len(scenario_names))
+
+                    for i, (scenario_name, data) in enumerate(scenarios.items()):
+                        with cols[i]:
+                            # Emoji based on scenario
+                            if 'Bear' in scenario_name:
+                                emoji = '🐻'
+                                color = '#ff6b6b'
+                            elif 'Bull' in scenario_name:
+                                emoji = '🐂'
+                                color = '#51cf66'
+                            else:
+                                emoji = '📊'
+                                color = '#ffd43b'
+
+                            st.markdown(f"**{emoji} {scenario_name}**")
+                            st.caption(data.get('description', ''))
+                            st.caption(f"Growth: {data.get('growth_assumption', 'N/A')}")
+
+                            st.markdown("**Price Targets:**")
+                            st.metric("1 Year", f"${data.get('1Y_target', 0):.2f}",
+                                     delta=data.get('1Y_return', 'N/A'))
+                            st.metric("3 Year", f"${data.get('3Y_target', 0):.2f}",
+                                     delta=data.get('3Y_cagr', 'N/A') + " CAGR")
+                            st.metric("5 Year", f"${data.get('5Y_target', 0):.2f}",
+                                     delta=data.get('5Y_cagr', 'N/A') + " CAGR")
+
+                    st.caption("**Note:** Projections based on fundamental growth. Not investment advice.")
+
+            # 5. Red Flags
             red_flags = intrinsic.get('red_flags', [])
             if red_flags:
+                st.markdown("---")
                 st.markdown("### 🚩 Red Flags Detected")
                 for flag in red_flags:
                     st.error(flag)
             else:
                 if 'red_flags' in intrinsic:
+                    st.markdown("---")
                     st.markdown("### ✅ No Red Flags Detected")
                     st.success("All financial health checks passed")
 
-            # 5. Reverse DCF
+            # 6. Reverse DCF
             reverse_dcf = intrinsic.get('reverse_dcf', {})
             if reverse_dcf:
+                st.markdown("---")
                 st.markdown("### 🔄 Reverse DCF: Market Expectations")
                 col1, col2, col3 = st.columns(3)
 
