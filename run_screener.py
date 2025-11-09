@@ -137,21 +137,35 @@ def create_qualitative_excel(analysis: dict, ticker: str, timestamp: datetime) -
         }
         pd.DataFrame(overview_data).to_excel(writer, sheet_name='Overview', index=False)
 
-        # Sheet 2: Capital Efficiency
+        # Sheet 2: Capital Efficiency (ROIC for non-financials, ROE for financials)
         capital_eff = intrinsic.get('capital_efficiency', {})
         if capital_eff:
+            metric_name = capital_eff.get('metric_name', 'ROIC')
+            current = capital_eff.get('current', 0)
+            history_5y = capital_eff.get('history_5y', [])
+
             cap_data = {
-                'Metric': ['ROIC', 'WACC', 'Spread (ROIC - WACC)', '3Y Average ROIC', 'Trend', 'Assessment'],
+                'Metric': [metric_name, 'WACC', f'Spread ({metric_name} - WACC)',
+                          f'3Y Average {metric_name}', f'5Y Average {metric_name}', 'Trend', 'Assessment'],
                 'Value': [
-                    f"{capital_eff.get('roic', 0):.1f}%",
+                    f"{current:.1f}%",
                     f"{capital_eff.get('wacc', 0):.1f}%",
                     f"{capital_eff.get('spread', 0):+.1f}%",
-                    f"{capital_eff.get('avg_roic_3y', 0):.1f}%",
+                    f"{capital_eff.get('avg_3y', 0):.1f}%",
+                    f"{capital_eff.get('avg_5y', 0):.1f}%",
                     capital_eff.get('trend', 'N/A'),
                     capital_eff.get('assessment', 'N/A')
                 ]
             }
             pd.DataFrame(cap_data).to_excel(writer, sheet_name='Capital Efficiency', index=False)
+
+            # Add 5-year history as separate sheet if available
+            if history_5y:
+                history_df = pd.DataFrame({
+                    'Year': [f'Year {i+1}' for i in range(len(history_5y))],
+                    f'{metric_name} (%)': [f"{h:.1f}%" for h in history_5y]
+                })
+                history_df.to_excel(writer, sheet_name=f'{metric_name} History', index=False)
 
         # Sheet 3: Quality of Earnings
         earnings_qual = intrinsic.get('earnings_quality', {})
@@ -1532,21 +1546,23 @@ with tab5:
 
                         st.markdown("---")
 
-                        # 1. ROIC vs WACC (Capital Efficiency)
+                        # 1. ROIC vs WACC (Capital Efficiency) - or ROE for financials
                         capital_efficiency = intrinsic.get('capital_efficiency', {})
                         if capital_efficiency:
-                            st.markdown("### ⚙️ Capital Efficiency (ROIC vs WACC)")
+                            metric_name = capital_efficiency.get('metric_name', 'ROIC')
+                            st.markdown(f"### ⚙️ Capital Efficiency ({metric_name} vs WACC)")
 
                             col1, col2, col3 = st.columns(3)
 
                             with col1:
-                                roic = capital_efficiency.get('roic', 0)
-                                st.metric("ROIC", f"{roic:.1f}%")
-                                st.caption(f"3Y Avg: {capital_efficiency.get('avg_roic_3y', 0):.1f}%")
+                                current = capital_efficiency.get('current', 0)
+                                st.metric(metric_name, f"{current:.1f}%")
+                                st.caption(f"3Y Avg: {capital_efficiency.get('avg_3y', 0):.1f}%")
 
                             with col2:
                                 wacc = capital_efficiency.get('wacc', 0)
                                 st.metric("WACC", f"{wacc:.1f}%")
+                                st.caption(f"5Y Avg {metric_name}: {capital_efficiency.get('avg_5y', 0):.1f}%")
 
                             with col3:
                                 spread = capital_efficiency.get('spread', 0)
@@ -1560,15 +1576,21 @@ with tab5:
                                     delta_color = "inverse"
                                     emoji = "⚠️"
 
-                                st.metric("Spread (ROIC - WACC)", f"{spread:+.1f}%", delta=trend)
+                                st.metric(f"Spread ({metric_name} - WACC)", f"{spread:+.1f}%", delta=trend)
+
+                            # Show 5-year history
+                            history_5y = capital_efficiency.get('history_5y', [])
+                            if history_5y:
+                                st.caption(f"**{metric_name} History (last {len(history_5y)} years):** " +
+                                         ", ".join([f"{h:.1f}%" for h in history_5y]))
 
                             assessment = capital_efficiency.get('assessment', '')
                             value_creation = capital_efficiency.get('value_creation', False)
 
                             if value_creation:
-                                st.success(f"✅ {assessment} - ROIC exceeds WACC, indicating value creation")
+                                st.success(f"✅ {assessment} - {metric_name} exceeds WACC, indicating value creation")
                             else:
-                                st.error(f"⚠️ {assessment} - ROIC below WACC, may be destroying value")
+                                st.error(f"⚠️ {assessment} - {metric_name} below WACC, may be destroying value")
 
                         # 2. Quality of Earnings
                         earnings_quality = intrinsic.get('earnings_quality', {})
@@ -2225,33 +2247,41 @@ with tab6:
             # Advanced Metrics (same as Qualitative tab)
             st.markdown("---")
 
-            # 1. ROIC vs WACC
+            # 1. ROIC vs WACC (or ROE for financials)
             capital_efficiency = intrinsic.get('capital_efficiency', {})
             if capital_efficiency:
-                st.markdown("### ⚙️ Capital Efficiency (ROIC vs WACC)")
+                metric_name = capital_efficiency.get('metric_name', 'ROIC')
+                st.markdown(f"### ⚙️ Capital Efficiency ({metric_name} vs WACC)")
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
-                    roic = capital_efficiency.get('roic', 0)
-                    st.metric("ROIC", f"{roic:.1f}%")
-                    st.caption(f"3Y Avg: {capital_efficiency.get('avg_roic_3y', 0):.1f}%")
+                    current = capital_efficiency.get('current', 0)
+                    st.metric(metric_name, f"{current:.1f}%")
+                    st.caption(f"3Y Avg: {capital_efficiency.get('avg_3y', 0):.1f}%")
 
                 with col2:
                     wacc = capital_efficiency.get('wacc', 0)
                     st.metric("WACC", f"{wacc:.1f}%")
+                    st.caption(f"5Y Avg {metric_name}: {capital_efficiency.get('avg_5y', 0):.1f}%")
 
                 with col3:
                     spread = capital_efficiency.get('spread', 0)
                     trend = capital_efficiency.get('trend', 'stable')
-                    st.metric("Spread (ROIC - WACC)", f"{spread:+.1f}%", delta=trend)
+                    st.metric(f"Spread ({metric_name} - WACC)", f"{spread:+.1f}%", delta=trend)
+
+                # Show 5-year history
+                history_5y = capital_efficiency.get('history_5y', [])
+                if history_5y:
+                    st.caption(f"**{metric_name} History (last {len(history_5y)} years):** " +
+                             ", ".join([f"{h:.1f}%" for h in history_5y]))
 
                 value_creation = capital_efficiency.get('value_creation', False)
                 assessment_text = capital_efficiency.get('assessment', '')
 
                 if value_creation:
-                    st.success(f"✅ {assessment_text} - ROIC exceeds WACC")
+                    st.success(f"✅ {assessment_text} - {metric_name} exceeds WACC")
                 else:
-                    st.error(f"⚠️ {assessment_text} - ROIC below WACC")
+                    st.error(f"⚠️ {assessment_text} - {metric_name} below WACC")
 
             # 2. Quality of Earnings
             earnings_quality = intrinsic.get('earnings_quality', {})

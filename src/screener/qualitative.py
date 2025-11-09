@@ -1491,8 +1491,8 @@ class QualitativeAnalyzer:
 
                 # === ADVANCED QUALITATIVE METRICS ===
 
-                # 1. ROIC vs WACC (Capital Efficiency)
-                roic_analysis = self._calculate_roic_vs_wacc(symbol, industry_wacc)
+                # 1. ROIC vs WACC (Capital Efficiency) - or ROE for financials
+                roic_analysis = self._calculate_roic_vs_wacc(symbol, industry_wacc, company_type)
                 if roic_analysis:
                     valuation['capital_efficiency'] = roic_analysis
 
@@ -2302,84 +2302,106 @@ class QualitativeAnalyzer:
     # Advanced Qualitative Metrics
     # ===================================
 
-    def _calculate_roic_vs_wacc(self, symbol: str, wacc: float) -> Dict:
+    def _calculate_roic_vs_wacc(self, symbol: str, wacc: float, company_type: str = 'non_financial') -> Dict:
         """
-        Calculate ROIC (Return on Invested Capital) and compare to WACC.
-        ROIC > WACC = value creation
+        Calculate ROIC (Return on Invested Capital) for non-financials or ROE for financials.
+        Compare to WACC. ROIC/ROE > WACC = value creation
 
-        ROIC = NOPAT / Invested Capital
-        NOPAT = Operating Income * (1 - Tax Rate)
-        Invested Capital = Total Assets - Cash - Non-Interest-Bearing Current Liabilities
+        Non-Financial:
+            ROIC = NOPAT / Invested Capital
+            NOPAT = Operating Income * (1 - Tax Rate)
+            Invested Capital = Total Assets - Cash - Non-Interest-Bearing Current Liabilities
+
+        Financial:
+            ROE = Net Income / Shareholders' Equity
+            (Banks use equity, not invested capital)
         """
         try:
-            income = self.fmp.get_income_statement(symbol, period='annual', limit=4)
-            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=4)
+            # Get 6 years of data to calculate 5-year history
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=6)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=6)
 
             if not (income and balance and len(income) >= 1 and len(balance) >= 1):
                 return {}
 
-            # Calculate ROIC for current year
-            operating_income = income[0].get('operatingIncome', 0)
-            tax_rate = abs(income[0].get('incomeTaxExpense', 0)) / income[0].get('incomeBeforeTax', 1) if income[0].get('incomeBeforeTax', 0) > 0 else 0.21
-            tax_rate = min(max(tax_rate, 0), 0.50)  # Cap between 0-50%
+            is_financial = company_type in ['financial', 'bank']
+            metric_name = 'ROE' if is_financial else 'ROIC'
+            history = []
 
-            nopat = operating_income * (1 - tax_rate)
+            # Calculate historical returns (5 years)
+            for i in range(min(5, len(income), len(balance))):
+                if is_financial:
+                    # Financial: Calculate ROE
+                    net_income = income[i].get('netIncome', 0)
+                    equity = balance[i].get('totalStockholdersEquity', 0) or balance[i].get('totalEquity', 0)
 
-            # Invested Capital = Total Assets - Cash - Current Liabilities (simplified)
-            total_assets = balance[0].get('totalAssets', 0)
-            cash = balance[0].get('cashAndCashEquivalents', 0)
-            current_liabilities = balance[0].get('totalCurrentLiabilities', 0)
+                    if equity > 0:
+                        roe = (net_income / equity) * 100
+                        history.append(roe)
+                else:
+                    # Non-Financial: Calculate ROIC
+                    oi = income[i].get('operatingIncome', 0)
+                    tr = abs(income[i].get('incomeTaxExpense', 0)) / income[i].get('incomeBeforeTax', 1) if income[i].get('incomeBeforeTax', 0) > 0 else 0.21
+                    tr = min(max(tr, 0), 0.50)
+                    np = oi * (1 - tr)
 
-            invested_capital = total_assets - cash - current_liabilities
+                    ta = balance[i].get('totalAssets', 0)
+                    c = balance[i].get('cashAndCashEquivalents', 0)
+                    cl = balance[i].get('totalCurrentLiabilities', 0)
+                    ic = ta - c - cl
 
-            if invested_capital <= 0:
+                    if ic > 0:
+                        roic = (np / ic) * 100
+                        history.append(roic)
+
+            if not history:
                 return {}
 
-            roic = (nopat / invested_capital) * 100  # Convert to percentage
+            # Current year metric
+            current_metric = history[0]
 
-            # Calculate 3-year average ROIC for trend
-            roics = []
-            for i in range(min(3, len(income))):
-                if i >= len(balance):
-                    break
+            # 3-year average
+            avg_3y = sum(history[:3]) / len(history[:3]) if len(history) >= 3 else current_metric
 
-                oi = income[i].get('operatingIncome', 0)
-                tr = abs(income[i].get('incomeTaxExpense', 0)) / income[i].get('incomeBeforeTax', 1) if income[i].get('incomeBeforeTax', 0) > 0 else 0.21
-                tr = min(max(tr, 0), 0.50)
-                np = oi * (1 - tr)
-
-                ta = balance[i].get('totalAssets', 0)
-                c = balance[i].get('cashAndCashEquivalents', 0)
-                cl = balance[i].get('totalCurrentLiabilities', 0)
-                ic = ta - c - cl
-
-                if ic > 0:
-                    roics.append((np / ic) * 100)
-
-            avg_roic_3y = sum(roics) / len(roics) if roics else roic
+            # 5-year average
+            avg_5y = sum(history) / len(history) if history else current_metric
 
             # Determine trend
             trend = 'stable'
-            if len(roics) >= 2:
-                if roics[0] > roics[-1] * 1.05:
+            if len(history) >= 2:
+                if history[0] > history[-1] * 1.05:
                     trend = 'improving'
-                elif roics[0] < roics[-1] * 0.95:
+                elif history[0] < history[-1] * 0.95:
                     trend = 'deteriorating'
 
-            spread = roic - (wacc * 100)
+            # Spread vs WACC
+            spread = current_metric - (wacc * 100)
 
-            return {
-                'roic': round(roic, 1),
+            result = {
+                'metric_name': metric_name,
+                'current': round(current_metric, 1),
                 'wacc': round(wacc * 100, 1),
                 'spread': round(spread, 1),
-                'avg_roic_3y': round(avg_roic_3y, 1),
+                'avg_3y': round(avg_3y, 1),
+                'avg_5y': round(avg_5y, 1),
                 'trend': trend,
                 'value_creation': spread > 0,
-                'assessment': 'Creating value' if spread > 0 else 'Destroying value'
+                'assessment': 'Creating value' if spread > 0 else 'Destroying value',
+                'history_5y': [round(h, 1) for h in history],  # Full 5-year history
+                'years': len(history)
             }
 
+            # Add legacy keys for backward compatibility
+            if is_financial:
+                result['roe'] = result['current']
+            else:
+                result['roic'] = result['current']
+                result['avg_roic_3y'] = result['avg_3y']  # Legacy key
+
+            return result
+
         except Exception as e:
-            logger.warning(f"ROIC calculation failed for {symbol}: {e}")
+            logger.warning(f"{metric_name if 'metric_name' in locals() else 'ROIC/ROE'} calculation failed for {symbol}: {e}")
             return {}
 
     def _calculate_margins_and_trends(self, symbol: str, peers_df: Optional[Any] = None) -> Dict:
