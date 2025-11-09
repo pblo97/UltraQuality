@@ -1304,11 +1304,9 @@ class QualitativeAnalyzer:
 
             try:
                 profile = self.fmp.get_profile(symbol)
-                valuation['notes'].append(f"DEBUG: Profile response type: {type(profile)}, len: {len(profile) if profile else 0}")
 
                 if profile and len(profile) > 0:
                     prof_data = profile[0]
-                    valuation['notes'].append(f"DEBUG: Profile keys: {list(prof_data.keys())[:10]}")
 
                     # Try multiple possible price fields
                     current_price = (prof_data.get('price') or
@@ -1316,18 +1314,18 @@ class QualitativeAnalyzer:
                                    prof_data.get('regularMarketPrice') or
                                    0)
 
-                    valuation['notes'].append(f"DEBUG: Profile price={current_price}")
+                    logger.debug(f"Price for {symbol}: {current_price} from profile")
                 else:
-                    valuation['notes'].append("DEBUG: Profile returned empty or None")
+                    logger.warning(f"Profile returned empty for {symbol}")
             except Exception as e:
                 logger.error(f"Failed to get price from profile for {symbol}: {e}")
-                valuation['notes'].append(f"DEBUG: Profile price failed: {str(e)}")
+                valuation['notes'].append(f"Price retrieval error: {str(e)[:50]}")
 
             # Always set current_price (even if 0) so UI displays the section
             valuation['current_price'] = current_price if current_price and current_price > 0 else 0
 
             if not current_price or current_price <= 0:
-                valuation['notes'].append(f"WARNING: Current price unavailable - showing intrinsic values only")
+                valuation['notes'].append(f"⚠️ Current price unavailable - showing intrinsic values only (no upside/downside calculation)")
                 logger.warning(f"Could not get price for {symbol} - proceeding with intrinsic calculations")
                 valuation['confidence'] = 'Low'
 
@@ -1335,33 +1333,35 @@ class QualitativeAnalyzer:
             industry_wacc = industry_profile.get('wacc', 0.10)
 
             # 1. DCF Valuation (with industry-specific WACC)
-            valuation['notes'].append(f"DEBUG: Calling _calculate_dcf for {symbol}, type={company_type}, wacc={industry_wacc}")
+            logger.info(f"Calculating DCF for {symbol}, type={company_type}, wacc={industry_wacc}")
             try:
                 dcf_value = self._calculate_dcf(symbol, company_type, wacc_override=industry_wacc)
-                valuation['notes'].append(f"DEBUG: DCF returned: {dcf_value}")
                 if dcf_value and dcf_value > 0:
                     valuation['dcf_value'] = dcf_value
                     valuation['confidence'] = 'Med'
-                    valuation['notes'].append(f"✓ DCF Value: ${dcf_value:.2f}")
+                    valuation['notes'].append(f"✓ DCF: ${dcf_value:.2f} (WACC: {industry_wacc:.1%})")
+                    logger.info(f"✓ DCF for {symbol}: ${dcf_value:.2f}")
                 else:
-                    valuation['notes'].append(f"✗ DCF calculation returned {dcf_value}")
+                    valuation['notes'].append(f"✗ DCF calculation failed (returned {dcf_value}). Possible reasons: missing financials, negative FCF, or calculation error.")
+                    logger.warning(f"DCF for {symbol} returned None or zero")
             except Exception as e:
-                valuation['notes'].append(f"✗ DCF ERROR: {str(e)}")
+                valuation['notes'].append(f"✗ DCF ERROR: {str(e)[:100]}")
                 logger.error(f"DCF calculation error for {symbol}: {e}", exc_info=True)
 
             # 2. Forward Multiple Valuation
-            valuation['notes'].append(f"DEBUG: Calling _calculate_forward_multiple for {symbol}")
+            logger.info(f"Calculating Forward Multiple for {symbol}, type={company_type}")
             try:
                 forward_value = self._calculate_forward_multiple(symbol, company_type, peers_df)
-                valuation['notes'].append(f"DEBUG: Forward Multiple returned: {forward_value}")
                 if forward_value and forward_value > 0:
                     valuation['forward_multiple_value'] = forward_value
                     valuation['confidence'] = 'High' if valuation['confidence'] == 'Med' else 'Med'
                     valuation['notes'].append(f"✓ Forward Multiple: ${forward_value:.2f}")
+                    logger.info(f"✓ Forward Multiple for {symbol}: ${forward_value:.2f}")
                 else:
-                    valuation['notes'].append(f"✗ Forward Multiple returned {forward_value}")
+                    valuation['notes'].append(f"✗ Forward Multiple failed (returned {forward_value}). Possible reasons: missing EBIT/revenue data, negative values.")
+                    logger.warning(f"Forward Multiple for {symbol} returned None or zero")
             except Exception as e:
-                valuation['notes'].append(f"✗ Forward Multiple ERROR: {str(e)}")
+                valuation['notes'].append(f"✗ Forward Multiple ERROR: {str(e)[:100]}")
                 logger.error(f"Forward Multiple error for {symbol}: {e}", exc_info=True)
 
             # 3. Historical Multiple
@@ -1681,18 +1681,44 @@ class QualitativeAnalyzer:
             if company_type == 'non_financial':
                 # Use EV/EBIT (better for capital-intensive businesses)
 
-                ebit_ttm = income[0].get('ebitda', 0) - abs(income[0].get('depreciationAndAmortization', 0))
+                # Get EBIT: Try multiple approaches
+                # Approach 1: Calculate from EBITDA - D&A
+                ebitda = income[0].get('ebitda') or income[0].get('EBITDA')
+
+                # D&A might be in cash flow or income statement
+                da = None
+                if cashflow and len(cashflow) > 0:
+                    da = abs(cashflow[0].get('depreciationAndAmortization', 0))
+                if not da or da == 0:
+                    # Try income statement
+                    da = abs(income[0].get('depreciationAndAmortization', 0))
+
+                if ebitda and ebitda > 0 and da and da > 0:
+                    ebit_ttm = ebitda - da
+                else:
+                    # Approach 2: Use operatingIncome directly (this IS EBIT)
+                    ebit_ttm = income[0].get('operatingIncome') or income[0].get('ebit') or 0
+
+                logger.debug(f"Forward Multiple: {symbol} ebitda={ebitda}, da={da}, ebit_ttm={ebit_ttm}, operatingIncome={income[0].get('operatingIncome')}")
 
                 # Estimate forward EBIT (with growth)
                 if len(income) > 1:
-                    revenue_growth = (income[0].get('revenue', 0) - income[1].get('revenue', 1)) / income[1].get('revenue', 1)
-                    growth_rate = max(0, min(revenue_growth, 0.20))  # Cap at 20%
+                    revenue_current = income[0].get('revenue', 0)
+                    revenue_prev = income[1].get('revenue', 1)
+                    if revenue_prev and revenue_prev > 0:
+                        revenue_growth = (revenue_current - revenue_prev) / revenue_prev
+                        growth_rate = max(0, min(revenue_growth, 0.20))  # Cap at 20%
+                    else:
+                        growth_rate = 0.08
                 else:
                     growth_rate = 0.08
 
                 ebit_forward = ebit_ttm * (1 + growth_rate)
 
+                logger.debug(f"Forward Multiple: {symbol} ebit_forward={ebit_forward}")
+
                 if ebit_forward <= 0:
+                    logger.debug(f"Forward Multiple: {symbol} ebit_forward <= 0, returning None")
                     return None
 
                 # Get peer EV/EBIT
@@ -1860,9 +1886,25 @@ class QualitativeAnalyzer:
 
             if company_type == 'non_financial':
                 # Use current EBIT with historical average EV/EBIT (10-12x)
-                ebit_ttm = income[0].get('ebitda', 0) - abs(income[0].get('depreciationAndAmortization', 0))
+
+                # Get EBIT: Try multiple approaches (same logic as forward multiple)
+                ebitda = income[0].get('ebitda') or income[0].get('EBITDA')
+
+                # D&A might be in cash flow or income statement
+                da = None
+                if cashflow and len(cashflow) > 0:
+                    da = abs(cashflow[0].get('depreciationAndAmortization', 0))
+                if not da or da == 0:
+                    da = abs(income[0].get('depreciationAndAmortization', 0))
+
+                if ebitda and ebitda > 0 and da and da > 0:
+                    ebit_ttm = ebitda - da
+                else:
+                    # Use operatingIncome directly
+                    ebit_ttm = income[0].get('operatingIncome') or income[0].get('ebit') or 0
 
                 if ebit_ttm <= 0:
+                    logger.debug(f"Historical Multiple: {symbol} ebit_ttm <= 0, returning None")
                     return None
 
                 # Historical sector average EV/EBIT
