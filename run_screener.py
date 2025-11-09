@@ -1163,7 +1163,207 @@ with tab5:
                                         st.metric("5 Year", f"${data.get('5Y_target', 0):.2f}",
                                                  delta=data.get('5Y_cagr', 'N/A') + " CAGR")
 
-                                st.caption("**Note:** Projections combine revenue growth (70%) with mean reversion to fair value (30%). Not investment advice.")
+                                st.caption("**Note:** Projections based on fundamental growth. Not investment advice.")
+
+                        # ==========================
+                        # NEW ADVANCED METRICS
+                        # ==========================
+
+                        st.markdown("---")
+
+                        # 1. ROIC vs WACC (Capital Efficiency)
+                        capital_efficiency = intrinsic.get('capital_efficiency', {})
+                        if capital_efficiency:
+                            st.markdown("### ⚙️ Capital Efficiency (ROIC vs WACC)")
+
+                            col1, col2, col3 = st.columns(3)
+
+                            with col1:
+                                roic = capital_efficiency.get('roic', 0)
+                                st.metric("ROIC", f"{roic:.1f}%")
+                                st.caption(f"3Y Avg: {capital_efficiency.get('avg_roic_3y', 0):.1f}%")
+
+                            with col2:
+                                wacc = capital_efficiency.get('wacc', 0)
+                                st.metric("WACC", f"{wacc:.1f}%")
+
+                            with col3:
+                                spread = capital_efficiency.get('spread', 0)
+                                trend = capital_efficiency.get('trend', 'stable')
+
+                                # Color based on spread
+                                if spread > 0:
+                                    delta_color = "normal"
+                                    emoji = "✅"
+                                else:
+                                    delta_color = "inverse"
+                                    emoji = "⚠️"
+
+                                st.metric("Spread (ROIC - WACC)", f"{spread:+.1f}%", delta=trend)
+
+                            assessment = capital_efficiency.get('assessment', '')
+                            value_creation = capital_efficiency.get('value_creation', False)
+
+                            if value_creation:
+                                st.success(f"✅ {assessment} - ROIC exceeds WACC, indicating value creation")
+                            else:
+                                st.error(f"⚠️ {assessment} - ROIC below WACC, may be destroying value")
+
+                        # 2. Quality of Earnings
+                        earnings_quality = intrinsic.get('earnings_quality', {})
+                        if earnings_quality:
+                            st.markdown("### 🎯 Quality of Earnings")
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                cf_to_ni = earnings_quality.get('cash_flow_to_net_income', 0)
+                                st.metric("OCF / Net Income", f"{cf_to_ni:.2f}")
+                                st.caption(">1.0 is excellent")
+
+                            with col2:
+                                accruals = earnings_quality.get('accruals_ratio', 0)
+                                st.metric("Accruals Ratio", f"{accruals:.2f}%")
+                                st.caption("<5% is good")
+
+                            with col3:
+                                wc_trend = earnings_quality.get('working_capital_trend', 'unknown')
+                                st.metric("Working Capital", wc_trend.title())
+
+                            with col4:
+                                grade = earnings_quality.get('grade', 'C')
+                                assessment_eq = earnings_quality.get('assessment', '')
+
+                                # Color grade
+                                if grade in ['A', 'B']:
+                                    st.success(f"**Grade: {grade}**")
+                                elif grade == 'C':
+                                    st.warning(f"**Grade: {grade}**")
+                                else:
+                                    st.error(f"**Grade: {grade}**")
+
+                                st.caption(assessment_eq)
+
+                            # Show issues if any
+                            issues = earnings_quality.get('issues', [])
+                            if issues:
+                                with st.expander("⚠️ Quality Issues Detected"):
+                                    for issue in issues:
+                                        st.warning(f"• {issue}")
+
+                        # 3. Profitability Analysis (Margins and Trends)
+                        profitability = intrinsic.get('profitability_analysis', {})
+                        if profitability:
+                            st.markdown("### 📊 Profitability Margins & Trends")
+
+                            col1, col2, col3 = st.columns(3)
+
+                            with col1:
+                                gross = profitability.get('gross_margin', {})
+                                if gross:
+                                    st.metric("Gross Margin",
+                                             f"{gross.get('current', 0):.1f}%",
+                                             delta=f"{gross.get('current', 0) - gross.get('avg_3y', 0):.1f}% vs 3Y avg")
+                                    st.caption(gross.get('trend', '→ stable'))
+
+                            with col2:
+                                operating = profitability.get('operating_margin', {})
+                                if operating:
+                                    st.metric("Operating Margin",
+                                             f"{operating.get('current', 0):.1f}%",
+                                             delta=f"{operating.get('current', 0) - operating.get('avg_3y', 0):.1f}% vs 3Y avg")
+                                    st.caption(operating.get('trend', '→ stable'))
+
+                            with col3:
+                                fcf = profitability.get('fcf_margin', {})
+                                if fcf:
+                                    st.metric("FCF Margin",
+                                             f"{fcf.get('current', 0):.1f}%",
+                                             delta=f"{fcf.get('current', 0) - fcf.get('avg_3y', 0):.1f}% vs 3Y avg")
+                                    st.caption(fcf.get('trend', '→ stable'))
+
+                        # 4. Red Flags
+                        red_flags = intrinsic.get('red_flags', [])
+                        if red_flags:
+                            st.markdown("### 🚩 Red Flags Detected")
+                            for flag in red_flags:
+                                st.error(flag)
+                        else:
+                            # Only show "no red flags" if we actually ran the analysis
+                            if 'red_flags' in intrinsic:
+                                st.markdown("### ✅ No Red Flags Detected")
+                                st.success("All financial health checks passed")
+
+                        # 5. Reverse DCF (What the market is pricing in)
+                        reverse_dcf = intrinsic.get('reverse_dcf', {})
+                        if reverse_dcf:
+                            st.markdown("### 🔄 Reverse DCF: What Does the Price Imply?")
+
+                            col1, col2, col3 = st.columns(3)
+
+                            with col1:
+                                implied_growth = reverse_dcf.get('implied_growth_rate', 0)
+                                st.metric("Implied Growth Rate", f"{implied_growth:.1f}%")
+                                st.caption("What growth the current price implies")
+
+                            with col2:
+                                current_growth = reverse_dcf.get('current_growth_rate', 0)
+                                st.metric("Current Growth Rate", f"{current_growth:.1f}%")
+                                st.caption("Actual revenue growth")
+
+                            with col3:
+                                implied_multiple = reverse_dcf.get('implied_ev_ebit')
+                                if implied_multiple:
+                                    st.metric("Implied EV/EBIT", f"{implied_multiple:.1f}x")
+
+                            interpretation = reverse_dcf.get('interpretation', '')
+                            if "acceleration" in interpretation.lower():
+                                st.info(f"💭 {interpretation}")
+                            elif "above" in interpretation.lower():
+                                st.warning(f"⚠️ {interpretation}")
+                            elif "continuation" in interpretation.lower():
+                                st.success(f"✅ {interpretation}")
+                            else:
+                                st.error(f"📉 {interpretation}")
+
+                        # 6. DCF Sensitivity Analysis
+                        dcf_sensitivity = intrinsic.get('dcf_sensitivity', {})
+                        if dcf_sensitivity:
+                            st.markdown("### 📐 DCF Sensitivity Analysis")
+
+                            # Base assumptions
+                            base_assumptions = dcf_sensitivity.get('base_assumptions', {})
+                            st.caption(f"**Base Assumptions:** WACC={base_assumptions.get('wacc', 0):.1f}%, Terminal Growth={base_assumptions.get('terminal_growth', 0):.1f}%")
+
+                            col1, col2 = st.columns(2)
+
+                            with col1:
+                                st.markdown("**WACC Sensitivity**")
+                                wacc_sens = dcf_sensitivity.get('wacc_sensitivity', {})
+                                if wacc_sens:
+                                    for scenario, data in wacc_sens.items():
+                                        wacc_val = data.get('wacc', 0)
+                                        dcf_val = data.get('dcf_value', 0)
+                                        st.write(f"• **{scenario.title()}** ({wacc_val:.1f}%): ${dcf_val:.2f}")
+
+                            with col2:
+                                st.markdown("**Terminal Growth Sensitivity**")
+                                tg_sens = dcf_sensitivity.get('terminal_growth_sensitivity', {})
+                                if tg_sens:
+                                    for label, data in tg_sens.items():
+                                        tg_val = data.get('terminal_growth', 0)
+                                        dcf_val = data.get('dcf_value', 0)
+                                        st.write(f"• **{label}** Terminal Growth: ${dcf_val:.2f}")
+
+                            # Valuation range
+                            val_range = dcf_sensitivity.get('valuation_range', {})
+                            if val_range:
+                                min_val = val_range.get('min', 0)
+                                max_val = val_range.get('max', 0)
+                                spread = val_range.get('spread', 0)
+
+                                st.info(f"📊 **Valuation Range:** ${min_val:.2f} - ${max_val:.2f} (spread: ${spread:.2f})")
+                                st.caption("This range shows how sensitive the DCF value is to different assumptions")
 
                     else:
                         st.info("Valuation analysis not available. Run the analysis to see intrinsic value estimates.")
