@@ -1131,13 +1131,12 @@ with tab5:
                             st.caption("**Note:** Projections combine revenue growth (70%) with mean reversion to fair value (30%). Not investment advice.")
 
                 else:
-                    st.info("Valuation analysis not available")
-                    # Show debug notes even when valuation failed
-                    st.caption(f"🔍 DEBUG CODE VERSION: 9c3733b | Notes count: {len(intrinsic.get('notes', []))}")
+                    st.info("Valuation analysis not available. Run the analysis to see intrinsic value estimates.")
+                    # Show debug notes if available
                     if intrinsic.get('notes'):
-                        st.caption(f"Debug info: {', '.join(intrinsic.get('notes', []))}")
-                    else:
-                        st.caption("⚠️ DEBUG: No notes found in intrinsic value dict")
+                        with st.expander("🔍 Debug Information"):
+                            for note in intrinsic.get('notes', []):
+                                st.caption(f"• {note}")
 
                 st.markdown("---")
 
