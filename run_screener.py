@@ -1745,18 +1745,13 @@ with tab6:
                 # Import dependencies
                 from screener.orchestrator import ScreenerPipeline
                 from screener.qualitative import QualitativeAnalyzer
-
-                # Get config
                 import yaml
-                config_path = Path(__file__).parent / 'config' / 'screener_config.yaml'
-                with open(config_path, 'r') as f:
-                    config = yaml.safe_load(f)
 
-                # Initialize pipeline to get FMP client
-                pipeline = ScreenerPipeline(config)
+                # Initialize pipeline (this loads settings.yaml and sets up FMP client)
+                pipeline = ScreenerPipeline('settings.yaml')
 
                 # Initialize qualitative analyzer
-                qual_analyzer = QualitativeAnalyzer(pipeline.fmp, config)
+                qual_analyzer = QualitativeAnalyzer(pipeline.fmp, pipeline.config)
 
                 # Run full analysis (without needing screener results)
                 analysis = qual_analyzer.analyze(custom_ticker)
