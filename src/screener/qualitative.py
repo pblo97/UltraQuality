@@ -1316,6 +1316,22 @@ class QualitativeAnalyzer:
             'confidence': 'Low|Med|High'
         }
         """
+        # Initialize valuation dict FIRST (before we try to use it)
+        valuation = {
+            'current_price': None,
+            'dcf_value': None,
+            'forward_multiple_value': None,
+            'historical_multiple_value': None,
+            'weighted_value': None,
+            'upside_downside_%': None,
+            'valuation_assessment': 'Unknown',
+            'confidence': 'Low',
+            'industry_profile': 'unknown',
+            'primary_metric': 'EV/EBIT',
+            'price_projections': {},  # Scenarios with different growth rates
+            'notes': []
+        }
+
         # Auto-detect company type if unknown or invalid
         valid_types = ['non_financial', 'financial', 'reit', 'utility']
         original_type = company_type
@@ -1328,20 +1344,9 @@ class QualitativeAnalyzer:
         # Get industry-specific valuation profile
         industry_profile = self._get_industry_valuation_profile(symbol)
 
-        valuation = {
-            'current_price': None,
-            'dcf_value': None,
-            'forward_multiple_value': None,
-            'historical_multiple_value': None,
-            'weighted_value': None,
-            'upside_downside_%': None,
-            'valuation_assessment': 'Unknown',
-            'confidence': 'Low',
-            'industry_profile': industry_profile.get('profile', 'unknown'),
-            'primary_metric': industry_profile.get('primary_metric', 'EV/EBIT'),
-            'price_projections': {},  # Scenarios with different growth rates
-            'notes': []
-        }
+        # Update valuation dict with industry profile info
+        valuation['industry_profile'] = industry_profile.get('profile', 'unknown')
+        valuation['primary_metric'] = industry_profile.get('primary_metric', 'EV/EBIT')
 
         try:
             # Get current price from profile endpoint
