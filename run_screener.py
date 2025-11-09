@@ -1754,7 +1754,12 @@ with tab6:
                 qual_analyzer = QualitativeAnalyzer(pipeline.fmp, pipeline.config)
 
                 # Run full analysis (without needing screener results)
-                analysis = qual_analyzer.analyze(custom_ticker)
+                # company_type will be auto-detected if set to 'unknown'
+                analysis = qual_analyzer.analyze_symbol(
+                    custom_ticker,
+                    company_type='unknown',  # Auto-detect
+                    peers_df=None  # No peer comparison in custom analysis
+                )
 
                 if analysis and 'error' not in analysis:
                     st.session_state[f'custom_{custom_ticker}'] = analysis
