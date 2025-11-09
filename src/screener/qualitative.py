@@ -2188,10 +2188,16 @@ class QualitativeAnalyzer:
             for scenario_name, scenario_data in scenarios.items():
                 growth_rate = scenario_data['growth_rate']
 
-                # Simple projection: Current Price * (1 + growth_rate) ^ years
-                # Adjusted by valuation gap
+                # Price projections should be based on fundamental growth,
+                # NOT on convergence to fair value (that's a separate assessment)
+                #
+                # Simple approach: Price should grow with fundamentals (revenue/earnings)
+                # If company grows revenue at X%, price should eventually follow
 
-                # Calculate implied annual return to reach fair value
+                # For undervalued stocks, we can add a small boost for convergence
+                # For overvalued stocks, we DON'T penalize growth (market can stay irrational)
+
+                # Calculate fair value for reference
                 if dcf_value and dcf_value > 0:
                     fair_value = dcf_value
                 elif forward_value and forward_value > 0:
@@ -2199,13 +2205,16 @@ class QualitativeAnalyzer:
                 else:
                     fair_value = current_price  # No adjustment if no valuation
 
-                # Annual return to reach fair value in 3 years
-                years_to_fair = 3
-                fair_value_return = ((fair_value / current_price) ** (1 / years_to_fair)) - 1 if current_price > 0 else 0
+                # Only apply convergence boost if undervalued (not penalty if overvalued)
+                convergence_factor = 0
+                if fair_value > current_price:
+                    # Undervalued: Add small boost (10% weight on convergence)
+                    years_to_fair = 5  # Longer timeframe for convergence
+                    fair_value_return = ((fair_value / current_price) ** (1 / years_to_fair)) - 1 if current_price > 0 else 0
+                    convergence_factor = fair_value_return * 0.10  # Only 10% weight
 
-                # Combine growth rate with mean reversion to fair value
-                # Weight: 70% growth, 30% fair value convergence
-                blended_return = growth_rate * 0.7 + fair_value_return * 0.3
+                # Blended return: Primarily growth-based
+                blended_return = growth_rate + convergence_factor
 
                 # Calculate price targets
                 price_1y = current_price * (1 + blended_return)
