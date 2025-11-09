@@ -1335,33 +1335,29 @@ class QualitativeAnalyzer:
             # 1. DCF Valuation (with industry-specific WACC)
             logger.info(f"Calculating DCF for {symbol}, type={company_type}, wacc={industry_wacc}")
             try:
-                dcf_value = self._calculate_dcf(symbol, company_type, wacc_override=industry_wacc)
+                dcf_value = self._calculate_dcf(symbol, company_type, wacc_override=industry_wacc, notes_list=valuation['notes'])
                 if dcf_value and dcf_value > 0:
                     valuation['dcf_value'] = dcf_value
                     valuation['confidence'] = 'Med'
                     valuation['notes'].append(f"✓ DCF: ${dcf_value:.2f} (WACC: {industry_wacc:.1%})")
                     logger.info(f"✓ DCF for {symbol}: ${dcf_value:.2f}")
-                else:
-                    valuation['notes'].append(f"✗ DCF calculation failed (returned {dcf_value}). Possible reasons: missing financials, negative FCF, or calculation error.")
-                    logger.warning(f"DCF for {symbol} returned None or zero")
+                # Note: error messages already added by _calculate_dcf via notes_list
             except Exception as e:
-                valuation['notes'].append(f"✗ DCF ERROR: {str(e)[:100]}")
+                valuation['notes'].append(f"✗ DCF EXCEPTION: {str(e)[:100]}")
                 logger.error(f"DCF calculation error for {symbol}: {e}", exc_info=True)
 
             # 2. Forward Multiple Valuation
             logger.info(f"Calculating Forward Multiple for {symbol}, type={company_type}")
             try:
-                forward_value = self._calculate_forward_multiple(symbol, company_type, peers_df)
+                forward_value = self._calculate_forward_multiple(symbol, company_type, peers_df, notes_list=valuation['notes'])
                 if forward_value and forward_value > 0:
                     valuation['forward_multiple_value'] = forward_value
                     valuation['confidence'] = 'High' if valuation['confidence'] == 'Med' else 'Med'
                     valuation['notes'].append(f"✓ Forward Multiple: ${forward_value:.2f}")
                     logger.info(f"✓ Forward Multiple for {symbol}: ${forward_value:.2f}")
-                else:
-                    valuation['notes'].append(f"✗ Forward Multiple failed (returned {forward_value}). Possible reasons: missing EBIT/revenue data, negative values.")
-                    logger.warning(f"Forward Multiple for {symbol} returned None or zero")
+                # Note: error messages already added by _calculate_forward_multiple via notes_list
             except Exception as e:
-                valuation['notes'].append(f"✗ Forward Multiple ERROR: {str(e)[:100]}")
+                valuation['notes'].append(f"✗ Forward Multiple EXCEPTION: {str(e)[:100]}")
                 logger.error(f"Forward Multiple error for {symbol}: {e}", exc_info=True)
 
             # 3. Historical Multiple
@@ -1457,7 +1453,7 @@ class QualitativeAnalyzer:
 
         return valuation
 
-    def _calculate_dcf(self, symbol: str, company_type: str, wacc_override: Optional[float] = None) -> Optional[float]:
+    def _calculate_dcf(self, symbol: str, company_type: str, wacc_override: Optional[float] = None, notes_list: Optional[list] = None) -> Optional[float]:
         """
         Company-specific DCF valuation.
 
@@ -1471,18 +1467,25 @@ class QualitativeAnalyzer:
             symbol: Stock ticker
             company_type: 'non_financial', 'financial', or 'reit'
             wacc_override: Optional industry-specific WACC (from research)
+            notes_list: Optional list to append diagnostic notes to
         """
+        def add_note(msg):
+            if notes_list is not None:
+                notes_list.append(msg)
+
         try:
             # Get financials
-            logger.debug(f"DCF: Fetching financials for {symbol}")
+            logger.info(f"DCF: Fetching financials for {symbol}")
             income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
             balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
             cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=2)
 
-            logger.debug(f"DCF: Got income={bool(income)}, balance={bool(balance)}, cashflow={bool(cashflow)}")
+            logger.info(f"DCF: Got income={len(income) if income else 0} statements, balance={len(balance) if balance else 0}, cashflow={len(cashflow) if cashflow else 0}")
 
             if not (income and balance and cashflow):
-                logger.debug(f"DCF: Missing financials - returning None")
+                msg = f"DCF: Missing financials - income:{bool(income)}, balance:{bool(balance)}, cashflow:{bool(cashflow)}"
+                logger.warning(f"{symbol} {msg}")
+                add_note(f"✗ {msg}")
                 return None
 
             # Get shares outstanding (keep in actual count, not millions)
@@ -1492,13 +1495,20 @@ class QualitativeAnalyzer:
                      balance[0].get('commonStockSharesOutstanding') or
                      balance[0].get('weightedAverageShsOutDil'))
 
+            logger.info(f"DCF: {symbol} shares from balance sheet: {shares}")
+
             if not shares or shares <= 0:
                 # Last resort: get from profile
+                logger.info(f"DCF: {symbol} shares not in balance sheet, trying profile")
                 profile = self.fmp.get_profile(symbol)
                 if profile and len(profile) > 0:
                     shares = profile[0].get('sharesOutstanding', 0)
+                    logger.info(f"DCF: {symbol} shares from profile: {shares}")
 
             if not shares or shares <= 0:
+                msg = f"DCF: Could not get shares outstanding (got {shares})"
+                logger.warning(f"{symbol} {msg}")
+                add_note(f"✗ {msg}")
                 return None
 
             # === Type-specific base cash flow ===
@@ -1511,6 +1521,8 @@ class QualitativeAnalyzer:
                 capex = abs(cashflow[0].get('capitalExpenditure', 0))
                 revenue = income[0].get('revenue', 1)
                 revenue_prev = income[1].get('revenue', 1) if len(income) > 1 else revenue
+
+                logger.info(f"DCF: {symbol} OCF={ocf:,.0f}, capex={capex:,.0f}, revenue={revenue:,.0f}, revenue_prev={revenue_prev:,.0f}")
 
                 # Estimate maintenance capex (historical average or 2-3% of revenue)
                 # If revenue growing fast, assume more capex is growth
@@ -1525,6 +1537,8 @@ class QualitativeAnalyzer:
                 else:
                     # Mature: 90% maintenance
                     maintenance_capex = capex * 0.9
+
+                logger.info(f"DCF: {symbol} revenue_growth={revenue_growth:.2%}, maintenance_capex={maintenance_capex:,.0f} ({maintenance_capex/capex:.0%} of total)")
 
                 # Normalized FCF = OCF - Maintenance Capex only
                 base_cf = ocf - maintenance_capex
@@ -1562,10 +1576,12 @@ class QualitativeAnalyzer:
                 # Use earnings (net income)
                 base_cf = income[0].get('netIncome', 0)
 
-            logger.debug(f"DCF: Calculated base_cf={base_cf} for {company_type}")
+            logger.info(f"DCF: {symbol} calculated base_cf={base_cf:,.0f} for {company_type}")
 
             if base_cf <= 0:
-                logger.debug(f"DCF: base_cf <= 0, returning None")
+                msg = f"DCF: Base cash flow <= 0 (got {base_cf:,.0f}). Company may have negative FCF or losses."
+                logger.warning(f"{symbol} {msg}")
+                add_note(f"✗ {msg}")
                 return None
 
             # === Growth assumptions ===
@@ -1624,21 +1640,27 @@ class QualitativeAnalyzer:
             # Per share
             value_per_share = equity_value / shares
 
-            logger.debug(f"DCF: ev={ev:.0f}, net_debt={net_debt:.0f}, equity_value={equity_value:.0f}, shares={shares:.0f}, value_per_share={value_per_share:.2f}")
+            logger.info(f"DCF: {symbol} ev={ev:,.0f}, net_debt={net_debt:,.0f}, equity_value={equity_value:,.0f}, shares={shares:,.0f}, value_per_share=${value_per_share:.2f}")
 
             result = value_per_share if value_per_share > 0 else None
-            logger.debug(f"DCF: Final result for {symbol}: {result}")
+            if result:
+                logger.info(f"DCF: ✓ Final result for {symbol}: ${result:.2f}")
+            else:
+                logger.warning(f"DCF: ✗ Final result for {symbol} is None or negative (value_per_share={value_per_share})")
             return result
 
         except Exception as e:
-            logger.warning(f"DCF calculation failed for {symbol}: {e}", exc_info=True)
+            msg = f"DCF: Exception during calculation - {str(e)[:150]}"
+            logger.error(f"{symbol} {msg}", exc_info=True)
+            add_note(f"✗ {msg}")
             return None
 
     def _calculate_forward_multiple(
         self,
         symbol: str,
         company_type: str,
-        peers_df: Optional[Any]
+        peers_df: Optional[Any],
+        notes_list: Optional[list] = None
     ) -> Optional[float]:
         """
         Value using forward multiples vs peers.
@@ -1646,7 +1668,14 @@ class QualitativeAnalyzer:
         For non-financial: Prefer EV/EBIT (more robust than P/E)
         For financial: Use P/E
         For REIT: Use P/FFO
+
+        Args:
+            notes_list: Optional list to append diagnostic notes to
         """
+        def add_note(msg):
+            if notes_list is not None:
+                notes_list.append(msg)
+
         try:
             logger.debug(f"Forward Multiple: Fetching financials for {symbol}")
             income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
@@ -1656,7 +1685,9 @@ class QualitativeAnalyzer:
             logger.debug(f"Forward Multiple: Got income={bool(income)}, balance={bool(balance)}, cashflow={bool(cashflow)}")
 
             if not (income and balance):
-                logger.debug(f"Forward Multiple: Missing financials - returning None")
+                msg = f"Forward Multiple: Missing financials - income:{bool(income)}, balance:{bool(balance)}"
+                logger.warning(f"{symbol} {msg}")
+                add_note(f"✗ {msg}")
                 return None
 
             # Get shares outstanding (keep in actual count, not millions)
@@ -1671,6 +1702,9 @@ class QualitativeAnalyzer:
                     shares = profile[0].get('sharesOutstanding', 0)
 
             if not shares or shares <= 0:
+                msg = f"Forward Multiple: Could not get shares outstanding (got {shares})"
+                logger.warning(f"{symbol} {msg}")
+                add_note(f"✗ {msg}")
                 return None
 
             # === Get peer multiples ===
@@ -1718,7 +1752,9 @@ class QualitativeAnalyzer:
                 logger.debug(f"Forward Multiple: {symbol} ebit_forward={ebit_forward}")
 
                 if ebit_forward <= 0:
-                    logger.debug(f"Forward Multiple: {symbol} ebit_forward <= 0, returning None")
+                    msg = f"Forward Multiple: EBIT forward <= 0 (got {ebit_forward:,.0f}). Check EBITDA and D&A data."
+                    logger.warning(f"{symbol} {msg}")
+                    add_note(f"✗ {msg}")
                     return None
 
                 # Get peer EV/EBIT
@@ -1851,7 +1887,9 @@ class QualitativeAnalyzer:
                 return fair_value if fair_value > 0 else None
 
         except Exception as e:
-            logger.warning(f"Forward multiple calculation failed for {symbol}: {e}")
+            msg = f"Forward Multiple: Exception - {str(e)[:150]}"
+            logger.error(f"{symbol} {msg}", exc_info=True)
+            add_note(f"✗ {msg}")
             return None
 
     def _calculate_historical_multiple(self, symbol: str, company_type: str) -> Optional[float]:

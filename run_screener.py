@@ -1006,6 +1006,20 @@ with tab5:
                         else:
                             st.metric("Fair Value", "N/A")
 
+                    # Show debug notes if present (for troubleshooting)
+                    notes = intrinsic.get('notes', [])
+                    if notes:
+                        with st.expander("📋 Calculation Details & Debug Info"):
+                            for note in notes:
+                                if note.startswith('✓'):
+                                    st.success(note)
+                                elif note.startswith('✗') or 'ERROR' in note or 'failed' in note.lower():
+                                    st.error(note)
+                                elif note.startswith('⚠️') or 'WARNING' in note:
+                                    st.warning(note)
+                                else:
+                                    st.info(note)
+
                     # Upside/Downside
                     if intrinsic.get('upside_downside_%') is not None:
                         upside = intrinsic.get('upside_downside_%', 0)
@@ -1029,7 +1043,7 @@ with tab5:
 
                         st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
                         st.caption(f"**Industry Profile:** {industry_profile} | **Primary Metric:** {primary_metric}")
-                        st.caption(f"**Confidence:** {confidence} | {', '.join(intrinsic.get('notes', []))}")
+                        st.caption(f"**Confidence:** {confidence}")
 
                         # Explanation
                         with st.expander("📖 Research-Based Valuation Methodology"):
