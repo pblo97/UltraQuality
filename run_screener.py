@@ -864,6 +864,7 @@ with tab5:
                         if analysis and 'error' not in analysis:
                             st.session_state[f'qual_{selected_ticker}'] = analysis
                             st.success("✅ Analysis complete!")
+                            st.rerun()  # Rerun to show the new results
                         else:
                             st.error(f"❌ Analysis failed: {analysis.get('error', 'Unknown error')}")
 
@@ -883,334 +884,335 @@ with tab5:
                     st.warning(f"⚠️ Cached analysis for {selected_ticker} is from an older version with outdated diagnostics.")
                     # Clear the cache
                     del st.session_state[f'qual_{selected_ticker}']
-                    st.info("🔄 Cache cleared automatically. Click '🔍 Run Deep Analysis' button above to get updated results with:")
+                    st.info("🔄 Cache cleared. Please click the '🔍 Run Deep Analysis' button above again to get fresh results with improved diagnostics.")
                     st.markdown("""
-                    - ✅ Auto-detection of company type
-                    - ✅ Detailed error messages showing exact failure points
-                    - ✅ Values for data fields (OCF, EBIT, capex, etc.)
-                    - ✅ Color-coded diagnostic messages
+                    **New features you'll get:**
+                    - ✅ Auto-detection of company type (non_financial, financial, reit, utility)
+                    - ✅ Detailed error messages showing exact failure points and data values
+                    - ✅ Color-coded diagnostic messages (green=success, red=error, yellow=warning)
+                    - ✅ Specific troubleshooting info (e.g., "OCF=X, capex=Y, base_cf=Z")
                     """)
-                    # Stop rendering old analysis
-                    st.stop()
+                    # Don't show anything else - wait for user to click button again
+                elif f'qual_{selected_ticker}' in st.session_state:
+                    # Only show analysis if it's valid (no DEBUG messages)
+                    # Business Summary
+                    st.subheader("📝 Business Summary")
+                    st.write(analysis.get('business_summary', 'Not available'))
 
-                # Business Summary
-                st.subheader("📝 Business Summary")
-                st.write(analysis.get('business_summary', 'Not available'))
+                    st.markdown("---")
 
-                st.markdown("---")
-
-                # Moats
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.subheader("🏰 Competitive Moats")
-                    moats = analysis.get('moats', [])
-                    if moats:
-                        for moat in moats:
-                            st.markdown(f"- {moat}")
-                    else:
-                        st.info("No clear moats identified")
-
-                with col2:
-                    st.subheader("⚠️ Key Risks")
-                    risks = analysis.get('risks', [])
-                    if risks:
-                        for risk in risks:
-                            st.markdown(f"- {risk}")
-                    else:
-                        st.info("No major risks identified")
-
-                st.markdown("---")
-
-                # Insider Activity & Ownership
-                st.subheader("👔 Insider Activity & Ownership")
-                insider = analysis.get('insider_trading', {})
-
-                if insider:
-                    # Ownership metrics
-                    col1, col2, col3, col4 = st.columns(4)
+                    # Moats
+                    col1, col2 = st.columns(2)
 
                     with col1:
-                        insider_own = insider.get('insider_ownership_pct')
+                        st.subheader("🏰 Competitive Moats")
+                        moats = analysis.get('moats', [])
+                        if moats:
+                            for moat in moats:
+                                st.markdown(f"- {moat}")
+                        else:
+                            st.info("No clear moats identified")
+
+                    with col2:
+                        st.subheader("⚠️ Key Risks")
+                        risks = analysis.get('risks', [])
+                        if risks:
+                            for risk in risks:
+                                st.markdown(f"- {risk}")
+                        else:
+                            st.info("No major risks identified")
+
+                    st.markdown("---")
+
+                    # Insider Activity & Ownership
+                    st.subheader("👔 Insider Activity & Ownership")
+                    insider = analysis.get('insider_trading', {})
+
+                    if insider:
+                        # Ownership metrics
+                        col1, col2, col3, col4 = st.columns(4)
+
+                        with col1:
+                            insider_own = insider.get('insider_ownership_pct')
+                            if insider_own is not None:
+                                st.metric("Insider Ownership", f"{insider_own:.2f}%")
+                            else:
+                                st.metric("Insider Ownership", "N/A")
+
+                        with col2:
+                            inst_own = insider.get('institutional_ownership_pct')
+                            if inst_own is not None:
+                                st.metric("Institutional Own.", f"{inst_own:.1f}%")
+                            else:
+                                st.metric("Institutional Own.", "N/A")
+
+                        with col3:
+                            dilution = insider.get('net_share_issuance_12m_%')
+                            if dilution is not None:
+                                delta_color = "inverse" if dilution > 0 else "normal"
+                                st.metric("Share Change (12M)", f"{dilution:+.1f}%",
+                                         delta="Dilution" if dilution > 0 else "Buyback" if dilution < 0 else "Flat",
+                                         delta_color=delta_color)
+                            else:
+                                st.metric("Share Change (12M)", "N/A")
+
+                        with col4:
+                            assessment = insider.get('assessment', 'neutral')
+                            emoji_map = {'positive': '🟢', 'neutral': '🟡', 'negative': '🔴'}
+                            emoji = emoji_map.get(assessment, '🟡')
+                            st.metric("Assessment", f"{emoji} {assessment.title()}")
+
+                        # Additional context
                         if insider_own is not None:
-                            st.metric("Insider Ownership", f"{insider_own:.2f}%")
-                        else:
-                            st.metric("Insider Ownership", "N/A")
+                            if insider_own >= 15:
+                                st.success("✓ Strong insider ownership (≥15%) indicates good alignment with shareholders")
+                            elif insider_own >= 5:
+                                st.info("✓ Moderate insider ownership (5-15%)")
+                            elif insider_own < 1:
+                                st.warning("⚠️ Low insider ownership (<1%) - weak alignment signal")
 
-                    with col2:
-                        inst_own = insider.get('institutional_ownership_pct')
-                        if inst_own is not None:
-                            st.metric("Institutional Own.", f"{inst_own:.1f}%")
-                        else:
-                            st.metric("Institutional Own.", "N/A")
+                    else:
+                        st.info("Ownership data not available")
 
-                    with col3:
-                        dilution = insider.get('net_share_issuance_12m_%')
-                        if dilution is not None:
-                            delta_color = "inverse" if dilution > 0 else "normal"
-                            st.metric("Share Change (12M)", f"{dilution:+.1f}%",
-                                     delta="Dilution" if dilution > 0 else "Buyback" if dilution < 0 else "Flat",
-                                     delta_color=delta_color)
-                        else:
-                            st.metric("Share Change (12M)", "N/A")
+                    st.markdown("---")
 
-                    with col4:
-                        assessment = insider.get('assessment', 'neutral')
-                        emoji_map = {'positive': '🟢', 'neutral': '🟡', 'negative': '🔴'}
-                        emoji = emoji_map.get(assessment, '🟡')
-                        st.metric("Assessment", f"{emoji} {assessment.title()}")
+                    # Recent News
+                    st.subheader("📰 Recent News & Events")
+                    news = analysis.get('recent_news', [])
 
-                    # Additional context
-                    if insider_own is not None:
-                        if insider_own >= 15:
-                            st.success("✓ Strong insider ownership (≥15%) indicates good alignment with shareholders")
-                        elif insider_own >= 5:
-                            st.info("✓ Moderate insider ownership (5-15%)")
-                        elif insider_own < 1:
-                            st.warning("⚠️ Low insider ownership (<1%) - weak alignment signal")
+                    if news:
+                        for item in news[:5]:
+                            st.markdown(f"**{item.get('date', 'N/A')}**: {item.get('headline', 'No headline')}")
+                            st.caption(item.get('summary', '')[:200])
+                    else:
+                        st.info("No recent news available")
 
-                else:
-                    st.info("Ownership data not available")
+                    st.markdown("---")
 
-                st.markdown("---")
+                    # Intrinsic Value Estimation
+                    st.subheader("💰 Intrinsic Value Estimation")
+                    intrinsic = analysis.get('intrinsic_value', {})
 
-                # Recent News
-                st.subheader("📰 Recent News & Events")
-                news = analysis.get('recent_news', [])
+                    # Show section if we have intrinsic_value dict (even if current_price is missing)
+                    if intrinsic and 'current_price' in intrinsic:
+                        col1, col2, col3, col4 = st.columns(4)
 
-                if news:
-                    for item in news[:5]:
-                        st.markdown(f"**{item.get('date', 'N/A')}**: {item.get('headline', 'No headline')}")
-                        st.caption(item.get('summary', '')[:200])
-                else:
-                    st.info("No recent news available")
+                        current_price = intrinsic.get('current_price', 0)
 
-                st.markdown("---")
+                        with col1:
+                            if current_price and current_price > 0:
+                                st.metric("Current Price", f"${current_price:.2f}")
+                            else:
+                                st.metric("Current Price", "N/A")
+                                st.caption("⚠️ Price data unavailable")
 
-                # Intrinsic Value Estimation
-                st.subheader("💰 Intrinsic Value Estimation")
-                intrinsic = analysis.get('intrinsic_value', {})
+                        with col2:
+                            dcf_val = intrinsic.get('dcf_value')
+                            if dcf_val and dcf_val > 0:
+                                st.metric("DCF Value", f"${dcf_val:.2f}")
+                            else:
+                                st.metric("DCF Value", "N/A")
 
-                # Show section if we have intrinsic_value dict (even if current_price is missing)
-                if intrinsic and 'current_price' in intrinsic:
-                    col1, col2, col3, col4 = st.columns(4)
+                        with col3:
+                            fwd_val = intrinsic.get('forward_multiple_value')
+                            if fwd_val and fwd_val > 0:
+                                st.metric("Forward Multiple", f"${fwd_val:.2f}")
+                            else:
+                                st.metric("Forward Multiple", "N/A")
 
-                    current_price = intrinsic.get('current_price', 0)
+                        with col4:
+                            fair_val = intrinsic.get('weighted_value')
+                            if fair_val and fair_val > 0:
+                                st.metric("Fair Value", f"${fair_val:.2f}")
+                            else:
+                                st.metric("Fair Value", "N/A")
+
+                        # Show debug notes if present (for troubleshooting)
+                        notes = intrinsic.get('notes', [])
+                        if notes:
+                            with st.expander("📋 Calculation Details & Debug Info"):
+                                for note in notes:
+                                    if note.startswith('✓'):
+                                        st.success(note)
+                                    elif note.startswith('✗') or 'ERROR' in note or 'failed' in note.lower():
+                                        st.error(note)
+                                    elif note.startswith('⚠️') or 'WARNING' in note:
+                                        st.warning(note)
+                                    else:
+                                        st.info(note)
+
+                        # Upside/Downside
+                        if intrinsic.get('upside_downside_%') is not None:
+                            upside = intrinsic.get('upside_downside_%', 0)
+                            assessment = intrinsic.get('valuation_assessment', 'Unknown')
+                            confidence = intrinsic.get('confidence', 'Low')
+
+                            # Color based on assessment
+                            if assessment == 'Undervalued':
+                                color = 'green'
+                                emoji = '🟢'
+                            elif assessment == 'Overvalued':
+                                color = 'red'
+                                emoji = '🔴'
+                            else:
+                                color = 'orange'
+                                emoji = '🟡'
+
+                            # Display industry profile
+                            industry_profile = intrinsic.get('industry_profile', 'unknown').replace('_', ' ').title()
+                            primary_metric = intrinsic.get('primary_metric', 'EV/EBIT')
+
+                            st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
+                            st.caption(f"**Industry Profile:** {industry_profile} | **Primary Metric:** {primary_metric}")
+                            st.caption(f"**Confidence:** {confidence}")
+
+                            # Explanation
+                            with st.expander("📖 Research-Based Valuation Methodology"):
+                                st.markdown(f"""
+                                ### Industry-Specific Approach
+
+                                **Industry Profile:** {industry_profile}
+                                **Primary Metric:** {primary_metric}
+
+                                This valuation uses academic research (Damodaran, NYU Stern; Harbula 2009) to select
+                                optimal metrics by industry characteristics:
+
+                                **Valuation Framework:**
+
+                                1. **Capital-Intensive** (Oil/Gas, Utilities, Manufacturing):
+                                   - Primary: **EV/EBIT** (D&A reflects actual capex needs)
+                                   - Research: More stable than EBITDA for capex-heavy businesses
+                                   - Typical multiples: 8-12x EV/EBIT
+
+                                2. **Asset-Light / High-Growth** (Software, Biotech):
+                                   - Primary: **EV/Revenue** or **EV/EBITDA**
+                                   - Research: Damodaran 2025 - Software ~98x, Biotech ~62x
+                                   - Higher multiples reflect growth potential
+
+                                3. **Asset-Based** (Banks, REITs):
+                                   - Primary: **P/B** or **P/FFO**
+                                   - Research: Book value best for tangible assets
+                                   - Conservative multiples: 1.0-1.5x for banks
+
+                                4. **Mature/Stable** (Consumer Staples, Healthcare):
+                                   - Primary: **FCF Yield**
+                                   - Research: Predictable cash flows enable accurate DCF
+                                   - Higher DCF weighting (50%)
+
+                                5. **Cyclical** (Retail, Consumer Discretionary):
+                                   - Primary: **EV/EBITDA**
+                                   - Research: Use normalized earnings to avoid peak/trough
+                                   - Lower DCF weight (harder to project cycles)
+
+                                ---
+
+                                ### DCF Method
+                                - **Growth Capex Adjustment**: Only maintenance capex subtracted
+                                - High growth (>10% revenue): 50% capex = maintenance
+                                - Moderate (5-10%): 70% maintenance
+                                - Mature (<5%): 90% maintenance
+                                - **WACC**: Industry-adjusted based on risk profile
+                                - **Terminal Growth**: 3% perpetual
+
+                                ### Weighting
+                                - **Varies by industry** (not fixed 40/40/20)
+                                - High-growth: 30% DCF, 70% Multiples
+                                - Stable: 50% DCF, 50% Multiples
+                                - Default: 40% DCF, 60% Multiples
+
+                                **No P/E ratios used** - Focus on cash flow and operating metrics per best practices.
+                                """)
+
+                        # === PRICE PROJECTIONS ===
+                        projections = intrinsic.get('price_projections', {})
+                        if projections and 'scenarios' in projections:
+                            st.markdown("---")
+                            st.markdown("### 📈 Price Projections by Scenario")
+
+                            scenarios = projections.get('scenarios', {})
+
+                            if scenarios:
+                                # Display as table
+                                scenario_names = list(scenarios.keys())
+
+                                # Create columns for each scenario
+                                cols = st.columns(len(scenario_names))
+
+                                for i, (scenario_name, data) in enumerate(scenarios.items()):
+                                    with cols[i]:
+                                        # Emoji based on scenario
+                                        if 'Bear' in scenario_name:
+                                            emoji = '🐻'
+                                            color = '#ff6b6b'
+                                        elif 'Bull' in scenario_name:
+                                            emoji = '🐂'
+                                            color = '#51cf66'
+                                        else:
+                                            emoji = '📊'
+                                            color = '#ffd43b'
+
+                                        st.markdown(f"**{emoji} {scenario_name}**")
+                                        st.caption(data.get('description', ''))
+                                        st.caption(f"Growth: {data.get('growth_assumption', 'N/A')}")
+
+                                        st.markdown("**Price Targets:**")
+                                        st.metric("1 Year", f"${data.get('1Y_target', 0):.2f}",
+                                                 delta=data.get('1Y_return', 'N/A'))
+                                        st.metric("3 Year", f"${data.get('3Y_target', 0):.2f}",
+                                                 delta=data.get('3Y_cagr', 'N/A') + " CAGR")
+                                        st.metric("5 Year", f"${data.get('5Y_target', 0):.2f}",
+                                                 delta=data.get('5Y_cagr', 'N/A') + " CAGR")
+
+                                st.caption("**Note:** Projections combine revenue growth (70%) with mean reversion to fair value (30%). Not investment advice.")
+
+                    else:
+                        st.info("Valuation analysis not available. Run the analysis to see intrinsic value estimates.")
+                        # Show debug notes if available
+                        if intrinsic.get('notes'):
+                            with st.expander("🔍 Debug Information"):
+                                for note in intrinsic.get('notes', []):
+                                    st.caption(f"• {note}")
+
+                    st.markdown("---")
+
+                    # Fundamental Metrics Deep Dive
+                    st.subheader("📊 Fundamental Metrics")
+
+                    col1, col2, col3 = st.columns(3)
 
                     with col1:
-                        if current_price and current_price > 0:
-                            st.metric("Current Price", f"${current_price:.2f}")
+                        st.write("**Valuation**")
+                        if not stock_data.get('is_financial', False):
+                            st.metric("EV/EBIT", f"{stock_data.get('ev_ebit_ttm', 0):.2f}")
+                            st.metric("P/E", f"{stock_data.get('pe_ttm', 0):.2f}")
+                            st.metric("P/B", f"{stock_data.get('pb_ttm', 0):.2f}")
                         else:
-                            st.metric("Current Price", "N/A")
-                            st.caption("⚠️ Price data unavailable")
+                            st.metric("P/E", f"{stock_data.get('pe_ttm', 0):.2f}")
+                            st.metric("P/B", f"{stock_data.get('pb_ttm', 0):.2f}")
 
                     with col2:
-                        dcf_val = intrinsic.get('dcf_value')
-                        if dcf_val and dcf_val > 0:
-                            st.metric("DCF Value", f"${dcf_val:.2f}")
+                        st.write("**Quality**")
+                        if not stock_data.get('is_financial', False):
+                            st.metric("ROIC", f"{stock_data.get('roic_%', 0):.1f}%")
+                            st.metric("FCF Margin", f"{stock_data.get('fcf_margin_%', 0):.1f}%")
+                            st.metric("Gross Profits/Assets", f"{stock_data.get('grossProfits_to_assets', 0):.2f}")
                         else:
-                            st.metric("DCF Value", "N/A")
+                            st.metric("ROE", f"{stock_data.get('roe_%', 0):.1f}%")
+                            st.metric("ROA", f"{stock_data.get('roa_%', 0):.1f}%")
 
                     with col3:
-                        fwd_val = intrinsic.get('forward_multiple_value')
-                        if fwd_val and fwd_val > 0:
-                            st.metric("Forward Multiple", f"${fwd_val:.2f}")
-                        else:
-                            st.metric("Forward Multiple", "N/A")
-
-                    with col4:
-                        fair_val = intrinsic.get('weighted_value')
-                        if fair_val and fair_val > 0:
-                            st.metric("Fair Value", f"${fair_val:.2f}")
-                        else:
-                            st.metric("Fair Value", "N/A")
-
-                    # Show debug notes if present (for troubleshooting)
-                    notes = intrinsic.get('notes', [])
-                    if notes:
-                        with st.expander("📋 Calculation Details & Debug Info"):
-                            for note in notes:
-                                if note.startswith('✓'):
-                                    st.success(note)
-                                elif note.startswith('✗') or 'ERROR' in note or 'failed' in note.lower():
-                                    st.error(note)
-                                elif note.startswith('⚠️') or 'WARNING' in note:
-                                    st.warning(note)
-                                else:
-                                    st.info(note)
-
-                    # Upside/Downside
-                    if intrinsic.get('upside_downside_%') is not None:
-                        upside = intrinsic.get('upside_downside_%', 0)
-                        assessment = intrinsic.get('valuation_assessment', 'Unknown')
-                        confidence = intrinsic.get('confidence', 'Low')
-
-                        # Color based on assessment
-                        if assessment == 'Undervalued':
-                            color = 'green'
-                            emoji = '🟢'
-                        elif assessment == 'Overvalued':
-                            color = 'red'
-                            emoji = '🔴'
-                        else:
-                            color = 'orange'
-                            emoji = '🟡'
-
-                        # Display industry profile
-                        industry_profile = intrinsic.get('industry_profile', 'unknown').replace('_', ' ').title()
-                        primary_metric = intrinsic.get('primary_metric', 'EV/EBIT')
-
-                        st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
-                        st.caption(f"**Industry Profile:** {industry_profile} | **Primary Metric:** {primary_metric}")
-                        st.caption(f"**Confidence:** {confidence}")
-
-                        # Explanation
-                        with st.expander("📖 Research-Based Valuation Methodology"):
-                            st.markdown(f"""
-                            ### Industry-Specific Approach
-
-                            **Industry Profile:** {industry_profile}
-                            **Primary Metric:** {primary_metric}
-
-                            This valuation uses academic research (Damodaran, NYU Stern; Harbula 2009) to select
-                            optimal metrics by industry characteristics:
-
-                            **Valuation Framework:**
-
-                            1. **Capital-Intensive** (Oil/Gas, Utilities, Manufacturing):
-                               - Primary: **EV/EBIT** (D&A reflects actual capex needs)
-                               - Research: More stable than EBITDA for capex-heavy businesses
-                               - Typical multiples: 8-12x EV/EBIT
-
-                            2. **Asset-Light / High-Growth** (Software, Biotech):
-                               - Primary: **EV/Revenue** or **EV/EBITDA**
-                               - Research: Damodaran 2025 - Software ~98x, Biotech ~62x
-                               - Higher multiples reflect growth potential
-
-                            3. **Asset-Based** (Banks, REITs):
-                               - Primary: **P/B** or **P/FFO**
-                               - Research: Book value best for tangible assets
-                               - Conservative multiples: 1.0-1.5x for banks
-
-                            4. **Mature/Stable** (Consumer Staples, Healthcare):
-                               - Primary: **FCF Yield**
-                               - Research: Predictable cash flows enable accurate DCF
-                               - Higher DCF weighting (50%)
-
-                            5. **Cyclical** (Retail, Consumer Discretionary):
-                               - Primary: **EV/EBITDA**
-                               - Research: Use normalized earnings to avoid peak/trough
-                               - Lower DCF weight (harder to project cycles)
-
-                            ---
-
-                            ### DCF Method
-                            - **Growth Capex Adjustment**: Only maintenance capex subtracted
-                            - High growth (>10% revenue): 50% capex = maintenance
-                            - Moderate (5-10%): 70% maintenance
-                            - Mature (<5%): 90% maintenance
-                            - **WACC**: Industry-adjusted based on risk profile
-                            - **Terminal Growth**: 3% perpetual
-
-                            ### Weighting
-                            - **Varies by industry** (not fixed 40/40/20)
-                            - High-growth: 30% DCF, 70% Multiples
-                            - Stable: 50% DCF, 50% Multiples
-                            - Default: 40% DCF, 60% Multiples
-
-                            **No P/E ratios used** - Focus on cash flow and operating metrics per best practices.
-                            """)
-
-                    # === PRICE PROJECTIONS ===
-                    projections = intrinsic.get('price_projections', {})
-                    if projections and 'scenarios' in projections:
-                        st.markdown("---")
-                        st.markdown("### 📈 Price Projections by Scenario")
-
-                        scenarios = projections.get('scenarios', {})
-
-                        if scenarios:
-                            # Display as table
-                            scenario_names = list(scenarios.keys())
-
-                            # Create columns for each scenario
-                            cols = st.columns(len(scenario_names))
-
-                            for i, (scenario_name, data) in enumerate(scenarios.items()):
-                                with cols[i]:
-                                    # Emoji based on scenario
-                                    if 'Bear' in scenario_name:
-                                        emoji = '🐻'
-                                        color = '#ff6b6b'
-                                    elif 'Bull' in scenario_name:
-                                        emoji = '🐂'
-                                        color = '#51cf66'
-                                    else:
-                                        emoji = '📊'
-                                        color = '#ffd43b'
-
-                                    st.markdown(f"**{emoji} {scenario_name}**")
-                                    st.caption(data.get('description', ''))
-                                    st.caption(f"Growth: {data.get('growth_assumption', 'N/A')}")
-
-                                    st.markdown("**Price Targets:**")
-                                    st.metric("1 Year", f"${data.get('1Y_target', 0):.2f}",
-                                             delta=data.get('1Y_return', 'N/A'))
-                                    st.metric("3 Year", f"${data.get('3Y_target', 0):.2f}",
-                                             delta=data.get('3Y_cagr', 'N/A') + " CAGR")
-                                    st.metric("5 Year", f"${data.get('5Y_target', 0):.2f}",
-                                             delta=data.get('5Y_cagr', 'N/A') + " CAGR")
-
-                            st.caption("**Note:** Projections combine revenue growth (70%) with mean reversion to fair value (30%). Not investment advice.")
+                        st.write("**Guardrails**")
+                        st.metric("Status", stock_data.get('guardrail_status', 'N/A'))
+                        if 'altman_z' in stock_data:
+                            st.metric("Altman Z-Score", f"{stock_data.get('altman_z', 0):.2f}")
+                        if 'beneish_m' in stock_data:
+                            st.metric("Beneish M-Score", f"{stock_data.get('beneish_m', 0):.2f}")
 
                 else:
-                    st.info("Valuation analysis not available. Run the analysis to see intrinsic value estimates.")
-                    # Show debug notes if available
-                    if intrinsic.get('notes'):
-                        with st.expander("🔍 Debug Information"):
-                            for note in intrinsic.get('notes', []):
-                                st.caption(f"• {note}")
+                    st.info(f"👆 Click the button above to run qualitative analysis for {selected_ticker}")
 
-                st.markdown("---")
-
-                # Fundamental Metrics Deep Dive
-                st.subheader("📊 Fundamental Metrics")
-
-                col1, col2, col3 = st.columns(3)
-
-                with col1:
-                    st.write("**Valuation**")
-                    if not stock_data.get('is_financial', False):
-                        st.metric("EV/EBIT", f"{stock_data.get('ev_ebit_ttm', 0):.2f}")
-                        st.metric("P/E", f"{stock_data.get('pe_ttm', 0):.2f}")
-                        st.metric("P/B", f"{stock_data.get('pb_ttm', 0):.2f}")
-                    else:
-                        st.metric("P/E", f"{stock_data.get('pe_ttm', 0):.2f}")
-                        st.metric("P/B", f"{stock_data.get('pb_ttm', 0):.2f}")
-
-                with col2:
-                    st.write("**Quality**")
-                    if not stock_data.get('is_financial', False):
-                        st.metric("ROIC", f"{stock_data.get('roic_%', 0):.1f}%")
-                        st.metric("FCF Margin", f"{stock_data.get('fcf_margin_%', 0):.1f}%")
-                        st.metric("Gross Profits/Assets", f"{stock_data.get('grossProfits_to_assets', 0):.2f}")
-                    else:
-                        st.metric("ROE", f"{stock_data.get('roe_%', 0):.1f}%")
-                        st.metric("ROA", f"{stock_data.get('roa_%', 0):.1f}%")
-
-                with col3:
-                    st.write("**Guardrails**")
-                    st.metric("Status", stock_data.get('guardrail_status', 'N/A'))
-                    if 'altman_z' in stock_data:
-                        st.metric("Altman Z-Score", f"{stock_data.get('altman_z', 0):.2f}")
-                    if 'beneish_m' in stock_data:
-                        st.metric("Beneish M-Score", f"{stock_data.get('beneish_m', 0):.2f}")
-
-            else:
-                st.info(f"👆 Click the button above to run qualitative analysis for {selected_ticker}")
-
-    else:
-        st.info("👈 Run the screener first to access qualitative analysis")
+        else:
+            st.info("👈 Run the screener first to access qualitative analysis")
 
 with tab6:
     st.header("About UltraQuality Screener")
