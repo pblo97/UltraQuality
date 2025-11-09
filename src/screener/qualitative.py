@@ -1256,6 +1256,42 @@ class QualitativeAnalyzer:
             'multiple_weight': 0.60
         }
 
+    def _detect_company_type(self, symbol: str) -> str:
+        """
+        Automatically detect company type from profile data.
+
+        Returns: 'non_financial', 'financial', 'reit', or 'utility'
+        """
+        try:
+            profile = self.fmp.get_profile(symbol)
+            if not profile or len(profile) == 0:
+                return 'non_financial'  # Default
+
+            sector = (profile[0].get('sector', '')).lower()
+            industry = (profile[0].get('industry', '')).lower()
+
+            # REITs
+            if 'reit' in industry or 'real estate investment trust' in industry:
+                return 'reit'
+
+            # Financials (banks, insurance, asset managers)
+            if sector == 'financial services' or sector == 'financial':
+                return 'financial'
+
+            if any(kw in industry for kw in ['bank', 'insurance', 'asset management', 'capital markets']):
+                return 'financial'
+
+            # Utilities
+            if sector == 'utilities' or 'utility' in industry or 'utilities' in industry:
+                return 'utility'
+
+            # Default to non_financial
+            return 'non_financial'
+
+        except Exception as e:
+            logger.warning(f"Failed to detect company type for {symbol}: {e}")
+            return 'non_financial'
+
     def _estimate_intrinsic_value(
         self,
         symbol: str,
@@ -1280,6 +1316,15 @@ class QualitativeAnalyzer:
             'confidence': 'Low|Med|High'
         }
         """
+        # Auto-detect company type if unknown or invalid
+        valid_types = ['non_financial', 'financial', 'reit', 'utility']
+        original_type = company_type
+        if company_type not in valid_types:
+            logger.info(f"Company type '{company_type}' not recognized for {symbol}, auto-detecting...")
+            company_type = self._detect_company_type(symbol)
+            logger.info(f"Auto-detected company type for {symbol}: {company_type}")
+            valuation['notes'].append(f"ℹ️ Auto-detected type: {company_type} (original: {original_type})")
+
         # Get industry-specific valuation profile
         industry_profile = self._get_industry_valuation_profile(symbol)
 
@@ -1364,9 +1409,9 @@ class QualitativeAnalyzer:
             historical_value = self._calculate_historical_multiple(symbol, company_type)
             if historical_value and historical_value > 0:
                 valuation['historical_multiple_value'] = historical_value
-                valuation['notes'].append(f"DEBUG: Historical=${historical_value:.2f}")
+                valuation['notes'].append(f"✓ Historical Multiple: ${historical_value:.2f}")
             else:
-                valuation['notes'].append(f"DEBUG: Historical calculation returned None or <=0")
+                logger.debug(f"Historical multiple for {symbol} returned None or zero")
 
             # Weighted average using INDUSTRY-SPECIFIC WEIGHTS
             estimates = []
@@ -1572,9 +1617,21 @@ class QualitativeAnalyzer:
 
                 base_cf = ocf - maintenance_capex
 
-            else:  # Financial
-                # Use earnings (net income)
-                base_cf = income[0].get('netIncome', 0)
+            else:  # Financial or unknown (treat unknown as non_financial)
+                if company_type in ['financial', 'bank', 'insurance']:
+                    # Use earnings (net income) for financials
+                    base_cf = income[0].get('netIncome', 0)
+                else:
+                    # Unknown type: treat as non_financial (use FCF approach)
+                    logger.warning(f"Unknown company_type '{company_type}' for {symbol}, treating as non_financial")
+                    add_note(f"⚠️ Company type '{company_type}' unknown, using non-financial FCF approach")
+
+                    ocf = cashflow[0].get('operatingCashFlow', 0)
+                    capex = abs(cashflow[0].get('capitalExpenditure', 0))
+
+                    # Use 70% maintenance capex as default
+                    maintenance_capex = capex * 0.7
+                    base_cf = ocf - maintenance_capex
 
             logger.info(f"DCF: {symbol} calculated base_cf={base_cf:,.0f} for {company_type}")
 
