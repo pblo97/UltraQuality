@@ -13,12 +13,272 @@ import sys
 from pathlib import Path
 import pandas as pd
 from datetime import datetime
+from io import BytesIO
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 # NOTE: We import ScreenerPipeline lazily inside the button click
 # to avoid blocking the UI load with heavy imports
+
+# ===================================
+# Excel Export Helper Functions
+# ===================================
+
+def create_screener_excel(df: pd.DataFrame, timestamp: datetime) -> bytes:
+    """
+    Create Excel file with screener results.
+
+    Args:
+        df: Screener results dataframe
+        timestamp: Timestamp for metadata
+
+    Returns:
+        Excel file as bytes
+    """
+    output = BytesIO()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Main results sheet
+        df.to_excel(writer, sheet_name='Screener Results', index=False)
+
+        # Get the workbook and worksheet
+        workbook = writer.book
+        worksheet = writer.sheets['Screener Results']
+
+        # Auto-adjust column widths
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+
+        # Add summary sheet
+        summary_data = {
+            'Metric': [
+                'Total Stocks Screened',
+                'BUY Recommendations',
+                'MONITOR Recommendations',
+                'AVOID Recommendations',
+                'VERDE Guardrails',
+                'AMBAR Guardrails',
+                'ROJO Guardrails',
+                'Average Quality Score',
+                'Average Value Score',
+                'Average Composite Score',
+                'Report Generated'
+            ],
+            'Value': [
+                len(df),
+                len(df[df['decision'] == 'BUY']) if 'decision' in df.columns else 0,
+                len(df[df['decision'] == 'MONITOR']) if 'decision' in df.columns else 0,
+                len(df[df['decision'] == 'AVOID']) if 'decision' in df.columns else 0,
+                len(df[df['guardrail_status'] == 'VERDE']) if 'guardrail_status' in df.columns else 0,
+                len(df[df['guardrail_status'] == 'AMBAR']) if 'guardrail_status' in df.columns else 0,
+                len(df[df['guardrail_status'] == 'ROJO']) if 'guardrail_status' in df.columns else 0,
+                f"{df['quality_score_0_100'].mean():.1f}" if 'quality_score_0_100' in df.columns else 'N/A',
+                f"{df['value_score_0_100'].mean():.1f}" if 'value_score_0_100' in df.columns else 'N/A',
+                f"{df['composite_0_100'].mean():.1f}" if 'composite_0_100' in df.columns else 'N/A',
+                timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            ]
+        }
+
+        summary_df = pd.DataFrame(summary_data)
+        summary_df.to_excel(writer, sheet_name='Summary', index=False)
+
+        # Auto-adjust summary sheet
+        summary_sheet = writer.sheets['Summary']
+        summary_sheet.column_dimensions['A'].width = 30
+        summary_sheet.column_dimensions['B'].width = 20
+
+    output.seek(0)
+    return output.getvalue()
+
+
+def create_qualitative_excel(analysis: dict, ticker: str, timestamp: datetime) -> bytes:
+    """
+    Create Excel file with detailed qualitative analysis.
+
+    Args:
+        analysis: Qualitative analysis dictionary
+        ticker: Stock ticker
+        timestamp: Timestamp for metadata
+
+    Returns:
+        Excel file as bytes
+    """
+    output = BytesIO()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Sheet 1: Overview
+        intrinsic = analysis.get('intrinsic_value', {})
+        overview_data = {
+            'Metric': ['Ticker', 'Analysis Date', 'Current Price', 'DCF Value', 'Forward Multiple', 'Fair Value',
+                      'Upside/Downside %', 'Assessment', 'Confidence', 'Industry Profile', 'Primary Metric'],
+            'Value': [
+                ticker,
+                timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                f"${intrinsic.get('current_price', 0):.2f}",
+                f"${intrinsic.get('dcf_value', 0):.2f}" if intrinsic.get('dcf_value') else 'N/A',
+                f"${intrinsic.get('forward_multiple_value', 0):.2f}" if intrinsic.get('forward_multiple_value') else 'N/A',
+                f"${intrinsic.get('weighted_value', 0):.2f}" if intrinsic.get('weighted_value') else 'N/A',
+                f"{intrinsic.get('upside_downside_%', 0):+.1f}%" if intrinsic.get('upside_downside_%') is not None else 'N/A',
+                intrinsic.get('valuation_assessment', 'Unknown'),
+                intrinsic.get('confidence', 'Low'),
+                intrinsic.get('industry_profile', 'unknown').replace('_', ' ').title(),
+                intrinsic.get('primary_metric', 'N/A')
+            ]
+        }
+        pd.DataFrame(overview_data).to_excel(writer, sheet_name='Overview', index=False)
+
+        # Sheet 2: Capital Efficiency
+        capital_eff = intrinsic.get('capital_efficiency', {})
+        if capital_eff:
+            cap_data = {
+                'Metric': ['ROIC', 'WACC', 'Spread (ROIC - WACC)', '3Y Average ROIC', 'Trend', 'Assessment'],
+                'Value': [
+                    f"{capital_eff.get('roic', 0):.1f}%",
+                    f"{capital_eff.get('wacc', 0):.1f}%",
+                    f"{capital_eff.get('spread', 0):+.1f}%",
+                    f"{capital_eff.get('avg_roic_3y', 0):.1f}%",
+                    capital_eff.get('trend', 'N/A'),
+                    capital_eff.get('assessment', 'N/A')
+                ]
+            }
+            pd.DataFrame(cap_data).to_excel(writer, sheet_name='Capital Efficiency', index=False)
+
+        # Sheet 3: Quality of Earnings
+        earnings_qual = intrinsic.get('earnings_quality', {})
+        if earnings_qual:
+            eq_data = {
+                'Metric': ['OCF / Net Income', 'Accruals Ratio', 'Working Capital Trend', 'Grade', 'Assessment'],
+                'Value': [
+                    f"{earnings_qual.get('cash_flow_to_net_income', 0):.2f}",
+                    f"{earnings_qual.get('accruals_ratio', 0):.2f}%",
+                    earnings_qual.get('working_capital_trend', 'N/A'),
+                    earnings_qual.get('grade', 'N/A'),
+                    earnings_qual.get('assessment', 'N/A')
+                ]
+            }
+            eq_df = pd.DataFrame(eq_data)
+            eq_df.to_excel(writer, sheet_name='Earnings Quality', index=False)
+
+            # Add issues if any
+            issues = earnings_qual.get('issues', [])
+            if issues:
+                issues_df = pd.DataFrame({'Issues Detected': issues})
+                issues_df.to_excel(writer, sheet_name='Quality Issues', index=False)
+
+        # Sheet 4: Profitability Margins
+        profitability = intrinsic.get('profitability_analysis', {})
+        if profitability:
+            margins_data = []
+            for margin_type in ['gross_margin', 'operating_margin', 'fcf_margin']:
+                margin = profitability.get(margin_type, {})
+                if margin:
+                    margins_data.append({
+                        'Margin Type': margin_type.replace('_', ' ').title(),
+                        'Current': f"{margin.get('current', 0):.1f}%",
+                        '3Y Average': f"{margin.get('avg_3y', 0):.1f}%",
+                        'Trend': margin.get('trend', 'N/A')
+                    })
+            if margins_data:
+                pd.DataFrame(margins_data).to_excel(writer, sheet_name='Profitability Margins', index=False)
+
+        # Sheet 5: Red Flags
+        red_flags = intrinsic.get('red_flags', [])
+        if red_flags:
+            flags_df = pd.DataFrame({'Red Flags': red_flags})
+            flags_df.to_excel(writer, sheet_name='Red Flags', index=False)
+        else:
+            # Show that no red flags were detected
+            flags_df = pd.DataFrame({'Red Flags': ['✅ No red flags detected']})
+            flags_df.to_excel(writer, sheet_name='Red Flags', index=False)
+
+        # Sheet 6: Reverse DCF
+        reverse_dcf = intrinsic.get('reverse_dcf', {})
+        if reverse_dcf:
+            rdcf_data = {
+                'Metric': ['Implied Growth Rate', 'Current Growth Rate', 'Implied EV/EBIT', 'Interpretation'],
+                'Value': [
+                    f"{reverse_dcf.get('implied_growth_rate', 0):.1f}%",
+                    f"{reverse_dcf.get('current_growth_rate', 0):.1f}%",
+                    f"{reverse_dcf.get('implied_ev_ebit', 0):.1f}x" if reverse_dcf.get('implied_ev_ebit') else 'N/A',
+                    reverse_dcf.get('interpretation', 'N/A')
+                ]
+            }
+            pd.DataFrame(rdcf_data).to_excel(writer, sheet_name='Reverse DCF', index=False)
+
+        # Sheet 7: Price Projections
+        projections = intrinsic.get('price_projections', {})
+        scenarios = projections.get('scenarios', {})
+        if scenarios:
+            proj_data = []
+            for scenario_name, data in scenarios.items():
+                proj_data.append({
+                    'Scenario': scenario_name,
+                    'Growth Assumption': data.get('growth_assumption', 'N/A'),
+                    'Description': data.get('description', 'N/A'),
+                    '1Y Target': f"${data.get('1Y_target', 0):.2f}",
+                    '1Y Return': data.get('1Y_return', 'N/A'),
+                    '3Y Target': f"${data.get('3Y_target', 0):.2f}",
+                    '3Y CAGR': data.get('3Y_cagr', 'N/A'),
+                    '5Y Target': f"${data.get('5Y_target', 0):.2f}",
+                    '5Y CAGR': data.get('5Y_cagr', 'N/A')
+                })
+            pd.DataFrame(proj_data).to_excel(writer, sheet_name='Price Projections', index=False)
+
+        # Sheet 8: DCF Sensitivity
+        dcf_sens = intrinsic.get('dcf_sensitivity', {})
+        if dcf_sens:
+            # WACC Sensitivity
+            wacc_sens = dcf_sens.get('wacc_sensitivity', {})
+            if wacc_sens:
+                wacc_data = []
+                for scenario, data in wacc_sens.items():
+                    wacc_data.append({
+                        'Scenario': scenario.title(),
+                        'WACC': f"{data.get('wacc', 0):.1f}%",
+                        'DCF Value': f"${data.get('dcf_value', 0):.2f}"
+                    })
+                wacc_df = pd.DataFrame(wacc_data)
+                wacc_df.to_excel(writer, sheet_name='WACC Sensitivity', index=False)
+
+            # Terminal Growth Sensitivity
+            tg_sens = dcf_sens.get('terminal_growth_sensitivity', {})
+            if tg_sens:
+                tg_data = []
+                for label, data in tg_sens.items():
+                    tg_data.append({
+                        'Terminal Growth': label,
+                        'DCF Value': f"${data.get('dcf_value', 0):.2f}"
+                    })
+                tg_df = pd.DataFrame(tg_data)
+                tg_df.to_excel(writer, sheet_name='Terminal Growth Sensitivity', index=False)
+
+        # Auto-adjust all sheets
+        for sheet_name in writer.sheets:
+            worksheet = writer.sheets[sheet_name]
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+
+    output.seek(0)
+    return output.getvalue()
 
 def recalculate_scores(df, weight_quality, weight_value, threshold_buy, threshold_monitor,
                        threshold_quality_exceptional, exclude_reds):
@@ -447,14 +707,33 @@ with tab2:
                 else:
                     st.warning(f"No results found for: {', '.join(tickers)}")
 
-        # Download button
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Download Full Results (CSV)",
-            data=csv,
-            file_name=f"screener_results_{timestamp.strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv"
-        )
+        # Download buttons
+        st.markdown("### 📥 Download Results")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📄 Download CSV",
+                data=csv,
+                file_name=f"screener_results_{timestamp.strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+
+        with col2:
+            try:
+                excel_data = create_screener_excel(df, timestamp)
+                st.download_button(
+                    label="📊 Download Excel (with Summary)",
+                    data=excel_data,
+                    file_name=f"screener_results_{timestamp.strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            except Exception as e:
+                st.error(f"Excel export failed: {e}")
+                st.caption("Try CSV download instead")
 
     else:
         st.info("👈 Run the screener first to see results here")
@@ -1407,6 +1686,25 @@ with tab5:
                             st.metric("Altman Z-Score", f"{stock_data.get('altman_z', 0):.2f}")
                         if 'beneish_m' in stock_data:
                             st.metric("Beneish M-Score", f"{stock_data.get('beneish_m', 0):.2f}")
+
+                    # Export to Excel button
+                    st.markdown("---")
+                    st.markdown("### 📥 Export Analysis")
+
+                    try:
+                        excel_data = create_qualitative_excel(analysis, selected_ticker, datetime.now())
+                        st.download_button(
+                            label="📊 Download Full Analysis (Excel)",
+                            data=excel_data,
+                            file_name=f"{selected_ticker}_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            help="Download comprehensive analysis with all metrics in multiple Excel sheets"
+                        )
+                        st.caption("📋 Includes: Overview, Capital Efficiency, Earnings Quality, Margins, Red Flags, Reverse DCF, Price Projections, and DCF Sensitivity")
+                    except Exception as e:
+                        st.error(f"Excel export failed: {e}")
+                        st.caption("Please report this issue if it persists")
 
                 else:
                     st.info(f"👆 Click the button above to run qualitative analysis for {selected_ticker}")
