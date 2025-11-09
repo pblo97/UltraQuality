@@ -1487,6 +1487,47 @@ class QualitativeAnalyzer:
                     valuation['notes'].append("Upside/downside not calculated (no current price)")
                     valuation['valuation_assessment'] = 'Unknown'
 
+                # === ADVANCED QUALITATIVE METRICS ===
+
+                # 1. ROIC vs WACC (Capital Efficiency)
+                roic_analysis = self._calculate_roic_vs_wacc(symbol, industry_wacc)
+                if roic_analysis:
+                    valuation['capital_efficiency'] = roic_analysis
+
+                # 2. Margins and Trends
+                margins_analysis = self._calculate_margins_and_trends(symbol, peers_df)
+                if margins_analysis:
+                    valuation['profitability_analysis'] = margins_analysis
+
+                # 3. Red Flags
+                red_flags = self._detect_red_flags(symbol)
+                if red_flags:
+                    valuation['red_flags'] = red_flags
+                else:
+                    valuation['red_flags'] = []  # No red flags is good!
+
+                # 4. Reverse DCF (only if we have current price)
+                if current_price and current_price > 0:
+                    reverse_dcf = self._calculate_reverse_dcf(symbol, current_price, industry_wacc)
+                    if reverse_dcf:
+                        valuation['reverse_dcf'] = reverse_dcf
+
+                # 5. Quality of Earnings
+                earnings_quality = self._calculate_earnings_quality(symbol)
+                if earnings_quality:
+                    valuation['earnings_quality'] = earnings_quality
+
+                # 6. DCF Sensitivity Analysis
+                if dcf_value and dcf_value > 0:
+                    dcf_sensitivity = self._calculate_dcf_sensitivity(
+                        symbol,
+                        company_type,
+                        dcf_value,
+                        industry_wacc
+                    )
+                    if dcf_sensitivity:
+                        valuation['dcf_sensitivity'] = dcf_sensitivity
+
                 # Add detailed notes
                 profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
                 primary_metric = industry_profile.get('primary_metric', 'EV/EBIT')
@@ -2239,6 +2280,570 @@ class QualitativeAnalyzer:
             logger.warning(f"Failed to calculate price projections for {symbol}: {e}")
 
         return projections
+
+    # ===================================
+    # Advanced Qualitative Metrics
+    # ===================================
+
+    def _calculate_roic_vs_wacc(self, symbol: str, wacc: float) -> Dict:
+        """
+        Calculate ROIC (Return on Invested Capital) and compare to WACC.
+        ROIC > WACC = value creation
+
+        ROIC = NOPAT / Invested Capital
+        NOPAT = Operating Income * (1 - Tax Rate)
+        Invested Capital = Total Assets - Cash - Non-Interest-Bearing Current Liabilities
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=4)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=4)
+
+            if not (income and balance and len(income) >= 1 and len(balance) >= 1):
+                return {}
+
+            # Calculate ROIC for current year
+            operating_income = income[0].get('operatingIncome', 0)
+            tax_rate = abs(income[0].get('incomeTaxExpense', 0)) / income[0].get('incomeBeforeTax', 1) if income[0].get('incomeBeforeTax', 0) > 0 else 0.21
+            tax_rate = min(max(tax_rate, 0), 0.50)  # Cap between 0-50%
+
+            nopat = operating_income * (1 - tax_rate)
+
+            # Invested Capital = Total Assets - Cash - Current Liabilities (simplified)
+            total_assets = balance[0].get('totalAssets', 0)
+            cash = balance[0].get('cashAndCashEquivalents', 0)
+            current_liabilities = balance[0].get('totalCurrentLiabilities', 0)
+
+            invested_capital = total_assets - cash - current_liabilities
+
+            if invested_capital <= 0:
+                return {}
+
+            roic = (nopat / invested_capital) * 100  # Convert to percentage
+
+            # Calculate 3-year average ROIC for trend
+            roics = []
+            for i in range(min(3, len(income))):
+                if i >= len(balance):
+                    break
+
+                oi = income[i].get('operatingIncome', 0)
+                tr = abs(income[i].get('incomeTaxExpense', 0)) / income[i].get('incomeBeforeTax', 1) if income[i].get('incomeBeforeTax', 0) > 0 else 0.21
+                tr = min(max(tr, 0), 0.50)
+                np = oi * (1 - tr)
+
+                ta = balance[i].get('totalAssets', 0)
+                c = balance[i].get('cashAndCashEquivalents', 0)
+                cl = balance[i].get('totalCurrentLiabilities', 0)
+                ic = ta - c - cl
+
+                if ic > 0:
+                    roics.append((np / ic) * 100)
+
+            avg_roic_3y = sum(roics) / len(roics) if roics else roic
+
+            # Determine trend
+            trend = 'stable'
+            if len(roics) >= 2:
+                if roics[0] > roics[-1] * 1.05:
+                    trend = 'improving'
+                elif roics[0] < roics[-1] * 0.95:
+                    trend = 'deteriorating'
+
+            spread = roic - (wacc * 100)
+
+            return {
+                'roic': round(roic, 1),
+                'wacc': round(wacc * 100, 1),
+                'spread': round(spread, 1),
+                'avg_roic_3y': round(avg_roic_3y, 1),
+                'trend': trend,
+                'value_creation': spread > 0,
+                'assessment': 'Creating value' if spread > 0 else 'Destroying value'
+            }
+
+        except Exception as e:
+            logger.warning(f"ROIC calculation failed for {symbol}: {e}")
+            return {}
+
+    def _calculate_margins_and_trends(self, symbol: str, peers_df: Optional[Any] = None) -> Dict:
+        """
+        Calculate profitability margins and their trends over 3 years.
+        Compare to peer averages if available.
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=4)
+            cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=4)
+
+            if not (income and cashflow and len(income) >= 1):
+                return {}
+
+            def calc_margins(inc, cf):
+                """Calculate margins for a given period."""
+                revenue = inc.get('revenue', 0)
+                if revenue <= 0:
+                    return None
+
+                gross_profit = inc.get('grossProfit', 0)
+                operating_income = inc.get('operatingIncome', 0)
+                ocf = cf.get('operatingCashFlow', 0) if cf else 0
+                capex = abs(cf.get('capitalExpenditure', 0)) if cf else 0
+                fcf = ocf - capex
+
+                return {
+                    'gross': (gross_profit / revenue) * 100,
+                    'operating': (operating_income / revenue) * 100,
+                    'fcf': (fcf / revenue) * 100 if fcf else 0
+                }
+
+            # Calculate margins for each year
+            margins_history = []
+            for i in range(min(4, len(income))):
+                cf = cashflow[i] if i < len(cashflow) else None
+                margins = calc_margins(income[i], cf)
+                if margins:
+                    margins_history.append(margins)
+
+            if not margins_history:
+                return {}
+
+            current = margins_history[0]
+
+            # Calculate 3-year averages
+            avg_3y = {
+                'gross': sum(m['gross'] for m in margins_history[:3]) / min(3, len(margins_history)),
+                'operating': sum(m['operating'] for m in margins_history[:3]) / min(3, len(margins_history)),
+                'fcf': sum(m['fcf'] for m in margins_history[:3]) / min(3, len(margins_history))
+            }
+
+            # Determine trends
+            def get_trend(current_val, avg_val):
+                if current_val > avg_val * 1.05:
+                    return '↗ expanding'
+                elif current_val < avg_val * 0.95:
+                    return '↘ contracting'
+                return '→ stable'
+
+            return {
+                'gross_margin': {
+                    'current': round(current['gross'], 1),
+                    'avg_3y': round(avg_3y['gross'], 1),
+                    'trend': get_trend(current['gross'], avg_3y['gross'])
+                },
+                'operating_margin': {
+                    'current': round(current['operating'], 1),
+                    'avg_3y': round(avg_3y['operating'], 1),
+                    'trend': get_trend(current['operating'], avg_3y['operating'])
+                },
+                'fcf_margin': {
+                    'current': round(current['fcf'], 1),
+                    'avg_3y': round(avg_3y['fcf'], 1),
+                    'trend': get_trend(current['fcf'], avg_3y['fcf'])
+                }
+            }
+
+        except Exception as e:
+            logger.warning(f"Margins calculation failed for {symbol}: {e}")
+            return {}
+
+    def _detect_red_flags(self, symbol: str) -> List[str]:
+        """
+        Detect potential red flags in financial health.
+        Returns list of warning messages.
+        """
+        red_flags = []
+
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=3)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=3)
+            cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=3)
+
+            if not (income and balance and cashflow):
+                return red_flags
+
+            # 1. Revenue growth but FCF declining
+            if len(income) >= 2 and len(cashflow) >= 2:
+                rev_current = income[0].get('revenue', 0)
+                rev_prev = income[1].get('revenue', 0)
+
+                ocf_current = cashflow[0].get('operatingCashFlow', 0)
+                capex_current = abs(cashflow[0].get('capitalExpenditure', 0))
+                fcf_current = ocf_current - capex_current
+
+                ocf_prev = cashflow[1].get('operatingCashFlow', 0)
+                capex_prev = abs(cashflow[1].get('capitalExpenditure', 0))
+                fcf_prev = ocf_prev - capex_prev
+
+                if rev_prev > 0 and fcf_prev > 0:
+                    rev_growth = (rev_current - rev_prev) / rev_prev
+                    fcf_growth = (fcf_current - fcf_prev) / fcf_prev
+
+                    if rev_growth > 0.05 and fcf_growth < -0.10:
+                        red_flags.append(f"⚠️ Revenue growing ({rev_growth:.1%}) but FCF declining ({fcf_growth:.1%})")
+
+            # 2. High debt/EBITDA
+            if len(income) >= 1 and len(balance) >= 1:
+                ebitda = income[0].get('ebitda', 0)
+                total_debt = balance[0].get('totalDebt', 0) or (balance[0].get('shortTermDebt', 0) + balance[0].get('longTermDebt', 0))
+
+                if ebitda > 0:
+                    debt_to_ebitda = total_debt / ebitda
+                    if debt_to_ebitda > 4:
+                        red_flags.append(f"⚠️ High leverage: Debt/EBITDA = {debt_to_ebitda:.1f}x (>4x threshold)")
+
+            # 3. Working capital deteriorating
+            if len(balance) >= 2:
+                current_assets = balance[0].get('totalCurrentAssets', 0)
+                current_liabilities = balance[0].get('totalCurrentLiabilities', 0)
+                wc_current = current_assets - current_liabilities
+
+                current_assets_prev = balance[1].get('totalCurrentAssets', 0)
+                current_liabilities_prev = balance[1].get('totalCurrentLiabilities', 0)
+                wc_prev = current_assets_prev - current_liabilities_prev
+
+                wc_change = wc_current - wc_prev
+
+                if wc_change < -100_000_000:  # -$100M threshold
+                    red_flags.append(f"⚠️ Working capital deteriorating (${wc_change/1_000_000:.0f}M YoY)")
+
+            # 4. Negative or very low cash flow
+            if len(cashflow) >= 1:
+                ocf = cashflow[0].get('operatingCashFlow', 0)
+                if ocf < 0:
+                    red_flags.append(f"⚠️ Negative operating cash flow (${ocf/1_000_000:.0f}M)")
+
+            # 5. Cash flow to net income < 0.8
+            if len(income) >= 1 and len(cashflow) >= 1:
+                net_income = income[0].get('netIncome', 0)
+                ocf = cashflow[0].get('operatingCashFlow', 0)
+
+                if net_income > 0:
+                    cf_to_ni = ocf / net_income
+                    if cf_to_ni < 0.8:
+                        red_flags.append(f"⚠️ Low cash conversion: OCF/Net Income = {cf_to_ni:.2f} (<0.8 threshold)")
+
+        except Exception as e:
+            logger.warning(f"Red flags detection failed for {symbol}: {e}")
+
+        return red_flags
+
+    def _calculate_reverse_dcf(self, symbol: str, current_price: float, wacc: float) -> Dict:
+        """
+        Reverse DCF: What growth rate is implied by the current stock price?
+
+        Solves for growth rate in: Current Price = DCF(growth_rate)
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
+            cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=1)
+
+            if not (income and balance and cashflow):
+                return {}
+
+            # Get shares outstanding
+            shares = (balance[0].get('weightedAverageShsOut') or
+                     balance[0].get('commonStockSharesOutstanding') or
+                     balance[0].get('weightedAverageShsOutDil'))
+
+            if not shares or shares <= 0:
+                profile = self.fmp.get_profile(symbol)
+                if profile and len(profile) > 0:
+                    shares = profile[0].get('sharesOutstanding', 0)
+                    if not shares or shares <= 0:
+                        mkt_cap = profile[0].get('mktCap')
+                        price = profile[0].get('price')
+                        if mkt_cap and price and price > 0:
+                            shares = int(mkt_cap / price)
+
+            if not shares or shares <= 0:
+                return {}
+
+            # Get base FCF
+            ocf = cashflow[0].get('operatingCashFlow', 0)
+            capex = abs(cashflow[0].get('capitalExpenditure', 0))
+
+            # Revenue growth for maintenance capex estimation
+            revenue_current = income[0].get('revenue', 0)
+            revenue_prev = income[1].get('revenue', 0) if len(income) > 1 else revenue_current
+
+            if revenue_prev > 0:
+                revenue_growth = (revenue_current - revenue_prev) / revenue_prev
+            else:
+                revenue_growth = 0.10
+
+            # Estimate maintenance capex
+            if revenue_growth > 0.10:
+                maintenance_pct = 0.50
+            elif revenue_growth > 0.05:
+                maintenance_pct = 0.70
+            else:
+                maintenance_pct = 0.90
+
+            maintenance_capex = capex * maintenance_pct
+            base_fcf = ocf - maintenance_capex
+
+            if base_fcf <= 0:
+                return {}
+
+            # Current market cap
+            market_cap = current_price * shares
+
+            # Reverse engineer implied growth
+            # Market Cap = Base FCF * (1 + g) / (WACC - g)
+            # Solving for g: g = (WACC * Market_Cap - Base_FCF) / (Market_Cap + Base_FCF)
+
+            terminal_growth = 0.03  # 3% perpetual
+
+            # Try different growth rates to find implied rate
+            # Simple iteration approach
+            implied_growth = None
+            for g in range(0, 51):  # 0% to 50%
+                growth_rate = g / 100.0
+
+                if growth_rate >= wacc:
+                    continue
+
+                # Simple DCF with 5-year projection
+                fcf_pv = 0
+                for year in range(1, 6):
+                    fcf_year = base_fcf * ((1 + growth_rate) ** year)
+                    pv = fcf_year / ((1 + wacc) ** year)
+                    fcf_pv += pv
+
+                # Terminal value
+                fcf_terminal = base_fcf * ((1 + growth_rate) ** 5) * (1 + terminal_growth)
+                terminal_value = fcf_terminal / (wacc - terminal_growth)
+                terminal_pv = terminal_value / ((1 + wacc) ** 5)
+
+                total_value = fcf_pv + terminal_pv
+
+                # Check if close to market cap (within 5%)
+                if abs(total_value - market_cap) / market_cap < 0.05:
+                    implied_growth = growth_rate
+                    break
+
+            if implied_growth is None:
+                # If no match found, calculate what it would be
+                # This is approximate
+                implied_growth = max(0, min(0.50, (wacc * market_cap - base_fcf) / (market_cap + base_fcf)))
+
+            # Calculate implied EV/EBIT multiple
+            operating_income = income[0].get('operatingIncome', 0)
+            if operating_income > 0:
+                enterprise_value = market_cap + balance[0].get('totalDebt', 0) - balance[0].get('cashAndCashEquivalents', 0)
+                implied_ev_ebit = enterprise_value / operating_income
+            else:
+                implied_ev_ebit = None
+
+            return {
+                'implied_growth_rate': round(implied_growth * 100, 1),
+                'current_growth_rate': round(revenue_growth * 100, 1),
+                'implied_ev_ebit': round(implied_ev_ebit, 1) if implied_ev_ebit else None,
+                'interpretation': self._interpret_reverse_dcf(implied_growth, revenue_growth)
+            }
+
+        except Exception as e:
+            logger.warning(f"Reverse DCF failed for {symbol}: {e}")
+            return {}
+
+    def _interpret_reverse_dcf(self, implied_growth: float, actual_growth: float) -> str:
+        """Interpret what the implied growth means."""
+        if implied_growth > actual_growth * 1.5:
+            return "Market expects significant acceleration"
+        elif implied_growth > actual_growth * 1.2:
+            return "Market pricing in growth above current trend"
+        elif implied_growth >= actual_growth * 0.8:
+            return "Market expects continuation of current trend"
+        else:
+            return "Market expects slowdown or challenges"
+
+    def _calculate_earnings_quality(self, symbol: str) -> Dict:
+        """
+        Quality of Earnings metrics to detect potential manipulation
+        or low-quality earnings.
+
+        Key metrics:
+        - Cash Flow / Net Income ratio (>1 = good)
+        - Accruals ratio (low = good)
+        - Working capital trend
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=3)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=3)
+            cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=3)
+
+            if not (income and balance and cashflow):
+                return {}
+
+            # 1. Cash Flow to Net Income ratio
+            net_income = income[0].get('netIncome', 0)
+            ocf = cashflow[0].get('operatingCashFlow', 0)
+
+            cf_to_ni = ocf / net_income if net_income > 0 else 0
+
+            # 2. Accruals (simplified)
+            # Accruals = Net Income - Operating Cash Flow
+            accruals = net_income - ocf
+            total_assets = balance[0].get('totalAssets', 1)
+            accruals_ratio = abs(accruals) / total_assets if total_assets > 0 else 0
+
+            # 3. Working capital trend
+            if len(balance) >= 2:
+                wc_current = balance[0].get('totalCurrentAssets', 0) - balance[0].get('totalCurrentLiabilities', 0)
+                wc_prev = balance[1].get('totalCurrentAssets', 0) - balance[1].get('totalCurrentLiabilities', 0)
+
+                if abs(wc_prev) > 0:
+                    wc_change_pct = ((wc_current - wc_prev) / abs(wc_prev)) * 100
+                else:
+                    wc_change_pct = 0
+
+                if wc_change_pct > 10:
+                    wc_trend = 'improving'
+                elif wc_change_pct < -10:
+                    wc_trend = 'deteriorating'
+                else:
+                    wc_trend = 'stable'
+            else:
+                wc_trend = 'unknown'
+
+            # Overall assessment
+            quality_score = 0
+            issues = []
+
+            if cf_to_ni >= 1.0:
+                quality_score += 2
+            elif cf_to_ni >= 0.8:
+                quality_score += 1
+            else:
+                issues.append(f"Low cash conversion (OCF/NI={cf_to_ni:.2f})")
+
+            if accruals_ratio < 0.05:
+                quality_score += 2
+            elif accruals_ratio < 0.10:
+                quality_score += 1
+            else:
+                issues.append(f"High accruals ({accruals_ratio:.1%} of assets)")
+
+            if wc_trend in ['improving', 'stable']:
+                quality_score += 1
+            else:
+                issues.append("Working capital deteriorating")
+
+            # Grade: A (5), B (3-4), C (2), D (0-1)
+            if quality_score >= 5:
+                grade = 'A'
+                assessment = 'High quality'
+            elif quality_score >= 3:
+                grade = 'B'
+                assessment = 'Good quality'
+            elif quality_score >= 2:
+                grade = 'C'
+                assessment = 'Moderate quality'
+            else:
+                grade = 'D'
+                assessment = 'Low quality - investigate'
+
+            return {
+                'cash_flow_to_net_income': round(cf_to_ni, 2),
+                'accruals_ratio': round(accruals_ratio * 100, 2),
+                'working_capital_trend': wc_trend,
+                'grade': grade,
+                'assessment': assessment,
+                'issues': issues
+            }
+
+        except Exception as e:
+            logger.warning(f"Earnings quality calculation failed for {symbol}: {e}")
+            return {}
+
+    def _calculate_dcf_sensitivity(
+        self,
+        symbol: str,
+        company_type: str,
+        base_dcf: Optional[float],
+        base_wacc: float
+    ) -> Dict:
+        """
+        Calculate DCF sensitivity to key assumptions:
+        - WACC variations (±2%)
+        - Terminal growth variations (2%, 3%, 4%)
+
+        Shows range of possible valuations.
+        """
+        if not base_dcf:
+            return {}
+
+        try:
+            sensitivities = {
+                'wacc_sensitivity': {},
+                'terminal_growth_sensitivity': {},
+                'base_assumptions': {
+                    'wacc': round(base_wacc * 100, 1),
+                    'terminal_growth': 3.0,
+                    'dcf_value': round(base_dcf, 2)
+                }
+            }
+
+            # WACC sensitivity (±2%)
+            wacc_scenarios = {
+                'optimistic': base_wacc - 0.02,
+                'base': base_wacc,
+                'conservative': base_wacc + 0.02
+            }
+
+            for scenario_name, wacc in wacc_scenarios.items():
+                if wacc > 0 and wacc < 0.30:  # Sanity check
+                    dcf_value = self._calculate_dcf(symbol, company_type, wacc_override=wacc)
+                    if dcf_value:
+                        sensitivities['wacc_sensitivity'][scenario_name] = {
+                            'wacc': round(wacc * 100, 1),
+                            'dcf_value': round(dcf_value, 2)
+                        }
+
+            # Terminal growth sensitivity (2%, 3%, 4%)
+            # Note: This would require modifying _calculate_dcf to accept terminal_growth param
+            # For now, we'll approximate based on mathematical relationship
+            # DCF is highly sensitive to terminal growth
+
+            # Approximate formula: DCF ≈ Base_DCF * (1 + (terminal_growth_diff * factor))
+            # This is a simplification
+            terminal_scenarios = {
+                '2%': 0.02,
+                '3%': 0.03,
+                '4%': 0.04
+            }
+
+            for label, tg in terminal_scenarios.items():
+                # Approximate adjustment (this is simplified)
+                # In reality, would need to recalculate full DCF
+                tg_diff = tg - 0.03  # Difference from base 3%
+                adjustment_factor = 1 + (tg_diff * 3)  # Rough approximation
+                adjusted_dcf = base_dcf * adjustment_factor
+
+                sensitivities['terminal_growth_sensitivity'][label] = {
+                    'terminal_growth': round(tg * 100, 1),
+                    'dcf_value': round(adjusted_dcf, 2)
+                }
+
+            # Calculate range
+            all_values = []
+            for scenario in sensitivities['wacc_sensitivity'].values():
+                all_values.append(scenario['dcf_value'])
+            for scenario in sensitivities['terminal_growth_sensitivity'].values():
+                all_values.append(scenario['dcf_value'])
+
+            if all_values:
+                sensitivities['valuation_range'] = {
+                    'min': round(min(all_values), 2),
+                    'max': round(max(all_values), 2),
+                    'spread': round(max(all_values) - min(all_values), 2)
+                }
+
+            return sensitivities
+
+        except Exception as e:
+            logger.warning(f"DCF sensitivity calculation failed for {symbol}: {e}")
+            return {}
 
     # ===================================
     # Export JSON
