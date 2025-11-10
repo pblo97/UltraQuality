@@ -2000,16 +2000,19 @@ class QualitativeAnalyzer:
                 # Use P/B (Price to Book) for financials instead of P/E
 
                 book_value = balance[0].get('totalStockholdersEquity', 0)
-                shares_ttm = balance[0].get('weightedAverageShsOut') or balance[0].get('commonStock', 0)
 
-                if shares_ttm <= 0 or book_value <= 0:
+                # CRITICAL: Use the shares variable already calculated above
+                # DO NOT recalculate or use commonStock (which is NOT share count)
+
+                if shares <= 0 or book_value <= 0:
+                    msg = f"Forward Multiple (Financial): Invalid shares ({shares:,}) or book_value ({book_value:,})"
+                    logger.warning(f"{symbol} {msg}")
+                    add_note(f"✗ {msg}")
                     return None
 
-                # Convert shares if needed
-                if shares_ttm > 1_000_000_000:
-                    shares_ttm = shares_ttm / 1_000_000
+                book_per_share = book_value / shares
 
-                book_per_share = book_value / shares_ttm
+                logger.info(f"Forward Multiple (Financial): {symbol} book_value={book_value:,}, shares={shares:,}, book_per_share=${book_per_share:.2f}")
 
                 # Get peer P/B
                 peer_pb = None
@@ -2022,17 +2025,28 @@ class QualitativeAnalyzer:
                         for peer in peer_symbols:
                             if peer in peers_df.index:
                                 pb = peers_df.loc[peer, 'pb_ttm']
-                                if pb and pb > 0 and pb < 3:  # Sanity check for financials
+                                if pb and pb > 0 and pb < 5:  # Sanity check: P/B < 5x for financials
                                     peer_pbs.append(pb)
 
                         if peer_pbs:
                             peer_pb = sum(peer_pbs) / len(peer_pbs)
+                            logger.info(f"Forward Multiple (Financial): {symbol} calculated peer_pb={peer_pb:.2f} from {len(peer_pbs)} peers")
 
                 # Fallback: sector average P/B for financials
                 if not peer_pb:
-                    peer_pb = 1.2  # P/B ~1.2x for financials
+                    peer_pb = 1.2  # P/B ~1.2x for financials (conservative)
+                    logger.info(f"Forward Multiple (Financial): {symbol} using fallback peer_pb={peer_pb:.2f}")
 
                 fair_value = book_per_share * peer_pb
+
+                logger.info(f"Forward Multiple (Financial): {symbol} fair_value=${fair_value:.2f} (book_per_share=${book_per_share:.2f} × peer_pb={peer_pb:.2f})")
+
+                # Sanity check: fair value should be reasonable (not crazy high/low)
+                if fair_value > book_per_share * 10:
+                    msg = f"Forward Multiple (Financial): Fair value ${fair_value:.2f} seems too high (>10x book). Capping at 3x book."
+                    logger.warning(f"{symbol} {msg}")
+                    add_note(f"⚠️ {msg}")
+                    fair_value = book_per_share * 3
 
                 return fair_value if fair_value > 0 else None
 
