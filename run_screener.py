@@ -399,6 +399,70 @@ def create_qualitative_excel(analysis: dict, ticker: str, timestamp: datetime) -
             }]
             pd.DataFrame(reinv_data).to_excel(writer, sheet_name='Reinvestment Quality', index=False)
 
+        # Sheet 15: Economic Profit / EVA (FASE 2)
+        eva = intrinsic.get('economic_profit', {})
+        if eva:
+            eva_data = [{
+                'Economic Value Added': eva.get('eva_formatted', 'N/A'),
+                'EVA Margin %': f"{eva.get('eva_margin_%', 0):.1f}%",
+                'NOPAT': eva.get('nopat_formatted', 'N/A'),
+                'Invested Capital': eva.get('ic_formatted', 'N/A'),
+                'WACC %': f"{eva.get('wacc', 0):.1f}%",
+                'Capital Charge': eva.get('capital_charge_formatted', 'N/A'),
+                'Trend': eva.get('trend', 'N/A'),
+                '5Y Avg EVA': eva.get('avg_eva_formatted', 'N/A'),
+                'Grade': eva.get('grade', 'N/A'),
+                'Assessment': eva.get('assessment', 'N/A')
+            }]
+            pd.DataFrame(eva_data).to_excel(writer, sheet_name='Economic Profit (EVA)', index=False)
+
+        # Sheet 16: Capital Allocation Score (FASE 2)
+        cap_alloc = intrinsic.get('capital_allocation', {})
+        if cap_alloc:
+            cap_alloc_data = [{
+                'Score': f"{cap_alloc.get('score', 0):.0f}/100",
+                'Grade': cap_alloc.get('grade', 'N/A'),
+                'Free Cash Flow': cap_alloc.get('fcf_formatted', 'N/A'),
+                'Dividend % of FCF': f"{cap_alloc.get('dividend_%_fcf', 0):.1f}%",
+                'Buyback % of FCF': f"{cap_alloc.get('buyback_%_fcf', 0):.1f}%",
+                'Debt Paydown % of FCF': f"{cap_alloc.get('debt_paydown_%_fcf', 0):.1f}%",
+                'Retained % of FCF': f"{cap_alloc.get('retained_%_fcf', 0):.1f}%",
+                'Shareholder Return %': f"{cap_alloc.get('shareholder_return_%', 0):.1f}%",
+                'Payout Ratio %': f"{cap_alloc.get('payout_ratio_%', 0):.1f}%",
+                'Dividend Years': cap_alloc.get('dividend_years', 0),
+                'Dividend Consistency': cap_alloc.get('dividend_consistency', 'N/A'),
+                'Share Count Trend': cap_alloc.get('share_count_trend', 'N/A'),
+                'Assessment': cap_alloc.get('assessment', 'N/A')
+            }]
+            pd.DataFrame(cap_alloc_data).to_excel(writer, sheet_name='Capital Allocation', index=False)
+
+            # Add factors to a separate row
+            factors = cap_alloc.get('factors', [])
+            if factors:
+                factors_data = [{'Key Factors': factor} for factor in factors]
+                pd.DataFrame(factors_data).to_excel(writer, sheet_name='Capital Alloc Factors', index=False)
+
+        # Sheet 17: Interest Rate Sensitivity (FASE 2)
+        rate_sens = intrinsic.get('interest_rate_sensitivity', {})
+        if rate_sens and rate_sens.get('applicable', False):
+            rate_data = [{
+                'Net Interest Margin %': f"{rate_sens.get('nim_%', 0):.2f}%",
+                'NIM Trend': rate_sens.get('nim_trend', 'N/A'),
+                'NIM YoY Change': f"{rate_sens.get('nim_yoy_change', 0):+.2f}%",
+                '5Y Avg NIM %': f"{rate_sens.get('nim_5y_avg', 0):.2f}%",
+                'Net Interest Income': rate_sens.get('nii_formatted', 'N/A'),
+                'Loan/Deposit Ratio %': f"{rate_sens.get('loan_to_deposit_%', 0):.1f}%" if rate_sens.get('loan_to_deposit_%') else 'N/A',
+                'Assessment': rate_sens.get('assessment', 'N/A'),
+                'Rate Sensitivity': rate_sens.get('rate_sensitivity', 'N/A')
+            }]
+            pd.DataFrame(rate_data).to_excel(writer, sheet_name='Interest Rate Sensitivity', index=False)
+
+            # Add NIM history
+            nim_hist = rate_sens.get('nim_history', [])
+            if nim_hist:
+                hist_data = [{'Year': f"Y-{i}", 'NIM %': f"{nim:.2f}%"} for i, nim in enumerate(nim_hist)]
+                pd.DataFrame(hist_data).to_excel(writer, sheet_name='NIM History', index=False)
+
         # Auto-adjust all sheets
         for sheet_name in writer.sheets:
             worksheet = writer.sheets[sheet_name]
@@ -2149,7 +2213,158 @@ with tab5:
 
                             st.caption("💡 Growth ROIC > 1 = Efficient growth. > 2 = Exceptional capital efficiency.")
 
-                        # 10. Red Flags
+                        # 10. Economic Profit / EVA (FASE 2)
+                        eva = intrinsic.get('economic_profit', {})
+                        if eva:
+                            st.markdown("---")
+                            st.markdown("### 💎 Economic Profit (EVA - Economic Value Added)")
+
+                            grade = eva.get('grade', 'C')
+                            assessment = eva.get('assessment', '')
+
+                            # Color-code by grade
+                            if grade in ['A', 'B', 'B-']:
+                                st.success(f"**Grade: {grade}** - {assessment}")
+                            elif grade == 'C':
+                                st.warning(f"**Grade: {grade}** - {assessment}")
+                            else:
+                                st.error(f"**Grade: {grade}** - {assessment}")
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                eva_val = eva.get('eva_formatted', 'N/A')
+                                eva_margin = eva.get('eva_margin_%', 0)
+                                st.metric("Economic Value Added",
+                                        eva_val,
+                                        delta=f"{eva_margin:.1f}% margin")
+
+                            with col2:
+                                nopat = eva.get('nopat_formatted', 'N/A')
+                                st.metric("NOPAT",
+                                        nopat,
+                                        help="Net Operating Profit After Tax")
+
+                            with col3:
+                                ic = eva.get('ic_formatted', 'N/A')
+                                wacc = eva.get('wacc', 0)
+                                st.metric("Invested Capital",
+                                        ic,
+                                        delta=f"WACC: {wacc:.1f}%")
+
+                            with col4:
+                                trend = eva.get('trend', 'stable')
+                                avg_eva = eva.get('avg_eva_formatted', 'N/A')
+                                if trend == 'improving':
+                                    st.metric("5Y Avg EVA", avg_eva, delta="📈 Improving")
+                                elif trend == 'deteriorating':
+                                    st.metric("5Y Avg EVA", avg_eva, delta="📉 Declining")
+                                else:
+                                    st.metric("5Y Avg EVA", avg_eva, delta="→ Stable")
+
+                            st.caption("💡 EVA = NOPAT - (WACC × Invested Capital). Positive EVA = Value creation above cost of capital.")
+
+                        # 11. Capital Allocation Score (FASE 2)
+                        cap_alloc = intrinsic.get('capital_allocation', {})
+                        if cap_alloc:
+                            st.markdown("---")
+                            st.markdown("### 📊 Capital Allocation Scorecard")
+
+                            score = cap_alloc.get('score', 0)
+                            grade = cap_alloc.get('grade', 'C')
+                            assessment = cap_alloc.get('assessment', '')
+
+                            # Color-code by grade
+                            if grade in ['A', 'B']:
+                                st.success(f"**Score: {score}/100 (Grade {grade})** - {assessment}")
+                            elif grade == 'C':
+                                st.info(f"**Score: {score}/100 (Grade {grade})** - {assessment}")
+                            else:
+                                st.warning(f"**Score: {score}/100 (Grade {grade})** - {assessment}")
+
+                            # FCF Breakdown
+                            st.markdown("**Free Cash Flow Deployment:**")
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                fcf = cap_alloc.get('fcf_formatted', 'N/A')
+                                shareholder_ret = cap_alloc.get('shareholder_return_%', 0)
+                                st.metric("Free Cash Flow", fcf, delta=f"{shareholder_ret:.1f}% to shareholders")
+
+                            with col2:
+                                div_pct = cap_alloc.get('dividend_%_fcf', 0)
+                                payout = cap_alloc.get('payout_ratio_%', 0)
+                                st.metric("Dividends", f"{div_pct:.1f}% of FCF", delta=f"{payout:.0f}% payout ratio")
+
+                            with col3:
+                                buyback_pct = cap_alloc.get('buyback_%_fcf', 0)
+                                share_trend = cap_alloc.get('share_count_trend', 'stable')
+                                emoji = "↓" if share_trend == 'decreasing' else "↑" if share_trend == 'increasing' else "→"
+                                st.metric("Buybacks", f"{buyback_pct:.1f}% of FCF", delta=f"Shares {emoji}")
+
+                            with col4:
+                                debt_pct = cap_alloc.get('debt_paydown_%_fcf', 0)
+                                retained = cap_alloc.get('retained_%_fcf', 0)
+                                st.metric("Debt Paydown", f"{debt_pct:.1f}% of FCF", delta=f"{retained:.1f}% retained")
+
+                            # Key factors
+                            factors = cap_alloc.get('factors', [])
+                            if factors:
+                                st.markdown("**Key Factors:**")
+                                for factor in factors[:4]:  # Show top 4
+                                    st.caption(f"• {factor}")
+
+                            st.caption("💡 Best allocators: Return capital when opportunities are scarce, reinvest when ROIC > WACC.")
+
+                        # 12. Interest Rate Sensitivity (FASE 2)
+                        rate_sens = intrinsic.get('interest_rate_sensitivity', {})
+                        if rate_sens and rate_sens.get('applicable', False):
+                            st.markdown("---")
+                            st.markdown("### 📈 Interest Rate Sensitivity (Financial Companies)")
+
+                            assessment = rate_sens.get('assessment', '')
+                            sensitivity = rate_sens.get('rate_sensitivity', '')
+
+                            st.info(f"**{assessment}**")
+                            st.caption(sensitivity)
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                nim = rate_sens.get('nim_%', 0)
+                                avg_nim = rate_sens.get('nim_5y_avg', 0)
+                                st.metric("Net Interest Margin",
+                                        f"{nim:.2f}%",
+                                        delta=f"5Y Avg: {avg_nim:.2f}%")
+
+                            with col2:
+                                trend = rate_sens.get('nim_trend', 'stable')
+                                yoy = rate_sens.get('nim_yoy_change', 0)
+                                if trend == 'expanding':
+                                    st.metric("NIM Trend", "📈 Expanding", delta=f"+{yoy:.2f}% YoY")
+                                elif trend == 'compressing':
+                                    st.metric("NIM Trend", "📉 Compressing", delta=f"{yoy:.2f}% YoY")
+                                else:
+                                    st.metric("NIM Trend", "→ Stable", delta=f"{yoy:+.2f}% YoY")
+
+                            with col3:
+                                nii = rate_sens.get('nii_formatted', 'N/A')
+                                st.metric("Net Interest Income", nii)
+
+                            with col4:
+                                ltd = rate_sens.get('loan_to_deposit_%')
+                                if ltd:
+                                    st.metric("Loan/Deposit Ratio", f"{ltd:.1f}%")
+
+                            # NIM history
+                            nim_hist = rate_sens.get('nim_history', [])
+                            if nim_hist:
+                                st.caption(f"**NIM History (last {len(nim_hist)} years):** " +
+                                         ", ".join([f"{h:.2f}%" for h in nim_hist]))
+
+                            st.caption("💡 Higher NIM = More profitable. Expanding NIM = Benefiting from rate increases.")
+
+                        # 13. Red Flags
                         red_flags = intrinsic.get('red_flags', [])
                         if red_flags:
                             st.markdown("### 🚩 Red Flags Detected")
@@ -2970,7 +3185,158 @@ with tab6:
 
                 st.caption("💡 Growth ROIC > 1 = Efficient growth. > 2 = Exceptional capital efficiency.")
 
-            # 10. Price Projections by Scenario
+            # 10. Economic Profit / EVA (FASE 2)
+            eva = intrinsic.get('economic_profit', {})
+            if eva:
+                st.markdown("---")
+                st.markdown("### 💎 Economic Profit (EVA - Economic Value Added)")
+
+                grade = eva.get('grade', 'C')
+                assessment = eva.get('assessment', '')
+
+                # Color-code by grade
+                if grade in ['A', 'B', 'B-']:
+                    st.success(f"**Grade: {grade}** - {assessment}")
+                elif grade == 'C':
+                    st.warning(f"**Grade: {grade}** - {assessment}")
+                else:
+                    st.error(f"**Grade: {grade}** - {assessment}")
+
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    eva_val = eva.get('eva_formatted', 'N/A')
+                    eva_margin = eva.get('eva_margin_%', 0)
+                    st.metric("Economic Value Added",
+                            eva_val,
+                            delta=f"{eva_margin:.1f}% margin")
+
+                with col2:
+                    nopat = eva.get('nopat_formatted', 'N/A')
+                    st.metric("NOPAT",
+                            nopat,
+                            help="Net Operating Profit After Tax")
+
+                with col3:
+                    ic = eva.get('ic_formatted', 'N/A')
+                    wacc = eva.get('wacc', 0)
+                    st.metric("Invested Capital",
+                            ic,
+                            delta=f"WACC: {wacc:.1f}%")
+
+                with col4:
+                    trend = eva.get('trend', 'stable')
+                    avg_eva = eva.get('avg_eva_formatted', 'N/A')
+                    if trend == 'improving':
+                        st.metric("5Y Avg EVA", avg_eva, delta="📈 Improving")
+                    elif trend == 'deteriorating':
+                        st.metric("5Y Avg EVA", avg_eva, delta="📉 Declining")
+                    else:
+                        st.metric("5Y Avg EVA", avg_eva, delta="→ Stable")
+
+                st.caption("💡 EVA = NOPAT - (WACC × Invested Capital). Positive EVA = Value creation above cost of capital.")
+
+            # 11. Capital Allocation Score (FASE 2)
+            cap_alloc = intrinsic.get('capital_allocation', {})
+            if cap_alloc:
+                st.markdown("---")
+                st.markdown("### 📊 Capital Allocation Scorecard")
+
+                score = cap_alloc.get('score', 0)
+                grade = cap_alloc.get('grade', 'C')
+                assessment = cap_alloc.get('assessment', '')
+
+                # Color-code by grade
+                if grade in ['A', 'B']:
+                    st.success(f"**Score: {score}/100 (Grade {grade})** - {assessment}")
+                elif grade == 'C':
+                    st.info(f"**Score: {score}/100 (Grade {grade})** - {assessment}")
+                else:
+                    st.warning(f"**Score: {score}/100 (Grade {grade})** - {assessment}")
+
+                # FCF Breakdown
+                st.markdown("**Free Cash Flow Deployment:**")
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    fcf = cap_alloc.get('fcf_formatted', 'N/A')
+                    shareholder_ret = cap_alloc.get('shareholder_return_%', 0)
+                    st.metric("Free Cash Flow", fcf, delta=f"{shareholder_ret:.1f}% to shareholders")
+
+                with col2:
+                    div_pct = cap_alloc.get('dividend_%_fcf', 0)
+                    payout = cap_alloc.get('payout_ratio_%', 0)
+                    st.metric("Dividends", f"{div_pct:.1f}% of FCF", delta=f"{payout:.0f}% payout ratio")
+
+                with col3:
+                    buyback_pct = cap_alloc.get('buyback_%_fcf', 0)
+                    share_trend = cap_alloc.get('share_count_trend', 'stable')
+                    emoji = "↓" if share_trend == 'decreasing' else "↑" if share_trend == 'increasing' else "→"
+                    st.metric("Buybacks", f"{buyback_pct:.1f}% of FCF", delta=f"Shares {emoji}")
+
+                with col4:
+                    debt_pct = cap_alloc.get('debt_paydown_%_fcf', 0)
+                    retained = cap_alloc.get('retained_%_fcf', 0)
+                    st.metric("Debt Paydown", f"{debt_pct:.1f}% of FCF", delta=f"{retained:.1f}% retained")
+
+                # Key factors
+                factors = cap_alloc.get('factors', [])
+                if factors:
+                    st.markdown("**Key Factors:**")
+                    for factor in factors[:4]:  # Show top 4
+                        st.caption(f"• {factor}")
+
+                st.caption("💡 Best allocators: Return capital when opportunities are scarce, reinvest when ROIC > WACC.")
+
+            # 12. Interest Rate Sensitivity (FASE 2)
+            rate_sens = intrinsic.get('interest_rate_sensitivity', {})
+            if rate_sens and rate_sens.get('applicable', False):
+                st.markdown("---")
+                st.markdown("### 📈 Interest Rate Sensitivity (Financial Companies)")
+
+                assessment = rate_sens.get('assessment', '')
+                sensitivity = rate_sens.get('rate_sensitivity', '')
+
+                st.info(f"**{assessment}**")
+                st.caption(sensitivity)
+
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    nim = rate_sens.get('nim_%', 0)
+                    avg_nim = rate_sens.get('nim_5y_avg', 0)
+                    st.metric("Net Interest Margin",
+                            f"{nim:.2f}%",
+                            delta=f"5Y Avg: {avg_nim:.2f}%")
+
+                with col2:
+                    trend = rate_sens.get('nim_trend', 'stable')
+                    yoy = rate_sens.get('nim_yoy_change', 0)
+                    if trend == 'expanding':
+                        st.metric("NIM Trend", "📈 Expanding", delta=f"+{yoy:.2f}% YoY")
+                    elif trend == 'compressing':
+                        st.metric("NIM Trend", "📉 Compressing", delta=f"{yoy:.2f}% YoY")
+                    else:
+                        st.metric("NIM Trend", "→ Stable", delta=f"{yoy:+.2f}% YoY")
+
+                with col3:
+                    nii = rate_sens.get('nii_formatted', 'N/A')
+                    st.metric("Net Interest Income", nii)
+
+                with col4:
+                    ltd = rate_sens.get('loan_to_deposit_%')
+                    if ltd:
+                        st.metric("Loan/Deposit Ratio", f"{ltd:.1f}%")
+
+                # NIM history
+                nim_hist = rate_sens.get('nim_history', [])
+                if nim_hist:
+                    st.caption(f"**NIM History (last {len(nim_hist)} years):** " +
+                             ", ".join([f"{h:.2f}%" for h in nim_hist]))
+
+                st.caption("💡 Higher NIM = More profitable. Expanding NIM = Benefiting from rate increases.")
+
+            # 13. Price Projections by Scenario
             projections = intrinsic.get('price_projections', {})
             if projections and 'scenarios' in projections:
                 st.markdown("---")
