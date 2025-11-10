@@ -1560,6 +1560,21 @@ class QualitativeAnalyzer:
                 if reinvestment:
                     valuation['reinvestment_quality'] = reinvestment
 
+                # 13. Economic Profit / EVA (FASE 2)
+                eva = self._calculate_economic_profit(symbol)
+                if eva:
+                    valuation['economic_profit'] = eva
+
+                # 14. Capital Allocation Score (FASE 2)
+                cap_alloc = self._calculate_capital_allocation_score(symbol)
+                if cap_alloc:
+                    valuation['capital_allocation'] = cap_alloc
+
+                # 15. Interest Rate Sensitivity (FASE 2)
+                rate_sensitivity = self._calculate_interest_rate_sensitivity(symbol, company_type)
+                if rate_sensitivity:
+                    valuation['interest_rate_sensitivity'] = rate_sensitivity
+
                 # Add detailed notes
                 profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
                 primary_metric = industry_profile.get('primary_metric', 'EV/EBIT')
@@ -2790,6 +2805,418 @@ class QualitativeAnalyzer:
 
         except Exception as e:
             logger.warning(f"Reinvestment Quality calculation failed for {symbol}: {e}")
+            return {}
+
+    def _calculate_economic_profit(self, symbol: str) -> Dict:
+        """
+        Calculate Economic Profit (EVA - Economic Value Added).
+
+        EVA = NOPAT - (WACC × Invested Capital)
+
+        EVA > 0 = Company creates value above cost of capital
+        EVA < 0 = Company destroys value (returns below cost of capital)
+
+        This complements ROIC by showing absolute $ value creation, not just %.
+        A company can have good ROIC but low EVA if scale is small.
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=5)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=5)
+
+            if not (income and balance and len(income) >= 1 and len(balance) >= 1):
+                return {}
+
+            # Calculate NOPAT
+            operating_income = income[0].get('operatingIncome', 0)
+            tax_rate = abs(income[0].get('incomeTaxExpense', 0)) / income[0].get('incomeBeforeTax', 1) if income[0].get('incomeBeforeTax', 0) != 0 else 0.21
+            tax_rate = min(max(tax_rate, 0), 0.5)  # Cap between 0-50%
+            nopat = operating_income * (1 - tax_rate)
+
+            # Calculate Invested Capital (Debt + Equity method)
+            total_debt = balance[0].get('totalDebt', 0)
+            if total_debt == 0:
+                short_debt = balance[0].get('shortTermDebt', 0) or 0
+                long_debt = balance[0].get('longTermDebt', 0) or 0
+                total_debt = short_debt + long_debt
+
+            total_equity = balance[0].get('totalStockholdersEquity', 0) or balance[0].get('totalEquity', 0)
+            invested_capital = total_debt + total_equity
+
+            if invested_capital <= 0:
+                return {}
+
+            # Get WACC (we calculate this elsewhere, reuse if available)
+            # For simplicity, use a reasonable estimate based on risk-free rate + equity risk premium
+            # In practice, should integrate with existing WACC calculation
+            wacc = 0.10  # Default 10%, will try to get actual WACC
+
+            # Try to get actual WACC from balance sheet analysis
+            if total_debt > 0 and total_equity > 0:
+                # Rough WACC estimate
+                interest_expense = abs(income[0].get('interestExpense', 0))
+                cost_of_debt = (interest_expense / total_debt) * (1 - tax_rate) if total_debt > 0 else 0.04
+                cost_of_equity = 0.10  # Assume 10% for now (could enhance with CAPM)
+
+                weight_debt = total_debt / invested_capital
+                weight_equity = total_equity / invested_capital
+
+                wacc = (weight_debt * cost_of_debt) + (weight_equity * cost_of_equity)
+                wacc = min(max(wacc, 0.05), 0.20)  # Cap between 5-20%
+
+            # Calculate EVA
+            capital_charge = wacc * invested_capital
+            eva = nopat - capital_charge
+
+            # Calculate EVA margin (EVA / Sales)
+            revenue = income[0].get('revenue', 1)
+            eva_margin = (eva / revenue) * 100 if revenue > 0 else 0
+
+            # Calculate trend (5-year if available)
+            eva_history = []
+            for i in range(min(5, len(income), len(balance))):
+                oi = income[i].get('operatingIncome', 0)
+                tax = abs(income[i].get('incomeTaxExpense', 0)) / income[i].get('incomeBeforeTax', 1) if income[i].get('incomeBeforeTax', 0) != 0 else 0.21
+                tax = min(max(tax, 0), 0.5)
+                nop = oi * (1 - tax)
+
+                td = balance[i].get('totalDebt', 0)
+                if td == 0:
+                    td = (balance[i].get('shortTermDebt', 0) or 0) + (balance[i].get('longTermDebt', 0) or 0)
+                te = balance[i].get('totalStockholdersEquity', 0) or balance[i].get('totalEquity', 0)
+                ic = td + te
+
+                if ic > 0:
+                    ev = nop - (wacc * ic)
+                    eva_history.append(ev)
+
+            # Trend analysis
+            trend = 'stable'
+            avg_eva = sum(eva_history) / len(eva_history) if eva_history else eva
+            if len(eva_history) >= 3:
+                recent_avg = sum(eva_history[:2]) / 2
+                older_avg = sum(eva_history[-2:]) / 2
+                if recent_avg > older_avg * 1.1:
+                    trend = 'improving'
+                elif recent_avg < older_avg * 0.9:
+                    trend = 'deteriorating'
+
+            # Assessment
+            if eva > 0:
+                if eva_margin > 10:
+                    assessment = 'Excellent - Strong value creation'
+                    grade = 'A'
+                elif eva_margin > 5:
+                    assessment = 'Very Good - Solid value creation'
+                    grade = 'B'
+                else:
+                    assessment = 'Good - Positive value creation'
+                    grade = 'B-'
+            else:
+                if eva_margin > -5:
+                    assessment = 'Fair - Marginal value destruction'
+                    grade = 'C'
+                else:
+                    assessment = 'Poor - Significant value destruction'
+                    grade = 'D'
+
+            return {
+                'eva': eva,
+                'eva_formatted': f"${eva/1e9:.2f}B" if abs(eva) >= 1e9 else f"${eva/1e6:.1f}M",
+                'nopat': nopat,
+                'nopat_formatted': f"${nopat/1e9:.2f}B" if abs(nopat) >= 1e9 else f"${nopat/1e6:.1f}M",
+                'invested_capital': invested_capital,
+                'ic_formatted': f"${invested_capital/1e9:.2f}B" if invested_capital >= 1e9 else f"${invested_capital/1e6:.1f}M",
+                'wacc': round(wacc * 100, 1),
+                'capital_charge': capital_charge,
+                'capital_charge_formatted': f"${capital_charge/1e9:.2f}B" if abs(capital_charge) >= 1e9 else f"${capital_charge/1e6:.1f}M",
+                'eva_margin_%': round(eva_margin, 1),
+                'trend': trend,
+                'avg_eva_5y': avg_eva,
+                'avg_eva_formatted': f"${avg_eva/1e9:.2f}B" if abs(avg_eva) >= 1e9 else f"${avg_eva/1e6:.1f}M",
+                'assessment': assessment,
+                'grade': grade
+            }
+
+        except Exception as e:
+            logger.warning(f"Economic Profit calculation failed for {symbol}: {e}")
+            return {}
+
+    def _calculate_capital_allocation_score(self, symbol: str) -> Dict:
+        """
+        Analyze capital allocation decisions: how management deploys Free Cash Flow.
+
+        Components:
+        1. FCF usage breakdown: dividends, buybacks, debt paydown, M&A, reinvestment
+        2. Buyback efficiency: stock price vs intrinsic value when buying
+        3. Dividend consistency and payout ratio
+        4. Organic vs inorganic growth
+
+        Best allocators: Buy back stock when cheap, invest when ROIC > WACC
+        """
+        try:
+            cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=5)
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=5)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=5)
+
+            if not (cashflow and income and balance and len(cashflow) >= 2):
+                return {}
+
+            # Current year FCF
+            ocf = cashflow[0].get('operatingCashFlow', 0)
+            capex = abs(cashflow[0].get('capitalExpenditure', 0))
+            fcf = ocf - capex
+
+            if fcf <= 0:
+                return {}
+
+            # FCF usage breakdown
+            dividends_paid = abs(cashflow[0].get('dividendsPaid', 0))
+            stock_buyback = abs(cashflow[0].get('stockRepurchased', 0) or cashflow[0].get('commonStockRepurchased', 0) or 0)
+            debt_repayment = cashflow[0].get('debtRepayment', 0) or 0
+
+            # Calculate percentages
+            dividend_pct = (dividends_paid / fcf) * 100 if fcf > 0 else 0
+            buyback_pct = (stock_buyback / fcf) * 100 if fcf > 0 else 0
+            debt_paydown_pct = (debt_repayment / fcf) * 100 if fcf > 0 else 0
+            retained_pct = max(100 - dividend_pct - buyback_pct - debt_paydown_pct, 0)
+
+            # Shareholder return rate (dividends + buybacks)
+            shareholder_return_pct = dividend_pct + buyback_pct
+
+            # Dividend consistency (check last 5 years)
+            dividend_years = 0
+            dividend_growth_consistent = True
+            prev_div = 0
+            for cf in cashflow[:5]:
+                div = abs(cf.get('dividendsPaid', 0))
+                if div > 0:
+                    dividend_years += 1
+                    if prev_div > 0 and div < prev_div * 0.95:  # Dividend cut
+                        dividend_growth_consistent = False
+                    prev_div = div
+
+            # Calculate payout ratio
+            net_income = income[0].get('netIncome', 1)
+            payout_ratio = (dividends_paid / net_income) * 100 if net_income > 0 else 0
+
+            # Buyback efficiency (simplified - checking if shares outstanding decreased)
+            shares_current = balance[0].get('commonStock', 0) or balance[0].get('weightedAverageShsOut', 0)
+            shares_prev = balance[-1].get('commonStock', 0) or balance[-1].get('weightedAverageShsOut', 0) if len(balance) >= 2 else shares_current
+
+            share_count_change = 'decreasing' if shares_current < shares_prev * 0.98 else 'increasing' if shares_current > shares_prev * 1.02 else 'stable'
+
+            # Calculate score (0-100)
+            score = 0
+            factors = []
+
+            # Factor 1: Returns capital to shareholders (35 points)
+            if shareholder_return_pct > 80:
+                score += 35
+                factors.append('High shareholder returns (>80% FCF)')
+            elif shareholder_return_pct > 50:
+                score += 25
+                factors.append('Good shareholder returns (50-80% FCF)')
+            elif shareholder_return_pct > 25:
+                score += 15
+                factors.append('Moderate shareholder returns (25-50% FCF)')
+            else:
+                score += 5
+                factors.append('Low shareholder returns (<25% FCF)')
+
+            # Factor 2: Dividend consistency (25 points)
+            if dividend_years >= 5 and dividend_growth_consistent:
+                score += 25
+                factors.append('5+ years consistent dividends')
+            elif dividend_years >= 3:
+                score += 15
+                factors.append('3-4 years of dividends')
+            elif dividend_years >= 1:
+                score += 5
+                factors.append('Some dividend history')
+
+            # Factor 3: Sustainable payout ratio (20 points)
+            if 20 <= payout_ratio <= 60:
+                score += 20
+                factors.append('Sustainable payout ratio (20-60%)')
+            elif 0 < payout_ratio < 80:
+                score += 10
+                factors.append('Reasonable payout ratio')
+            elif payout_ratio > 100:
+                score += 0
+                factors.append('⚠️ Unsustainable payout ratio (>100%)')
+
+            # Factor 4: Buyback execution (20 points)
+            if stock_buyback > 0 and share_count_change == 'decreasing':
+                score += 20
+                factors.append('Effective buybacks (share count ↓)')
+            elif stock_buyback > 0:
+                score += 10
+                factors.append('Buybacks but dilution offset')
+            elif share_count_change == 'stable':
+                score += 15
+                factors.append('No excessive dilution')
+
+            # Overall assessment
+            if score >= 80:
+                assessment = 'Excellent - Shareholder-friendly capital allocation'
+                grade = 'A'
+            elif score >= 65:
+                assessment = 'Very Good - Strong capital discipline'
+                grade = 'B'
+            elif score >= 50:
+                assessment = 'Good - Reasonable capital allocation'
+                grade = 'C'
+            elif score >= 35:
+                assessment = 'Fair - Room for improvement'
+                grade = 'D'
+            else:
+                assessment = 'Poor - Questionable capital allocation'
+                grade = 'F'
+
+            return {
+                'score': round(score, 0),
+                'grade': grade,
+                'fcf': fcf,
+                'fcf_formatted': f"${fcf/1e9:.2f}B" if abs(fcf) >= 1e9 else f"${fcf/1e6:.1f}M",
+                'dividend_%_fcf': round(dividend_pct, 1),
+                'buyback_%_fcf': round(buyback_pct, 1),
+                'debt_paydown_%_fcf': round(debt_paydown_pct, 1),
+                'retained_%_fcf': round(retained_pct, 1),
+                'shareholder_return_%': round(shareholder_return_pct, 1),
+                'payout_ratio_%': round(payout_ratio, 1),
+                'dividend_years': dividend_years,
+                'dividend_consistency': 'Yes' if dividend_growth_consistent else 'Inconsistent',
+                'share_count_trend': share_count_change,
+                'factors': factors,
+                'assessment': assessment
+            }
+
+        except Exception as e:
+            logger.warning(f"Capital Allocation Score calculation failed for {symbol}: {e}")
+            return {}
+
+    def _calculate_interest_rate_sensitivity(self, symbol: str, company_type: str) -> Dict:
+        """
+        Calculate interest rate sensitivity, primarily for financial companies.
+
+        Key metrics:
+        1. Net Interest Margin (NIM) = (Interest Income - Interest Expense) / Earning Assets
+        2. NIM trend over time
+        3. Duration gap (Asset duration - Liability duration) - proxy via maturity analysis
+        4. Loan-to-deposit ratio
+
+        High sensitivity = Vulnerable to rate changes
+        Low sensitivity = More stable earnings
+        """
+        try:
+            # Only really applicable to financials
+            if company_type not in ['financial', 'bank', 'insurance']:
+                # For non-financials, just check interest coverage
+                income = self.fmp.get_income_statement(symbol, period='annual', limit=3)
+                if not income:
+                    return {}
+
+                ebit = income[0].get('operatingIncome', 0)
+                interest_expense = abs(income[0].get('interestExpense', 0))
+
+                if interest_expense == 0:
+                    return {
+                        'applicable': False,
+                        'note': 'Not a financial company - limited interest rate exposure',
+                        'interest_coverage': 'N/A - No debt'
+                    }
+
+                coverage = ebit / interest_expense if interest_expense > 0 else 0
+
+                return {
+                    'applicable': False,
+                    'interest_coverage': round(coverage, 1),
+                    'note': 'Non-financial company - see Interest Coverage ratio'
+                }
+
+            # For financial companies
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=5)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=5)
+
+            if not (income and balance and len(income) >= 2):
+                return {}
+
+            # Calculate Net Interest Margin (NIM)
+            interest_income = income[0].get('interestIncome', 0) or income[0].get('totalInterestIncome', 0)
+            interest_expense = abs(income[0].get('interestExpense', 0))
+            net_interest_income = interest_income - interest_expense
+
+            # Earning assets (approximation for banks)
+            total_assets = balance[0].get('totalAssets', 0)
+            cash = balance[0].get('cashAndCashEquivalents', 0)
+            earning_assets = total_assets - cash  # Rough proxy
+
+            nim = (net_interest_income / earning_assets) * 100 if earning_assets > 0 else 0
+
+            # Calculate NIM trend (last 5 years)
+            nim_history = []
+            for i in range(min(5, len(income), len(balance))):
+                ii = income[i].get('interestIncome', 0) or income[i].get('totalInterestIncome', 0)
+                ie = abs(income[i].get('interestExpense', 0))
+                nii = ii - ie
+                ta = balance[i].get('totalAssets', 0)
+                c = balance[i].get('cashAndCashEquivalents', 0)
+                ea = ta - c
+                n = (nii / ea) * 100 if ea > 0 else 0
+                nim_history.append(n)
+
+            # Trend analysis
+            trend = 'stable'
+            yoy_change = 0
+            if len(nim_history) >= 2:
+                yoy_change = nim_history[0] - nim_history[1]
+                if yoy_change > 0.2:
+                    trend = 'expanding'
+                elif yoy_change < -0.2:
+                    trend = 'compressing'
+
+            avg_nim = sum(nim_history) / len(nim_history) if nim_history else nim
+
+            # Loan-to-Deposit ratio (for banks)
+            loans = balance[0].get('netLoans', 0) or balance[0].get('loansNetOfReserves', 0) or 0
+            deposits = balance[0].get('deposits', 0) or balance[0].get('totalDeposits', 0) or 0
+
+            ltd_ratio = (loans / deposits) * 100 if deposits > 0 else 0
+
+            # Assessment
+            if nim > 3.5:
+                nim_assessment = 'Excellent - Strong net interest margin'
+            elif nim > 2.5:
+                nim_assessment = 'Good - Healthy net interest margin'
+            elif nim > 1.5:
+                nim_assessment = 'Adequate - Moderate margin'
+            else:
+                nim_assessment = 'Concerning - Thin margin'
+
+            # Rate sensitivity assessment
+            if trend == 'expanding':
+                sensitivity = 'Benefiting from current rate environment'
+            elif trend == 'compressing':
+                sensitivity = 'Pressured by current rate environment'
+            else:
+                sensitivity = 'Stable margin through rate cycles'
+
+            return {
+                'applicable': True,
+                'nim_%': round(nim, 2),
+                'nim_trend': trend,
+                'nim_yoy_change': round(yoy_change, 2),
+                'nim_5y_avg': round(avg_nim, 2),
+                'nim_history': [round(n, 2) for n in nim_history],
+                'loan_to_deposit_%': round(ltd_ratio, 1) if ltd_ratio > 0 else None,
+                'net_interest_income': net_interest_income,
+                'nii_formatted': f"${net_interest_income/1e9:.2f}B" if abs(net_interest_income) >= 1e9 else f"${net_interest_income/1e6:.1f}M",
+                'assessment': nim_assessment,
+                'rate_sensitivity': sensitivity
+            }
+
+        except Exception as e:
+            logger.warning(f"Interest Rate Sensitivity calculation failed for {symbol}: {e}")
             return {}
 
     def _detect_red_flags(self, symbol: str) -> List[str]:
