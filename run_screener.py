@@ -358,6 +358,47 @@ def create_qualitative_excel(analysis: dict, ticker: str, timestamp: datetime) -
                 assess_df = pd.DataFrame({'Overall Assessment': [overall_assess]})
                 assess_df.to_excel(writer, sheet_name='Growth Assessment', index=False)
 
+        # Sheet 12: Cash Conversion Cycle (FASE 1)
+        cash_cycle = intrinsic.get('cash_conversion_cycle', {})
+        if cash_cycle:
+            ccc_data = [{
+                'DSO (Days)': f"{cash_cycle.get('dso', 0):.0f}",
+                'DIO (Days)': f"{cash_cycle.get('dio', 0):.0f}",
+                'DPO (Days)': f"{cash_cycle.get('dpo', 0):.0f}",
+                'Cash Conversion Cycle (Days)': f"{cash_cycle.get('ccc', 0):.0f}",
+                'YoY Change (Days)': f"{cash_cycle.get('yoy_change', 0):+.0f}",
+                'Trend': cash_cycle.get('trend', 'N/A'),
+                'Assessment': cash_cycle.get('assessment', 'N/A')
+            }]
+            pd.DataFrame(ccc_data).to_excel(writer, sheet_name='Cash Conversion Cycle', index=False)
+
+        # Sheet 13: Operating Leverage (FASE 1)
+        operating_lev = intrinsic.get('operating_leverage', {})
+        if operating_lev:
+            ol_data = [{
+                'Operating Leverage': f"{operating_lev.get('operating_leverage', 0):.2f}x",
+                '2Y Avg OL': f"{operating_lev.get('ol_avg_2y', 0):.2f}x",
+                'Revenue Change %': f"{operating_lev.get('revenue_change_%', 0):+.1f}%",
+                'EBIT Change %': f"{operating_lev.get('ebit_change_%', 0):+.1f}%",
+                'Risk Level': operating_lev.get('risk_level', 'N/A'),
+                'Assessment': operating_lev.get('assessment', 'N/A')
+            }]
+            pd.DataFrame(ol_data).to_excel(writer, sheet_name='Operating Leverage', index=False)
+
+        # Sheet 14: Reinvestment Quality (FASE 1)
+        reinvestment = intrinsic.get('reinvestment_quality', {})
+        if reinvestment:
+            reinv_data = [{
+                'Reinvestment Rate %': f"{reinvestment.get('reinvestment_rate_%', 0):.1f}%",
+                'Revenue Growth %': f"{reinvestment.get('revenue_growth_%', 0):.1f}%",
+                'Growth ROIC': f"{reinvestment.get('growth_roic', 0):.2f}x",
+                'Net Capex ($B)': f"${reinvestment.get('net_capex', 0)/1e9:.2f}",
+                'Delta Working Capital ($B)': f"${reinvestment.get('delta_wc', 0)/1e9:.2f}",
+                'Quality': reinvestment.get('quality', 'N/A'),
+                'Assessment': reinvestment.get('assessment', 'N/A')
+            }]
+            pd.DataFrame(reinv_data).to_excel(writer, sheet_name='Reinvestment Quality', index=False)
+
         # Auto-adjust all sheets
         for sheet_name in writer.sheets:
             worksheet = writer.sheets[sheet_name]
@@ -1961,7 +2002,154 @@ with tab5:
                                         st.caption("Last 5Y FCF ($B):")
                                         st.caption(", ".join([f"{h:.1f}" for h in history[:5]]))
 
-                        # 7. Red Flags
+                        # 7. Cash Conversion Cycle (FASE 1)
+                        cash_cycle = intrinsic.get('cash_conversion_cycle', {})
+                        if cash_cycle:
+                            st.markdown("---")
+                            st.markdown("### 💰 Cash Conversion Cycle (Working Capital Efficiency)")
+
+                            # Overall assessment
+                            assessment = cash_cycle.get('assessment', 'Unknown')
+                            ccc_val = cash_cycle.get('ccc', 0)
+
+                            if 'Excellent' in assessment:
+                                st.success(f"**{assessment}** - CCC: {ccc_val:.0f} days")
+                            elif 'Very Good' in assessment or 'Good' in assessment:
+                                st.info(f"**{assessment}** - CCC: {ccc_val:.0f} days")
+                            elif 'Poor' in assessment or 'Concerning' in assessment:
+                                st.error(f"**{assessment}** - CCC: {ccc_val:.0f} days")
+                            else:
+                                st.warning(f"**{assessment}** - CCC: {ccc_val:.0f} days")
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                dso = cash_cycle.get('dso', 0)
+                                st.metric("DSO (Days Sales Outstanding)",
+                                        f"{dso:.0f} days",
+                                        help="How long to collect receivables")
+
+                            with col2:
+                                dio = cash_cycle.get('dio', 0)
+                                st.metric("DIO (Days Inventory Outstanding)",
+                                        f"{dio:.0f} days",
+                                        help="How long inventory sits")
+
+                            with col3:
+                                dpo = cash_cycle.get('dpo', 0)
+                                st.metric("DPO (Days Payables Outstanding)",
+                                        f"{dpo:.0f} days",
+                                        help="How long to pay suppliers")
+
+                            with col4:
+                                trend = cash_cycle.get('trend', 'stable')
+                                yoy_change = cash_cycle.get('yoy_change', 0)
+                                if trend == 'improving':
+                                    st.metric("YoY Trend", "📈 Improving", delta=f"{yoy_change:.0f} days")
+                                elif trend == 'deteriorating':
+                                    st.metric("YoY Trend", "📉 Worsening", delta=f"{yoy_change:+.0f} days")
+                                else:
+                                    st.metric("YoY Trend", "→ Stable", delta=f"{yoy_change:+.0f} days")
+
+                            st.caption("💡 Lower CCC = Better working capital efficiency. Negative CCC means suppliers finance operations.")
+
+                        # 8. Operating Leverage (FASE 1)
+                        operating_lev = intrinsic.get('operating_leverage', {})
+                        if operating_lev:
+                            st.markdown("---")
+                            st.markdown("### ⚙️ Operating Leverage (Cost Structure)")
+
+                            ol_val = operating_lev.get('operating_leverage', 0)
+                            risk_level = operating_lev.get('risk_level', 'Unknown')
+                            assessment = operating_lev.get('assessment', '')
+
+                            # Color-code by risk
+                            if risk_level == 'Low':
+                                st.success(f"**Operating Leverage: {ol_val:.2f}x** - {risk_level} Risk")
+                            elif risk_level == 'Moderate':
+                                st.info(f"**Operating Leverage: {ol_val:.2f}x** - {risk_level} Risk")
+                            elif risk_level in ['Moderate-High', 'High', 'Very High']:
+                                st.warning(f"**Operating Leverage: {ol_val:.2f}x** - {risk_level} Risk")
+                            else:
+                                st.info(f"**Operating Leverage: {ol_val:.2f}x** - {risk_level} Risk")
+
+                            st.caption(assessment)
+
+                            col1, col2, col3 = st.columns(3)
+
+                            with col1:
+                                rev_change = operating_lev.get('revenue_change_%', 0)
+                                st.metric("Revenue Change (YoY)", f"{rev_change:+.1f}%")
+
+                            with col2:
+                                ebit_change = operating_lev.get('ebit_change_%', 0)
+                                st.metric("EBIT Change (YoY)", f"{ebit_change:+.1f}%")
+
+                            with col3:
+                                ol_avg = operating_lev.get('ol_avg_2y', 0)
+                                st.metric("2Y Avg OL", f"{ol_avg:.2f}x")
+
+                            st.caption("💡 High OL = High fixed costs. Profits amplify with revenue growth but also with declines.")
+
+                        # 9. Reinvestment Quality (FASE 1)
+                        reinvestment = intrinsic.get('reinvestment_quality', {})
+                        if reinvestment:
+                            st.markdown("---")
+                            st.markdown("### 🔄 Reinvestment Quality (Capital Efficiency of Growth)")
+
+                            quality = reinvestment.get('quality', 'Unknown')
+                            assessment = reinvestment.get('assessment', '')
+
+                            # Color-code by quality
+                            if quality == 'High Quality':
+                                st.success(f"**{quality} Growth**")
+                            elif quality == 'Good Quality':
+                                st.info(f"**{quality} Growth**")
+                            elif quality == 'Moderate Quality':
+                                st.warning(f"**{quality} Growth**")
+                            else:
+                                st.error(f"**{quality} Growth**")
+
+                            st.caption(assessment)
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                reinv_rate = reinvestment.get('reinvestment_rate_%', 0)
+                                st.metric("Reinvestment Rate",
+                                        f"{reinv_rate:.1f}%",
+                                        help="(Net Capex + ΔWC) / NOPAT")
+
+                            with col2:
+                                rev_growth = reinvestment.get('revenue_growth_%', 0)
+                                st.metric("Revenue Growth",
+                                        f"{rev_growth:.1f}%",
+                                        help="YoY revenue growth")
+
+                            with col3:
+                                growth_roic = reinvestment.get('growth_roic', 0)
+                                st.metric("Growth ROIC",
+                                        f"{growth_roic:.2f}x",
+                                        help="Revenue Growth / Reinvestment Rate")
+                                if growth_roic > 2:
+                                    st.caption("🌟 Excellent")
+                                elif growth_roic > 1:
+                                    st.caption("✅ Good")
+                                elif growth_roic > 0.5:
+                                    st.caption("⚠️ Moderate")
+                                else:
+                                    st.caption("❌ Poor")
+
+                            with col4:
+                                net_capex = reinvestment.get('net_capex', 0)
+                                delta_wc = reinvestment.get('delta_wc', 0)
+                                st.metric("Net Capex",
+                                        f"${net_capex/1e9:.1f}B",
+                                        delta=f"ΔWC: ${delta_wc/1e9:.1f}B")
+
+                            st.caption("💡 Growth ROIC > 1 = Efficient growth. > 2 = Exceptional capital efficiency.")
+
+                        # 10. Red Flags
                         red_flags = intrinsic.get('red_flags', [])
                         if red_flags:
                             st.markdown("### 🚩 Red Flags Detected")
@@ -2635,7 +2823,154 @@ with tab6:
                             st.caption("Last 5Y FCF ($B):")
                             st.caption(", ".join([f"{h:.1f}" for h in history[:5]]))
 
-            # 7. Price Projections by Scenario
+            # 7. Cash Conversion Cycle (FASE 1)
+            cash_cycle = intrinsic.get('cash_conversion_cycle', {})
+            if cash_cycle:
+                st.markdown("---")
+                st.markdown("### 💰 Cash Conversion Cycle (Working Capital Efficiency)")
+
+                # Overall assessment
+                assessment = cash_cycle.get('assessment', 'Unknown')
+                ccc_val = cash_cycle.get('ccc', 0)
+
+                if 'Excellent' in assessment:
+                    st.success(f"**{assessment}** - CCC: {ccc_val:.0f} days")
+                elif 'Very Good' in assessment or 'Good' in assessment:
+                    st.info(f"**{assessment}** - CCC: {ccc_val:.0f} days")
+                elif 'Poor' in assessment or 'Concerning' in assessment:
+                    st.error(f"**{assessment}** - CCC: {ccc_val:.0f} days")
+                else:
+                    st.warning(f"**{assessment}** - CCC: {ccc_val:.0f} days")
+
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    dso = cash_cycle.get('dso', 0)
+                    st.metric("DSO (Days Sales Outstanding)",
+                            f"{dso:.0f} days",
+                            help="How long to collect receivables")
+
+                with col2:
+                    dio = cash_cycle.get('dio', 0)
+                    st.metric("DIO (Days Inventory Outstanding)",
+                            f"{dio:.0f} days",
+                            help="How long inventory sits")
+
+                with col3:
+                    dpo = cash_cycle.get('dpo', 0)
+                    st.metric("DPO (Days Payables Outstanding)",
+                            f"{dpo:.0f} days",
+                            help="How long to pay suppliers")
+
+                with col4:
+                    trend = cash_cycle.get('trend', 'stable')
+                    yoy_change = cash_cycle.get('yoy_change', 0)
+                    if trend == 'improving':
+                        st.metric("YoY Trend", "📈 Improving", delta=f"{yoy_change:.0f} days")
+                    elif trend == 'deteriorating':
+                        st.metric("YoY Trend", "📉 Worsening", delta=f"{yoy_change:+.0f} days")
+                    else:
+                        st.metric("YoY Trend", "→ Stable", delta=f"{yoy_change:+.0f} days")
+
+                st.caption("💡 Lower CCC = Better working capital efficiency. Negative CCC means suppliers finance operations.")
+
+            # 8. Operating Leverage (FASE 1)
+            operating_lev = intrinsic.get('operating_leverage', {})
+            if operating_lev:
+                st.markdown("---")
+                st.markdown("### ⚙️ Operating Leverage (Cost Structure)")
+
+                ol_val = operating_lev.get('operating_leverage', 0)
+                risk_level = operating_lev.get('risk_level', 'Unknown')
+                assessment = operating_lev.get('assessment', '')
+
+                # Color-code by risk
+                if risk_level == 'Low':
+                    st.success(f"**Operating Leverage: {ol_val:.2f}x** - {risk_level} Risk")
+                elif risk_level == 'Moderate':
+                    st.info(f"**Operating Leverage: {ol_val:.2f}x** - {risk_level} Risk")
+                elif risk_level in ['Moderate-High', 'High', 'Very High']:
+                    st.warning(f"**Operating Leverage: {ol_val:.2f}x** - {risk_level} Risk")
+                else:
+                    st.info(f"**Operating Leverage: {ol_val:.2f}x** - {risk_level} Risk")
+
+                st.caption(assessment)
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    rev_change = operating_lev.get('revenue_change_%', 0)
+                    st.metric("Revenue Change (YoY)", f"{rev_change:+.1f}%")
+
+                with col2:
+                    ebit_change = operating_lev.get('ebit_change_%', 0)
+                    st.metric("EBIT Change (YoY)", f"{ebit_change:+.1f}%")
+
+                with col3:
+                    ol_avg = operating_lev.get('ol_avg_2y', 0)
+                    st.metric("2Y Avg OL", f"{ol_avg:.2f}x")
+
+                st.caption("💡 High OL = High fixed costs. Profits amplify with revenue growth but also with declines.")
+
+            # 9. Reinvestment Quality (FASE 1)
+            reinvestment = intrinsic.get('reinvestment_quality', {})
+            if reinvestment:
+                st.markdown("---")
+                st.markdown("### 🔄 Reinvestment Quality (Capital Efficiency of Growth)")
+
+                quality = reinvestment.get('quality', 'Unknown')
+                assessment = reinvestment.get('assessment', '')
+
+                # Color-code by quality
+                if quality == 'High Quality':
+                    st.success(f"**{quality} Growth**")
+                elif quality == 'Good Quality':
+                    st.info(f"**{quality} Growth**")
+                elif quality == 'Moderate Quality':
+                    st.warning(f"**{quality} Growth**")
+                else:
+                    st.error(f"**{quality} Growth**")
+
+                st.caption(assessment)
+
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    reinv_rate = reinvestment.get('reinvestment_rate_%', 0)
+                    st.metric("Reinvestment Rate",
+                            f"{reinv_rate:.1f}%",
+                            help="(Net Capex + ΔWC) / NOPAT")
+
+                with col2:
+                    rev_growth = reinvestment.get('revenue_growth_%', 0)
+                    st.metric("Revenue Growth",
+                            f"{rev_growth:.1f}%",
+                            help="YoY revenue growth")
+
+                with col3:
+                    growth_roic = reinvestment.get('growth_roic', 0)
+                    st.metric("Growth ROIC",
+                            f"{growth_roic:.2f}x",
+                            help="Revenue Growth / Reinvestment Rate")
+                    if growth_roic > 2:
+                        st.caption("🌟 Excellent")
+                    elif growth_roic > 1:
+                        st.caption("✅ Good")
+                    elif growth_roic > 0.5:
+                        st.caption("⚠️ Moderate")
+                    else:
+                        st.caption("❌ Poor")
+
+                with col4:
+                    net_capex = reinvestment.get('net_capex', 0)
+                    delta_wc = reinvestment.get('delta_wc', 0)
+                    st.metric("Net Capex",
+                            f"${net_capex/1e9:.1f}B",
+                            delta=f"ΔWC: ${delta_wc/1e9:.1f}B")
+
+                st.caption("💡 Growth ROIC > 1 = Efficient growth. > 2 = Exceptional capital efficiency.")
+
+            # 10. Price Projections by Scenario
             projections = intrinsic.get('price_projections', {})
             if projections and 'scenarios' in projections:
                 st.markdown("---")
