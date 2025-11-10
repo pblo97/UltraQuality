@@ -1545,6 +1545,21 @@ class QualitativeAnalyzer:
                 if growth_consistency:
                     valuation['growth_consistency'] = growth_consistency
 
+                # 10. Cash Conversion Cycle (FASE 1)
+                cash_cycle = self._calculate_cash_conversion_cycle(symbol)
+                if cash_cycle:
+                    valuation['cash_conversion_cycle'] = cash_cycle
+
+                # 11. Operating Leverage (FASE 1)
+                operating_lev = self._calculate_operating_leverage(symbol)
+                if operating_lev:
+                    valuation['operating_leverage'] = operating_lev
+
+                # 12. Reinvestment Quality (FASE 1)
+                reinvestment = self._calculate_reinvestment_quality(symbol)
+                if reinvestment:
+                    valuation['reinvestment_quality'] = reinvestment
+
                 # Add detailed notes
                 profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
                 primary_metric = industry_profile.get('primary_metric', 'EV/EBIT')
@@ -2508,6 +2523,273 @@ class QualitativeAnalyzer:
 
         except Exception as e:
             logger.warning(f"Margins calculation failed for {symbol}: {e}")
+            return {}
+
+    def _calculate_cash_conversion_cycle(self, symbol: str) -> Dict:
+        """
+        Calculate Cash Conversion Cycle (CCC) and its components.
+
+        CCC = DSO + DIO - DPO
+        DSO = Days Sales Outstanding (how long to collect receivables)
+        DIO = Days Inventory Outstanding (how long inventory sits)
+        DPO = Days Payables Outstanding (how long to pay suppliers)
+
+        CCC < 0 = Company collects cash before paying (excellent, e.g., Amazon)
+        CCC low = Efficient working capital management
+        CCC high = Cash tied up, potential liquidity issues
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=2)
+
+            if not (income and balance and len(income) >= 1 and len(balance) >= 1):
+                return {}
+
+            # Current year data
+            revenue = income[0].get('revenue', 0)
+            cogs = income[0].get('costOfRevenue', 0) or (revenue - income[0].get('grossProfit', 0))
+
+            accounts_receivable = balance[0].get('netReceivables', 0) or balance[0].get('accountsReceivables', 0)
+            inventory = balance[0].get('inventory', 0)
+            accounts_payable = balance[0].get('accountPayables', 0)
+
+            if revenue <= 0 or cogs <= 0:
+                return {}
+
+            # Calculate components
+            dso = (accounts_receivable / revenue) * 365 if revenue > 0 else 0
+            dio = (inventory / cogs) * 365 if cogs > 0 else 0
+            dpo = (accounts_payable / cogs) * 365 if cogs > 0 else 0
+
+            ccc = dso + dio - dpo
+
+            # Calculate YoY trend if data available
+            trend = 'stable'
+            yoy_change = None
+            if len(income) >= 2 and len(balance) >= 2:
+                prev_revenue = income[1].get('revenue', 0)
+                prev_cogs = income[1].get('costOfRevenue', 0) or (prev_revenue - income[1].get('grossProfit', 0))
+                prev_ar = balance[1].get('netReceivables', 0) or balance[1].get('accountsReceivables', 0)
+                prev_inv = balance[1].get('inventory', 0)
+                prev_ap = balance[1].get('accountPayables', 0)
+
+                if prev_revenue > 0 and prev_cogs > 0:
+                    prev_dso = (prev_ar / prev_revenue) * 365
+                    prev_dio = (prev_inv / prev_cogs) * 365
+                    prev_dpo = (prev_ap / prev_cogs) * 365
+                    prev_ccc = prev_dso + prev_dio - prev_dpo
+
+                    yoy_change = ccc - prev_ccc
+                    if yoy_change < -5:
+                        trend = 'improving'
+                    elif yoy_change > 5:
+                        trend = 'deteriorating'
+
+            # Assessment
+            if ccc < 0:
+                assessment = 'Excellent - Negative CCC (collects before paying)'
+            elif ccc < 30:
+                assessment = 'Very Good - Efficient working capital'
+            elif ccc < 60:
+                assessment = 'Good - Reasonable working capital'
+            elif ccc < 90:
+                assessment = 'Adequate - Room for improvement'
+            else:
+                assessment = 'Concerning - High cash tied up'
+
+            return {
+                'dso': round(dso, 1),
+                'dio': round(dio, 1),
+                'dpo': round(dpo, 1),
+                'ccc': round(ccc, 1),
+                'trend': trend,
+                'yoy_change': round(yoy_change, 1) if yoy_change is not None else None,
+                'assessment': assessment
+            }
+
+        except Exception as e:
+            logger.warning(f"Cash Conversion Cycle calculation failed for {symbol}: {e}")
+            return {}
+
+    def _calculate_operating_leverage(self, symbol: str) -> Dict:
+        """
+        Calculate Operating Leverage: sensitivity of EBIT to revenue changes.
+
+        Operating Leverage = % Change EBIT / % Change Revenue
+
+        OL > 2 = High operating leverage (sensitive to revenue, high fixed costs)
+        OL 1-2 = Moderate leverage
+        OL < 1 = Low leverage (variable costs dominate)
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=3)
+
+            if not (income and len(income) >= 2):
+                return {}
+
+            # Current vs previous year
+            revenue_current = income[0].get('revenue', 0)
+            revenue_prev = income[1].get('revenue', 0)
+            ebit_current = income[0].get('operatingIncome', 0)  # EBIT
+            ebit_prev = income[1].get('operatingIncome', 0)
+
+            if revenue_prev <= 0 or ebit_prev == 0:
+                return {}
+
+            # Calculate % changes
+            revenue_change_pct = ((revenue_current - revenue_prev) / revenue_prev) * 100
+            ebit_change_pct = ((ebit_current - ebit_prev) / abs(ebit_prev)) * 100
+
+            # Operating leverage
+            if revenue_change_pct != 0:
+                operating_leverage = ebit_change_pct / revenue_change_pct
+            else:
+                operating_leverage = 0
+
+            # Calculate 2-year average if available
+            ol_avg = operating_leverage
+            if len(income) >= 3:
+                rev_1 = income[1].get('revenue', 0)
+                rev_2 = income[2].get('revenue', 0)
+                ebit_1 = income[1].get('operatingIncome', 0)
+                ebit_2 = income[2].get('operatingIncome', 0)
+
+                if rev_2 > 0 and ebit_2 != 0:
+                    rev_chg_2 = ((rev_1 - rev_2) / rev_2) * 100
+                    ebit_chg_2 = ((ebit_1 - ebit_2) / abs(ebit_2)) * 100
+                    if rev_chg_2 != 0:
+                        ol_2 = ebit_chg_2 / rev_chg_2
+                        ol_avg = (operating_leverage + ol_2) / 2
+
+            # Assessment
+            if abs(operating_leverage) > 3:
+                assessment = 'Very High - Highly sensitive to revenue changes'
+                risk = 'High'
+            elif abs(operating_leverage) > 2:
+                assessment = 'High - Significant fixed cost base'
+                risk = 'Moderate-High'
+            elif abs(operating_leverage) > 1:
+                assessment = 'Moderate - Balanced cost structure'
+                risk = 'Moderate'
+            else:
+                assessment = 'Low - Variable costs dominate, more stable'
+                risk = 'Low'
+
+            return {
+                'operating_leverage': round(operating_leverage, 2),
+                'ol_avg_2y': round(ol_avg, 2),
+                'revenue_change_%': round(revenue_change_pct, 1),
+                'ebit_change_%': round(ebit_change_pct, 1),
+                'assessment': assessment,
+                'risk_level': risk
+            }
+
+        except Exception as e:
+            logger.warning(f"Operating Leverage calculation failed for {symbol}: {e}")
+            return {}
+
+    def _calculate_reinvestment_quality(self, symbol: str) -> Dict:
+        """
+        Calculate Reinvestment Rate and Growth Quality metrics.
+
+        Reinvestment Rate = (Capex - D&A + Δ Working Capital) / NOPAT
+        Growth ROIC = Revenue Growth % / Reinvestment Rate
+
+        High Growth ROIC = Efficient growth (little capital needed)
+        Low Growth ROIC = Capital-intensive growth (poor efficiency)
+        """
+        try:
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=3)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=3)
+            cashflow = self.fmp.get_cash_flow(symbol, period='annual', limit=3)
+
+            if not (income and balance and cashflow and len(income) >= 2):
+                return {}
+
+            # Calculate NOPAT (current year)
+            operating_income = income[0].get('operatingIncome', 0)
+            tax_rate = abs(income[0].get('incomeTaxExpense', 0)) / income[0].get('incomeBeforeTax', 1) if income[0].get('incomeBeforeTax', 0) > 0 else 0.21
+            tax_rate = min(max(tax_rate, 0), 0.50)
+            nopat = operating_income * (1 - tax_rate)
+
+            # Calculate reinvestment components
+            capex = abs(cashflow[0].get('capitalExpenditure', 0))
+            da = abs(cashflow[0].get('depreciationAndAmortization', 0))
+
+            # Change in working capital
+            current_assets = balance[0].get('totalCurrentAssets', 0)
+            current_liabilities = balance[0].get('totalCurrentLiabilities', 0)
+            current_wc = current_assets - current_liabilities
+
+            if len(balance) >= 2:
+                prev_assets = balance[1].get('totalCurrentAssets', 0)
+                prev_liabilities = balance[1].get('totalCurrentLiabilities', 0)
+                prev_wc = prev_assets - prev_liabilities
+                delta_wc = current_wc - prev_wc
+            else:
+                delta_wc = 0
+
+            # Reinvestment = Net Capex + Δ WC
+            net_capex = capex - da
+            reinvestment = net_capex + delta_wc
+
+            if nopat <= 0:
+                return {}
+
+            reinvestment_rate = (reinvestment / nopat) * 100
+
+            # Revenue growth
+            revenue_current = income[0].get('revenue', 0)
+            revenue_prev = income[1].get('revenue', 0)
+
+            if revenue_prev > 0:
+                revenue_growth = ((revenue_current - revenue_prev) / revenue_prev) * 100
+            else:
+                revenue_growth = 0
+
+            # Growth ROIC = Revenue Growth / Reinvestment Rate
+            if reinvestment_rate > 0:
+                growth_roic = revenue_growth / reinvestment_rate
+            else:
+                growth_roic = 0 if revenue_growth <= 0 else 999  # Infinite efficiency (no reinvestment needed)
+
+            # Calculate capital efficiency: Revenue / (Net PPE + WC)
+            ppe = balance[0].get('propertyPlantEquipmentNet', 0)
+            capital_base = ppe + current_wc
+            if capital_base > 0:
+                capital_efficiency = revenue_current / capital_base
+            else:
+                capital_efficiency = 0
+
+            # Assessment
+            if growth_roic > 2:
+                assessment = 'Excellent - High growth with low capital needs'
+                quality = 'High Quality'
+            elif growth_roic > 1:
+                assessment = 'Good - Balanced growth and reinvestment'
+                quality = 'Good Quality'
+            elif growth_roic > 0.5:
+                assessment = 'Adequate - Moderate capital efficiency'
+                quality = 'Moderate Quality'
+            else:
+                assessment = 'Concerning - Capital-intensive growth'
+                quality = 'Low Quality'
+
+            return {
+                'reinvestment_rate_%': round(reinvestment_rate, 1),
+                'revenue_growth_%': round(revenue_growth, 1),
+                'growth_roic': round(growth_roic, 2),
+                'capex': capex,
+                'net_capex': net_capex,
+                'delta_wc': delta_wc,
+                'reinvestment_total': reinvestment,
+                'capital_efficiency': round(capital_efficiency, 2),
+                'assessment': assessment,
+                'quality': quality
+            }
+
+        except Exception as e:
+            logger.warning(f"Reinvestment Quality calculation failed for {symbol}: {e}")
             return {}
 
     def _detect_red_flags(self, symbol: str) -> List[str]:
