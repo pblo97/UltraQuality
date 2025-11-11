@@ -1,0 +1,80 @@
+# Ultra Quality-Value Screener Configuration - Latin America Example
+
+# FMP API
+fmp:
+  api_key: "${FMP_API_KEY}"
+  base_url: "https://financialmodelingprep.com/api/v3"
+  rate_limit_rps: 21
+  max_retries: 3
+  timeout_seconds: 60
+
+# Universe Filters - LATAM Focus
+universe:
+  countries: ["BR", "MX", "CL", "AR"]  # Brasil, México, Chile, Argentina
+  exchanges: []  # All exchanges in these countries
+  min_market_cap: 500_000_000  # $500M (lower for smaller markets)
+  min_avg_dollar_vol_3m: 2_000_000  # $2M daily volume (lower threshold)
+  top_k: 300  # Fewer stocks due to smaller markets
+
+# Scoring Weights (same as before)
+scoring:
+  weight_value: 0.30
+  weight_quality: 0.70
+  exclude_reds: true
+  threshold_buy: 65
+  threshold_monitor: 45
+  threshold_buy_amber: 80
+  threshold_buy_quality_exceptional: 85
+
+# Guardrail Thresholds (same as before)
+guardrails:
+  non_financial:
+    altman_z_red: 1.8
+    altman_z_amber: 2.99
+    beneish_m_red: -1.78
+    accruals_noa_amber_percentile: 80
+    accruals_noa_red_percentile: 90
+    net_share_issuance_red_pct: 10.0
+    net_share_issuance_amber_pct: 5.0
+    interest_coverage_red: 2.0
+    interest_coverage_amber: 3.0
+    net_debt_ebitda_red: 6.0
+    net_debt_ebitda_amber: 4.0
+    debt_maturity_24m_red_pct: 30.0
+    debt_maturity_24m_amber_pct: 20.0
+
+  financial:
+    cet1_red: 8.0
+    cet1_amber: 10.0
+    efficiency_ratio_red: 70.0
+    efficiency_ratio_amber: 60.0
+    loans_to_deposits_red: 100.0
+    loans_to_deposits_amber: 90.0
+
+  reit:
+    ffo_payout_red_pct: 95.0
+    ffo_payout_amber_pct: 85.0
+    net_debt_ebitda_red: 8.0
+    net_debt_ebitda_amber: 6.0
+    occupancy_red_pct: 85.0
+    occupancy_amber_pct: 90.0
+    debt_to_gross_assets_red_pct: 60.0
+    debt_to_gross_assets_amber_pct: 50.0
+
+# Caching
+cache:
+  ttl_universe_hours: 12
+  ttl_symbol_hours: 48
+  ttl_qualitative_hours: 24
+  cache_dir: "./cache"
+
+# Logging
+logging:
+  level: "INFO"
+  log_dir: "./logs"
+  log_file: "screener.log"
+
+# Output
+output:
+  csv_path: "./data/screener_results.csv"
+  metrics_log_path: "./logs/pipeline_metrics.json"
