@@ -1577,16 +1577,28 @@ class QualitativeAnalyzer:
 
                 # 16. Insider Trading Analysis (Premium Feature)
                 premium_config = self.config.get('premium', {})
+                logger.info(f"🔍 Premium config for {symbol}: {premium_config}")
+
                 if premium_config.get('enable_insider_trading', False):
+                    logger.info(f"✓ Insider Trading is ENABLED, calling _analyze_insider_trading({symbol})...")
                     insider_analysis = self._analyze_insider_trading(symbol)
+                    logger.info(f"✓ Insider Trading result: available={insider_analysis.get('available', False) if insider_analysis else False}")
                     if insider_analysis:
                         valuation['insider_trading'] = insider_analysis
+                        logger.info(f"✓ Insider Trading added to valuation dict")
+                else:
+                    logger.warning(f"❌ Insider Trading is DISABLED in config")
 
                 # 17. Earnings Call Sentiment (Premium Feature)
                 if premium_config.get('enable_earnings_transcripts', False):
+                    logger.info(f"✓ Earnings Transcripts is ENABLED, calling _analyze_earnings_sentiment({symbol})...")
                     earnings_sentiment = self._analyze_earnings_sentiment(symbol)
+                    logger.info(f"✓ Earnings Sentiment result: available={earnings_sentiment.get('available', False) if earnings_sentiment else False}")
                     if earnings_sentiment:
                         valuation['earnings_sentiment'] = earnings_sentiment
+                        logger.info(f"✓ Earnings Sentiment added to valuation dict")
+                else:
+                    logger.warning(f"❌ Earnings Transcripts is DISABLED in config")
 
                 # Add detailed notes
                 profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
