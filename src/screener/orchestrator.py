@@ -86,7 +86,7 @@ class ScreenerPipeline:
                 "  3. .env file: FMP_API_KEY=your_key"
             )
 
-        self.fmp = FMPClient(api_key, self.config['fmp'])
+        self.fmp = FMPClient(api_key, self.config)  # Pass full config for cache & premium settings
         logger.info("FMP client initialized")
 
         # Initialize calculators

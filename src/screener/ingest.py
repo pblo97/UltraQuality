@@ -106,15 +106,25 @@ class FMPClient:
     """
 
     def __init__(self, api_key: str, config: Dict):
-        self.api_key = api_key
-        self.base_url = config.get('base_url', 'https://financialmodelingprep.com/api/v3')
-        self.rate_limiter = RateLimiter(config.get('rate_limit_rps', 8))
-        self.max_retries = config.get('max_retries', 3)
-        self.timeout = config.get('timeout_seconds', 30)
+        """
+        Initialize FMP client.
 
-        # Caches with different TTLs (read from config)
-        cache_dir = config.get('cache_dir', './cache')
+        Args:
+            api_key: FMP API key
+            config: Full config dict (not just config['fmp'])
+        """
+        self.api_key = api_key
+
+        # Extract FMP-specific config
+        fmp_config = config.get('fmp', config)  # Backward compatible: if 'fmp' not in config, assume config IS fmp_config
+        self.base_url = fmp_config.get('base_url', 'https://financialmodelingprep.com/api/v3')
+        self.rate_limiter = RateLimiter(fmp_config.get('rate_limit_rps', 8))
+        self.max_retries = fmp_config.get('max_retries', 3)
+        self.timeout = fmp_config.get('timeout_seconds', 30)
+
+        # Caches with different TTLs (read from root config)
         cache_config = config.get('cache', {})
+        cache_dir = cache_config.get('cache_dir', './cache')
         ttl_universe = cache_config.get('ttl_universe_hours', 12)
         ttl_symbol = cache_config.get('ttl_symbol_hours', 48)
         ttl_qualitative = cache_config.get('ttl_qualitative_hours', 24)

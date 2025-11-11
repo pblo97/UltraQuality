@@ -1380,7 +1380,7 @@ with tab5:
                             st.stop()
 
                         # Initialize FMP client and analyzer
-                        fmp_client = FMPClient(api_key, config['fmp'])
+                        fmp_client = FMPClient(api_key, config)  # Pass full config for cache & premium settings
                         analyzer = QualitativeAnalyzer(fmp_client, config)
 
                         # Get company data from results for context
