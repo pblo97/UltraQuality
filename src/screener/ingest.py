@@ -295,6 +295,39 @@ class FMPClient:
         return self._request(f'financial-growth/{symbol}', params, cache=self.cache_symbol)
 
     # ========================
+    # Premium Features
+    # ========================
+
+    def get_insider_trading(self, symbol: str, limit: int = 100) -> List[Dict]:
+        """
+        Endpoint: /insider-trading (Premium feature)
+        Returns insider trading transactions for the symbol.
+
+        Response includes:
+        - transactionDate
+        - reportingName (insider name)
+        - transactionType (P-Purchase, S-Sale, etc.)
+        - securitiesTransacted (shares)
+        - price
+        """
+        params = {'symbol': symbol, 'limit': limit}
+        return self._request('insider-trading', params, cache=self.cache_symbol)
+
+    def get_earnings_call_transcript(self, symbol: str, limit: int = 4) -> List[Dict]:
+        """
+        Endpoint: /earning_call_transcript/{symbol} (Premium feature)
+        Returns earnings call transcripts.
+
+        Response includes:
+        - quarter
+        - year
+        - date
+        - content (full transcript text)
+        """
+        params = {'limit': limit}
+        return self._request(f'earning_call_transcript/{symbol}', params, cache=self.cache_qualitative)
+
+    # ========================
     # Qualitative (on-demand)
     # ========================
 

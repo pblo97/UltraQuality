@@ -1575,6 +1575,16 @@ class QualitativeAnalyzer:
                 if rate_sensitivity:
                     valuation['interest_rate_sensitivity'] = rate_sensitivity
 
+                # 16. Insider Trading Analysis (Premium Feature)
+                insider_analysis = self._analyze_insider_trading(symbol)
+                if insider_analysis:
+                    valuation['insider_trading'] = insider_analysis
+
+                # 17. Earnings Call Sentiment (Premium Feature)
+                earnings_sentiment = self._analyze_earnings_sentiment(symbol)
+                if earnings_sentiment:
+                    valuation['earnings_sentiment'] = earnings_sentiment
+
                 # Add detailed notes
                 profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
                 primary_metric = industry_profile.get('primary_metric', 'EV/EBIT')
@@ -3218,6 +3228,312 @@ class QualitativeAnalyzer:
         except Exception as e:
             logger.warning(f"Interest Rate Sensitivity calculation failed for {symbol}: {e}")
             return {}
+
+    def _analyze_insider_trading(self, symbol: str) -> Dict:
+        """
+        Analyze insider trading activity (Premium FMP feature).
+
+        Key signals:
+        1. Insider buying clusters (multiple insiders buying within 3 months)
+        2. Buy vs Sell ratio
+        3. Size of transactions relative to their holdings
+        4. CEO/CFO buying (more significant than other insiders)
+
+        Strong Buy Signal = Multiple insiders buying, especially C-suite
+        Weak/Neutral = Mixed activity or selling
+        Red Flag = Heavy insider selling
+        """
+        try:
+            # Get insider trading data (last 12 months)
+            insider_trades = self.fmp.get_insider_trading(symbol, limit=100)
+
+            if not insider_trades:
+                return {
+                    'available': False,
+                    'note': 'No insider trading data available'
+                }
+
+            # Filter last 12 months
+            from datetime import datetime, timedelta
+            one_year_ago = datetime.now() - timedelta(days=365)
+            three_months_ago = datetime.now() - timedelta(days=90)
+
+            recent_trades = []
+            for trade in insider_trades:
+                trade_date = datetime.strptime(trade.get('transactionDate', ''), '%Y-%m-%d')
+                if trade_date >= one_year_ago:
+                    recent_trades.append(trade)
+
+            if not recent_trades:
+                return {
+                    'available': False,
+                    'note': 'No recent insider trades (last 12 months)'
+                }
+
+            # Categorize trades
+            buys = []
+            sells = []
+
+            for trade in recent_trades:
+                transaction_type = trade.get('transactionType', '').upper()
+                shares = trade.get('securitiesTransacted', 0)
+                price = trade.get('price', 0)
+                value = abs(shares * price)
+                reporting_name = trade.get('reportingName', '')
+                is_ceo_cfo = any(title in reporting_name.upper() for title in ['CEO', 'CFO', 'CHIEF EXECUTIVE', 'CHIEF FINANCIAL'])
+
+                trade_info = {
+                    'date': trade.get('transactionDate'),
+                    'name': reporting_name,
+                    'type': transaction_type,
+                    'shares': shares,
+                    'value': value,
+                    'is_executive': is_ceo_cfo
+                }
+
+                if 'P-Purchase' in transaction_type or 'BUY' in transaction_type:
+                    buys.append(trade_info)
+                elif 'S-Sale' in transaction_type or 'SELL' in transaction_type:
+                    sells.append(trade_info)
+
+            # Calculate metrics
+            buy_count = len(buys)
+            sell_count = len(sells)
+            total_buy_value = sum(b['value'] for b in buys)
+            total_sell_value = sum(s['value'] for s in sells)
+
+            # Recent cluster detection (last 3 months)
+            recent_buys = [b for b in buys if datetime.strptime(b['date'], '%Y-%m-%d') >= three_months_ago]
+            recent_buy_count = len(recent_buys)
+            unique_buyers = len(set(b['name'] for b in recent_buys))
+
+            # Executive buying
+            executive_buys = [b for b in buys if b['is_executive']]
+            executive_buy_count = len(executive_buys)
+
+            # Calculate confidence score (0-100)
+            score = 0
+
+            # Factor 1: Recent buying cluster (40 points)
+            if recent_buy_count >= 5 and unique_buyers >= 3:
+                score += 40
+            elif recent_buy_count >= 3 and unique_buyers >= 2:
+                score += 25
+            elif recent_buy_count >= 1:
+                score += 10
+
+            # Factor 2: Executive buying (30 points)
+            if executive_buy_count >= 3:
+                score += 30
+            elif executive_buy_count >= 2:
+                score += 20
+            elif executive_buy_count >= 1:
+                score += 10
+
+            # Factor 3: Buy/Sell ratio (20 points)
+            if buy_count > 0 and sell_count == 0:
+                score += 20
+            elif buy_count > sell_count * 2:
+                score += 15
+            elif buy_count > sell_count:
+                score += 10
+
+            # Factor 4: Dollar value (10 points)
+            if total_buy_value > total_sell_value * 3:
+                score += 10
+            elif total_buy_value > total_sell_value:
+                score += 5
+
+            # Penalty for heavy selling
+            if sell_count > buy_count * 2:
+                score = max(0, score - 30)
+
+            # Assessment
+            if score >= 80:
+                signal = 'Strong Buy'
+                assessment = 'Multiple insiders buying aggressively - very bullish'
+            elif score >= 60:
+                signal = 'Buy'
+                assessment = 'Insider buying activity present - bullish'
+            elif score >= 40:
+                signal = 'Weak Buy'
+                assessment = 'Some insider buying - moderately bullish'
+            elif score >= 20:
+                signal = 'Neutral'
+                assessment = 'Mixed insider activity'
+            else:
+                signal = 'Sell'
+                assessment = 'Insider selling outweighs buying - bearish'
+
+            return {
+                'available': True,
+                'score': round(score, 0),
+                'signal': signal,
+                'assessment': assessment,
+                'buy_count_12m': buy_count,
+                'sell_count_12m': sell_count,
+                'recent_buys_3m': recent_buy_count,
+                'unique_buyers_3m': unique_buyers,
+                'executive_buys': executive_buy_count,
+                'total_buy_value': total_buy_value,
+                'total_sell_value': total_sell_value,
+                'buy_value_formatted': f"${total_buy_value/1e6:.1f}M" if total_buy_value >= 1e6 else f"${total_buy_value/1e3:.0f}K",
+                'sell_value_formatted': f"${total_sell_value/1e6:.1f}M" if total_sell_value >= 1e6 else f"${total_sell_value/1e3:.0f}K",
+                'net_position': 'Buying' if total_buy_value > total_sell_value else 'Selling',
+                'recent_trades': recent_buys[:5]  # Top 5 most recent buys for display
+            }
+
+        except Exception as e:
+            logger.warning(f"Insider Trading analysis failed for {symbol}: {e}")
+            return {
+                'available': False,
+                'note': f'Analysis failed: {str(e)}'
+            }
+
+    def _analyze_earnings_sentiment(self, symbol: str) -> Dict:
+        """
+        Analyze sentiment from earnings call transcripts (Premium FMP feature).
+
+        Key signals:
+        1. Management tone: confident vs uncertain
+        2. Keyword frequency: growth, challenges, opportunities
+        3. Forward guidance tone
+        4. Q&A defensiveness
+
+        Positive Sentiment = Confident tone, growth focus, clear guidance
+        Negative Sentiment = Defensive, uncertain, challenge-focused
+        """
+        try:
+            # Get earnings call transcripts (last 4 quarters)
+            transcripts = self.fmp.get_earnings_call_transcript(symbol, limit=4)
+
+            if not transcripts or len(transcripts) == 0:
+                return {
+                    'available': False,
+                    'note': 'No earnings transcripts available'
+                }
+
+            # Analyze most recent transcript
+            latest = transcripts[0]
+            content = latest.get('content', '')
+
+            if not content or len(content) < 100:
+                return {
+                    'available': False,
+                    'note': 'Transcript content insufficient'
+                }
+
+            # Simple sentiment analysis using keyword scoring
+            # Positive keywords
+            positive_keywords = [
+                'strong', 'growth', 'expanding', 'opportunity', 'opportunities',
+                'optimistic', 'confident', 'pleased', 'excited', 'momentum',
+                'record', 'outperform', 'exceed', 'accelerate', 'improve',
+                'innovative', 'leadership', 'winning', 'success', 'strength'
+            ]
+
+            # Negative keywords
+            negative_keywords = [
+                'challenge', 'challenges', 'difficult', 'pressure', 'pressures',
+                'decline', 'decrease', 'weakness', 'concern', 'concerns',
+                'uncertain', 'uncertainty', 'competitive', 'headwind', 'headwinds',
+                'disappointing', 'miss', 'lower', 'weak', 'struggled'
+            ]
+
+            # Caution keywords
+            caution_keywords = [
+                'cautious', 'careful', 'monitoring', 'volatile', 'volatility',
+                'risk', 'risks', 'macro', 'macroeconomic', 'slowdown'
+            ]
+
+            # Count occurrences (case-insensitive)
+            content_lower = content.lower()
+            positive_count = sum(content_lower.count(kw) for kw in positive_keywords)
+            negative_count = sum(content_lower.count(kw) for kw in negative_keywords)
+            caution_count = sum(content_lower.count(kw) for kw in caution_keywords)
+
+            total_keywords = positive_count + negative_count + caution_count
+
+            if total_keywords == 0:
+                return {
+                    'available': False,
+                    'note': 'Insufficient keyword data for sentiment analysis'
+                }
+
+            # Calculate sentiment scores
+            positive_pct = (positive_count / total_keywords) * 100
+            negative_pct = (negative_count / total_keywords) * 100
+            caution_pct = (caution_count / total_keywords) * 100
+
+            # Net sentiment score (-100 to +100)
+            net_sentiment = positive_pct - negative_pct
+
+            # Confidence score (0-100)
+            # High confidence = Strong positive or clear negative
+            # Low confidence = Mixed/neutral
+            if abs(net_sentiment) > 30:
+                confidence = 90
+            elif abs(net_sentiment) > 20:
+                confidence = 75
+            elif abs(net_sentiment) > 10:
+                confidence = 60
+            else:
+                confidence = 40
+
+            # Overall assessment
+            if net_sentiment > 20:
+                tone = 'Very Positive'
+                assessment = 'Management is confident and growth-focused'
+                grade = 'A'
+            elif net_sentiment > 10:
+                tone = 'Positive'
+                assessment = 'Management tone is generally optimistic'
+                grade = 'B'
+            elif net_sentiment > -10:
+                tone = 'Neutral'
+                assessment = 'Mixed signals from management'
+                grade = 'C'
+            elif net_sentiment > -20:
+                tone = 'Negative'
+                assessment = 'Management acknowledges challenges'
+                grade = 'D'
+            else:
+                tone = 'Very Negative'
+                assessment = 'Management tone is defensive and uncertain'
+                grade = 'F'
+
+            # Detect guidance keywords
+            guidance_keywords = ['guidance', 'forecast', 'outlook', 'expect', 'target']
+            has_guidance = any(kw in content_lower for kw in guidance_keywords)
+
+            # Get quarter info
+            quarter = latest.get('quarter', 0)
+            year = latest.get('year', 0)
+
+            return {
+                'available': True,
+                'tone': tone,
+                'grade': grade,
+                'assessment': assessment,
+                'net_sentiment': round(net_sentiment, 1),
+                'confidence_%': round(confidence, 0),
+                'positive_%': round(positive_pct, 1),
+                'negative_%': round(negative_pct, 1),
+                'caution_%': round(caution_pct, 1),
+                'positive_mentions': positive_count,
+                'negative_mentions': negative_count,
+                'caution_mentions': caution_count,
+                'has_guidance': has_guidance,
+                'quarter': f"Q{quarter} {year}",
+                'transcript_date': latest.get('date', 'N/A')
+            }
+
+        except Exception as e:
+            logger.warning(f"Earnings Sentiment analysis failed for {symbol}: {e}")
+            return {
+                'available': False,
+                'note': f'Analysis failed: {str(e)}'
+            }
 
     def _detect_red_flags(self, symbol: str) -> List[str]:
         """
