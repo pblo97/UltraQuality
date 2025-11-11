@@ -1576,14 +1576,17 @@ class QualitativeAnalyzer:
                     valuation['interest_rate_sensitivity'] = rate_sensitivity
 
                 # 16. Insider Trading Analysis (Premium Feature)
-                insider_analysis = self._analyze_insider_trading(symbol)
-                if insider_analysis:
-                    valuation['insider_trading'] = insider_analysis
+                premium_config = self.config.get('premium', {})
+                if premium_config.get('enable_insider_trading', False):
+                    insider_analysis = self._analyze_insider_trading(symbol)
+                    if insider_analysis:
+                        valuation['insider_trading'] = insider_analysis
 
                 # 17. Earnings Call Sentiment (Premium Feature)
-                earnings_sentiment = self._analyze_earnings_sentiment(symbol)
-                if earnings_sentiment:
-                    valuation['earnings_sentiment'] = earnings_sentiment
+                if premium_config.get('enable_earnings_transcripts', False):
+                    earnings_sentiment = self._analyze_earnings_sentiment(symbol)
+                    if earnings_sentiment:
+                        valuation['earnings_sentiment'] = earnings_sentiment
 
                 # Add detailed notes
                 profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()

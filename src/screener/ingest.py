@@ -112,11 +112,16 @@ class FMPClient:
         self.max_retries = config.get('max_retries', 3)
         self.timeout = config.get('timeout_seconds', 30)
 
-        # Caches with different TTLs
+        # Caches with different TTLs (read from config)
         cache_dir = config.get('cache_dir', './cache')
-        self.cache_universe = FMPCache(f"{cache_dir}/universe", ttl_hours=12)
-        self.cache_symbol = FMPCache(f"{cache_dir}/symbol", ttl_hours=48)
-        self.cache_qualitative = FMPCache(f"{cache_dir}/qualitative", ttl_hours=24)
+        cache_config = config.get('cache', {})
+        ttl_universe = cache_config.get('ttl_universe_hours', 12)
+        ttl_symbol = cache_config.get('ttl_symbol_hours', 48)
+        ttl_qualitative = cache_config.get('ttl_qualitative_hours', 24)
+
+        self.cache_universe = FMPCache(f"{cache_dir}/universe", ttl_hours=ttl_universe)
+        self.cache_symbol = FMPCache(f"{cache_dir}/symbol", ttl_hours=ttl_symbol)
+        self.cache_qualitative = FMPCache(f"{cache_dir}/qualitative", ttl_hours=ttl_qualitative)
 
         # Metrics
         self.requests_by_endpoint = {}
