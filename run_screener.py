@@ -463,6 +463,60 @@ def create_qualitative_excel(analysis: dict, ticker: str, timestamp: datetime) -
                 hist_data = [{'Year': f"Y-{i}", 'NIM %': f"{nim:.2f}%"} for i, nim in enumerate(nim_hist)]
                 pd.DataFrame(hist_data).to_excel(writer, sheet_name='NIM History', index=False)
 
+        # Sheet 18: Insider Trading (Premium Feature)
+        insider = intrinsic.get('insider_trading', {})
+        if insider and insider.get('available', False):
+            insider_data = [{
+                'Signal': insider.get('signal', 'N/A'),
+                'Score': f"{insider.get('score', 0):.0f}/100",
+                'Assessment': insider.get('assessment', 'N/A'),
+                'Buys (12M)': insider.get('buy_count_12m', 0),
+                'Sells (12M)': insider.get('sell_count_12m', 0),
+                'Recent Buys (3M)': insider.get('recent_buys_3m', 0),
+                'Unique Buyers (3M)': insider.get('unique_buyers_3m', 0),
+                'Executive Buys': insider.get('executive_buys', 0),
+                'Buy Value': insider.get('buy_value_formatted', 'N/A'),
+                'Sell Value': insider.get('sell_value_formatted', 'N/A'),
+                'Net Position': insider.get('net_position', 'N/A')
+            }]
+            pd.DataFrame(insider_data).to_excel(writer, sheet_name='Insider Trading', index=False)
+
+            # Add recent trades detail
+            recent_trades = insider.get('recent_trades', [])
+            if recent_trades:
+                trades_data = []
+                for trade in recent_trades[:10]:  # Top 10 recent buys
+                    trades_data.append({
+                        'Date': trade.get('date', 'N/A'),
+                        'Insider': trade.get('name', 'N/A'),
+                        'Type': trade.get('type', 'N/A'),
+                        'Shares': trade.get('shares', 0),
+                        'Value': f"${trade.get('value', 0)/1e3:.0f}K",
+                        'Executive': 'Yes' if trade.get('is_executive', False) else 'No'
+                    })
+                pd.DataFrame(trades_data).to_excel(writer, sheet_name='Recent Insider Buys', index=False)
+
+        # Sheet 19: Earnings Sentiment (Premium Feature)
+        sentiment = intrinsic.get('earnings_sentiment', {})
+        if sentiment and sentiment.get('available', False):
+            sentiment_data = [{
+                'Tone': sentiment.get('tone', 'N/A'),
+                'Grade': sentiment.get('grade', 'N/A'),
+                'Assessment': sentiment.get('assessment', 'N/A'),
+                'Net Sentiment': f"{sentiment.get('net_sentiment', 0):.1f}",
+                'Confidence %': f"{sentiment.get('confidence_%', 0):.0f}%",
+                'Positive %': f"{sentiment.get('positive_%', 0):.1f}%",
+                'Negative %': f"{sentiment.get('negative_%', 0):.1f}%",
+                'Caution %': f"{sentiment.get('caution_%', 0):.1f}%",
+                'Positive Mentions': sentiment.get('positive_mentions', 0),
+                'Negative Mentions': sentiment.get('negative_mentions', 0),
+                'Caution Mentions': sentiment.get('caution_mentions', 0),
+                'Has Guidance': 'Yes' if sentiment.get('has_guidance', False) else 'No',
+                'Quarter': sentiment.get('quarter', 'N/A'),
+                'Transcript Date': sentiment.get('transcript_date', 'N/A')
+            }]
+            pd.DataFrame(sentiment_data).to_excel(writer, sheet_name='Earnings Sentiment', index=False)
+
         # Auto-adjust all sheets
         for sheet_name in writer.sheets:
             worksheet = writer.sheets[sheet_name]
@@ -2364,7 +2418,125 @@ with tab5:
 
                             st.caption("💡 Higher NIM = More profitable. Expanding NIM = Benefiting from rate increases.")
 
-                        # 13. Red Flags
+                        # 13. Insider Trading Analysis (Premium Feature)
+                        insider = intrinsic.get('insider_trading', {})
+                        if insider and insider.get('available', False):
+                            st.markdown("---")
+                            st.markdown("### 🎯 Insider Trading Activity (Last 12 Months)")
+
+                            signal = insider.get('signal', 'Neutral')
+                            score = insider.get('score', 0)
+                            assessment = insider.get('assessment', '')
+
+                            # Color-code by signal
+                            if signal == 'Strong Buy':
+                                st.success(f"**Signal: {signal}** (Score: {score}/100)")
+                            elif signal == 'Buy':
+                                st.info(f"**Signal: {signal}** (Score: {score}/100)")
+                            elif signal == 'Weak Buy':
+                                st.info(f"**Signal: {signal}** (Score: {score}/100)")
+                            elif signal == 'Neutral':
+                                st.warning(f"**Signal: {signal}** (Score: {score}/100)")
+                            else:
+                                st.error(f"**Signal: {signal}** (Score: {score}/100)")
+
+                            st.caption(assessment)
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                buy_count = insider.get('buy_count_12m', 0)
+                                sell_count = insider.get('sell_count_12m', 0)
+                                st.metric("Buys vs Sells (12M)", f"{buy_count} / {sell_count}")
+
+                            with col2:
+                                recent_buys = insider.get('recent_buys_3m', 0)
+                                unique_buyers = insider.get('unique_buyers_3m', 0)
+                                st.metric("Recent Activity (3M)", f"{recent_buys} buys", delta=f"{unique_buyers} insiders")
+
+                            with col3:
+                                exec_buys = insider.get('executive_buys', 0)
+                                st.metric("Executive Buys", f"{exec_buys}", help="CEO/CFO purchases")
+
+                            with col4:
+                                net_pos = insider.get('net_position', 'Neutral')
+                                buy_val = insider.get('buy_value_formatted', 'N/A')
+                                sell_val = insider.get('sell_value_formatted', 'N/A')
+                                if net_pos == 'Buying':
+                                    st.metric("Net Position", "🟢 Buying")
+                                else:
+                                    st.metric("Net Position", "🔴 Selling")
+                                st.caption(f"Buy: {buy_val} | Sell: {sell_val}")
+
+                            # Show recent trades
+                            recent_trades = insider.get('recent_trades', [])
+                            if recent_trades:
+                                st.markdown("**Most Recent Buys:**")
+                                for trade in recent_trades[:3]:
+                                    st.caption(f"• {trade.get('date')}: {trade.get('name')} - ${trade.get('value')/1e3:.0f}K")
+
+                            st.caption("💡 Multiple insider buys (especially executives) often precede stock price increases.")
+
+                        # 14. Earnings Call Sentiment (Premium Feature)
+                        sentiment = intrinsic.get('earnings_sentiment', {})
+                        if sentiment and sentiment.get('available', False):
+                            st.markdown("---")
+                            st.markdown("### 🎤 Earnings Call Sentiment Analysis")
+
+                            tone = sentiment.get('tone', 'Neutral')
+                            grade = sentiment.get('grade', 'C')
+                            assessment = sentiment.get('assessment', '')
+
+                            # Color-code by grade
+                            if grade == 'A':
+                                st.success(f"**Tone: {tone}** (Grade: {grade})")
+                            elif grade == 'B':
+                                st.info(f"**Tone: {tone}** (Grade: {grade})")
+                            elif grade == 'C':
+                                st.warning(f"**Tone: {tone}** (Grade: {grade})")
+                            else:
+                                st.error(f"**Tone: {tone}** (Grade: {grade})")
+
+                            st.caption(assessment)
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                net_sent = sentiment.get('net_sentiment', 0)
+                                if net_sent > 0:
+                                    st.metric("Net Sentiment", f"+{net_sent:.1f}", delta="Positive")
+                                else:
+                                    st.metric("Net Sentiment", f"{net_sent:.1f}", delta="Negative")
+
+                            with col2:
+                                confidence = sentiment.get('confidence_%', 0)
+                                st.metric("Confidence", f"{confidence}%", help="Analysis reliability")
+
+                            with col3:
+                                pos_pct = sentiment.get('positive_%', 0)
+                                neg_pct = sentiment.get('negative_%', 0)
+                                st.metric("Positive Keywords", f"{pos_pct:.1f}%")
+                                st.caption(f"Negative: {neg_pct:.1f}%")
+
+                            with col4:
+                                quarter = sentiment.get('quarter', 'N/A')
+                                has_guidance = sentiment.get('has_guidance', False)
+                                st.metric("Quarter", quarter)
+                                if has_guidance:
+                                    st.caption("✅ Guidance provided")
+                                else:
+                                    st.caption("⚠️ No guidance")
+
+                            # Keyword breakdown
+                            st.markdown("**Keyword Mentions:**")
+                            pos_count = sentiment.get('positive_mentions', 0)
+                            neg_count = sentiment.get('negative_mentions', 0)
+                            cau_count = sentiment.get('caution_mentions', 0)
+                            st.caption(f"Growth/Positive: {pos_count} | Challenges/Negative: {neg_count} | Caution: {cau_count}")
+
+                            st.caption("💡 Positive sentiment from management often signals confidence in future performance.")
+
+                        # 15. Red Flags
                         red_flags = intrinsic.get('red_flags', [])
                         if red_flags:
                             st.markdown("### 🚩 Red Flags Detected")
@@ -3336,7 +3508,125 @@ with tab6:
 
                 st.caption("💡 Higher NIM = More profitable. Expanding NIM = Benefiting from rate increases.")
 
-            # 13. Price Projections by Scenario
+            # 13. Insider Trading Analysis (Premium Feature)
+            insider = intrinsic.get('insider_trading', {})
+            if insider and insider.get('available', False):
+                st.markdown("---")
+                st.markdown("### 🎯 Insider Trading Activity (Last 12 Months)")
+
+                signal = insider.get('signal', 'Neutral')
+                score = insider.get('score', 0)
+                assessment = insider.get('assessment', '')
+
+                # Color-code by signal
+                if signal == 'Strong Buy':
+                    st.success(f"**Signal: {signal}** (Score: {score}/100)")
+                elif signal == 'Buy':
+                    st.info(f"**Signal: {signal}** (Score: {score}/100)")
+                elif signal == 'Weak Buy':
+                    st.info(f"**Signal: {signal}** (Score: {score}/100)")
+                elif signal == 'Neutral':
+                    st.warning(f"**Signal: {signal}** (Score: {score}/100)")
+                else:
+                    st.error(f"**Signal: {signal}** (Score: {score}/100)")
+
+                st.caption(assessment)
+
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    buy_count = insider.get('buy_count_12m', 0)
+                    sell_count = insider.get('sell_count_12m', 0)
+                    st.metric("Buys vs Sells (12M)", f"{buy_count} / {sell_count}")
+
+                with col2:
+                    recent_buys = insider.get('recent_buys_3m', 0)
+                    unique_buyers = insider.get('unique_buyers_3m', 0)
+                    st.metric("Recent Activity (3M)", f"{recent_buys} buys", delta=f"{unique_buyers} insiders")
+
+                with col3:
+                    exec_buys = insider.get('executive_buys', 0)
+                    st.metric("Executive Buys", f"{exec_buys}", help="CEO/CFO purchases")
+
+                with col4:
+                    net_pos = insider.get('net_position', 'Neutral')
+                    buy_val = insider.get('buy_value_formatted', 'N/A')
+                    sell_val = insider.get('sell_value_formatted', 'N/A')
+                    if net_pos == 'Buying':
+                        st.metric("Net Position", "🟢 Buying")
+                    else:
+                        st.metric("Net Position", "🔴 Selling")
+                    st.caption(f"Buy: {buy_val} | Sell: {sell_val}")
+
+                # Show recent trades
+                recent_trades = insider.get('recent_trades', [])
+                if recent_trades:
+                    st.markdown("**Most Recent Buys:**")
+                    for trade in recent_trades[:3]:
+                        st.caption(f"• {trade.get('date')}: {trade.get('name')} - ${trade.get('value')/1e3:.0f}K")
+
+                st.caption("💡 Multiple insider buys (especially executives) often precede stock price increases.")
+
+            # 14. Earnings Call Sentiment (Premium Feature)
+            sentiment = intrinsic.get('earnings_sentiment', {})
+            if sentiment and sentiment.get('available', False):
+                st.markdown("---")
+                st.markdown("### 🎤 Earnings Call Sentiment Analysis")
+
+                tone = sentiment.get('tone', 'Neutral')
+                grade = sentiment.get('grade', 'C')
+                assessment = sentiment.get('assessment', '')
+
+                # Color-code by grade
+                if grade == 'A':
+                    st.success(f"**Tone: {tone}** (Grade: {grade})")
+                elif grade == 'B':
+                    st.info(f"**Tone: {tone}** (Grade: {grade})")
+                elif grade == 'C':
+                    st.warning(f"**Tone: {tone}** (Grade: {grade})")
+                else:
+                    st.error(f"**Tone: {tone}** (Grade: {grade})")
+
+                st.caption(assessment)
+
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    net_sent = sentiment.get('net_sentiment', 0)
+                    if net_sent > 0:
+                        st.metric("Net Sentiment", f"+{net_sent:.1f}", delta="Positive")
+                    else:
+                        st.metric("Net Sentiment", f"{net_sent:.1f}", delta="Negative")
+
+                with col2:
+                    confidence = sentiment.get('confidence_%', 0)
+                    st.metric("Confidence", f"{confidence}%", help="Analysis reliability")
+
+                with col3:
+                    pos_pct = sentiment.get('positive_%', 0)
+                    neg_pct = sentiment.get('negative_%', 0)
+                    st.metric("Positive Keywords", f"{pos_pct:.1f}%")
+                    st.caption(f"Negative: {neg_pct:.1f}%")
+
+                with col4:
+                    quarter = sentiment.get('quarter', 'N/A')
+                    has_guidance = sentiment.get('has_guidance', False)
+                    st.metric("Quarter", quarter)
+                    if has_guidance:
+                        st.caption("✅ Guidance provided")
+                    else:
+                        st.caption("⚠️ No guidance")
+
+                # Keyword breakdown
+                st.markdown("**Keyword Mentions:**")
+                pos_count = sentiment.get('positive_mentions', 0)
+                neg_count = sentiment.get('negative_mentions', 0)
+                cau_count = sentiment.get('caution_mentions', 0)
+                st.caption(f"Growth/Positive: {pos_count} | Challenges/Negative: {neg_count} | Caution: {cau_count}")
+
+                st.caption("💡 Positive sentiment from management often signals confidence in future performance.")
+
+            # 15. Price Projections by Scenario
             projections = intrinsic.get('price_projections', {})
             if projections and 'scenarios' in projections:
                 st.markdown("---")
