@@ -2678,8 +2678,9 @@ with tab5:
 
                         # Show premium config
                         import yaml
+                        import os as os_module
                         try:
-                            config_to_check = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+                            config_to_check = 'settings_premium.yaml' if os_module.path.exists('settings_premium.yaml') else 'settings.yaml'
                             with open(config_to_check, 'r') as f:
                                 config = yaml.safe_load(f)
                             premium_config = config.get('premium', {})

@@ -328,20 +328,6 @@ class FMPClient:
         params = {'symbol': symbol, 'limit': limit}
         return self._request('insider-trading', params, cache=self.cache_symbol)
 
-    def get_earnings_call_transcript(self, symbol: str, limit: int = 4) -> List[Dict]:
-        """
-        Endpoint: /earning_call_transcript/{symbol} (Premium feature)
-        Returns earnings call transcripts.
-
-        Response includes:
-        - quarter
-        - year
-        - date
-        - content (full transcript text)
-        """
-        params = {'limit': limit}
-        return self._request(f'earning_call_transcript/{symbol}', params, cache=self.cache_qualitative)
-
     # ========================
     # Qualitative (on-demand)
     # ========================
@@ -356,12 +342,32 @@ class FMPClient:
         params = {'limit': limit}
         return self._request(f'press-releases/{symbol}', params, cache=self.cache_qualitative)
 
-    def get_earnings_call_transcript(self, symbol: str, year: Optional[int] = None, quarter: Optional[int] = None) -> List[Dict]:
+    def get_earnings_call_transcript(
+        self,
+        symbol: str,
+        limit: Optional[int] = 4,
+        year: Optional[int] = None,
+        quarter: Optional[int] = None
+    ) -> List[Dict]:
         """
-        Endpoint: /earning_call_transcript/{symbol}
-        Latest transcript if year/quarter not specified.
+        Endpoint: /earning_call_transcript/{symbol} (Premium feature)
+        Returns earnings call transcripts.
+
+        Args:
+            symbol: Stock ticker
+            limit: Number of transcripts to return (default 4)
+            year: Specific year (optional)
+            quarter: Specific quarter (optional)
+
+        Response includes:
+        - quarter
+        - year
+        - date
+        - content (full transcript text)
         """
         params = {}
+        if limit is not None:
+            params['limit'] = limit
         if year:
             params['year'] = year
         if quarter:
