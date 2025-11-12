@@ -80,3 +80,10 @@ logging:
 output:
   csv_path: "./data/screener_results.csv"
   metrics_log_path: "./logs/pipeline_metrics.json"
+
+# Premium Features Configuration
+premium:
+  enable_insider_trading: true  # ✅ Implemented - Analyzes insider buy/sell clusters
+  enable_institutional_ownership: false  # TODO: Implement
+  enable_earnings_transcripts: true  # ✅ Implemented - NLP sentiment analysis of earnings calls
+  enable_real_time_prices: false  # TODO: Implement
