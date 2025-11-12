@@ -315,8 +315,10 @@ class FMPClient:
 
     def get_insider_trading(self, symbol: str, limit: int = 100) -> List[Dict]:
         """
-        Endpoint: /insider-trading (Premium feature)
+        Endpoint: /insider-trading (Premium feature - v4 API)
         Returns insider trading transactions for the symbol.
+
+        Note: This endpoint uses v4 API, not v3.
 
         Response includes:
         - transactionDate
@@ -325,8 +327,55 @@ class FMPClient:
         - securitiesTransacted (shares)
         - price
         """
-        params = {'symbol': symbol, 'limit': limit}
-        return self._request('insider-trading', params, cache=self.cache_symbol)
+        # Insider trading is a v4 endpoint, so we need to use v4 base URL
+        v4_base_url = self.base_url.replace('/api/v3', '/api/v4')
+        url = f"{v4_base_url}/insider-trading"
+        params = {'symbol': symbol, 'page': 0}  # v4 uses 'page' instead of 'limit'
+        params['apikey'] = self.api_key
+
+        # Check cache first
+        if self.cache_symbol:
+            cached = self.cache_symbol.get(url, params)
+            if cached is not None:
+                self.total_cached += 1
+                return cached
+
+        # Rate limit
+        self.rate_limiter.wait()
+
+        # Track metrics
+        self.total_requests += 1
+        self.requests_by_endpoint['insider-trading'] = self.requests_by_endpoint.get('insider-trading', 0) + 1
+
+        try:
+            # Log request details
+            safe_params = {k: (v[:10] + '...' if k == 'apikey' and v else v) for k, v in params.items()}
+            logger.info(f"→ API Request (v4): GET {url} params={safe_params}")
+
+            response = requests.get(url, params=params, timeout=self.timeout)
+            response.raise_for_status()
+            data = response.json()
+
+            # Handle error responses
+            if isinstance(data, dict) and 'Error Message' in data:
+                logger.warning(f"API error for insider-trading: {data['Error Message']}")
+                return []
+
+            # Cache successful response
+            if self.cache_symbol and isinstance(data, list):
+                self.cache_symbol.set(url, params, data)
+
+            return data if isinstance(data, list) else []
+
+        except requests.exceptions.Timeout:
+            logger.warning(f"Timeout for insider-trading ({symbol})")
+            return []
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Request error for insider-trading ({symbol}): {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unexpected error for insider-trading ({symbol}): {e}")
+            return []
 
     # ========================
     # Qualitative (on-demand)
