@@ -216,6 +216,17 @@ class FMPClient:
     # Screener & Universe
     # ========================
 
+    def get_exchanges_list(self) -> List[Dict]:
+        """
+        Endpoint: /exchanges-list
+        Returns list of all available exchanges in FMP.
+
+        Returns list with dicts containing:
+        - name: Exchange name
+        - stockExchange: Exchange code (e.g., 'NASDAQ', 'NYSE', 'TSX')
+        """
+        return self._request('exchanges-list', cache=self.cache_universe)
+
     def get_stock_screener(
         self,
         market_cap_more_than: Optional[int] = None,
@@ -226,6 +237,11 @@ class FMPClient:
         """
         Endpoint: /stock-screener
         Returns list of stocks matching criteria.
+
+        Args:
+            exchange: Exchange code (e.g., 'NASDAQ', 'NYSE', 'TSX', 'LSE', 'XETRA')
+                     Can also use multi-region codes: 'US' (NYSE+NASDAQ+AMEX),
+                     'CANADA' (TSX), 'EUROPE' (LSE+XETRA+EURONEXT), etc.
         """
         params = {'limit': limit}
         if market_cap_more_than:

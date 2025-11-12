@@ -654,6 +654,46 @@ st.sidebar.header("⚙️ Configuration")
 
 # Universe filters
 with st.sidebar.expander("🌍 Universe Filters", expanded=True):
+    # Region/Country selector
+    region_options = {
+        "🇺🇸 United States": "US",
+        "🇨🇦 Canada": "TSX",
+        "🇬🇧 United Kingdom": "LSE",
+        "🇩🇪 Germany": "XETRA",
+        "🇫🇷 France / Europe": "EURONEXT",
+        "🇮🇳 India": "NSE",
+        "🇨🇳 China (Hong Kong)": "HKSE",
+        "🇨🇳 China (Shanghai)": "SHZ",
+        "🇨🇱 Chile": "SCS",
+        "🌎 All Regions": "ALL"
+    }
+
+    selected_region = st.selectbox(
+        "📍 Market/Region",
+        options=list(region_options.keys()),
+        index=0,  # Default to US
+        help="Select which stock market/region to screen. US includes NYSE, NASDAQ, AMEX."
+    )
+
+    exchange_filter = region_options[selected_region]
+
+    # Show info about selected region
+    region_info = {
+        "US": "NYSE, NASDAQ, AMEX - Largest market with 5000+ stocks",
+        "TSX": "Toronto Stock Exchange - 1500+ Canadian stocks",
+        "LSE": "London Stock Exchange - 2000+ UK stocks",
+        "XETRA": "German Stock Exchange - 500+ German stocks (DAX, MDAX)",
+        "EURONEXT": "Pan-European exchange - France, Netherlands, Belgium, Portugal",
+        "NSE": "National Stock Exchange of India - 1700+ Indian stocks",
+        "HKSE": "Hong Kong Stock Exchange - Major Chinese companies (Alibaba, Tencent)",
+        "SHZ": "Shanghai Stock Exchange - A-shares, mainland China",
+        "SCS": "Santiago Stock Exchange - Chilean stocks (Copper, Lithium companies)",
+        "ALL": "All regions combined - May be slower"
+    }
+
+    if exchange_filter in region_info:
+        st.caption(f"ℹ️ {region_info[exchange_filter]}")
+
     min_mcap = st.number_input(
         "Min Market Cap ($M)",
         min_value=100,
@@ -819,6 +859,18 @@ with tab1:
             pipeline.config['universe']['min_market_cap'] = min_mcap * 1_000_000
             pipeline.config['universe']['min_avg_dollar_vol_3m'] = min_vol * 1_000_000
             pipeline.config['universe']['top_k'] = top_k
+
+            # Set exchange/region filter
+            if exchange_filter != "ALL":
+                # Map exchange codes to API parameters
+                if exchange_filter == "US":
+                    pipeline.config['universe']['exchanges'] = ["NYSE", "NASDAQ", "AMEX"]
+                else:
+                    pipeline.config['universe']['exchanges'] = [exchange_filter]
+            else:
+                # ALL regions - clear exchange filter to get everything
+                pipeline.config['universe']['exchanges'] = []
+
             pipeline.config['scoring']['weight_value'] = weight_value
             pipeline.config['scoring']['weight_quality'] = weight_quality
             pipeline.config['scoring']['exclude_reds'] = exclude_reds
