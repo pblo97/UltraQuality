@@ -1358,9 +1358,12 @@ with tab5:
                         from screener.qualitative import QualitativeAnalyzer
                         from screener.ingest import FMPClient
 
-                        # Load config
-                        with open('settings.yaml', 'r') as f:
+                        # Load config - USE PREMIUM CONFIG FOR PREMIUM FEATURES!
+                        config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+                        with open(config_file, 'r') as f:
                             config = yaml.safe_load(f)
+
+                        st.info(f"📋 Using config: **{config_file}**")
 
                         # Get API key (same logic as orchestrator)
                         api_key = None
@@ -2661,6 +2664,116 @@ with tab5:
                             st.metric("Altman Z-Score", f"{stock_data.get('altman_z', 0):.2f}")
                         if 'beneish_m' in stock_data:
                             st.metric("Beneish M-Score", f"{stock_data.get('beneish_m', 0):.2f}")
+
+                    # ======================
+                    # 🔍 DEBUG: PREMIUM FEATURES
+                    # ======================
+                    st.markdown("---")
+                    with st.expander("🔍 DEBUG: Premium Features Status", expanded=False):
+                        st.markdown("### Premium Features Configuration & Output")
+
+                        # Show config being used
+                        st.markdown("#### 1️⃣ Configuration Loaded")
+                        st.code(f"Config file: {config_file if 'config_file' in locals() else 'settings.yaml'}")
+
+                        # Show premium config
+                        import yaml
+                        try:
+                            config_to_check = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+                            with open(config_to_check, 'r') as f:
+                                config = yaml.safe_load(f)
+                            premium_config = config.get('premium', {})
+
+                            st.markdown("**Premium Config:**")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                insider_enabled = premium_config.get('enable_insider_trading', False)
+                                if insider_enabled:
+                                    st.success(f"✅ Insider Trading: **ENABLED**")
+                                else:
+                                    st.error(f"❌ Insider Trading: **DISABLED**")
+
+                            with col2:
+                                transcripts_enabled = premium_config.get('enable_earnings_transcripts', False)
+                                if transcripts_enabled:
+                                    st.success(f"✅ Earnings Transcripts: **ENABLED**")
+                                else:
+                                    st.error(f"❌ Earnings Transcripts: **DISABLED**")
+                        except Exception as e:
+                            st.error(f"Could not load config: {e}")
+
+                        # Check where features are in the analysis result
+                        st.markdown("#### 2️⃣ Features in Analysis Result")
+
+                        # Check root level (WRONG location)
+                        has_insider_root = 'insider_trading' in analysis
+                        has_sentiment_root = 'earnings_sentiment' in analysis
+
+                        st.markdown("**Root Level (DEPRECATED):**")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if has_insider_root:
+                                st.warning("⚠️ insider_trading found at ROOT (deprecated)")
+                            else:
+                                st.info("❌ insider_trading NOT at root")
+                        with col2:
+                            if has_sentiment_root:
+                                st.warning("⚠️ earnings_sentiment found at ROOT")
+                            else:
+                                st.info("❌ earnings_sentiment NOT at root")
+
+                        # Check intrinsic_value level (CORRECT location)
+                        intrinsic = analysis.get('intrinsic_value', {})
+                        has_insider_iv = 'insider_trading' in intrinsic
+                        has_sentiment_iv = 'earnings_sentiment' in intrinsic
+
+                        st.markdown("**Inside intrinsic_value Dict (✅ CORRECT):**")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if has_insider_iv:
+                                st.success("✅ insider_trading FOUND in intrinsic_value!")
+                            else:
+                                st.error("❌ insider_trading NOT in intrinsic_value")
+                        with col2:
+                            if has_sentiment_iv:
+                                st.success("✅ earnings_sentiment FOUND in intrinsic_value!")
+                            else:
+                                st.error("❌ earnings_sentiment NOT in intrinsic_value")
+
+                        # Show actual data if present
+                        st.markdown("#### 3️⃣ Actual Premium Features Data")
+
+                        if has_insider_iv:
+                            st.markdown("**🎯 Insider Trading Data:**")
+                            insider_data = intrinsic['insider_trading']
+                            st.json(insider_data)
+                        else:
+                            st.warning("No insider trading data in intrinsic_value")
+
+                        if has_sentiment_iv:
+                            st.markdown("**🎯 Earnings Sentiment Data:**")
+                            sentiment_data = intrinsic['earnings_sentiment']
+                            st.json(sentiment_data)
+                        else:
+                            st.warning("No earnings sentiment data in intrinsic_value")
+
+                        # Show what keys ARE in intrinsic_value
+                        st.markdown("#### 4️⃣ All Keys in intrinsic_value Dict")
+                        st.code(f"Keys: {list(intrinsic.keys())}")
+
+                        st.markdown("""
+                        ---
+                        **📍 How to Access Premium Features:**
+                        ```python
+                        # ✅ CORRECT
+                        analysis['intrinsic_value']['insider_trading']
+                        analysis['intrinsic_value']['earnings_sentiment']
+
+                        # ❌ WRONG
+                        analysis['insider_trading']  # Not here!
+                        analysis['earnings_sentiment']  # Not here!
+                        ```
+                        """)
 
                     # Export to Excel button
                     st.markdown("---")
