@@ -1349,64 +1349,101 @@ with tab5:
         st.markdown("---")
 
         if selected_ticker:
-            # Run qualitative analysis button
-            if st.button(f"🔍 Run Deep Analysis for {selected_ticker}", type="primary"):
-                with st.spinner(f"Analyzing {selected_ticker}... This may take 30-60 seconds"):
-                    try:
-                        import yaml
-                        import os
-                        from screener.qualitative import QualitativeAnalyzer
-                        from screener.ingest import FMPClient
+            # Add a button to clear module cache
+            col_btn1, col_btn2 = st.columns(2)
 
-                        # Load config - USE PREMIUM CONFIG FOR PREMIUM FEATURES!
-                        config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
-                        with open(config_file, 'r') as f:
-                            config = yaml.safe_load(f)
+            with col_btn1:
+                # Run qualitative analysis button
+                if st.button(f"🔍 Run Deep Analysis for {selected_ticker}", type="primary", use_container_width=True):
+                    # Force reload modules to get latest code
+                    import sys
+                    modules_to_reload = [
+                        'screener.ingest',
+                        'screener.qualitative'
+                    ]
+                    for module_name in modules_to_reload:
+                        if module_name in sys.modules:
+                            del sys.modules[module_name]
 
-                        st.info(f"📋 Using config: **{config_file}**")
+                    with st.spinner(f"Analyzing {selected_ticker}... This may take 30-60 seconds"):
+                        try:
+                            import yaml
+                            import os
+                            from screener.qualitative import QualitativeAnalyzer
+                            from screener.ingest import FMPClient
 
-                        # Get API key (same logic as orchestrator)
-                        api_key = None
-                        if 'FMP_API_KEY' in st.secrets:
-                            api_key = st.secrets['FMP_API_KEY']
-                        elif 'FMP' in st.secrets:
-                            api_key = st.secrets['FMP']
+                            # Load config - USE PREMIUM CONFIG FOR PREMIUM FEATURES!
+                            config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+                            with open(config_file, 'r') as f:
+                                config = yaml.safe_load(f)
 
-                        if not api_key:
-                            api_key = os.getenv('FMP_API_KEY')
+                            st.info(f"📋 Using config: **{config_file}**")
 
-                        if not api_key:
-                            api_key = config['fmp'].get('api_key')
+                            # Get API key (same logic as orchestrator)
+                            api_key = None
+                            if 'FMP_API_KEY' in st.secrets:
+                                api_key = st.secrets['FMP_API_KEY']
+                            elif 'FMP' in st.secrets:
+                                api_key = st.secrets['FMP']
 
-                        if not api_key or api_key.startswith('${'):
-                            st.error("FMP_API_KEY not found. Please configure it in Streamlit secrets.")
-                            st.stop()
+                            if not api_key:
+                                api_key = os.getenv('FMP_API_KEY')
 
-                        # Initialize FMP client and analyzer
-                        fmp_client = FMPClient(api_key, config)  # Pass full config for cache & premium settings
-                        analyzer = QualitativeAnalyzer(fmp_client, config)
+                            if not api_key:
+                                api_key = config['fmp'].get('api_key')
 
-                        # Get company data from results for context
-                        df = st.session_state['results']
-                        stock_data = df[df['ticker'] == selected_ticker].iloc[0]
-                        company_type = stock_data.get('company_type', 'unknown')
+                            if not api_key or api_key.startswith('${'):
+                                st.error("FMP_API_KEY not found. Please configure it in Streamlit secrets.")
+                                st.stop()
 
-                        # Run analysis
-                        analysis = analyzer.analyze_symbol(
-                            selected_ticker,
-                            company_type=company_type,
-                            peers_df=df
-                        )
+                            # Initialize FMP client and analyzer
+                            fmp_client = FMPClient(api_key, config)  # Pass full config for cache & premium settings
+                            analyzer = QualitativeAnalyzer(fmp_client, config)
 
-                        if analysis and 'error' not in analysis:
-                            st.session_state[f'qual_{selected_ticker}'] = analysis
-                            st.success("✅ Analysis complete!")
-                            st.rerun()  # Rerun to show the new results
-                        else:
-                            st.error(f"❌ Analysis failed: {analysis.get('error', 'Unknown error')}")
+                            # Get company data from results for context
+                            df = st.session_state['results']
+                            stock_data = df[df['ticker'] == selected_ticker].iloc[0]
+                            company_type = stock_data.get('company_type', 'unknown')
 
-                    except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
+                            # Run analysis
+                            analysis = analyzer.analyze_symbol(
+                                selected_ticker,
+                                company_type=company_type,
+                                peers_df=df
+                            )
+
+                            if analysis and 'error' not in analysis:
+                                st.session_state[f'qual_{selected_ticker}'] = analysis
+                                st.success("✅ Analysis complete!")
+                                st.rerun()  # Rerun to show the new results
+                            else:
+                                st.error(f"❌ Analysis failed: {analysis.get('error', 'Unknown error')}")
+
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+                            import traceback
+                            st.code(traceback.format_exc())
+
+            with col_btn2:
+                if st.button("🔄 Clear Cache & Reload Modules", use_container_width=True):
+                    # Clear this ticker's cache
+                    if f'qual_{selected_ticker}' in st.session_state:
+                        del st.session_state[f'qual_{selected_ticker}']
+
+                    # Force reload Python modules
+                    import sys
+                    modules_to_reload = [
+                        'screener.ingest',
+                        'screener.qualitative',
+                        'screener.features',
+                        'screener.guardrails',
+                        'screener.scoring'
+                    ]
+                    for module_name in modules_to_reload:
+                        if module_name in sys.modules:
+                            del sys.modules[module_name]
+
+                    st.success("✅ Cache cleared and modules reloaded. Click 'Run Deep Analysis' again.")
 
             # Display cached analysis if available
             if f'qual_{selected_ticker}' in st.session_state:
