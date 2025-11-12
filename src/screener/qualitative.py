@@ -3329,14 +3329,33 @@ class QualitativeAnalyzer:
                     'is_executive': is_ceo_cfo
                 }
 
-                if 'P-PURCHASE' in transaction_type or 'BUY' in transaction_type:
+                # Classify transaction type (be flexible with various formats)
+                is_buy = (
+                    'P-PURCHASE' in transaction_type or
+                    'PURCHASE' in transaction_type or
+                    transaction_type.startswith('P-') or
+                    transaction_type == 'P' or
+                    'BUY' in transaction_type or
+                    'ACQUIRE' in transaction_type
+                )
+                is_sell = (
+                    'S-SALE' in transaction_type or
+                    'SALE' in transaction_type or
+                    transaction_type.startswith('S-') or
+                    transaction_type == 'S' or
+                    'SELL' in transaction_type or
+                    'DISPOSE' in transaction_type
+                )
+
+                if is_buy:
                     buys.append(trade_info)
                     logger.debug(f"    ✓ Classified as BUY: {transaction_type}")
-                elif 'S-SALE' in transaction_type or 'SELL' in transaction_type:
+                elif is_sell:
                     sells.append(trade_info)
                     logger.debug(f"    ✓ Classified as SELL: {transaction_type}")
                 else:
-                    logger.debug(f"    ⚠️  Unclassified: {transaction_type}")
+                    # Log unclassified types as INFO so they're visible
+                    logger.info(f"    ⚠️  UNCLASSIFIED transaction type: '{transaction_type}' (original: '{trade.get('transactionType')}')")
 
             # Calculate metrics
             buy_count = len(buys)
