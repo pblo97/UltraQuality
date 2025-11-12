@@ -193,17 +193,36 @@ class ScreenerPipeline:
         logger.info("Using stock-screener endpoint (more reliable than profile-bulk)")
 
         try:
-            # FMP stock-screener supports market cap and volume filters directly
-            profiles = self.fmp.get_stock_screener(
-                market_cap_more_than=min_mcap,
-                volume_more_than=min_vol // 1000,  # API expects volume in thousands
-                limit=10000  # Maximum results
-            )
+            # If exchanges specified, query each one separately
+            if exchanges:
+                for exchange in exchanges:
+                    logger.info(f"Fetching from exchange: {exchange}")
+                    profiles = self.fmp.get_stock_screener(
+                        market_cap_more_than=min_mcap,
+                        volume_more_than=min_vol // 1000,  # API expects volume in thousands
+                        exchange=exchange,
+                        limit=10000  # Maximum results
+                    )
 
-            if profiles:
-                all_profiles.extend(profiles)
-                logger.info(f"✓ Fetched {len(profiles)} profiles from stock-screener")
+                    if profiles:
+                        all_profiles.extend(profiles)
+                        logger.info(f"✓ Fetched {len(profiles)} profiles from {exchange}")
+                    else:
+                        logger.warning(f"Exchange {exchange} returned empty")
             else:
+                # No exchange filter - get all regions
+                logger.info("No exchange filter - fetching from all regions")
+                profiles = self.fmp.get_stock_screener(
+                    market_cap_more_than=min_mcap,
+                    volume_more_than=min_vol // 1000,  # API expects volume in thousands
+                    limit=10000  # Maximum results
+                )
+
+                if profiles:
+                    all_profiles.extend(profiles)
+                    logger.info(f"✓ Fetched {len(profiles)} profiles from stock-screener")
+
+            if not all_profiles:
                 logger.warning("stock-screener returned empty, trying profile-bulk as fallback...")
 
                 # Fallback to profile-bulk if screener fails
