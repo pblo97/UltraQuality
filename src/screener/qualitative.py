@@ -3260,13 +3260,23 @@ class QualitativeAnalyzer:
         """
         try:
             # Get insider trading data (last 12 months)
+            logger.info(f"🔍 [{symbol}] Calling get_insider_trading...")
             insider_trades = self.fmp.get_insider_trading(symbol, limit=100)
+            logger.info(f"🔍 [{symbol}] API returned {len(insider_trades) if insider_trades else 0} trades")
 
             if not insider_trades:
+                logger.warning(f"⚠️  [{symbol}] No insider trading data from API")
                 return {
                     'available': False,
                     'note': 'No insider trading data available'
                 }
+
+            # Log first trade to see structure
+            if len(insider_trades) > 0:
+                first_trade = insider_trades[0]
+                logger.info(f"🔍 [{symbol}] First trade fields: {list(first_trade.keys())}")
+                logger.info(f"🔍 [{symbol}] Sample transactionType: '{first_trade.get('transactionType')}'")
+                logger.info(f"🔍 [{symbol}] Sample transactionDate: '{first_trade.get('transactionDate')}'")
 
             # Filter last 12 months
             from datetime import datetime, timedelta
@@ -3274,12 +3284,24 @@ class QualitativeAnalyzer:
             three_months_ago = datetime.now() - timedelta(days=90)
 
             recent_trades = []
+            date_parse_errors = 0
             for trade in insider_trades:
-                trade_date = datetime.strptime(trade.get('transactionDate', ''), '%Y-%m-%d')
-                if trade_date >= one_year_ago:
-                    recent_trades.append(trade)
+                try:
+                    trade_date_str = trade.get('transactionDate', '')
+                    if not trade_date_str:
+                        date_parse_errors += 1
+                        continue
+                    trade_date = datetime.strptime(trade_date_str, '%Y-%m-%d')
+                    if trade_date >= one_year_ago:
+                        recent_trades.append(trade)
+                except Exception as e:
+                    date_parse_errors += 1
+                    logger.debug(f"Date parse error for {symbol}: {e}")
+
+            logger.info(f"🔍 [{symbol}] After date filter: {len(recent_trades)} recent trades (errors: {date_parse_errors})")
 
             if not recent_trades:
+                logger.warning(f"⚠️  [{symbol}] No recent trades in last 12 months")
                 return {
                     'available': False,
                     'note': 'No recent insider trades (last 12 months)'
@@ -3291,6 +3313,7 @@ class QualitativeAnalyzer:
 
             for trade in recent_trades:
                 transaction_type = trade.get('transactionType', '').upper()
+                logger.debug(f"  Processing: type='{transaction_type}' (original: '{trade.get('transactionType')}')")
                 shares = trade.get('securitiesTransacted', 0)
                 price = trade.get('price', 0)
                 value = abs(shares * price)
@@ -3306,14 +3329,19 @@ class QualitativeAnalyzer:
                     'is_executive': is_ceo_cfo
                 }
 
-                if 'P-Purchase' in transaction_type or 'BUY' in transaction_type:
+                if 'P-PURCHASE' in transaction_type or 'BUY' in transaction_type:
                     buys.append(trade_info)
-                elif 'S-Sale' in transaction_type or 'SELL' in transaction_type:
+                    logger.debug(f"    ✓ Classified as BUY: {transaction_type}")
+                elif 'S-SALE' in transaction_type or 'SELL' in transaction_type:
                     sells.append(trade_info)
+                    logger.debug(f"    ✓ Classified as SELL: {transaction_type}")
+                else:
+                    logger.debug(f"    ⚠️  Unclassified: {transaction_type}")
 
             # Calculate metrics
             buy_count = len(buys)
             sell_count = len(sells)
+            logger.info(f"🔍 [{symbol}] Classification complete: {buy_count} buys, {sell_count} sells")
             total_buy_value = sum(b['value'] for b in buys)
             total_sell_value = sum(s['value'] for s in sells)
 
