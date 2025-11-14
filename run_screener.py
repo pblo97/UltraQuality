@@ -902,10 +902,14 @@ with tab1:
             pipeline.config['universe']['top_k'] = top_k
 
             # Set exchange/region filter
-            # Now using country codes (2-letter uppercase) which are handled by orchestrator
+            # Special handling: US uses exchange codes, others use country codes
             if exchange_filter != "ALL":
-                # Pass country code directly - orchestrator will use country parameter
-                pipeline.config['universe']['exchanges'] = [exchange_filter]
+                if exchange_filter == "US":
+                    # US: Use exchange codes instead of country code
+                    pipeline.config['universe']['exchanges'] = ["nyse", "nasdaq", "amex"]
+                else:
+                    # Other countries: Use country code
+                    pipeline.config['universe']['exchanges'] = [exchange_filter]
             else:
                 # ALL regions - clear exchange filter to get everything
                 pipeline.config['universe']['exchanges'] = []
