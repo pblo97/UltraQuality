@@ -194,14 +194,14 @@ class ScreenerPipeline:
 
         try:
             # If exchanges specified, query each one separately
-            # Uses exchange codes: TSX, LSE, NSE, HKSE, SSE, KRX, JPX, SNT, BMV, SAO, etc.
+            # Uses exchange codes: tsx, lse, nse, hkse, sse, krx, jpx, snt, bmv, sao, etc. (lowercase per FMP docs)
             if exchanges:
                 for exchange in exchanges:
                     logger.info(f"Fetching from exchange: {exchange}")
                     profiles = self.fmp.get_stock_screener(
                         market_cap_more_than=min_mcap,
                         volume_more_than=min_vol // 1000,  # API expects volume in thousands
-                        exchange=exchange,  # Exchange code (TSX, LSE, NSE, etc.)
+                        exchange=exchange,  # Exchange code (tsx, lse, nse, etc. - lowercase)
                         limit=10000  # Maximum results
                     )
 

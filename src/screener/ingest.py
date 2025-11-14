@@ -241,8 +241,9 @@ class FMPClient:
 
         Args:
             exchange: Exchange code (RECOMMENDED - this works reliably)
-                     Examples: 'TSX', 'LSE', 'NSE', 'HKSE', 'SSE', 'KRX', 'JPX', 'SNT', 'BMV', 'SAO'
-                     Also supports: 'nyse', 'nasdaq', 'amex', 'euronext'
+                     IMPORTANT: Use lowercase per FMP API documentation
+                     Examples: 'tsx', 'lse', 'nse', 'hkse', 'sse', 'krx', 'jpx', 'snt', 'bmv', 'sao'
+                     Also supports: 'nyse', 'nasdaq', 'amex', 'euronext', 'xetra'
             country: Country code (NOT RECOMMENDED - FMP API implementation is unreliable)
                     2-letter ISO codes like 'US', 'CA', 'UK', 'DE', 'IN' - may not work
         """

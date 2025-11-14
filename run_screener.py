@@ -658,18 +658,18 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     # Uses exchange codes (country parameter doesn't work in FMP API)
     region_options = {
         "🇺🇸 United States": "US",        # Special: no filter (most stocks are US)
-        "🇨🇦 Canada": "TSX",              # Toronto Stock Exchange
-        "🇬🇧 United Kingdom": "LSE",      # London Stock Exchange
-        "🇩🇪 Germany": "XETRA",           # Frankfurt/XETRA
-        "🇫🇷 France / Europe": "EURONEXT", # Euronext (multi-country)
-        "🇮🇳 India": "NSE",               # National Stock Exchange
-        "🇨🇳 China (Hong Kong)": "HKSE",  # Hong Kong Stock Exchange
-        "🇨🇳 China (Shanghai)": "SSE",    # Shanghai Stock Exchange
-        "🇰🇷 South Korea": "KRX",         # Korea Exchange
-        "🇯🇵 Japan": "JPX",               # Japan Exchange Group
-        "🇨🇱 Chile": "SNT",               # Santiago Stock Exchange
-        "🇲🇽 Mexico": "BMV",              # Bolsa Mexicana de Valores
-        "🇧🇷 Brazil": "SAO",              # B3 São Paulo
+        "🇨🇦 Canada": "tsx",              # Toronto Stock Exchange (lowercase per FMP docs)
+        "🇬🇧 United Kingdom": "lse",      # London Stock Exchange
+        "🇩🇪 Germany": "xetra",           # Frankfurt/XETRA
+        "🇫🇷 France / Europe": "euronext", # Euronext (multi-country)
+        "🇮🇳 India": "nse",               # National Stock Exchange
+        "🇨🇳 China (Hong Kong)": "hkse",  # Hong Kong Stock Exchange
+        "🇨🇳 China (Shanghai)": "sse",    # Shanghai Stock Exchange
+        "🇰🇷 South Korea": "krx",         # Korea Exchange
+        "🇯🇵 Japan": "jpx",               # Japan Exchange Group
+        "🇨🇱 Chile": "snt",               # Santiago Stock Exchange
+        "🇲🇽 Mexico": "bmv",              # Bolsa Mexicana de Valores
+        "🇧🇷 Brazil": "sao",              # B3 São Paulo
         "🌎 All Regions": "ALL"
     }
 
@@ -685,18 +685,18 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     # Show info about selected region
     region_info = {
         "US": "United States - NYSE, NASDAQ, AMEX (5000+ stocks)",
-        "TSX": "Canada - Toronto Stock Exchange (1500+ stocks)",
-        "LSE": "United Kingdom - London Stock Exchange (2000+ stocks)",
-        "XETRA": "Germany - Frankfurt/XETRA (500+ stocks, DAX, MDAX)",
-        "EURONEXT": "France/Europe - Euronext (CAC 40, AEX, BEL 20)",
-        "NSE": "India - National Stock Exchange (1700+ stocks)",
-        "HKSE": "Hong Kong - Hong Kong Stock Exchange (Alibaba, Tencent)",
-        "SSE": "China - Shanghai Stock Exchange (A-shares)",
-        "KRX": "South Korea - Korea Exchange (Samsung, Hyundai, LG)",
-        "JPX": "Japan - Tokyo Stock Exchange (Sony, Toyota, etc.)",
-        "SNT": "Chile - Santiago Stock Exchange (Copper, Lithium)",
-        "BMV": "Mexico - Bolsa Mexicana de Valores",
-        "SAO": "Brazil - B3 São Paulo (Petrobras, Vale, etc.)",
+        "tsx": "Canada - Toronto Stock Exchange (1500+ stocks)",
+        "lse": "United Kingdom - London Stock Exchange (2000+ stocks)",
+        "xetra": "Germany - Frankfurt/XETRA (500+ stocks, DAX, MDAX)",
+        "euronext": "France/Europe - Euronext (CAC 40, AEX, BEL 20)",
+        "nse": "India - National Stock Exchange (1700+ stocks)",
+        "hkse": "Hong Kong - Hong Kong Stock Exchange (Alibaba, Tencent)",
+        "sse": "China - Shanghai Stock Exchange (A-shares)",
+        "krx": "South Korea - Korea Exchange (Samsung, Hyundai, LG)",
+        "jpx": "Japan - Tokyo Stock Exchange (Sony, Toyota, etc.)",
+        "snt": "Chile - Santiago Stock Exchange (Copper, Lithium)",
+        "bmv": "Mexico - Bolsa Mexicana de Valores",
+        "sao": "Brazil - B3 São Paulo (Petrobras, Vale, etc.)",
         "ALL": "All regions combined - May be slower"
     }
 
@@ -708,24 +708,24 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     default_thresholds = {
         # Large developed markets
         "US": {"mcap": 2000.0, "vol": 5.0},
-        "JPX": {"mcap": 500.0, "vol": 2.0},
+        "jpx": {"mcap": 500.0, "vol": 2.0},
 
         # Medium developed markets
-        "TSX": {"mcap": 50.0, "vol": 0.1},       # Canada (smaller market than US/UK)
-        "LSE": {"mcap": 300.0, "vol": 1.0},      # UK
-        "XETRA": {"mcap": 300.0, "vol": 1.0},    # Germany
-        "EURONEXT": {"mcap": 300.0, "vol": 1.0}, # Europe
+        "tsx": {"mcap": 50.0, "vol": 0.1},       # Canada (smaller market than US/UK)
+        "lse": {"mcap": 300.0, "vol": 1.0},      # UK
+        "xetra": {"mcap": 300.0, "vol": 1.0},    # Germany
+        "euronext": {"mcap": 300.0, "vol": 1.0}, # Europe
 
         # Large emerging markets
-        "SSE": {"mcap": 200.0, "vol": 1.0},      # Shanghai
-        "HKSE": {"mcap": 200.0, "vol": 1.0},     # Hong Kong
-        "NSE": {"mcap": 200.0, "vol": 1.0},      # India
-        "KRX": {"mcap": 200.0, "vol": 1.0},      # South Korea
-        "SAO": {"mcap": 150.0, "vol": 0.5},      # Brazil
+        "sse": {"mcap": 200.0, "vol": 1.0},      # Shanghai
+        "hkse": {"mcap": 200.0, "vol": 1.0},     # Hong Kong
+        "nse": {"mcap": 200.0, "vol": 1.0},      # India
+        "krx": {"mcap": 200.0, "vol": 1.0},      # South Korea
+        "sao": {"mcap": 150.0, "vol": 0.5},      # Brazil
 
         # Smaller markets
-        "BMV": {"mcap": 100.0, "vol": 0.5},      # Mexico
-        "SNT": {"mcap": 50.0, "vol": 0.3},       # Chile
+        "bmv": {"mcap": 100.0, "vol": 0.5},      # Mexico
+        "snt": {"mcap": 50.0, "vol": 0.3},       # Chile
 
         # Default for ALL or unknown
         "ALL": {"mcap": 500.0, "vol": 2.0}
@@ -903,7 +903,7 @@ with tab1:
             # Set exchange/region filter
             # Note: USA uses no filter since most stocks in FMP are US-based anyway
             if exchange_filter != "ALL" and exchange_filter != "US":
-                # International exchanges: Use exchange code (TSX, LSE, NSE, etc.)
+                # International exchanges: Use exchange code (tsx, lse, nse, etc. - lowercase per FMP docs)
                 pipeline.config['universe']['exchanges'] = [exchange_filter]
             else:
                 # USA or ALL regions - no filter (most stocks in FMP are USA anyway)
