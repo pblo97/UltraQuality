@@ -232,6 +232,7 @@ class FMPClient:
         market_cap_more_than: Optional[int] = None,
         volume_more_than: Optional[int] = None,
         exchange: Optional[str] = None,
+        country: Optional[str] = None,
         limit: int = 10000
     ) -> List[Dict]:
         """
@@ -239,9 +240,10 @@ class FMPClient:
         Returns list of stocks matching criteria.
 
         Args:
-            exchange: Exchange code (e.g., 'NASDAQ', 'NYSE', 'TSX', 'LSE', 'XETRA')
-                     Can also use multi-region codes: 'US' (NYSE+NASDAQ+AMEX),
-                     'CANADA' (TSX), 'EUROPE' (LSE+XETRA+EURONEXT), etc.
+            exchange: Exchange code (e.g., 'nasdaq', 'nyse', 'tsx', 'lse', 'euronext')
+                     Use lowercase. Examples: 'nyse', 'nasdaq', 'amex', 'tsx', 'lse'
+            country: Country code (e.g., 'US', 'MX', 'BR', 'HK', 'CA', 'UK', 'DE', 'IN')
+                    Use uppercase 2-letter ISO codes. Recommended for international markets.
         """
         params = {'limit': limit}
         if market_cap_more_than:
@@ -250,6 +252,8 @@ class FMPClient:
             params['volumeMoreThan'] = volume_more_than
         if exchange:
             params['exchange'] = exchange
+        if country:
+            params['country'] = country
 
         return self._request('stock-screener', params, cache=self.cache_universe)
 

@@ -37,16 +37,16 @@ Added new dropdown selector in sidebar under "🌍 Universe Filters":
 ```python
 region_options = {
     "🇺🇸 United States": "US",
-    "🇨🇦 Canada": "TSX",
-    "🇬🇧 United Kingdom": "LSE",
-    "🇩🇪 Germany": "XETRA",
-    "🇫🇷 France / Europe": "EURONEXT",
-    "🇮🇳 India": "NSE",
+    "🇨🇦 Canada": "CA",
+    "🇬🇧 United Kingdom": "UK",
+    "🇩🇪 Germany": "DE",
+    "🇫🇷 France / Europe": "FR",
+    "🇮🇳 India": "IN",
     "🇨🇳 China (Hong Kong)": "HK",
-    "🇨🇳 China (Shanghai)": "SHH",
-    "🇨🇱 Chile": "SCS",
-    "🇲🇽 Mexico": "MEX",
-    "🇧🇷 Brazil": "SAO",
+    "🇨🇳 China (Shanghai)": "CN",
+    "🇨🇱 Chile": "CL",
+    "🇲🇽 Mexico": "MX",
+    "🇧🇷 Brazil": "BR",
     "🌎 All Regions": "ALL"
 }
 ```
@@ -55,48 +55,64 @@ region_options = {
 - User-friendly country flags and names
 - Information tooltip showing number of stocks per region
 - Default to US market
-- Pass selected exchange to pipeline config
+- Uses ISO 2-letter country codes for filtering via FMP API `country` parameter
 
 ### 2. API Client (src/screener/ingest.py)
 
-Added new method to retrieve available exchanges:
+Added `country` parameter to stock screener:
 
 ```python
-def get_exchanges_list(self) -> List[Dict]:
+def get_stock_screener(
+    self,
+    market_cap_more_than: Optional[int] = None,
+    volume_more_than: Optional[int] = None,
+    exchange: Optional[str] = None,
+    country: Optional[str] = None,  # NEW: Country code filtering
+    limit: int = 10000
+) -> List[Dict]:
     """
-    Endpoint: /exchanges-list
-    Returns list of all available exchanges in FMP.
+    Args:
+        exchange: Exchange code (e.g., 'nasdaq', 'nyse', 'tsx', 'lse')
+        country: Country code (e.g., 'US', 'MX', 'BR', 'HK', 'CA')
+                Recommended for international markets.
     """
-    return self._request('exchanges-list', cache=self.cache_universe)
 ```
 
-Updated `get_stock_screener()` documentation to clarify exchange parameter usage.
+The `country` parameter uses 2-letter ISO country codes and is more reliable than exchange codes for international markets.
 
 ### 3. Pipeline Orchestrator (src/screener/orchestrator.py)
 
-Modified universe building to support exchange filtering:
+Modified universe building to support country/exchange filtering:
 
 **Before:**
 - Always queried all exchanges without filtering
 
 **After:**
-- Reads `exchanges` list from config
-- If exchanges specified → queries each exchange separately
-- If no exchanges (empty list) → queries all regions
-- Aggregates results from multiple exchanges
+- Reads `exchanges` list from config (can contain country codes or exchange codes)
+- Auto-detects if value is country code (2 uppercase letters) or exchange code
+- Uses appropriate API parameter (country vs exchange)
+- Aggregates results from multiple filters
 
 ```python
 if exchanges:
     for exchange in exchanges:
-        profiles = self.fmp.get_stock_screener(
-            market_cap_more_than=min_mcap,
-            volume_more_than=min_vol // 1000,
-            exchange=exchange,  # ← Filter by exchange
-            limit=10000
-        )
-else:
-    # No filter - get all regions
-    profiles = self.fmp.get_stock_screener(...)
+        # Detect if country code (2 uppercase letters) or exchange code
+        is_country_code = len(exchange) == 2 and exchange.isupper()
+
+        if is_country_code:
+            profiles = self.fmp.get_stock_screener(
+                market_cap_more_than=min_mcap,
+                volume_more_than=min_vol // 1000,
+                country=exchange,  # ← Filter by country code
+                limit=10000
+            )
+        else:
+            profiles = self.fmp.get_stock_screener(
+                market_cap_more_than=min_mcap,
+                volume_more_than=min_vol // 1000,
+                exchange=exchange.lower(),  # ← Filter by exchange
+                limit=10000
+            )
 ```
 
 ---
@@ -166,21 +182,23 @@ When using Deep Dive for individual stock analysis, use proper ticker format:
 
 ## Technical Notes
 
-### Exchange Codes Used
+### Country Codes Used
 
-| Region | FMP Exchange Code | Markets Included |
-|--------|-------------------|------------------|
-| US | `NYSE`, `NASDAQ`, `AMEX` | All US exchanges |
-| Canada | `TSX` | Toronto Stock Exchange |
-| UK | `LSE` | London Stock Exchange |
-| Germany | `XETRA` | Frankfurt/XETRA |
-| Europe | `EURONEXT` | France, Netherlands, Belgium, Portugal |
-| India | `NSE` | National Stock Exchange of India |
+| Region | FMP Country Code | Markets Included |
+|--------|------------------|------------------|
+| US | `US` | NYSE, NASDAQ, AMEX |
+| Canada | `CA` | Toronto Stock Exchange (TSX) |
+| UK | `UK` | London Stock Exchange (LSE) |
+| Germany | `DE` | Frankfurt/XETRA |
+| France | `FR` | Euronext Paris |
+| India | `IN` | NSE, BSE |
 | Hong Kong | `HK` | Hong Kong Stock Exchange |
-| Shanghai | `SHH` | Shanghai Stock Exchange |
-| Chile | `SCS` | Santiago Stock Exchange |
-| Mexico | `MEX` | Mexican Stock Exchange (BMV) |
-| Brazil | `SAO` | São Paulo Stock Exchange (B3) |
+| China | `CN` | Shanghai, Shenzhen |
+| Chile | `CL` | Santiago Stock Exchange |
+| Mexico | `MX` | Mexican Stock Exchange (BMV) |
+| Brazil | `BR` | B3 São Paulo |
+
+**Note:** The screener uses ISO 2-letter country codes instead of exchange codes. This is more reliable as the FMP API's `country` parameter is better documented and more consistent than exchange-specific filtering.
 
 ### Currency Considerations
 
@@ -294,15 +312,17 @@ Test with these well-known international stocks:
 ## API Endpoints Used
 
 ```
-GET /api/v3/exchanges-list
-→ Returns list of all available exchanges
+GET /api/v3/stock-screener?country=CA&marketCapMoreThan=500000000
+→ Screen stocks by country code (recommended for international markets)
 
-GET /api/v3/stock-screener?exchange=TSX&marketCapMoreThan=500000000
-→ Screen stocks on specific exchange
+GET /api/v3/stock-screener?exchange=tsx&marketCapMoreThan=500000000
+→ Screen stocks by exchange code (lowercase, for specific exchanges)
 
 GET /api/v3/stock-screener?marketCapMoreThan=500000000
-→ Screen all exchanges (no exchange parameter)
+→ Screen all regions (no country/exchange filter)
 ```
+
+**Note:** The `country` parameter is preferred over `exchange` for international markets as it's more reliable and better documented in the FMP API.
 
 ---
 

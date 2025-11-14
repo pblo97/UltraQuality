@@ -194,21 +194,34 @@ class ScreenerPipeline:
 
         try:
             # If exchanges specified, query each one separately
+            # Note: exchanges can be either exchange codes (nyse, nasdaq) or country codes (US, MX, BR)
             if exchanges:
                 for exchange in exchanges:
-                    logger.info(f"Fetching from exchange: {exchange}")
-                    profiles = self.fmp.get_stock_screener(
-                        market_cap_more_than=min_mcap,
-                        volume_more_than=min_vol // 1000,  # API expects volume in thousands
-                        exchange=exchange,
-                        limit=10000  # Maximum results
-                    )
+                    # Determine if this is a country code (uppercase, 2 letters) or exchange code
+                    is_country_code = len(exchange) == 2 and exchange.isupper()
+
+                    if is_country_code:
+                        logger.info(f"Fetching from country: {exchange}")
+                        profiles = self.fmp.get_stock_screener(
+                            market_cap_more_than=min_mcap,
+                            volume_more_than=min_vol // 1000,  # API expects volume in thousands
+                            country=exchange,
+                            limit=10000  # Maximum results
+                        )
+                    else:
+                        logger.info(f"Fetching from exchange: {exchange}")
+                        profiles = self.fmp.get_stock_screener(
+                            market_cap_more_than=min_mcap,
+                            volume_more_than=min_vol // 1000,  # API expects volume in thousands
+                            exchange=exchange.lower(),  # FMP API expects lowercase exchange codes
+                            limit=10000  # Maximum results
+                        )
 
                     if profiles:
                         all_profiles.extend(profiles)
                         logger.info(f"✓ Fetched {len(profiles)} profiles from {exchange}")
                     else:
-                        logger.warning(f"Exchange {exchange} returned empty")
+                        logger.warning(f"{exchange} returned empty")
             else:
                 # No exchange filter - get all regions
                 logger.info("No exchange filter - fetching from all regions")
