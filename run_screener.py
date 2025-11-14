@@ -654,17 +654,40 @@ st.sidebar.header("⚙️ Configuration")
 
 # Universe filters
 with st.sidebar.expander("🌍 Universe Filters", expanded=True):
-    # Region/Country selector
+    # Region/Country selector (Hamco Global style - diversified developed + emerging)
     region_options = {
+        # North America
         "🇺🇸 United States": "US",
         "🇨🇦 Canada": "TSX",
+
+        # Europe Developed
         "🇬🇧 United Kingdom": "LSE",
         "🇩🇪 Germany": "XETRA",
         "🇫🇷 France / Europe": "EURONEXT",
+        "🇪🇸 Spain": "BME",
+        "🇨🇭 Switzerland": "SIX",
+        "🇮🇹 Italy": "MIL",
+
+        # Asia Developed
+        "🇯🇵 Japan": "JPX",
+        "🇦🇺 Australia": "ASX",
+        "🇸🇬 Singapore": "SGX",
+
+        # Asia Emerging
+        "🇰🇷 South Korea": "KRX",
+        "🇹🇼 Taiwan": "TWSE",
         "🇮🇳 India": "NSE",
         "🇨🇳 China (Hong Kong)": "HKSE",
         "🇨🇳 China (Shanghai)": "SHZ",
+
+        # Latin America
+        "🇧🇷 Brazil": "BOVESPA",
+        "🇲🇽 Mexico": "BMV",
         "🇨🇱 Chile": "SCS",
+        "🇵🇪 Peru": "BVL",
+        "🇨🇴 Colombia": "BVC",
+
+        # All
         "🌎 All Regions": "ALL"
     }
 
@@ -672,23 +695,46 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "📍 Market/Region",
         options=list(region_options.keys()),
         index=0,  # Default to US
-        help="Select which stock market/region to screen. US includes NYSE, NASDAQ, AMEX."
+        help="Hamco Global style: Screen stocks from developed + emerging markets worldwide. 24 markets available."
     )
 
     exchange_filter = region_options[selected_region]
 
     # Show info about selected region
     region_info = {
-        "US": "NYSE, NASDAQ, AMEX - Largest market with 5000+ stocks",
-        "TSX": "Toronto Stock Exchange - 1500+ Canadian stocks",
-        "LSE": "London Stock Exchange - 2000+ UK stocks",
-        "XETRA": "German Stock Exchange - 500+ German stocks (DAX, MDAX)",
-        "EURONEXT": "Pan-European exchange - France, Netherlands, Belgium, Portugal",
-        "NSE": "National Stock Exchange of India - 1700+ Indian stocks",
-        "HKSE": "Hong Kong Stock Exchange - Major Chinese companies (Alibaba, Tencent)",
-        "SHZ": "Shanghai Stock Exchange - A-shares, mainland China",
-        "SCS": "Santiago Stock Exchange - Chilean stocks (Copper, Lithium companies)",
-        "ALL": "All regions combined - May be slower"
+        # North America
+        "US": "🇺🇸 NYSE, NASDAQ, AMEX - 5000+ stocks (Apple, Microsoft, Google)",
+        "TSX": "🇨🇦 Toronto SE - 1500+ stocks (Shopify, TD Bank, Barrick Gold)",
+
+        # Europe Developed
+        "LSE": "🇬🇧 London SE - 2000+ stocks (BP, HSBC, Shell, Unilever)",
+        "XETRA": "🇩🇪 Frankfurt/XETRA - 500+ stocks (SAP, Volkswagen, Siemens, BMW)",
+        "EURONEXT": "🇫🇷 Pan-European - 1300+ stocks (LVMH, Airbus, ASML, Heineken)",
+        "BME": "🇪🇸 Madrid SE - 130+ stocks (Telefónica, Santander, Inditex/Zara)",
+        "SIX": "🇨🇭 Swiss Exchange - 250+ stocks (Nestlé, Roche, Novartis, UBS)",
+        "MIL": "🇮🇹 Milan SE - 400+ stocks (Ferrari, ENI, Intesa Sanpaolo)",
+
+        # Asia Developed
+        "JPX": "🇯🇵 Tokyo SE - 3700+ stocks (Toyota, Sony, SoftBank, Keyence)",
+        "ASX": "🇦🇺 Australian SE - 2200+ stocks (BHP, CSL, Commonwealth Bank)",
+        "SGX": "🇸🇬 Singapore Exchange - 700+ stocks (DBS, Sea Limited, Grab)",
+
+        # Asia Emerging
+        "KRX": "🇰🇷 Korea Exchange - 2400+ stocks (Samsung, Hyundai, LG, SK Hynix)",
+        "TWSE": "🇹🇼 Taiwan SE - 950+ stocks (TSMC, Hon Hai/Foxconn, MediaTek)",
+        "NSE": "🇮🇳 Mumbai SE - 1700+ stocks (Reliance, TCS, Infosys, HDFC)",
+        "HKSE": "🇨🇳 Hong Kong SE - 2500+ stocks (Alibaba, Tencent, Xiaomi, JD.com)",
+        "SHZ": "🇨🇳 Shanghai SE - 1500+ A-shares (Kweichow Moutai, ICBC, PetroChina)",
+
+        # Latin America
+        "BOVESPA": "🇧🇷 São Paulo SE - 450+ stocks (Vale, Petrobras, Itaú, Bradesco)",
+        "BMV": "🇲🇽 Mexican SE - 145+ stocks (América Móvil, Femsa, Cemex, Walmex)",
+        "SCS": "🇨🇱 Santiago SE - 200+ stocks (SQM lithium, Copec, Falabella, CMPC)",
+        "BVL": "🇵🇪 Lima SE - 250+ stocks (Southern Copper, Credicorp, Buenaventura)",
+        "BVC": "🇨🇴 Bogotá SE - 70+ stocks (Ecopetrol, Bancolombia, Grupo Aval)",
+
+        # All
+        "ALL": "🌎 All 24 markets - Global diversification (slower, higher API usage)"
     }
 
     if exchange_filter in region_info:
