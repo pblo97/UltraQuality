@@ -708,7 +708,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     # Note: All values must be float for Streamlit compatibility
     default_thresholds = {
         # Large developed markets
-        "US": {"mcap": 500.0, "vol": 2.0},  # Lowered from 2000/5 to test
+        "US": {"mcap": 2000.0, "vol": 5.0},  # Restored to original high thresholds
         "JP": {"mcap": 500.0, "vol": 2.0},
 
         # Medium developed markets
@@ -902,12 +902,12 @@ with tab1:
             pipeline.config['universe']['top_k'] = top_k
 
             # Set exchange/region filter
-            # Note: The orchestrator auto-detects country codes vs exchange codes
-            if exchange_filter != "ALL":
-                # Pass country code directly - orchestrator will use country parameter
+            # Note: FMP API's country="US" parameter doesn't work, so USA uses no filter (like ALL)
+            if exchange_filter != "ALL" and exchange_filter != "US":
+                # Non-US countries: Use country code
                 pipeline.config['universe']['exchanges'] = [exchange_filter]
             else:
-                # ALL regions - clear exchange filter to get everything
+                # USA or ALL regions - no filter (most stocks in FMP are USA anyway)
                 pipeline.config['universe']['exchanges'] = []
 
             pipeline.config['scoring']['weight_value'] = weight_value
