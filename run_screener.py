@@ -704,22 +704,52 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     if exchange_filter in region_info:
         st.caption(f"ℹ️ {region_info[exchange_filter]}")
 
+    # Dynamic default thresholds based on market size
+    default_thresholds = {
+        # Large developed markets
+        "US": {"mcap": 2000, "vol": 5},
+        "JP": {"mcap": 500, "vol": 2},
+
+        # Medium developed markets
+        "CA": {"mcap": 300, "vol": 1},
+        "UK": {"mcap": 300, "vol": 1},
+        "DE": {"mcap": 300, "vol": 1},
+        "FR": {"mcap": 300, "vol": 1},
+
+        # Large emerging markets
+        "CN": {"mcap": 200, "vol": 1},
+        "HK": {"mcap": 200, "vol": 1},
+        "IN": {"mcap": 200, "vol": 1},
+        "KR": {"mcap": 200, "vol": 1},
+        "BR": {"mcap": 150, "vol": 0.5},
+
+        # Smaller markets
+        "MX": {"mcap": 100, "vol": 0.5},
+        "CL": {"mcap": 50, "vol": 0.3},
+
+        # Default for ALL or unknown
+        "ALL": {"mcap": 500, "vol": 2}
+    }
+
+    # Get defaults for selected country
+    defaults = default_thresholds.get(exchange_filter, {"mcap": 200, "vol": 1})
+
     min_mcap = st.number_input(
         "Min Market Cap ($M)",
-        min_value=100,
+        min_value=10,
         max_value=100000,
-        value=2000,
-        step=100,
-        help="Minimum market capitalization in millions (default: $2B to avoid small caps)"
+        value=defaults["mcap"],
+        step=10,
+        help=f"Minimum market capitalization in millions. Recommended for {selected_region}: ${defaults['mcap']}M"
     )
 
     min_vol = st.number_input(
         "Min Daily Volume ($M)",
-        min_value=1,
-        max_value=100,
-        value=5,
-        step=1,
-        help="Minimum average daily dollar volume in millions"
+        min_value=0.1,
+        max_value=100.0,
+        value=defaults["vol"],
+        step=0.1,
+        help=f"Minimum average daily dollar volume in millions. Recommended for {selected_region}: ${defaults['vol']}M"
     )
 
     top_k = st.slider(
