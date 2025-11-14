@@ -241,8 +241,10 @@ class FMPClient:
 
         Args:
             exchange: Exchange code (RECOMMENDED - this works reliably)
+                     API parameter accepts both upper/lowercase, but use UPPERCASE for consistency
+                     with exchangeShortName field in returned data (needed for filtering)
                      Examples: 'TSX', 'LSE', 'NSE', 'HKSE', 'SSE', 'KRX', 'JPX', 'SNT', 'BMV', 'SAO'
-                     Also supports: 'nyse', 'nasdaq', 'amex', 'euronext'
+                     Also supports: 'NYSE', 'NASDAQ', 'AMEX', 'EURONEXT', 'XETRA'
             country: Country code (NOT RECOMMENDED - FMP API implementation is unreliable)
                     2-letter ISO codes like 'US', 'CA', 'UK', 'DE', 'IN' - may not work
         """

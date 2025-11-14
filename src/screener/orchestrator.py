@@ -195,6 +195,7 @@ class ScreenerPipeline:
         try:
             # If exchanges specified, query each one separately
             # Uses exchange codes: TSX, LSE, NSE, HKSE, SSE, KRX, JPX, SNT, BMV, SAO, etc.
+            # Note: API parameter accepts both uppercase/lowercase, but data returned has uppercase in exchangeShortName
             if exchanges:
                 for exchange in exchanges:
                     logger.info(f"Fetching from exchange: {exchange}")
