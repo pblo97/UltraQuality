@@ -240,10 +240,11 @@ class FMPClient:
         Returns list of stocks matching criteria.
 
         Args:
-            exchange: Exchange code (e.g., 'nasdaq', 'nyse', 'tsx', 'lse', 'euronext')
-                     Use lowercase. Examples: 'nyse', 'nasdaq', 'amex', 'tsx', 'lse'
-            country: Country code (e.g., 'US', 'MX', 'BR', 'HK', 'CA', 'UK', 'DE', 'IN')
-                    Use uppercase 2-letter ISO codes. Recommended for international markets.
+            exchange: Exchange code (RECOMMENDED - this works reliably)
+                     Examples: 'TSX', 'LSE', 'NSE', 'HKSE', 'SSE', 'KRX', 'JPX', 'SNT', 'BMV', 'SAO'
+                     Also supports: 'nyse', 'nasdaq', 'amex', 'euronext'
+            country: Country code (NOT RECOMMENDED - FMP API implementation is unreliable)
+                    2-letter ISO codes like 'US', 'CA', 'UK', 'DE', 'IN' - may not work
         """
         params = {'limit': limit}
         if market_cap_more_than:

@@ -194,30 +194,16 @@ class ScreenerPipeline:
 
         try:
             # If exchanges specified, query each one separately
-            # Note: exchanges can be exchange codes (NYSE, NASDAQ) or country codes (CA, MX, BR)
+            # Uses exchange codes: TSX, LSE, NSE, HKSE, SSE, KRX, JPX, SNT, BMV, SAO, etc.
             if exchanges:
                 for exchange in exchanges:
-                    # Determine if this is a country code or exchange code
-                    # Country codes: 2 uppercase letters (CA, UK, MX, BR, etc.)
-                    # Exchange codes: longer strings (NYSE, NASDAQ, AMEX, etc.)
-                    is_country_code = len(exchange) == 2 and exchange.isupper()
-
-                    if is_country_code:
-                        logger.info(f"Fetching from country: {exchange}")
-                        profiles = self.fmp.get_stock_screener(
-                            market_cap_more_than=min_mcap,
-                            volume_more_than=min_vol // 1000,  # API expects volume in thousands
-                            country=exchange,
-                            limit=10000  # Maximum results
-                        )
-                    else:
-                        logger.info(f"Fetching from exchange: {exchange}")
-                        profiles = self.fmp.get_stock_screener(
-                            market_cap_more_than=min_mcap,
-                            volume_more_than=min_vol // 1000,  # API expects volume in thousands
-                            exchange=exchange,  # Exchange code (NYSE, NASDAQ, etc.)
-                            limit=10000  # Maximum results
-                        )
+                    logger.info(f"Fetching from exchange: {exchange}")
+                    profiles = self.fmp.get_stock_screener(
+                        market_cap_more_than=min_mcap,
+                        volume_more_than=min_vol // 1000,  # API expects volume in thousands
+                        exchange=exchange,  # Exchange code (TSX, LSE, NSE, etc.)
+                        limit=10000  # Maximum results
+                    )
 
                     if profiles:
                         all_profiles.extend(profiles)
