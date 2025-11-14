@@ -20,9 +20,11 @@ Comprehensive multi-country stock screening across **24 major markets** worldwid
 - 🇫🇷 **France/Europe** (EURONEXT) - Pan-European (France, Netherlands, Belgium, Portugal)
 
 ### Asia
-- 🇮🇳 **India** (NSE - National Stock Exchange) - 1700+ stocks
+- 🇮🇳 **India** (IN - NSE/BSE) - 1700+ stocks
 - 🇨🇳 **China - Hong Kong** (HK - HKSE) - Major Chinese companies (Alibaba, Tencent, etc.)
-- 🇨🇳 **China - Shanghai** (SHH - SSE) - A-shares, mainland China
+- 🇨🇳 **China - Shanghai** (CN - SSE) - A-shares, mainland China
+- 🇰🇷 **South Korea** (KR - KRX) - Samsung, Hyundai, LG, SK
+- 🇯🇵 **Japan** (JP - TSE) - Toyota, Sony, SoftBank
 
 ### All Regions
 - 🌎 **All Regions** - Combined screening (may be slower)
@@ -45,6 +47,8 @@ region_options = {
     "🇮🇳 India": "IN",
     "🇨🇳 China (Hong Kong)": "HK",
     "🇨🇳 China (Shanghai)": "CN",
+    "🇰🇷 South Korea": "KR",
+    "🇯🇵 Japan": "JP",
     "🇨🇱 Chile": "CL",
     "🇲🇽 Mexico": "MX",
     "🇧🇷 Brazil": "BR",
@@ -175,9 +179,11 @@ When using Deep Dive for individual stock analysis, use proper ticker format:
 | France (EURONEXT) | SYMBOL.PA | MC.PA, OR.PA |
 | India (NSE) | SYMBOL.NS | RELIANCE.NS, TCS.NS |
 | Hong Kong (HK) | SYMBOL.HK | 0700.HK, 9988.HK |
-| Shanghai (SHH) | SYMBOL.SS | 600519.SS |
-| Mexico (MEX) | SYMBOL.MX | WALMEX.MX, CEMEXCPO.MX |
-| Brazil (SAO) | SYMBOL.SA | PETR4.SA, VALE3.SA |
+| Shanghai (CN) | SYMBOL.SS | 600519.SS |
+| South Korea (KR) | SYMBOL.KS | 005930.KS (Samsung) |
+| Japan (JP) | SYMBOL.T | 7203.T (Toyota) |
+| Mexico (MX) | SYMBOL.MX | WALMEX.MX, CEMEXCPO.MX |
+| Brazil (BR) | SYMBOL.SA | PETR4.SA, VALE3.SA |
 
 ---
 
@@ -195,6 +201,8 @@ When using Deep Dive for individual stock analysis, use proper ticker format:
 | India | `IN` | NSE, BSE |
 | Hong Kong | `HK` | Hong Kong Stock Exchange |
 | China | `CN` | Shanghai, Shenzhen |
+| South Korea | `KR` | Korea Exchange (KRX/KOSPI) |
+| Japan | `JP` | Tokyo Stock Exchange (TSE) |
 | Chile | `CL` | Santiago Stock Exchange |
 | Mexico | `MX` | Mexican Stock Exchange (BMV) |
 | Brazil | `BR` | B3 São Paulo |
@@ -342,6 +350,14 @@ Test with these well-known international stocks to verify each market works:
 **Colombia:**
 - ECOPETROL.CN (Ecopetrol) - Energy
 - PFBCOLOM.CN (Bancolombia) - Banking
+
+**South Korea:**
+- 005930.KS (Samsung Electronics) - Technology
+- 005380.KS (Hyundai Motor) - Automotive
+
+**Japan:**
+- 7203.T (Toyota Motor) - Automotive
+- 9984.T (SoftBank Group) - Technology/Telecom
 
 **Mexico:**
 - WALMEX.MX (Walmart de México) - Retail
