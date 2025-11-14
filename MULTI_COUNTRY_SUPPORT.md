@@ -1,28 +1,65 @@
-# 🌍 Multi-Country Stock Screening
+# 🌍 Global Stock Screening (Hamco Global Style)
 
 ## Feature Overview
 
-Added support for screening stocks from multiple countries/regions beyond just the United States.
+Comprehensive multi-country stock screening across **24 major markets** worldwide, covering developed and emerging markets. Inspired by global funds like Hamco Global that invest across continents.
 
-## Supported Markets
+## Supported Markets (24 Total)
 
-### Americas
+### 🌎 North America (2)
 - 🇺🇸 **United States** (NYSE, NASDAQ, AMEX) - 5000+ stocks
+  - Apple, Microsoft, Google, Meta, Tesla
 - 🇨🇦 **Canada** (TSX) - 1500+ stocks
-- 🇨🇱 **Chile** (SCS - Santiago) - Copper & Lithium companies
+  - Shopify, TD Bank, Barrick Gold, Royal Bank
 
-### Europe
-- 🇬🇧 **United Kingdom** (LSE - London) - 2000+ stocks
-- 🇩🇪 **Germany** (XETRA - Frankfurt) - 500+ stocks (DAX, MDAX)
-- 🇫🇷 **France/Europe** (EURONEXT) - Pan-European (France, Netherlands, Belgium, Portugal)
+### 🇪🇺 Europe Developed (6)
+- 🇬🇧 **United Kingdom** (LSE) - 2000+ stocks
+  - BP, HSBC, Shell, Unilever, AstraZeneca
+- 🇩🇪 **Germany** (XETRA) - 500+ stocks
+  - SAP, Volkswagen, Siemens, BMW, Allianz
+- 🇫🇷 **France/Europe** (EURONEXT) - 1300+ stocks
+  - LVMH, Airbus, ASML, Heineken, L'Oréal
+- 🇪🇸 **Spain** (BME - Madrid) - 130+ stocks
+  - Telefónica, Santander, Inditex (Zara), Iberdrola
+- 🇨🇭 **Switzerland** (SIX) - 250+ stocks
+  - Nestlé, Roche, Novartis, UBS, ABB
+- 🇮🇹 **Italy** (MIL - Milan) - 400+ stocks
+  - Ferrari, ENI, Intesa Sanpaolo, Enel
 
-### Asia
-- 🇮🇳 **India** (NSE - National Stock Exchange) - 1700+ stocks
-- 🇨🇳 **China - Hong Kong** (HKSE) - Major Chinese companies (Alibaba, Tencent, etc.)
-- 🇨🇳 **China - Shanghai** (SHZ) - A-shares, mainland China
+### 🌏 Asia Developed (3)
+- 🇯🇵 **Japan** (JPX - Tokyo) - 3700+ stocks
+  - Toyota, Sony, SoftBank, Keyence, Nintendo
+- 🇦🇺 **Australia** (ASX) - 2200+ stocks
+  - BHP, CSL, Commonwealth Bank, Fortescue Metals
+- 🇸🇬 **Singapore** (SGX) - 700+ stocks
+  - DBS Bank, Sea Limited (Shopee), Grab Holdings
 
-### All Regions
-- 🌎 **All Regions** - Combined screening (may be slower)
+### 🌏 Asia Emerging (5)
+- 🇰🇷 **South Korea** (KRX - KOSPI) - 2400+ stocks
+  - Samsung Electronics, Hyundai Motor, LG, SK Hynix
+- 🇹🇼 **Taiwan** (TWSE) - 950+ stocks
+  - TSMC, Hon Hai/Foxconn, MediaTek, Delta Electronics
+- 🇮🇳 **India** (NSE - Mumbai) - 1700+ stocks
+  - Reliance Industries, TCS, Infosys, HDFC Bank
+- 🇨🇳 **China (Hong Kong)** (HKSE) - 2500+ stocks
+  - Alibaba, Tencent, Xiaomi, JD.com, Meituan
+- 🇨🇳 **China (Shanghai)** (SHZ) - 1500+ A-shares
+  - Kweichow Moutai, ICBC, PetroChina, Ping An
+
+### 🌎 Latin America (5)
+- 🇧🇷 **Brazil** (BOVESPA - São Paulo) - 450+ stocks
+  - Vale, Petrobras, Itaú Unibanco, Bradesco
+- 🇲🇽 **Mexico** (BMV) - 145+ stocks
+  - América Móvil, Femsa, Cemex, Walmex
+- 🇨🇱 **Chile** (SCS - Santiago) - 200+ stocks
+  - SQM (Lithium), Copec, Falabella, CMPC
+- 🇵🇪 **Peru** (BVL - Lima) - 250+ stocks
+  - Southern Copper, Credicorp, Buenaventura
+- 🇨🇴 **Colombia** (BVC - Bogotá) - 70+ stocks
+  - Ecopetrol, Bancolombia, Grupo Aval
+
+### 🌐 All Markets
+- 🌎 **All Regions** - All 24 markets combined (~17,000+ stocks)
 
 ---
 
@@ -145,16 +182,34 @@ Results will show only TSX-listed companies.
 
 When using Deep Dive for individual stock analysis, use proper ticker format:
 
-| Exchange | Format | Example |
-|----------|--------|---------|
-| US (NYSE/NASDAQ) | SYMBOL | AAPL, MSFT |
-| Canada (TSX) | SYMBOL.TO | SHOP.TO, TD.TO |
-| UK (LSE) | SYMBOL.L | BP.L, HSBA.L |
-| Germany (XETRA) | SYMBOL.DE | SAP.DE, VOW3.DE |
-| France (EURONEXT) | SYMBOL.PA | MC.PA, OR.PA |
-| India (NSE) | SYMBOL.NS | RELIANCE.NS, TCS.NS |
-| Hong Kong (HKSE) | SYMBOL.HK | 0700.HK, 9988.HK |
-| Shanghai (SHZ) | SYMBOL.SS | 600519.SS |
+| Exchange | Format | Example Companies |
+|----------|--------|-------------------|
+| **North America** |
+| US (NYSE/NASDAQ) | `SYMBOL` | AAPL, MSFT, GOOGL |
+| Canada (TSX) | `SYMBOL.TO` | SHOP.TO (Shopify), TD.TO (TD Bank) |
+| **Europe Developed** |
+| UK (LSE) | `SYMBOL.L` | BP.L, HSBA.L (HSBC), ULVR.L (Unilever) |
+| Germany (XETRA) | `SYMBOL.DE` | SAP.DE, VOW3.DE (Volkswagen), BMW.DE |
+| France (EURONEXT) | `SYMBOL.PA` | MC.PA (LVMH), OR.PA (L'Oréal), AIR.PA (Airbus) |
+| Spain (BME) | `SYMBOL.MC` | TEF.MC (Telefónica), SAN.MC (Santander), ITX.MC (Inditex) |
+| Switzerland (SIX) | `SYMBOL.SW` | NESN.SW (Nestlé), ROG.SW (Roche), NOVN.SW (Novartis) |
+| Italy (MIL) | `SYMBOL.MI` | RACE.MI (Ferrari), ENI.MI, ISP.MI (Intesa) |
+| **Asia Developed** |
+| Japan (JPX) | `SYMBOL.T` | 7203.T (Toyota), 6758.T (Sony), 9984.T (SoftBank) |
+| Australia (ASX) | `SYMBOL.AX` | BHP.AX, CSL.AX, CBA.AX (Commonwealth Bank) |
+| Singapore (SGX) | `SYMBOL.SI` | D05.SI (DBS), SE.SI (Sea Limited) |
+| **Asia Emerging** |
+| South Korea (KRX) | `SYMBOL.KS` | 005930.KS (Samsung), 005380.KS (Hyundai) |
+| Taiwan (TWSE) | `SYMBOL.TW` | 2330.TW (TSMC), 2317.TW (Hon Hai/Foxconn) |
+| India (NSE) | `SYMBOL.NS` | RELIANCE.NS, TCS.NS (Tata Consultancy), INFY.NS (Infosys) |
+| Hong Kong (HKSE) | `SYMBOL.HK` | 0700.HK (Tencent), 9988.HK (Alibaba), 1810.HK (Xiaomi) |
+| Shanghai (SHZ) | `SYMBOL.SS` | 600519.SS (Kweichow Moutai), 601398.SS (ICBC) |
+| **Latin America** |
+| Brazil (BOVESPA) | `SYMBOL.SA` | VALE3.SA (Vale), PETR4.SA (Petrobras), ITUB4.SA (Itaú) |
+| Mexico (BMV) | `SYMBOL.MX` | AMXL.MX (América Móvil), FEMSAUBD.MX (Femsa) |
+| Chile (SCS) | `SYMBOL.SN` | SQM-B.SN (SQM Lithium), COPEC.SN |
+| Peru (BVL) | `SYMBOL.LM` | SCCO.LM (Southern Copper), BAP.LM (Credicorp) |
+| Colombia (BVC) | `SYMBOL.CN` | ECOPETROL.CN, PFBCOLOM.CN (Bancolombia) |
 
 ---
 
@@ -164,15 +219,32 @@ When using Deep Dive for individual stock analysis, use proper ticker format:
 
 | Region | FMP Exchange Code | Markets Included |
 |--------|-------------------|------------------|
-| US | `NYSE`, `NASDAQ`, `AMEX` | All US exchanges |
+| **North America** |
+| United States | `NYSE`, `NASDAQ`, `AMEX` | All US exchanges |
 | Canada | `TSX` | Toronto Stock Exchange |
-| UK | `LSE` | London Stock Exchange |
+| **Europe Developed** |
+| United Kingdom | `LSE` | London Stock Exchange |
 | Germany | `XETRA` | Frankfurt/XETRA |
-| Europe | `EURONEXT` | France, Netherlands, Belgium, Portugal |
+| France/Europe | `EURONEXT` | France, Netherlands, Belgium, Portugal |
+| Spain | `BME` | Madrid Stock Exchange |
+| Switzerland | `SIX` | Swiss Exchange |
+| Italy | `MIL` | Milan Stock Exchange (Borsa Italiana) |
+| **Asia Developed** |
+| Japan | `JPX` | Tokyo Stock Exchange |
+| Australia | `ASX` | Australian Securities Exchange |
+| Singapore | `SGX` | Singapore Exchange |
+| **Asia Emerging** |
+| South Korea | `KRX` | Korea Exchange (KOSPI) |
+| Taiwan | `TWSE` | Taiwan Stock Exchange |
 | India | `NSE` | National Stock Exchange of India |
 | Hong Kong | `HKSE` | Hong Kong Stock Exchange |
 | Shanghai | `SHZ` | Shanghai Stock Exchange |
+| **Latin America** |
+| Brazil | `BOVESPA` | B3 - São Paulo Stock Exchange |
+| Mexico | `BMV` | Bolsa Mexicana de Valores |
 | Chile | `SCS` | Santiago Stock Exchange |
+| Peru | `BVL` | Lima Stock Exchange (Bolsa de Valores de Lima) |
+| Colombia | `BVC` | Colombia Stock Exchange (Bolsa de Valores de Colombia) |
 
 ### Currency Considerations
 
@@ -214,31 +286,107 @@ Potential improvements for future versions:
 
 ## Testing Recommendations
 
-Test with these well-known international stocks:
+Test with these well-known international stocks to verify each market works:
 
+### North America
 **Canada:**
-- SHOP.TO (Shopify) - Tech
-- TD.TO (TD Bank) - Financial
+- SHOP.TO (Shopify) - E-commerce Tech
+- TD.TO (TD Bank) - Banking
+- ABX.TO (Barrick Gold) - Mining
 
+### Europe Developed
 **UK:**
 - BP.L (BP) - Energy
 - HSBA.L (HSBC) - Financial
+- ULVR.L (Unilever) - Consumer Goods
 
 **Germany:**
-- SAP.DE (SAP) - Tech
-- VOW3.DE (Volkswagen) - Auto
+- SAP.DE (SAP) - Enterprise Software
+- VOW3.DE (Volkswagen) - Automotive
+- BMW.DE (BMW) - Automotive
+
+**France:**
+- MC.PA (LVMH) - Luxury
+- OR.PA (L'Oréal) - Beauty
+- AIR.PA (Airbus) - Aerospace
+
+**Spain:**
+- ITX.MC (Inditex/Zara) - Retail
+- SAN.MC (Santander) - Banking
+
+**Switzerland:**
+- NESN.SW (Nestlé) - Food & Beverage
+- ROG.SW (Roche) - Pharma
+- NOVN.SW (Novartis) - Pharma
+
+**Italy:**
+- RACE.MI (Ferrari) - Luxury Auto
+- ENI.MI (ENI) - Energy
+
+### Asia Developed
+**Japan:**
+- 7203.T (Toyota) - Automotive
+- 6758.T (Sony) - Electronics/Entertainment
+- 9984.T (SoftBank) - Telecom/Investments
+
+**Australia:**
+- BHP.AX (BHP) - Mining
+- CSL.AX (CSL) - Biotechnology
+- CBA.AX (Commonwealth Bank) - Banking
+
+**Singapore:**
+- D05.SI (DBS Bank) - Banking
+- SE.SI (Sea Limited) - Tech/E-commerce
+
+### Asia Emerging
+**South Korea:**
+- 005930.KS (Samsung Electronics) - Tech/Semiconductors
+- 005380.KS (Hyundai Motor) - Automotive
+- 000660.KS (SK Hynix) - Semiconductors
+
+**Taiwan:**
+- 2330.TW (TSMC) - Semiconductors (World's largest foundry)
+- 2317.TW (Hon Hai/Foxconn) - Electronics Manufacturing
+- 2454.TW (MediaTek) - Semiconductors
 
 **India:**
-- RELIANCE.NS (Reliance Industries)
-- TCS.NS (Tata Consultancy)
+- RELIANCE.NS (Reliance Industries) - Conglomerate (Energy, Retail, Telecom)
+- TCS.NS (Tata Consultancy Services) - IT Services
+- INFY.NS (Infosys) - IT Services
 
-**Hong Kong:**
-- 0700.HK (Tencent)
-- 9988.HK (Alibaba)
+**China (Hong Kong):**
+- 0700.HK (Tencent) - Internet/Gaming
+- 9988.HK (Alibaba) - E-commerce
+- 1810.HK (Xiaomi) - Consumer Electronics
+
+**China (Shanghai):**
+- 600519.SS (Kweichow Moutai) - Spirits/Luxury
+- 601398.SS (ICBC) - Banking
+
+### Latin America
+**Brazil:**
+- VALE3.SA (Vale) - Mining (Iron Ore)
+- PETR4.SA (Petrobras) - Energy
+- ITUB4.SA (Itaú Unibanco) - Banking
+
+**Mexico:**
+- AMXL.MX (América Móvil) - Telecom
+- FEMSAUBD.MX (Femsa) - Beverages/Retail
+- CEMEXCPO.MX (Cemex) - Cement
 
 **Chile:**
+- SQM-B.SN (SQM) - Lithium Mining (Critical for EVs)
 - COPEC.SN (Copec) - Energy/Retail
-- SQM-B.SN (SQM) - Lithium mining
+- FALABELLA.SN (Falabella) - Retail
+
+**Peru:**
+- SCCO.LM (Southern Copper) - Mining
+- BAP.LM (Credicorp) - Banking
+- BVN.LM (Buenaventura) - Gold Mining
+
+**Colombia:**
+- ECOPETROL.CN (Ecopetrol) - Energy
+- PFBCOLOM.CN (Bancolombia) - Banking
 
 ---
 
