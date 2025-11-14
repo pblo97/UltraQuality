@@ -279,12 +279,6 @@ class ScreenerPipeline:
 
         logger.info(f"Total profiles fetched: {len(df)}")
 
-        # DEBUG: Show sample of exchangeShortName values
-        if 'exchangeShortName' in df.columns:
-            unique_exchanges = df['exchangeShortName'].value_counts().head(10)
-            logger.info(f"DEBUG - Exchange distribution:\n{unique_exchanges}")
-            logger.info(f"DEBUG - Requested exchanges filter: {exchanges}")
-
         # Normalize column names (stock-screener uses different names than profile-bulk)
         column_mapping = {
             'marketCap': 'mktCap',          # stock-screener → profile-bulk
@@ -307,9 +301,6 @@ class ScreenerPipeline:
 
         # Filter by exchange (if column exists)
         if exchanges and 'exchangeShortName' in df.columns:
-            logger.info(f"DEBUG - Before exchange filter: {len(df)} stocks")
-            logger.info(f"DEBUG - Looking for exchanges: {exchanges}")
-            logger.info(f"DEBUG - Sample exchangeShortName values: {df['exchangeShortName'].head(10).tolist()}")
             df = df[df['exchangeShortName'].isin(exchanges)]
             logger.info(f"After exchange filter: {len(df)}")
 
