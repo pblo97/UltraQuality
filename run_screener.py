@@ -711,7 +711,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "JPX": {"mcap": 500.0, "vol": 2.0},
 
         # Medium developed markets
-        "TSX": {"mcap": 300.0, "vol": 1.0},      # Canada
+        "TSX": {"mcap": 100.0, "vol": 0.3},      # Canada (smaller market than US/UK)
         "LSE": {"mcap": 300.0, "vol": 1.0},      # UK
         "XETRA": {"mcap": 300.0, "vol": 1.0},    # Germany
         "EURONEXT": {"mcap": 300.0, "vol": 1.0}, # Europe
