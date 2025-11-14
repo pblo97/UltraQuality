@@ -654,40 +654,21 @@ st.sidebar.header("⚙️ Configuration")
 
 # Universe filters
 with st.sidebar.expander("🌍 Universe Filters", expanded=True):
-    # Region/Country selector (Hamco Global style - diversified developed + emerging)
+    # Region/Country selector
+    # Uses country codes (2-letter uppercase) for filtering via FMP API
     region_options = {
         # North America
         "🇺🇸 United States": "US",
-        "🇨🇦 Canada": "TSX",
-
-        # Europe Developed
-        "🇬🇧 United Kingdom": "LSE",
-        "🇩🇪 Germany": "XETRA",
-        "🇫🇷 France / Europe": "EURONEXT",
-        "🇪🇸 Spain": "BME",
-        "🇨🇭 Switzerland": "SIX",
-        "🇮🇹 Italy": "MIL",
-
-        # Asia Developed
-        "🇯🇵 Japan": "JPX",
-        "🇦🇺 Australia": "ASX",
-        "🇸🇬 Singapore": "SGX",
-
-        # Asia Emerging
-        "🇰🇷 South Korea": "KRX",
-        "🇹🇼 Taiwan": "TWSE",
-        "🇮🇳 India": "NSE",
-        "🇨🇳 China (Hong Kong)": "HKSE",
-        "🇨🇳 China (Shanghai)": "SHZ",
-
-        # Latin America
-        "🇧🇷 Brazil": "BOVESPA",
-        "🇲🇽 Mexico": "BMV",
-        "🇨🇱 Chile": "SCS",
-        "🇵🇪 Peru": "BVL",
-        "🇨🇴 Colombia": "BVC",
-
-        # All
+        "🇨🇦 Canada": "CA",
+        "🇬🇧 United Kingdom": "UK",
+        "🇩🇪 Germany": "DE",
+        "🇫🇷 France / Europe": "FR",
+        "🇮🇳 India": "IN",
+        "🇨🇳 China (Hong Kong)": "HK",
+        "🇨🇳 China (Shanghai)": "CN",
+        "🇨🇱 Chile": "CL",
+        "🇲🇽 Mexico": "MX",
+        "🇧🇷 Brazil": "BR",
         "🌎 All Regions": "ALL"
     }
 
@@ -695,46 +676,25 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "📍 Market/Region",
         options=list(region_options.keys()),
         index=0,  # Default to US
-        help="Hamco Global style: Screen stocks from developed + emerging markets worldwide. 24 markets available."
+        help="Select which stock market/region to screen. Filters by country code in FMP API."
     )
 
     exchange_filter = region_options[selected_region]
 
     # Show info about selected region
     region_info = {
-        # North America
-        "US": "🇺🇸 NYSE, NASDAQ, AMEX - 5000+ stocks (Apple, Microsoft, Google)",
-        "TSX": "🇨🇦 Toronto SE - 1500+ stocks (Shopify, TD Bank, Barrick Gold)",
-
-        # Europe Developed
-        "LSE": "🇬🇧 London SE - 2000+ stocks (BP, HSBC, Shell, Unilever)",
-        "XETRA": "🇩🇪 Frankfurt/XETRA - 500+ stocks (SAP, Volkswagen, Siemens, BMW)",
-        "EURONEXT": "🇫🇷 Pan-European - 1300+ stocks (LVMH, Airbus, ASML, Heineken)",
-        "BME": "🇪🇸 Madrid SE - 130+ stocks (Telefónica, Santander, Inditex/Zara)",
-        "SIX": "🇨🇭 Swiss Exchange - 250+ stocks (Nestlé, Roche, Novartis, UBS)",
-        "MIL": "🇮🇹 Milan SE - 400+ stocks (Ferrari, ENI, Intesa Sanpaolo)",
-
-        # Asia Developed
-        "JPX": "🇯🇵 Tokyo SE - 3700+ stocks (Toyota, Sony, SoftBank, Keyence)",
-        "ASX": "🇦🇺 Australian SE - 2200+ stocks (BHP, CSL, Commonwealth Bank)",
-        "SGX": "🇸🇬 Singapore Exchange - 700+ stocks (DBS, Sea Limited, Grab)",
-
-        # Asia Emerging
-        "KRX": "🇰🇷 Korea Exchange - 2400+ stocks (Samsung, Hyundai, LG, SK Hynix)",
-        "TWSE": "🇹🇼 Taiwan SE - 950+ stocks (TSMC, Hon Hai/Foxconn, MediaTek)",
-        "NSE": "🇮🇳 Mumbai SE - 1700+ stocks (Reliance, TCS, Infosys, HDFC)",
-        "HKSE": "🇨🇳 Hong Kong SE - 2500+ stocks (Alibaba, Tencent, Xiaomi, JD.com)",
-        "SHZ": "🇨🇳 Shanghai SE - 1500+ A-shares (Kweichow Moutai, ICBC, PetroChina)",
-
-        # Latin America
-        "BOVESPA": "🇧🇷 São Paulo SE - 450+ stocks (Vale, Petrobras, Itaú, Bradesco)",
-        "BMV": "🇲🇽 Mexican SE - 145+ stocks (América Móvil, Femsa, Cemex, Walmex)",
-        "SCS": "🇨🇱 Santiago SE - 200+ stocks (SQM lithium, Copec, Falabella, CMPC)",
-        "BVL": "🇵🇪 Lima SE - 250+ stocks (Southern Copper, Credicorp, Buenaventura)",
-        "BVC": "🇨🇴 Bogotá SE - 70+ stocks (Ecopetrol, Bancolombia, Grupo Aval)",
-
-        # All
-        "ALL": "🌎 All 24 markets - Global diversification (slower, higher API usage)"
+        "US": "United States - NYSE, NASDAQ, AMEX (5000+ stocks)",
+        "CA": "Canada - Toronto Stock Exchange (1500+ stocks)",
+        "UK": "United Kingdom - London Stock Exchange (2000+ stocks)",
+        "DE": "Germany - Frankfurt/XETRA (500+ stocks, DAX, MDAX)",
+        "FR": "France - Euronext Paris (CAC 40, etc.)",
+        "IN": "India - NSE/BSE (1700+ stocks)",
+        "HK": "Hong Kong - HKSE (Alibaba, Tencent, etc.)",
+        "CN": "China - Shanghai/Shenzhen A-shares",
+        "CL": "Chile - Santiago Stock Exchange (Copper, Lithium)",
+        "MX": "Mexico - BMV (Cemex, Walmex, etc.)",
+        "BR": "Brazil - B3 São Paulo (Petrobras, Vale, etc.)",
+        "ALL": "All regions combined - May be slower"
     }
 
     if exchange_filter in region_info:
@@ -907,12 +867,10 @@ with tab1:
             pipeline.config['universe']['top_k'] = top_k
 
             # Set exchange/region filter
+            # Now using country codes (2-letter uppercase) which are handled by orchestrator
             if exchange_filter != "ALL":
-                # Map exchange codes to API parameters
-                if exchange_filter == "US":
-                    pipeline.config['universe']['exchanges'] = ["NYSE", "NASDAQ", "AMEX"]
-                else:
-                    pipeline.config['universe']['exchanges'] = [exchange_filter]
+                # Pass country code directly - orchestrator will use country parameter
+                pipeline.config['universe']['exchanges'] = [exchange_filter]
             else:
                 # ALL regions - clear exchange filter to get everything
                 pipeline.config['universe']['exchanges'] = []

@@ -10,56 +10,22 @@ Comprehensive multi-country stock screening across **24 major markets** worldwid
 - 🇺🇸 **United States** (NYSE, NASDAQ, AMEX) - 5000+ stocks
   - Apple, Microsoft, Google, Meta, Tesla
 - 🇨🇦 **Canada** (TSX) - 1500+ stocks
-  - Shopify, TD Bank, Barrick Gold, Royal Bank
+- 🇲🇽 **Mexico** (MEX - BMV) - Mexican companies
+- 🇧🇷 **Brazil** (SAO - B3) - Brazilian companies
+- 🇨🇱 **Chile** (SCS - Santiago) - Copper & Lithium companies
 
-### 🇪🇺 Europe Developed (6)
-- 🇬🇧 **United Kingdom** (LSE) - 2000+ stocks
-  - BP, HSBC, Shell, Unilever, AstraZeneca
-- 🇩🇪 **Germany** (XETRA) - 500+ stocks
-  - SAP, Volkswagen, Siemens, BMW, Allianz
-- 🇫🇷 **France/Europe** (EURONEXT) - 1300+ stocks
-  - LVMH, Airbus, ASML, Heineken, L'Oréal
-- 🇪🇸 **Spain** (BME - Madrid) - 130+ stocks
-  - Telefónica, Santander, Inditex (Zara), Iberdrola
-- 🇨🇭 **Switzerland** (SIX) - 250+ stocks
-  - Nestlé, Roche, Novartis, UBS, ABB
-- 🇮🇹 **Italy** (MIL - Milan) - 400+ stocks
-  - Ferrari, ENI, Intesa Sanpaolo, Enel
+### Europe
+- 🇬🇧 **United Kingdom** (LSE - London) - 2000+ stocks
+- 🇩🇪 **Germany** (XETRA - Frankfurt) - 500+ stocks (DAX, MDAX)
+- 🇫🇷 **France/Europe** (EURONEXT) - Pan-European (France, Netherlands, Belgium, Portugal)
 
-### 🌏 Asia Developed (3)
-- 🇯🇵 **Japan** (JPX - Tokyo) - 3700+ stocks
-  - Toyota, Sony, SoftBank, Keyence, Nintendo
-- 🇦🇺 **Australia** (ASX) - 2200+ stocks
-  - BHP, CSL, Commonwealth Bank, Fortescue Metals
-- 🇸🇬 **Singapore** (SGX) - 700+ stocks
-  - DBS Bank, Sea Limited (Shopee), Grab Holdings
+### Asia
+- 🇮🇳 **India** (NSE - National Stock Exchange) - 1700+ stocks
+- 🇨🇳 **China - Hong Kong** (HK - HKSE) - Major Chinese companies (Alibaba, Tencent, etc.)
+- 🇨🇳 **China - Shanghai** (SHH - SSE) - A-shares, mainland China
 
-### 🌏 Asia Emerging (5)
-- 🇰🇷 **South Korea** (KRX - KOSPI) - 2400+ stocks
-  - Samsung Electronics, Hyundai Motor, LG, SK Hynix
-- 🇹🇼 **Taiwan** (TWSE) - 950+ stocks
-  - TSMC, Hon Hai/Foxconn, MediaTek, Delta Electronics
-- 🇮🇳 **India** (NSE - Mumbai) - 1700+ stocks
-  - Reliance Industries, TCS, Infosys, HDFC Bank
-- 🇨🇳 **China (Hong Kong)** (HKSE) - 2500+ stocks
-  - Alibaba, Tencent, Xiaomi, JD.com, Meituan
-- 🇨🇳 **China (Shanghai)** (SHZ) - 1500+ A-shares
-  - Kweichow Moutai, ICBC, PetroChina, Ping An
-
-### 🌎 Latin America (5)
-- 🇧🇷 **Brazil** (BOVESPA - São Paulo) - 450+ stocks
-  - Vale, Petrobras, Itaú Unibanco, Bradesco
-- 🇲🇽 **Mexico** (BMV) - 145+ stocks
-  - América Móvil, Femsa, Cemex, Walmex
-- 🇨🇱 **Chile** (SCS - Santiago) - 200+ stocks
-  - SQM (Lithium), Copec, Falabella, CMPC
-- 🇵🇪 **Peru** (BVL - Lima) - 250+ stocks
-  - Southern Copper, Credicorp, Buenaventura
-- 🇨🇴 **Colombia** (BVC - Bogotá) - 70+ stocks
-  - Ecopetrol, Bancolombia, Grupo Aval
-
-### 🌐 All Markets
-- 🌎 **All Regions** - All 24 markets combined (~17,000+ stocks)
+### All Regions
+- 🌎 **All Regions** - Combined screening (may be slower)
 
 ---
 
@@ -72,14 +38,16 @@ Added new dropdown selector in sidebar under "🌍 Universe Filters":
 ```python
 region_options = {
     "🇺🇸 United States": "US",
-    "🇨🇦 Canada": "TSX",
-    "🇬🇧 United Kingdom": "LSE",
-    "🇩🇪 Germany": "XETRA",
-    "🇫🇷 France / Europe": "EURONEXT",
-    "🇮🇳 India": "NSE",
-    "🇨🇳 China (Hong Kong)": "HKSE",
-    "🇨🇳 China (Shanghai)": "SHZ",
-    "🇨🇱 Chile": "SCS",
+    "🇨🇦 Canada": "CA",
+    "🇬🇧 United Kingdom": "UK",
+    "🇩🇪 Germany": "DE",
+    "🇫🇷 France / Europe": "FR",
+    "🇮🇳 India": "IN",
+    "🇨🇳 China (Hong Kong)": "HK",
+    "🇨🇳 China (Shanghai)": "CN",
+    "🇨🇱 Chile": "CL",
+    "🇲🇽 Mexico": "MX",
+    "🇧🇷 Brazil": "BR",
     "🌎 All Regions": "ALL"
 }
 ```
@@ -88,48 +56,64 @@ region_options = {
 - User-friendly country flags and names
 - Information tooltip showing number of stocks per region
 - Default to US market
-- Pass selected exchange to pipeline config
+- Uses ISO 2-letter country codes for filtering via FMP API `country` parameter
 
 ### 2. API Client (src/screener/ingest.py)
 
-Added new method to retrieve available exchanges:
+Added `country` parameter to stock screener:
 
 ```python
-def get_exchanges_list(self) -> List[Dict]:
+def get_stock_screener(
+    self,
+    market_cap_more_than: Optional[int] = None,
+    volume_more_than: Optional[int] = None,
+    exchange: Optional[str] = None,
+    country: Optional[str] = None,  # NEW: Country code filtering
+    limit: int = 10000
+) -> List[Dict]:
     """
-    Endpoint: /exchanges-list
-    Returns list of all available exchanges in FMP.
+    Args:
+        exchange: Exchange code (e.g., 'nasdaq', 'nyse', 'tsx', 'lse')
+        country: Country code (e.g., 'US', 'MX', 'BR', 'HK', 'CA')
+                Recommended for international markets.
     """
-    return self._request('exchanges-list', cache=self.cache_universe)
 ```
 
-Updated `get_stock_screener()` documentation to clarify exchange parameter usage.
+The `country` parameter uses 2-letter ISO country codes and is more reliable than exchange codes for international markets.
 
 ### 3. Pipeline Orchestrator (src/screener/orchestrator.py)
 
-Modified universe building to support exchange filtering:
+Modified universe building to support country/exchange filtering:
 
 **Before:**
 - Always queried all exchanges without filtering
 
 **After:**
-- Reads `exchanges` list from config
-- If exchanges specified → queries each exchange separately
-- If no exchanges (empty list) → queries all regions
-- Aggregates results from multiple exchanges
+- Reads `exchanges` list from config (can contain country codes or exchange codes)
+- Auto-detects if value is country code (2 uppercase letters) or exchange code
+- Uses appropriate API parameter (country vs exchange)
+- Aggregates results from multiple filters
 
 ```python
 if exchanges:
     for exchange in exchanges:
-        profiles = self.fmp.get_stock_screener(
-            market_cap_more_than=min_mcap,
-            volume_more_than=min_vol // 1000,
-            exchange=exchange,  # ← Filter by exchange
-            limit=10000
-        )
-else:
-    # No filter - get all regions
-    profiles = self.fmp.get_stock_screener(...)
+        # Detect if country code (2 uppercase letters) or exchange code
+        is_country_code = len(exchange) == 2 and exchange.isupper()
+
+        if is_country_code:
+            profiles = self.fmp.get_stock_screener(
+                market_cap_more_than=min_mcap,
+                volume_more_than=min_vol // 1000,
+                country=exchange,  # ← Filter by country code
+                limit=10000
+            )
+        else:
+            profiles = self.fmp.get_stock_screener(
+                market_cap_more_than=min_mcap,
+                volume_more_than=min_vol // 1000,
+                exchange=exchange.lower(),  # ← Filter by exchange
+                limit=10000
+            )
 ```
 
 ---
@@ -182,69 +166,40 @@ Results will show only TSX-listed companies.
 
 When using Deep Dive for individual stock analysis, use proper ticker format:
 
-| Exchange | Format | Example Companies |
-|----------|--------|-------------------|
-| **North America** |
-| US (NYSE/NASDAQ) | `SYMBOL` | AAPL, MSFT, GOOGL |
-| Canada (TSX) | `SYMBOL.TO` | SHOP.TO (Shopify), TD.TO (TD Bank) |
-| **Europe Developed** |
-| UK (LSE) | `SYMBOL.L` | BP.L, HSBA.L (HSBC), ULVR.L (Unilever) |
-| Germany (XETRA) | `SYMBOL.DE` | SAP.DE, VOW3.DE (Volkswagen), BMW.DE |
-| France (EURONEXT) | `SYMBOL.PA` | MC.PA (LVMH), OR.PA (L'Oréal), AIR.PA (Airbus) |
-| Spain (BME) | `SYMBOL.MC` | TEF.MC (Telefónica), SAN.MC (Santander), ITX.MC (Inditex) |
-| Switzerland (SIX) | `SYMBOL.SW` | NESN.SW (Nestlé), ROG.SW (Roche), NOVN.SW (Novartis) |
-| Italy (MIL) | `SYMBOL.MI` | RACE.MI (Ferrari), ENI.MI, ISP.MI (Intesa) |
-| **Asia Developed** |
-| Japan (JPX) | `SYMBOL.T` | 7203.T (Toyota), 6758.T (Sony), 9984.T (SoftBank) |
-| Australia (ASX) | `SYMBOL.AX` | BHP.AX, CSL.AX, CBA.AX (Commonwealth Bank) |
-| Singapore (SGX) | `SYMBOL.SI` | D05.SI (DBS), SE.SI (Sea Limited) |
-| **Asia Emerging** |
-| South Korea (KRX) | `SYMBOL.KS` | 005930.KS (Samsung), 005380.KS (Hyundai) |
-| Taiwan (TWSE) | `SYMBOL.TW` | 2330.TW (TSMC), 2317.TW (Hon Hai/Foxconn) |
-| India (NSE) | `SYMBOL.NS` | RELIANCE.NS, TCS.NS (Tata Consultancy), INFY.NS (Infosys) |
-| Hong Kong (HKSE) | `SYMBOL.HK` | 0700.HK (Tencent), 9988.HK (Alibaba), 1810.HK (Xiaomi) |
-| Shanghai (SHZ) | `SYMBOL.SS` | 600519.SS (Kweichow Moutai), 601398.SS (ICBC) |
-| **Latin America** |
-| Brazil (BOVESPA) | `SYMBOL.SA` | VALE3.SA (Vale), PETR4.SA (Petrobras), ITUB4.SA (Itaú) |
-| Mexico (BMV) | `SYMBOL.MX` | AMXL.MX (América Móvil), FEMSAUBD.MX (Femsa) |
-| Chile (SCS) | `SYMBOL.SN` | SQM-B.SN (SQM Lithium), COPEC.SN |
-| Peru (BVL) | `SYMBOL.LM` | SCCO.LM (Southern Copper), BAP.LM (Credicorp) |
-| Colombia (BVC) | `SYMBOL.CN` | ECOPETROL.CN, PFBCOLOM.CN (Bancolombia) |
+| Exchange | Format | Example |
+|----------|--------|---------|
+| US (NYSE/NASDAQ) | SYMBOL | AAPL, MSFT |
+| Canada (TSX) | SYMBOL.TO | SHOP.TO, TD.TO |
+| UK (LSE) | SYMBOL.L | BP.L, HSBA.L |
+| Germany (XETRA) | SYMBOL.DE | SAP.DE, VOW3.DE |
+| France (EURONEXT) | SYMBOL.PA | MC.PA, OR.PA |
+| India (NSE) | SYMBOL.NS | RELIANCE.NS, TCS.NS |
+| Hong Kong (HK) | SYMBOL.HK | 0700.HK, 9988.HK |
+| Shanghai (SHH) | SYMBOL.SS | 600519.SS |
+| Mexico (MEX) | SYMBOL.MX | WALMEX.MX, CEMEXCPO.MX |
+| Brazil (SAO) | SYMBOL.SA | PETR4.SA, VALE3.SA |
 
 ---
 
 ## Technical Notes
 
-### Exchange Codes Used
+### Country Codes Used
 
-| Region | FMP Exchange Code | Markets Included |
-|--------|-------------------|------------------|
-| **North America** |
-| United States | `NYSE`, `NASDAQ`, `AMEX` | All US exchanges |
-| Canada | `TSX` | Toronto Stock Exchange |
-| **Europe Developed** |
-| United Kingdom | `LSE` | London Stock Exchange |
-| Germany | `XETRA` | Frankfurt/XETRA |
-| France/Europe | `EURONEXT` | France, Netherlands, Belgium, Portugal |
-| Spain | `BME` | Madrid Stock Exchange |
-| Switzerland | `SIX` | Swiss Exchange |
-| Italy | `MIL` | Milan Stock Exchange (Borsa Italiana) |
-| **Asia Developed** |
-| Japan | `JPX` | Tokyo Stock Exchange |
-| Australia | `ASX` | Australian Securities Exchange |
-| Singapore | `SGX` | Singapore Exchange |
-| **Asia Emerging** |
-| South Korea | `KRX` | Korea Exchange (KOSPI) |
-| Taiwan | `TWSE` | Taiwan Stock Exchange |
-| India | `NSE` | National Stock Exchange of India |
-| Hong Kong | `HKSE` | Hong Kong Stock Exchange |
-| Shanghai | `SHZ` | Shanghai Stock Exchange |
-| **Latin America** |
-| Brazil | `BOVESPA` | B3 - São Paulo Stock Exchange |
-| Mexico | `BMV` | Bolsa Mexicana de Valores |
-| Chile | `SCS` | Santiago Stock Exchange |
-| Peru | `BVL` | Lima Stock Exchange (Bolsa de Valores de Lima) |
-| Colombia | `BVC` | Colombia Stock Exchange (Bolsa de Valores de Colombia) |
+| Region | FMP Country Code | Markets Included |
+|--------|------------------|------------------|
+| US | `US` | NYSE, NASDAQ, AMEX |
+| Canada | `CA` | Toronto Stock Exchange (TSX) |
+| UK | `UK` | London Stock Exchange (LSE) |
+| Germany | `DE` | Frankfurt/XETRA |
+| France | `FR` | Euronext Paris |
+| India | `IN` | NSE, BSE |
+| Hong Kong | `HK` | Hong Kong Stock Exchange |
+| China | `CN` | Shanghai, Shenzhen |
+| Chile | `CL` | Santiago Stock Exchange |
+| Mexico | `MX` | Mexican Stock Exchange (BMV) |
+| Brazil | `BR` | B3 São Paulo |
+
+**Note:** The screener uses ISO 2-letter country codes instead of exchange codes. This is more reliable as the FMP API's `country` parameter is better documented and more consistent than exchange-specific filtering.
 
 ### Currency Considerations
 
@@ -388,6 +343,14 @@ Test with these well-known international stocks to verify each market works:
 - ECOPETROL.CN (Ecopetrol) - Energy
 - PFBCOLOM.CN (Bancolombia) - Banking
 
+**Mexico:**
+- WALMEX.MX (Walmart de México) - Retail
+- CEMEXCPO.MX (Cemex) - Building Materials
+
+**Brazil:**
+- PETR4.SA (Petrobras) - Energy
+- VALE3.SA (Vale) - Mining
+
 ---
 
 ## Known Limitations
@@ -426,15 +389,17 @@ Test with these well-known international stocks to verify each market works:
 ## API Endpoints Used
 
 ```
-GET /api/v3/exchanges-list
-→ Returns list of all available exchanges
+GET /api/v3/stock-screener?country=CA&marketCapMoreThan=500000000
+→ Screen stocks by country code (recommended for international markets)
 
-GET /api/v3/stock-screener?exchange=TSX&marketCapMoreThan=500000000
-→ Screen stocks on specific exchange
+GET /api/v3/stock-screener?exchange=tsx&marketCapMoreThan=500000000
+→ Screen stocks by exchange code (lowercase, for specific exchanges)
 
 GET /api/v3/stock-screener?marketCapMoreThan=500000000
-→ Screen all exchanges (no exchange parameter)
+→ Screen all regions (no country/exchange filter)
 ```
+
+**Note:** The `country` parameter is preferred over `exchange` for international markets as it's more reliable and better documented in the FMP API.
 
 ---
 
