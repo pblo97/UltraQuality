@@ -656,21 +656,18 @@ st.sidebar.header("⚙️ Configuration")
 with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     # Region/Country selector
     # Uses exchange codes (country parameter doesn't work in FMP API)
+    # Note: Only exchanges verified as available in FMP API are included
     region_options = {
         "🇺🇸 United States": "US",        # Special: no filter (most stocks are US)
         "🇨🇦 Canada": "TSX",              # Toronto Stock Exchange
         "🇬🇧 United Kingdom": "LSE",      # London Stock Exchange
         "🇩🇪 Germany": "XETRA",           # Frankfurt/XETRA
-        "🇫🇷 France / Europe": "EURONEXT", # Euronext (multi-country)
         "🇮🇳 India": "NSE",               # National Stock Exchange
-        "🇨🇳 China (Hong Kong)": "HKSE",  # Hong Kong Stock Exchange
-        "🇨🇳 China (Shanghai)": "SSE",    # Shanghai Stock Exchange
-        "🇰🇷 South Korea": "KRX",         # Korea Exchange
+        "🇨🇳 Hong Kong": "HKSE",          # Hong Kong Stock Exchange
         "🇯🇵 Japan": "JPX",               # Japan Exchange Group
-        "🇨🇱 Chile": "SNT",               # Santiago Stock Exchange
-        "🇲🇽 Mexico": "BMV",              # Bolsa Mexicana de Valores
         "🇧🇷 Brazil": "SAO",              # B3 São Paulo
         "🌎 All Regions": "ALL"
+        # Removed (not available in FMP): EURONEXT, SSE, KRX, SNT, BMV
     }
 
     selected_region = st.selectbox(
@@ -688,14 +685,9 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "TSX": "Canada - Toronto Stock Exchange (1500+ stocks)",
         "LSE": "United Kingdom - London Stock Exchange (2000+ stocks)",
         "XETRA": "Germany - Frankfurt/XETRA (500+ stocks, DAX, MDAX)",
-        "EURONEXT": "France/Europe - Euronext (CAC 40, AEX, BEL 20)",
         "NSE": "India - National Stock Exchange (1700+ stocks)",
         "HKSE": "Hong Kong - Hong Kong Stock Exchange (Alibaba, Tencent)",
-        "SSE": "China - Shanghai Stock Exchange (A-shares)",
-        "KRX": "South Korea - Korea Exchange (Samsung, Hyundai, LG)",
         "JPX": "Japan - Tokyo Stock Exchange (Sony, Toyota, etc.)",
-        "SNT": "Chile - Santiago Stock Exchange (Copper, Lithium)",
-        "BMV": "Mexico - Bolsa Mexicana de Valores",
         "SAO": "Brazil - B3 São Paulo (Petrobras, Vale, etc.)",
         "ALL": "All regions combined - May be slower"
     }
@@ -708,24 +700,15 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     default_thresholds = {
         # Large developed markets
         "US": {"mcap": 2000.0, "vol": 5.0},
-        "JPX": {"mcap": 500.0, "vol": 2.0},
-
-        # Medium developed markets
-        "TSX": {"mcap": 50.0, "vol": 0.1},       # Canada (smaller market than US/UK)
+        "JPX": {"mcap": 500.0, "vol": 2.0},      # Japan
         "LSE": {"mcap": 300.0, "vol": 1.0},      # UK
         "XETRA": {"mcap": 300.0, "vol": 1.0},    # Germany
-        "EURONEXT": {"mcap": 300.0, "vol": 1.0}, # Europe
 
-        # Large emerging markets
-        "SSE": {"mcap": 200.0, "vol": 1.0},      # Shanghai
+        # Medium markets
+        "TSX": {"mcap": 50.0, "vol": 0.1},       # Canada (smaller market than US/UK)
         "HKSE": {"mcap": 200.0, "vol": 1.0},     # Hong Kong
         "NSE": {"mcap": 200.0, "vol": 1.0},      # India
-        "KRX": {"mcap": 200.0, "vol": 1.0},      # South Korea
         "SAO": {"mcap": 150.0, "vol": 0.5},      # Brazil
-
-        # Smaller markets
-        "BMV": {"mcap": 100.0, "vol": 0.5},      # Mexico
-        "SNT": {"mcap": 50.0, "vol": 0.3},       # Chile
 
         # Default for ALL or unknown
         "ALL": {"mcap": 500.0, "vol": 2.0}
