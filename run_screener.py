@@ -705,42 +705,43 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         st.caption(f"ℹ️ {region_info[exchange_filter]}")
 
     # Dynamic default thresholds based on market size
+    # Note: All values must be float for Streamlit compatibility
     default_thresholds = {
         # Large developed markets
-        "US": {"mcap": 2000, "vol": 5},
-        "JP": {"mcap": 500, "vol": 2},
+        "US": {"mcap": 2000.0, "vol": 5.0},
+        "JP": {"mcap": 500.0, "vol": 2.0},
 
         # Medium developed markets
-        "CA": {"mcap": 300, "vol": 1},
-        "UK": {"mcap": 300, "vol": 1},
-        "DE": {"mcap": 300, "vol": 1},
-        "FR": {"mcap": 300, "vol": 1},
+        "CA": {"mcap": 300.0, "vol": 1.0},
+        "UK": {"mcap": 300.0, "vol": 1.0},
+        "DE": {"mcap": 300.0, "vol": 1.0},
+        "FR": {"mcap": 300.0, "vol": 1.0},
 
         # Large emerging markets
-        "CN": {"mcap": 200, "vol": 1},
-        "HK": {"mcap": 200, "vol": 1},
-        "IN": {"mcap": 200, "vol": 1},
-        "KR": {"mcap": 200, "vol": 1},
-        "BR": {"mcap": 150, "vol": 0.5},
+        "CN": {"mcap": 200.0, "vol": 1.0},
+        "HK": {"mcap": 200.0, "vol": 1.0},
+        "IN": {"mcap": 200.0, "vol": 1.0},
+        "KR": {"mcap": 200.0, "vol": 1.0},
+        "BR": {"mcap": 150.0, "vol": 0.5},
 
         # Smaller markets
-        "MX": {"mcap": 100, "vol": 0.5},
-        "CL": {"mcap": 50, "vol": 0.3},
+        "MX": {"mcap": 100.0, "vol": 0.5},
+        "CL": {"mcap": 50.0, "vol": 0.3},
 
         # Default for ALL or unknown
-        "ALL": {"mcap": 500, "vol": 2}
+        "ALL": {"mcap": 500.0, "vol": 2.0}
     }
 
     # Get defaults for selected country
-    defaults = default_thresholds.get(exchange_filter, {"mcap": 200, "vol": 1})
+    defaults = default_thresholds.get(exchange_filter, {"mcap": 200.0, "vol": 1.0})
 
     min_mcap = st.number_input(
         "Min Market Cap ($M)",
-        min_value=10,
-        max_value=100000,
+        min_value=10.0,
+        max_value=100000.0,
         value=defaults["mcap"],
-        step=10,
-        help=f"Minimum market capitalization in millions. Recommended for {selected_region}: ${defaults['mcap']}M"
+        step=10.0,
+        help=f"Minimum market capitalization in millions. Recommended for {selected_region}: ${defaults['mcap']:.0f}M"
     )
 
     min_vol = st.number_input(
@@ -749,7 +750,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         max_value=100.0,
         value=defaults["vol"],
         step=0.1,
-        help=f"Minimum average daily dollar volume in millions. Recommended for {selected_region}: ${defaults['vol']}M"
+        help=f"Minimum average daily dollar volume in millions. Recommended for {selected_region}: ${defaults['vol']:.1f}M"
     )
 
     top_k = st.slider(
