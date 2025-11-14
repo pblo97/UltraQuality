@@ -662,9 +662,11 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "🇩🇪 Germany": "XETRA",
         "🇫🇷 France / Europe": "EURONEXT",
         "🇮🇳 India": "NSE",
-        "🇨🇳 China (Hong Kong)": "HKSE",
-        "🇨🇳 China (Shanghai)": "SHZ",
+        "🇨🇳 China (Hong Kong)": "HK",
+        "🇨🇳 China (Shanghai)": "SHH",
         "🇨🇱 Chile": "SCS",
+        "🇲🇽 Mexico": "MEX",
+        "🇧🇷 Brazil": "SAO",
         "🌎 All Regions": "ALL"
     }
 
@@ -685,9 +687,11 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "XETRA": "German Stock Exchange - 500+ German stocks (DAX, MDAX)",
         "EURONEXT": "Pan-European exchange - France, Netherlands, Belgium, Portugal",
         "NSE": "National Stock Exchange of India - 1700+ Indian stocks",
-        "HKSE": "Hong Kong Stock Exchange - Major Chinese companies (Alibaba, Tencent)",
-        "SHZ": "Shanghai Stock Exchange - A-shares, mainland China",
+        "HK": "Hong Kong Stock Exchange - Major Chinese companies (Alibaba, Tencent)",
+        "SHH": "Shanghai Stock Exchange - A-shares, mainland China",
         "SCS": "Santiago Stock Exchange - Chilean stocks (Copper, Lithium companies)",
+        "MEX": "Mexican Stock Exchange (BMV) - Mexican companies",
+        "SAO": "São Paulo Stock Exchange (B3) - Brazilian companies",
         "ALL": "All regions combined - May be slower"
     }
 

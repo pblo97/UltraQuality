@@ -9,6 +9,8 @@ Added support for screening stocks from multiple countries/regions beyond just t
 ### Americas
 - 🇺🇸 **United States** (NYSE, NASDAQ, AMEX) - 5000+ stocks
 - 🇨🇦 **Canada** (TSX) - 1500+ stocks
+- 🇲🇽 **Mexico** (MEX - BMV) - Mexican companies
+- 🇧🇷 **Brazil** (SAO - B3) - Brazilian companies
 - 🇨🇱 **Chile** (SCS - Santiago) - Copper & Lithium companies
 
 ### Europe
@@ -18,8 +20,8 @@ Added support for screening stocks from multiple countries/regions beyond just t
 
 ### Asia
 - 🇮🇳 **India** (NSE - National Stock Exchange) - 1700+ stocks
-- 🇨🇳 **China - Hong Kong** (HKSE) - Major Chinese companies (Alibaba, Tencent, etc.)
-- 🇨🇳 **China - Shanghai** (SHZ) - A-shares, mainland China
+- 🇨🇳 **China - Hong Kong** (HK - HKSE) - Major Chinese companies (Alibaba, Tencent, etc.)
+- 🇨🇳 **China - Shanghai** (SHH - SSE) - A-shares, mainland China
 
 ### All Regions
 - 🌎 **All Regions** - Combined screening (may be slower)
@@ -40,9 +42,11 @@ region_options = {
     "🇩🇪 Germany": "XETRA",
     "🇫🇷 France / Europe": "EURONEXT",
     "🇮🇳 India": "NSE",
-    "🇨🇳 China (Hong Kong)": "HKSE",
-    "🇨🇳 China (Shanghai)": "SHZ",
+    "🇨🇳 China (Hong Kong)": "HK",
+    "🇨🇳 China (Shanghai)": "SHH",
     "🇨🇱 Chile": "SCS",
+    "🇲🇽 Mexico": "MEX",
+    "🇧🇷 Brazil": "SAO",
     "🌎 All Regions": "ALL"
 }
 ```
@@ -153,8 +157,10 @@ When using Deep Dive for individual stock analysis, use proper ticker format:
 | Germany (XETRA) | SYMBOL.DE | SAP.DE, VOW3.DE |
 | France (EURONEXT) | SYMBOL.PA | MC.PA, OR.PA |
 | India (NSE) | SYMBOL.NS | RELIANCE.NS, TCS.NS |
-| Hong Kong (HKSE) | SYMBOL.HK | 0700.HK, 9988.HK |
-| Shanghai (SHZ) | SYMBOL.SS | 600519.SS |
+| Hong Kong (HK) | SYMBOL.HK | 0700.HK, 9988.HK |
+| Shanghai (SHH) | SYMBOL.SS | 600519.SS |
+| Mexico (MEX) | SYMBOL.MX | WALMEX.MX, CEMEXCPO.MX |
+| Brazil (SAO) | SYMBOL.SA | PETR4.SA, VALE3.SA |
 
 ---
 
@@ -170,9 +176,11 @@ When using Deep Dive for individual stock analysis, use proper ticker format:
 | Germany | `XETRA` | Frankfurt/XETRA |
 | Europe | `EURONEXT` | France, Netherlands, Belgium, Portugal |
 | India | `NSE` | National Stock Exchange of India |
-| Hong Kong | `HKSE` | Hong Kong Stock Exchange |
-| Shanghai | `SHZ` | Shanghai Stock Exchange |
+| Hong Kong | `HK` | Hong Kong Stock Exchange |
+| Shanghai | `SHH` | Shanghai Stock Exchange |
 | Chile | `SCS` | Santiago Stock Exchange |
+| Mexico | `MEX` | Mexican Stock Exchange (BMV) |
+| Brazil | `SAO` | São Paulo Stock Exchange (B3) |
 
 ### Currency Considerations
 
@@ -239,6 +247,14 @@ Test with these well-known international stocks:
 **Chile:**
 - COPEC.SN (Copec) - Energy/Retail
 - SQM-B.SN (SQM) - Lithium mining
+
+**Mexico:**
+- WALMEX.MX (Walmart de México) - Retail
+- CEMEXCPO.MX (Cemex) - Building Materials
+
+**Brazil:**
+- PETR4.SA (Petrobras) - Energy
+- VALE3.SA (Vale) - Mining
 
 ---
 
