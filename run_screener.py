@@ -657,6 +657,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     # Region/Country selector
     # Uses country codes (2-letter uppercase) for filtering via FMP API
     region_options = {
+        # North America
         "🇺🇸 United States": "US",
         "🇨🇦 Canada": "CA",
         "🇬🇧 United Kingdom": "UK",

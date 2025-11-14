@@ -1,13 +1,14 @@
-# 🌍 Multi-Country Stock Screening
+# 🌍 Global Stock Screening (Hamco Global Style)
 
 ## Feature Overview
 
-Added support for screening stocks from multiple countries/regions beyond just the United States.
+Comprehensive multi-country stock screening across **24 major markets** worldwide, covering developed and emerging markets. Inspired by global funds like Hamco Global that invest across continents.
 
-## Supported Markets
+## Supported Markets (24 Total)
 
-### Americas
+### 🌎 North America (2)
 - 🇺🇸 **United States** (NYSE, NASDAQ, AMEX) - 5000+ stocks
+  - Apple, Microsoft, Google, Meta, Tesla
 - 🇨🇦 **Canada** (TSX) - 1500+ stocks
 - 🇲🇽 **Mexico** (MEX - BMV) - Mexican companies
 - 🇧🇷 **Brazil** (SAO - B3) - Brazilian companies
@@ -240,31 +241,107 @@ Potential improvements for future versions:
 
 ## Testing Recommendations
 
-Test with these well-known international stocks:
+Test with these well-known international stocks to verify each market works:
 
+### North America
 **Canada:**
-- SHOP.TO (Shopify) - Tech
-- TD.TO (TD Bank) - Financial
+- SHOP.TO (Shopify) - E-commerce Tech
+- TD.TO (TD Bank) - Banking
+- ABX.TO (Barrick Gold) - Mining
 
+### Europe Developed
 **UK:**
 - BP.L (BP) - Energy
 - HSBA.L (HSBC) - Financial
+- ULVR.L (Unilever) - Consumer Goods
 
 **Germany:**
-- SAP.DE (SAP) - Tech
-- VOW3.DE (Volkswagen) - Auto
+- SAP.DE (SAP) - Enterprise Software
+- VOW3.DE (Volkswagen) - Automotive
+- BMW.DE (BMW) - Automotive
+
+**France:**
+- MC.PA (LVMH) - Luxury
+- OR.PA (L'Oréal) - Beauty
+- AIR.PA (Airbus) - Aerospace
+
+**Spain:**
+- ITX.MC (Inditex/Zara) - Retail
+- SAN.MC (Santander) - Banking
+
+**Switzerland:**
+- NESN.SW (Nestlé) - Food & Beverage
+- ROG.SW (Roche) - Pharma
+- NOVN.SW (Novartis) - Pharma
+
+**Italy:**
+- RACE.MI (Ferrari) - Luxury Auto
+- ENI.MI (ENI) - Energy
+
+### Asia Developed
+**Japan:**
+- 7203.T (Toyota) - Automotive
+- 6758.T (Sony) - Electronics/Entertainment
+- 9984.T (SoftBank) - Telecom/Investments
+
+**Australia:**
+- BHP.AX (BHP) - Mining
+- CSL.AX (CSL) - Biotechnology
+- CBA.AX (Commonwealth Bank) - Banking
+
+**Singapore:**
+- D05.SI (DBS Bank) - Banking
+- SE.SI (Sea Limited) - Tech/E-commerce
+
+### Asia Emerging
+**South Korea:**
+- 005930.KS (Samsung Electronics) - Tech/Semiconductors
+- 005380.KS (Hyundai Motor) - Automotive
+- 000660.KS (SK Hynix) - Semiconductors
+
+**Taiwan:**
+- 2330.TW (TSMC) - Semiconductors (World's largest foundry)
+- 2317.TW (Hon Hai/Foxconn) - Electronics Manufacturing
+- 2454.TW (MediaTek) - Semiconductors
 
 **India:**
-- RELIANCE.NS (Reliance Industries)
-- TCS.NS (Tata Consultancy)
+- RELIANCE.NS (Reliance Industries) - Conglomerate (Energy, Retail, Telecom)
+- TCS.NS (Tata Consultancy Services) - IT Services
+- INFY.NS (Infosys) - IT Services
 
-**Hong Kong:**
-- 0700.HK (Tencent)
-- 9988.HK (Alibaba)
+**China (Hong Kong):**
+- 0700.HK (Tencent) - Internet/Gaming
+- 9988.HK (Alibaba) - E-commerce
+- 1810.HK (Xiaomi) - Consumer Electronics
+
+**China (Shanghai):**
+- 600519.SS (Kweichow Moutai) - Spirits/Luxury
+- 601398.SS (ICBC) - Banking
+
+### Latin America
+**Brazil:**
+- VALE3.SA (Vale) - Mining (Iron Ore)
+- PETR4.SA (Petrobras) - Energy
+- ITUB4.SA (Itaú Unibanco) - Banking
+
+**Mexico:**
+- AMXL.MX (América Móvil) - Telecom
+- FEMSAUBD.MX (Femsa) - Beverages/Retail
+- CEMEXCPO.MX (Cemex) - Cement
 
 **Chile:**
+- SQM-B.SN (SQM) - Lithium Mining (Critical for EVs)
 - COPEC.SN (Copec) - Energy/Retail
-- SQM-B.SN (SQM) - Lithium mining
+- FALABELLA.SN (Falabella) - Retail
+
+**Peru:**
+- SCCO.LM (Southern Copper) - Mining
+- BAP.LM (Credicorp) - Banking
+- BVN.LM (Buenaventura) - Gold Mining
+
+**Colombia:**
+- ECOPETROL.CN (Ecopetrol) - Energy
+- PFBCOLOM.CN (Bancolombia) - Banking
 
 **Mexico:**
 - WALMEX.MX (Walmart de México) - Retail
