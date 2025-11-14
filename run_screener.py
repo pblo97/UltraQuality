@@ -708,7 +708,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     # Note: All values must be float for Streamlit compatibility
     default_thresholds = {
         # Large developed markets
-        "US": {"mcap": 2000.0, "vol": 5.0},
+        "US": {"mcap": 500.0, "vol": 2.0},  # Lowered from 2000/5 to test
         "JP": {"mcap": 500.0, "vol": 2.0},
 
         # Medium developed markets
@@ -902,14 +902,10 @@ with tab1:
             pipeline.config['universe']['top_k'] = top_k
 
             # Set exchange/region filter
-            # Special handling: US uses exchange codes, others use country codes
+            # Note: The orchestrator auto-detects country codes vs exchange codes
             if exchange_filter != "ALL":
-                if exchange_filter == "US":
-                    # US: Use exchange codes instead of country code
-                    pipeline.config['universe']['exchanges'] = ["nyse", "nasdaq", "amex"]
-                else:
-                    # Other countries: Use country code
-                    pipeline.config['universe']['exchanges'] = [exchange_filter]
+                # Pass country code directly - orchestrator will use country parameter
+                pipeline.config['universe']['exchanges'] = [exchange_filter]
             else:
                 # ALL regions - clear exchange filter to get everything
                 pipeline.config['universe']['exchanges'] = []
