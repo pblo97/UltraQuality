@@ -2,32 +2,45 @@
 
 ## Feature Overview
 
-Comprehensive multi-country stock screening across **24 major markets** worldwide, covering developed and emerging markets. Inspired by global funds like Hamco Global that invest across continents.
+Multi-country stock screening across **8 major markets** worldwide, covering developed and emerging markets available in FMP API. Inspired by global funds like Hamco Global that invest across continents.
 
-## Supported Markets (24 Total)
+## Supported Markets (8 Total - Verified Available)
 
-### 🌎 North America (2)
+### 🌎 Americas (3)
 - 🇺🇸 **United States** (NYSE, NASDAQ, AMEX) - 5000+ stocks
   - Apple, Microsoft, Google, Meta, Tesla
-- 🇨🇦 **Canada** (TSX) - 1500+ stocks
-- 🇲🇽 **Mexico** (MEX - BMV) - Mexican companies
-- 🇧🇷 **Brazil** (SAO - B3) - Brazilian companies
-- 🇨🇱 **Chile** (SCS - Santiago) - Copper & Lithium companies
+- 🇨🇦 **Canada** (TSX - Toronto) - 1500+ stocks
+  - Royal Bank, Shopify, TD Bank, Enbridge
+- 🇧🇷 **Brazil** (SAO - B3 São Paulo) - Brazilian companies
+  - Petrobras, Vale, Itaú, Ambev
 
-### Europe
+### 🇪🇺 Europe (2)
 - 🇬🇧 **United Kingdom** (LSE - London) - 2000+ stocks
-- 🇩🇪 **Germany** (XETRA - Frankfurt) - 500+ stocks (DAX, MDAX)
-- 🇫🇷 **France/Europe** (EURONEXT) - Pan-European (France, Netherlands, Belgium, Portugal)
+  - Shell, HSBC, BP, Unilever
+- 🇩🇪 **Germany** (XETRA - Frankfurt) - 500+ stocks
+  - DAX, MDAX - Siemens, SAP, BMW
 
-### Asia
-- 🇮🇳 **India** (IN - NSE/BSE) - 1700+ stocks
-- 🇨🇳 **China - Hong Kong** (HK - HKSE) - Major Chinese companies (Alibaba, Tencent, etc.)
-- 🇨🇳 **China - Shanghai** (CN - SSE) - A-shares, mainland China
-- 🇰🇷 **South Korea** (KR - KRX) - Samsung, Hyundai, LG, SK
-- 🇯🇵 **Japan** (JP - TSE) - Toyota, Sony, SoftBank
+### 🌏 Asia (3)
+- 🇮🇳 **India** (NSE - National Stock Exchange) - 1700+ stocks
+  - Reliance, TCS, Infosys, HDFC
+- 🇨🇳 **Hong Kong** (HKSE) - Major Chinese companies
+  - Alibaba, Tencent, Xiaomi, BYD
+- 🇯🇵 **Japan** (JPX - Tokyo) - 1500+ stocks
+  - Toyota, Sony, SoftBank, Nintendo
 
-### All Regions
-- 🌎 **All Regions** - Combined screening (may be slower)
+### 🌎 Combined
+- **All Regions** - Combined screening (may be slower)
+
+---
+
+## Markets NOT Available in FMP API
+
+The following markets were tested but are not available in the current FMP API plan:
+- ❌ 🇰🇷 South Korea (KRX)
+- ❌ 🇫🇷 France/Europe (EURONEXT)
+- ❌ 🇨🇳 Shanghai (SSE)
+- ❌ 🇨🇱 Chile (SNT)
+- ❌ 🇲🇽 Mexico (BMV)
 
 ---
 
@@ -40,18 +53,13 @@ Added new dropdown selector in sidebar under "🌍 Universe Filters":
 ```python
 region_options = {
     "🇺🇸 United States": "US",
-    "🇨🇦 Canada": "CA",
-    "🇬🇧 United Kingdom": "UK",
-    "🇩🇪 Germany": "DE",
-    "🇫🇷 France / Europe": "FR",
-    "🇮🇳 India": "IN",
-    "🇨🇳 China (Hong Kong)": "HK",
-    "🇨🇳 China (Shanghai)": "CN",
-    "🇰🇷 South Korea": "KR",
-    "🇯🇵 Japan": "JP",
-    "🇨🇱 Chile": "CL",
-    "🇲🇽 Mexico": "MX",
-    "🇧🇷 Brazil": "BR",
+    "🇨🇦 Canada": "TSX",
+    "🇬🇧 United Kingdom": "LSE",
+    "🇩🇪 Germany": "XETRA",
+    "🇮🇳 India": "NSE",
+    "🇨🇳 Hong Kong": "HKSE",
+    "🇯🇵 Japan": "JPX",
+    "🇧🇷 Brazil": "SAO",
     "🌎 All Regions": "ALL"
 }
 ```
@@ -60,24 +68,25 @@ region_options = {
 - User-friendly country flags and names
 - Information tooltip showing number of stocks per region
 - Default to US market
-- Uses ISO 2-letter country codes for filtering via FMP API `country` parameter
+- Uses **exchange codes** (TSX, LSE, NSE, etc.) NOT country codes
+- Only includes exchanges verified as available in FMP API
 
 ### 2. API Client (src/screener/ingest.py)
 
-Added `country` parameter to stock screener:
+Uses `exchange` parameter for filtering (NOT `country`):
 
 ```python
 def get_stock_screener(
     self,
     market_cap_more_than: Optional[int] = None,
     volume_more_than: Optional[int] = None,
-    exchange: Optional[str] = None,
-    country: Optional[str] = None,  # NEW: Country code filtering
+    exchange: Optional[str] = None,  # RECOMMENDED: Exchange code filtering
+    country: Optional[str] = None,   # NOT RECOMMENDED: Doesn't work reliably
     limit: int = 10000
 ) -> List[Dict]:
     """
     Args:
-        exchange: Exchange code (e.g., 'nasdaq', 'nyse', 'tsx', 'lse')
+        exchange: Exchange code (UPPERCASE) - 'TSX', 'LSE', 'NSE', 'HKSE', 'JPX', 'SAO', 'XETRA'
         country: Country code (e.g., 'US', 'MX', 'BR', 'HK', 'CA')
                 Recommended for international markets.
     """
