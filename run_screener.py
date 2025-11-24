@@ -885,12 +885,33 @@ with tab1:
 
             # Set exchange/region filter
             # Note: USA uses no filter since most stocks in FMP are US-based anyway
+
+            # Mapping of exchange codes to country codes
+            # This ensures that country filter doesn't block international exchanges
+            exchange_to_country = {
+                'TSX': 'CA',      # Toronto Stock Exchange -> Canada
+                'LSE': 'GB',      # London Stock Exchange -> United Kingdom
+                'NSE': 'IN',      # National Stock Exchange of India -> India
+                'XETRA': 'DE',    # Deutsche Börse XETRA -> Germany
+                'JPX': 'JP',      # Japan Exchange Group -> Japan
+                'HKSE': 'HK',     # Hong Kong Stock Exchange -> Hong Kong
+                'SAO': 'BR',      # B3 (São Paulo) -> Brazil
+            }
+
             if exchange_filter != "ALL" and exchange_filter != "US":
                 # International exchanges: Use exchange code (TSX, LSE, NSE, etc.)
                 pipeline.config['universe']['exchanges'] = [exchange_filter]
+                # Clear country filter or set to matching country to avoid blocking
+                if exchange_filter in exchange_to_country:
+                    pipeline.config['universe']['countries'] = [exchange_to_country[exchange_filter]]
+                else:
+                    # Unknown exchange - clear country filter to be safe
+                    pipeline.config['universe']['countries'] = []
             else:
                 # USA or ALL regions - no filter (most stocks in FMP are USA anyway)
                 pipeline.config['universe']['exchanges'] = []
+                # Keep default country filter from settings.yaml (usually ['US'])
+                # No need to modify countries here
 
             pipeline.config['scoring']['weight_value'] = weight_value
             pipeline.config['scoring']['weight_quality'] = weight_quality
