@@ -657,17 +657,89 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     # Region/Country selector
     # Uses exchange codes (country parameter doesn't work in FMP API)
     # Note: Only exchanges verified as available in FMP API are included
+    # Complete list of all countries available in FMP API
+    # Organized by region and market size for better UX
     region_options = {
-        "🇺🇸 United States": "US",        # Special: no filter (most stocks are US)
-        "🇨🇦 Canada": "TSX",              # Toronto Stock Exchange
-        "🇬🇧 United Kingdom": "LSE",      # London Stock Exchange
-        "🇩🇪 Germany": "XETRA",           # Frankfurt/XETRA
-        "🇮🇳 India": "NSE",               # National Stock Exchange
-        "🇨🇳 Hong Kong": "HKSE",          # Hong Kong Stock Exchange
-        "🇯🇵 Japan": "JPX",               # Japan Exchange Group
-        "🇧🇷 Brazil": "SAO",              # B3 São Paulo
+        # 🌎 AMERICAS
+        "🇺🇸 United States": "US",
+        "🇨🇦 Canada": "CA",
+        "🇧🇷 Brazil": "BR",
+        "🇦🇷 Argentina": "AR",
+        "🇨🇱 Chile": "CL",
+        "🇩🇴 Dominican Rep.": "DO",
+        "🇧🇸 Bahamas": "BS",
+        "🇧🇧 Barbados": "BB",
+        "🇸🇷 Suriname": "SR",
+
+        # 🇪🇺 EUROPE - WESTERN
+        "🇬🇧 United Kingdom": "UK",
+        "🇩🇪 Germany": "DE",
+        "🇫🇷 France": "FR",  # via exchanges (not in original list but may work)
+        "🇪🇸 Spain": "ES",
+        "🇮🇪 Ireland": "IE",
+        "🇳🇱 Netherlands": "NL",  # via exchanges
+        "🇧🇪 Belgium": "BE",  # via exchanges
+        "🇨🇭 Switzerland": "CH",  # via exchanges
+        "🇦🇹 Austria": "AT",
+        "🇳🇴 Norway": "NO",
+        "🇩🇰 Denmark": "DK",
+        "🇫🇮 Finland": "FI",
+
+        # 🇪🇺 EUROPE - EASTERN
+        "🇵🇱 Poland": "PL",
+        "🇨🇿 Czechia": "CZ",
+        "🇭🇺 Hungary": "HU",
+        "🇸🇰 Slovakia": "SK",
+        "🇱🇹 Lithuania": "LT",
+        "🇪🇪 Estonia": "EE",
+        "🇸🇮 Slovenia": "SI",
+        "🇷🇺 Russia": "RU",
+        "🇺🇦 Ukraine": "UA",
+        "🇬🇪 Georgia": "GE",
+
+        # 🇪🇺 EUROPE - SMALL / TAX HAVENS
+        "🇱🇮 Liechtenstein": "LI",
+        "🇲🇨 Monaco": "MC",
+        "🇲🇹 Malta": "MT",
+        "🇬🇮 Gibraltar": "GI",
+        "🇯🇪 Jersey": "JE",
+        "🇧🇲 Bermuda": "BM",
+        "🇨🇾 Cyprus": "CY",
+
+        # 🌏 ASIA - DEVELOPED
+        "🇯🇵 Japan": "JP",
+        "🇰🇷 South Korea": "KR",
+        "🇸🇬 Singapore": "SG",  # via exchanges
+        "🇭🇰 Hong Kong": "HK",  # Note: Often used for Chinese companies
+
+        # 🌏 ASIA - EMERGING
+        "🇮🇳 India": "IN",
+        "🇹🇭 Thailand": "TH",
+        "🇻🇳 Vietnam": "VN",
+        "🇧🇩 Bangladesh": "BD",
+
+        # 🌍 MIDDLE EAST & AFRICA
+        "🇸🇦 Saudi Arabia": "SA",
+        "🇦🇪 UAE": "AE",  # via exchanges
+        "🇶🇦 Qatar": "QA",
+        "🇰🇼 Kuwait": "KW",
+        "🇪🇬 Egypt": "EG",
+        "🇿🇦 South Africa": "ZA",  # via exchanges
+        "🇳🇦 Namibia": "NA",
+        "🇲🇺 Mauritius": "MU",
+        "🇲🇿 Mozambique": "MZ",
+        "🇸🇳 Senegal": "SN",
+        "🇨🇮 Ivory Coast": "CI",
+        "🇰🇬 Kyrgyzstan": "KG",
+        "🇷🇪 Réunion": "RE",
+
+        # 🌏 OCEANIA
+        "🇦🇺 Australia": "AU",
+        "🇳🇿 New Zealand": "NZ",  # via exchanges
+
+        # 🌎 SPECIAL / ALL
+        "🇫🇰 Falkland Islands": "FK",
         "🌎 All Regions": "ALL"
-        # Removed (not available in FMP): EURONEXT, SSE, KRX, SNT, BMV
     }
 
     selected_region = st.selectbox(
@@ -679,38 +751,113 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
 
     exchange_filter = region_options[selected_region]
 
-    # Show info about selected region
+    # Show info about selected region (optional, for major markets)
     region_info = {
-        "US": "United States - NYSE, NASDAQ, AMEX (5000+ stocks)",
-        "TSX": "Canada - Toronto Stock Exchange (1500+ stocks)",
-        "LSE": "United Kingdom - London Stock Exchange (2000+ stocks)",
-        "XETRA": "Germany - Frankfurt/XETRA (500+ stocks, DAX, MDAX)",
-        "NSE": "India - National Stock Exchange (1700+ stocks)",
-        "HKSE": "Hong Kong - Hong Kong Stock Exchange (Alibaba, Tencent)",
-        "JPX": "Japan - Tokyo Stock Exchange (Sony, Toyota, etc.)",
-        "SAO": "Brazil - B3 São Paulo (Petrobras, Vale, etc.)",
-        "ALL": "All regions combined - May be slower"
+        # Major Markets
+        "US": "🇺🇸 NYSE, NASDAQ, AMEX (5000+ stocks)",
+        "CA": "🇨🇦 Toronto Stock Exchange (TSX)",
+        "UK": "🇬🇧 London Stock Exchange (LSE)",
+        "DE": "🇩🇪 Frankfurt/XETRA (DAX, MDAX)",
+        "FR": "🇫🇷 Euronext Paris (CAC 40)",
+        "JP": "🇯🇵 Tokyo Stock Exchange (TSE)",
+        "IN": "🇮🇳 National Stock Exchange (NSE)",
+        "HK": "🇭🇰 Hong Kong Exchange (Alibaba, Tencent)",
+        "BR": "🇧🇷 B3 São Paulo (Petrobras, Vale)",
+        "AU": "🇦🇺 Australian Securities Exchange (ASX)",
+        "CH": "🇨🇭 SIX Swiss Exchange (Nestlé, Roche)",
+        "KR": "🇰🇷 Korea Exchange (Samsung, Hyundai)",
+        "ES": "🇪🇸 Bolsa de Madrid (Santander, Inditex)",
+        "NL": "🇳🇱 Euronext Amsterdam (Shell, ASML)",
+        "SG": "🇸🇬 Singapore Exchange (DBS, Sea)",
+        "ALL": "🌎 All regions combined - May be slower"
     }
 
     if exchange_filter in region_info:
         st.caption(f"ℹ️ {region_info[exchange_filter]}")
 
     # Dynamic default thresholds based on market size
+    # Categorized by market capitalization depth
     # Note: All values must be float for Streamlit compatibility
     default_thresholds = {
-        # Large developed markets
+        # 🏆 MEGA MARKET (US only)
         "US": {"mcap": 2000.0, "vol": 5.0},
-        "JPX": {"mcap": 500.0, "vol": 2.0},      # Japan
-        "LSE": {"mcap": 300.0, "vol": 1.0},      # UK
-        "XETRA": {"mcap": 300.0, "vol": 1.0},    # Germany
 
-        # Medium markets
-        "TSX": {"mcap": 50.0, "vol": 0.1},       # Canada (smaller market than US/UK)
-        "HKSE": {"mcap": 200.0, "vol": 1.0},     # Hong Kong
-        "NSE": {"mcap": 200.0, "vol": 1.0},      # India
-        "SAO": {"mcap": 150.0, "vol": 0.5},      # Brazil
+        # 🥇 LARGE DEVELOPED MARKETS ($300-500M mcap)
+        "JP": {"mcap": 500.0, "vol": 2.0},       # Japan - Tokyo
+        "UK": {"mcap": 300.0, "vol": 1.0},       # United Kingdom - London
+        "DE": {"mcap": 300.0, "vol": 1.0},       # Germany - Frankfurt/XETRA
+        "FR": {"mcap": 300.0, "vol": 1.0},       # France - Euronext Paris
+        "CA": {"mcap": 300.0, "vol": 1.0},       # Canada - Toronto
+        "AU": {"mcap": 300.0, "vol": 1.0},       # Australia - ASX
+        "CH": {"mcap": 300.0, "vol": 1.0},       # Switzerland - SIX
 
-        # Default for ALL or unknown
+        # 🥈 MEDIUM DEVELOPED MARKETS ($100-200M mcap)
+        "ES": {"mcap": 200.0, "vol": 0.5},       # Spain
+        "NL": {"mcap": 200.0, "vol": 0.5},       # Netherlands - Euronext Amsterdam
+        "IT": {"mcap": 200.0, "vol": 0.5},       # Italy (if available)
+        "NO": {"mcap": 150.0, "vol": 0.5},       # Norway - Oslo Børs
+        "DK": {"mcap": 150.0, "vol": 0.5},       # Denmark - Copenhagen
+        "FI": {"mcap": 150.0, "vol": 0.5},       # Finland - Helsinki
+        "IE": {"mcap": 150.0, "vol": 0.5},       # Ireland - Irish Stock Exchange
+        "BE": {"mcap": 150.0, "vol": 0.5},       # Belgium - Euronext Brussels
+        "AT": {"mcap": 150.0, "vol": 0.5},       # Austria - Vienna
+        "SG": {"mcap": 200.0, "vol": 0.5},       # Singapore
+        "NZ": {"mcap": 100.0, "vol": 0.3},       # New Zealand
+
+        # 🥉 LARGE EMERGING MARKETS ($100-200M mcap)
+        "IN": {"mcap": 200.0, "vol": 1.0},       # India - NSE
+        "BR": {"mcap": 150.0, "vol": 0.5},       # Brazil - B3
+        "HK": {"mcap": 200.0, "vol": 1.0},       # Hong Kong
+        "KR": {"mcap": 200.0, "vol": 1.0},       # South Korea - KRX
+        "MX": {"mcap": 150.0, "vol": 0.5},       # Mexico - BMV (if available)
+        "ZA": {"mcap": 100.0, "vol": 0.3},       # South Africa - JSE
+        "SA": {"mcap": 200.0, "vol": 0.5},       # Saudi Arabia - Tadawul
+
+        # 📊 SMALL EMERGING MARKETS ($50-100M mcap)
+        "TH": {"mcap": 100.0, "vol": 0.3},       # Thailand - SET
+        "PL": {"mcap": 100.0, "vol": 0.3},       # Poland - Warsaw
+        "CZ": {"mcap": 75.0, "vol": 0.2},        # Czechia - Prague
+        "AR": {"mcap": 75.0, "vol": 0.2},        # Argentina - BCBA
+        "CL": {"mcap": 75.0, "vol": 0.2},        # Chile - Santiago
+        "EG": {"mcap": 75.0, "vol": 0.2},        # Egypt - EGX
+        "QA": {"mcap": 100.0, "vol": 0.3},       # Qatar
+        "KW": {"mcap": 100.0, "vol": 0.3},       # Kuwait
+        "HU": {"mcap": 75.0, "vol": 0.2},        # Hungary - Budapest
+        "SK": {"mcap": 50.0, "vol": 0.1},        # Slovakia - Bratislava
+        "VN": {"mcap": 75.0, "vol": 0.2},        # Vietnam
+
+        # 🌱 FRONTIER / SMALL MARKETS ($20-50M mcap)
+        "LT": {"mcap": 50.0, "vol": 0.1},        # Lithuania
+        "EE": {"mcap": 50.0, "vol": 0.1},        # Estonia
+        "SI": {"mcap": 50.0, "vol": 0.1},        # Slovenia
+        "RU": {"mcap": 50.0, "vol": 0.1},        # Russia (sanctions may affect)
+        "UA": {"mcap": 30.0, "vol": 0.05},       # Ukraine
+        "GE": {"mcap": 30.0, "vol": 0.05},       # Georgia
+        "BD": {"mcap": 50.0, "vol": 0.1},        # Bangladesh
+        "DO": {"mcap": 30.0, "vol": 0.05},       # Dominican Republic
+        "BS": {"mcap": 30.0, "vol": 0.05},       # Bahamas
+        "BB": {"mcap": 30.0, "vol": 0.05},       # Barbados
+        "SR": {"mcap": 20.0, "vol": 0.05},       # Suriname
+        "NA": {"mcap": 30.0, "vol": 0.05},       # Namibia
+        "MU": {"mcap": 30.0, "vol": 0.05},       # Mauritius
+        "MZ": {"mcap": 20.0, "vol": 0.05},       # Mozambique
+        "SN": {"mcap": 20.0, "vol": 0.05},       # Senegal
+        "CI": {"mcap": 20.0, "vol": 0.05},       # Ivory Coast
+        "KG": {"mcap": 20.0, "vol": 0.05},       # Kyrgyzstan
+        "RE": {"mcap": 20.0, "vol": 0.05},       # Réunion
+
+        # 💼 TAX HAVENS / OFFSHORE (company domiciles, not exchanges)
+        "LI": {"mcap": 50.0, "vol": 0.1},        # Liechtenstein
+        "MC": {"mcap": 50.0, "vol": 0.1},        # Monaco
+        "MT": {"mcap": 50.0, "vol": 0.1},        # Malta
+        "GI": {"mcap": 50.0, "vol": 0.1},        # Gibraltar
+        "JE": {"mcap": 50.0, "vol": 0.1},        # Jersey
+        "BM": {"mcap": 75.0, "vol": 0.2},        # Bermuda (many large companies domiciled)
+        "CY": {"mcap": 50.0, "vol": 0.1},        # Cyprus
+        "FK": {"mcap": 20.0, "vol": 0.05},       # Falkland Islands
+        "AE": {"mcap": 150.0, "vol": 0.5},       # UAE - Abu Dhabi/Dubai
+
+        # Default for ALL or unknown markets
         "ALL": {"mcap": 500.0, "vol": 2.0}
     }
 
@@ -883,35 +1030,19 @@ with tab1:
             pipeline.config['universe']['min_avg_dollar_vol_3m'] = min_vol * 1_000_000
             pipeline.config['universe']['top_k'] = top_k
 
-            # Set exchange/region filter
-            # Note: USA uses no filter since most stocks in FMP are US-based anyway
+            # Set country filter for API
+            # Uses ISO 2-letter country codes (US, CA, UK, IN, BR, JP, etc.)
+            # The orchestrator will pass this to the FMP API's 'country' parameter
 
-            # Mapping of exchange codes to country codes
-            # This ensures that country filter doesn't block international exchanges
-            exchange_to_country = {
-                'TSX': 'CA',      # Toronto Stock Exchange -> Canada
-                'LSE': 'GB',      # London Stock Exchange -> United Kingdom
-                'NSE': 'IN',      # National Stock Exchange of India -> India
-                'XETRA': 'DE',    # Deutsche Börse XETRA -> Germany
-                'JPX': 'JP',      # Japan Exchange Group -> Japan
-                'HKSE': 'HK',     # Hong Kong Stock Exchange -> Hong Kong
-                'SAO': 'BR',      # B3 (São Paulo) -> Brazil
-            }
-
-            if exchange_filter != "ALL" and exchange_filter != "US":
-                # International exchanges: Use exchange code (TSX, LSE, NSE, etc.)
-                pipeline.config['universe']['exchanges'] = [exchange_filter]
-                # Clear country filter or set to matching country to avoid blocking
-                if exchange_filter in exchange_to_country:
-                    pipeline.config['universe']['countries'] = [exchange_to_country[exchange_filter]]
-                else:
-                    # Unknown exchange - clear country filter to be safe
-                    pipeline.config['universe']['countries'] = []
-            else:
-                # USA or ALL regions - no filter (most stocks in FMP are USA anyway)
+            if exchange_filter == "ALL":
+                # All regions - clear filters (will fetch from all countries)
+                pipeline.config['universe']['countries'] = []
                 pipeline.config['universe']['exchanges'] = []
-                # Keep default country filter from settings.yaml (usually ['US'])
-                # No need to modify countries here
+            else:
+                # Specific country selected - use country code directly
+                # exchange_filter contains 2-letter ISO codes: US, CA, UK, IN, etc.
+                pipeline.config['universe']['countries'] = [exchange_filter]
+                pipeline.config['universe']['exchanges'] = []
 
             pipeline.config['scoring']['weight_value'] = weight_value
             pipeline.config['scoring']['weight_quality'] = weight_quality

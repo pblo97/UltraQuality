@@ -193,10 +193,30 @@ class ScreenerPipeline:
         logger.info("Using stock-screener endpoint (more reliable than profile-bulk)")
 
         try:
-            # If exchanges specified, query each one separately
-            # Uses exchange codes: TSX, LSE, NSE, HKSE, SSE, KRX, JPX, SNT, BMV, SAO, etc.
-            # Note: API parameter accepts both uppercase/lowercase, but data returned has uppercase in exchangeShortName
-            if exchanges:
+            # Query by country codes (2-letter ISO) or exchange codes
+            # Country codes: US, CA, UK, IN, BR, JP, etc. (recommended for filtering)
+            # Exchange codes: TSX, LSE, NSE, HKSE, etc. (less commonly used)
+
+            if countries and countries != ['US']:
+                # Use country parameter for international markets
+                # This is more reliable than exchange codes
+                for country in countries:
+                    logger.info(f"Fetching from country: {country}")
+                    profiles = self.fmp.get_stock_screener(
+                        market_cap_more_than=min_mcap,
+                        volume_more_than=min_vol // 1000,  # API expects volume in thousands
+                        country=country,  # Country code (US, CA, UK, IN, etc.)
+                        limit=10000  # Maximum results
+                    )
+
+                    if profiles:
+                        all_profiles.extend(profiles)
+                        logger.info(f"✓ Fetched {len(profiles)} profiles from country {country}")
+                    else:
+                        logger.warning(f"Country {country} returned empty - trying to continue")
+
+            elif exchanges:
+                # Use exchange parameter (less common, but supported)
                 for exchange in exchanges:
                     logger.info(f"Fetching from exchange: {exchange}")
                     profiles = self.fmp.get_stock_screener(
@@ -212,17 +232,18 @@ class ScreenerPipeline:
                     else:
                         logger.warning(f"{exchange} returned empty - trying to continue")
             else:
-                # No exchange filter - get all regions
-                logger.info("No exchange filter - fetching from all regions")
+                # No filter specified - fetch all regions (slower but comprehensive)
+                logger.info("No country/exchange filter - fetching ALL regions")
                 profiles = self.fmp.get_stock_screener(
                     market_cap_more_than=min_mcap,
                     volume_more_than=min_vol // 1000,  # API expects volume in thousands
+                    # No country/exchange parameter = all regions
                     limit=10000  # Maximum results
                 )
 
                 if profiles:
                     all_profiles.extend(profiles)
-                    logger.info(f"✓ Fetched {len(profiles)} profiles from stock-screener")
+                    logger.info(f"✓ Fetched {len(profiles)} profiles from all regions")
 
             if not all_profiles:
                 logger.warning("stock-screener returned empty, trying profile-bulk as fallback...")
@@ -294,15 +315,9 @@ class ScreenerPipeline:
         # Log available columns for debugging
         logger.info(f"DataFrame columns: {df.columns.tolist()[:10]}...")
 
-        # Filter by country (if column exists)
-        if countries and 'country' in df.columns:
-            df = df[df['country'].isin(countries)]
-            logger.info(f"After country filter: {len(df)}")
-
-        # Filter by exchange (if column exists)
-        if exchanges and 'exchangeShortName' in df.columns:
-            df = df[df['exchangeShortName'].isin(exchanges)]
-            logger.info(f"After exchange filter: {len(df)}")
+        # NOTE: Country/exchange filtering is now done at API level, not post-processing
+        # This avoids the bug where country filter was blocking international stocks
+        # The API calls above already filtered by country/exchange parameter
 
         # Filter by market cap (handle both field names)
         if 'mktCap' in df.columns:
