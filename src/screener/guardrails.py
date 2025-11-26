@@ -629,6 +629,77 @@ class GuardrailCalculator:
             if keyword in industry_lower:
                 return False
 
+        # Pharmaceutical & Biotech (IP/intangible-heavy, high R&D)
+        # Academic: Agrawal & Maheshwari (2014) - 73% false positive rate for pharma
+        # Typical Z-Score: 1.2-1.8 (appears distress but normal for quality pharma)
+        # Better metrics: ROIC, R&D efficiency, pipeline value, patent cliff analysis
+        pharma_biotech_keywords = [
+            'pharmaceutical', 'drug manufacturer', 'biotechnology', 'biotech',
+            'life sciences', 'drug', 'clinical', 'therapeutics', 'biopharma',
+            'biopharmaceutical', 'pharma', 'medicine'
+        ]
+
+        for keyword in pharma_biotech_keywords:
+            if keyword in industry_lower:
+                return False
+
+        # Media & Entertainment (Content IP not valued on balance sheet)
+        # Streaming services: High content costs, low tangible assets
+        # Better metrics: Subscriber growth, content ROI, engagement metrics
+        media_entertainment_keywords = [
+            'media', 'entertainment', 'streaming', 'broadcasting',
+            'film', 'movie', 'television', 'content', 'production',
+            'music', 'recording', 'studio', 'video', 'multimedia'
+        ]
+
+        for keyword in media_entertainment_keywords:
+            if keyword in industry_lower:
+                return False
+
+        # Professional Services (Human capital = main asset, not on balance sheet)
+        # Academic: Agrawal & Maheshwari (2014) - 61% false positive rate
+        # Better metrics: Revenue per employee, utilization rate, recurring revenue
+        # Note: 'consulting' already covered in personal_services_keywords above
+
+        # Advertising & Marketing (Client relationships/talent = intangible value)
+        # Minimal tangible asset base, low working capital by design
+        # Better metrics: Client retention, organic growth, margin trends
+        advertising_marketing_keywords = [
+            'advertising', 'marketing', 'public relations', 'pr agency',
+            'media agency', 'creative agency', 'digital marketing'
+        ]
+
+        for keyword in advertising_marketing_keywords:
+            if keyword in industry_lower:
+                return False
+
+        # Telecommunications (Spectrum/licenses undervalued, tower leases, high capex)
+        # Academic: Agrawal & Maheshwari (2014) - 68% false positive rate
+        # High debt is normal/expected for infrastructure businesses
+        # Better metrics: EBITDA - capex, subscriber metrics, churn, ARPU
+        telecom_keywords = [
+            'telecommunication', 'telecom', 'wireless', 'mobile network',
+            'cellular', 'broadband', 'fiber', 'isp', 'internet service provider',
+            'tower', 'spectrum'
+        ]
+
+        for keyword in telecom_keywords:
+            if keyword in industry_lower:
+                return False
+
+        # Aerospace & Defense (Long-term contracts, progress billing, advance payments)
+        # Negative working capital from customer advances distorts Z-Score
+        # Better metrics: Backlog/Book-to-bill ratio, program margins, free cash flow
+        aerospace_defense_keywords = [
+            'aerospace', 'defense', 'aircraft', 'aviation', 'military',
+            'missile', 'satellite', 'space', 'rocket', 'fighter jet',
+            'naval', 'shipbuilding', 'armament', 'weapons'
+        ]
+
+        for keyword in aerospace_defense_keywords:
+            if keyword in industry_lower:
+                return False
+
         # For all other industries, Z-Score is applicable
         return True
 
