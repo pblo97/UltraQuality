@@ -703,9 +703,104 @@ class QualitativeAnalyzer:
         except Exception as e:
             logger.warning(f"Failed to get ownership data for {symbol}: {e}")
 
-        # === 2. INSIDER TRADING ACTIVITY ===
-        # Note: This endpoint may require premium FMP plan
-        # For now, leave as placeholder for future enhancement
+        # === 2. INSIDER TRADING ACTIVITY with CLUSTER DETECTION ===
+        try:
+            # Get insider trading transactions (last 6 months)
+            insider_trades = self.fmp.get_insider_trading(symbol, limit=100)
+
+            if insider_trades:
+                # Count buys and sells in last 6 months
+                cutoff = datetime.now() - timedelta(days=180)
+                buys = 0
+                sells = 0
+
+                # Track for cluster detection
+                sell_transactions_by_date = {}  # date -> count
+                ceo_sells = 0
+                ceo_sell_pct = 0
+
+                # Get key executives names for CEO detection
+                try:
+                    executives = self.fmp.get_key_executives(symbol)
+                    ceo_names = []
+                    if executives:
+                        for exec_data in executives[:3]:  # Top 3 (likely CEO, CFO, COO)
+                            title = exec_data.get('title', '').lower()
+                            if 'chief executive' in title or 'ceo' in title:
+                                ceo_names.append(exec_data.get('name', '').lower())
+                except:
+                    ceo_names = []
+
+                for trade in insider_trades:
+                    try:
+                        trade_date_str = trade.get('transactionDate', trade.get('filingDate', ''))
+                        if not trade_date_str:
+                            continue
+
+                        trade_date = datetime.fromisoformat(trade_date_str.replace('Z', '+00:00').split('T')[0])
+
+                        if trade_date < cutoff:
+                            continue
+
+                        transaction_type = trade.get('transactionType', '').upper()
+
+                        # Count buys vs sells
+                        if 'P-PURCHASE' in transaction_type or 'BUY' in transaction_type:
+                            buys += 1
+                        elif 'S-SALE' in transaction_type or 'SELL' in transaction_type:
+                            sells += 1
+
+                            # Track sell date for cluster detection
+                            date_key = trade_date_str.split('T')[0]
+                            sell_transactions_by_date[date_key] = sell_transactions_by_date.get(date_key, 0) + 1
+
+                            # Check if CEO is selling
+                            reporting_person = trade.get('reportingName', '').lower()
+                            if any(ceo_name in reporting_person for ceo_name in ceo_names):
+                                ceo_sells += 1
+                                # Try to get shares owned before/after
+                                shares_owned_after = trade.get('securitiesOwned', 0)
+                                shares_transacted = trade.get('securitiesTransacted', 0)
+                                if shares_owned_after > 0 and shares_transacted > 0:
+                                    shares_owned_before = shares_owned_after + shares_transacted
+                                    if shares_owned_before > 0:
+                                        ceo_sell_pct = max(ceo_sell_pct, (shares_transacted / shares_owned_before) * 100)
+
+                    except Exception as e:
+                        logger.debug(f"Error processing trade: {e}")
+                        continue
+
+                skin['insider_transactions'] = {'buys': buys, 'sells': sells}
+                skin['buys_6m'] = buys
+                skin['sells_6m'] = sells
+
+                # Determine trend
+                if buys > sells * 2:
+                    skin['insider_trend_90d'] = 'net buys'
+                elif sells > buys * 2:
+                    skin['insider_trend_90d'] = 'net sells'
+                elif buys > 0 or sells > 0:
+                    skin['insider_trend_90d'] = 'mixed'
+                else:
+                    skin['insider_trend_90d'] = 'none'
+
+                # === CLUSTER DETECTION ===
+                # Red flags: Multiple executives selling on same day/week
+                sell_clusters = []
+                for date, count in sell_transactions_by_date.items():
+                    if count >= 3:  # 3+ executives selling on same day = cluster
+                        sell_clusters.append(f"{date} ({count} executives)")
+
+                if sell_clusters:
+                    skin['sell_clusters'] = sell_clusters
+                    skin['cluster_warning'] = f"⚠️  Insider selling cluster detected: {len(sell_clusters)} dates with 3+ executives selling"
+
+                # CEO selling >20% of holdings
+                if ceo_sell_pct > 20:
+                    skin['ceo_large_sale'] = f"⚠️  CEO sold {ceo_sell_pct:.1f}% of holdings in last 6 months"
+
+        except Exception as e:
+            logger.debug(f"Failed to get insider trading for {symbol}: {e}")
 
         # === 3. DILUTION / BUYBACKS ===
         try:
@@ -1178,6 +1273,10 @@ class QualitativeAnalyzer:
         warnings = []
 
         try:
+            # Get industry for context
+            profile = self.fmp.get_profile(symbol)
+            industry = profile[0].get('industry', '') if profile else ''
+
             # 1. Customer Concentration Analysis
             customer_warning = self._analyze_customer_concentration(symbol)
             if customer_warning:
@@ -1192,6 +1291,11 @@ class QualitativeAnalyzer:
             geo_warning = self._analyze_geographic_exposure(symbol)
             if geo_warning:
                 warnings.append(geo_warning)
+
+            # 4. R&D Efficiency (Tech/Pharma only)
+            rd_warning = self._analyze_rd_efficiency(symbol, industry)
+            if rd_warning:
+                warnings.append(rd_warning)
 
         except Exception as e:
             logger.warning(f"Error assessing contextual warnings for {symbol}: {e}")
@@ -1448,6 +1552,108 @@ class QualitativeAnalyzer:
 
         except Exception as e:
             logger.warning(f"Error analyzing geographic exposure for {symbol}: {e}")
+
+        return None
+
+    def _analyze_rd_efficiency(self, symbol: str, industry: str) -> Optional[Dict]:
+        """
+        Analyze R&D efficiency for Tech/Pharma companies.
+
+        Métrica: Revenue per $1 R&D spent
+        Compara con peers del sector
+
+        Superior efficiency: >$8 revenue per $1 R&D (vs peers)
+        Average: $4-8 revenue per $1 R&D
+        Poor: <$4 revenue per $1 R&D
+        """
+        try:
+            # Only applicable to R&D-intensive industries
+            rd_intensive_keywords = [
+                'software', 'technology', 'semiconductor', 'internet',
+                'pharmaceutical', 'biotechnology', 'biotech', 'drug',
+                'medical devices', 'aerospace', 'defense'
+            ]
+
+            industry_lower = industry.lower()
+            is_rd_intensive = any(keyword in industry_lower for keyword in rd_intensive_keywords)
+
+            if not is_rd_intensive:
+                return None
+
+            # Get financial data
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=3)
+            if not income or len(income) < 3:
+                return None
+
+            # Calculate R&D efficiency for last 3 years
+            rd_efficiencies = []
+
+            for year_data in income[:3]:
+                revenue = year_data.get('revenue', 0)
+                rd_expenses = year_data.get('researchAndDevelopmentExpenses', 0)
+
+                if rd_expenses > 0 and revenue > 0:
+                    # Revenue per $1 R&D spent
+                    efficiency = revenue / rd_expenses
+                    rd_efficiencies.append(efficiency)
+
+            if not rd_efficiencies:
+                return None
+
+            avg_efficiency = sum(rd_efficiencies) / len(rd_efficiencies)
+
+            # Get R&D as % of revenue (for context)
+            latest_revenue = income[0].get('revenue', 0)
+            latest_rd = income[0].get('researchAndDevelopmentExpenses', 0)
+            rd_pct_revenue = (latest_rd / latest_revenue * 100) if latest_revenue > 0 else 0
+
+            # Industry benchmarks (rough estimates)
+            # Software: ~$8-12 revenue per $1 R&D (high margin, scalable)
+            # Pharma: ~$4-6 revenue per $1 R&D (lower margin, regulatory)
+            # Semiconductor: ~$6-10 revenue per $1 R&D
+
+            if 'software' in industry_lower or 'internet' in industry_lower:
+                excellent_threshold = 10
+                good_threshold = 6
+                industry_type = 'Software/Internet'
+            elif 'pharmaceutical' in industry_lower or 'biotech' in industry_lower or 'drug' in industry_lower:
+                excellent_threshold = 6
+                good_threshold = 4
+                industry_type = 'Pharma/Biotech'
+            elif 'semiconductor' in industry_lower:
+                excellent_threshold = 8
+                good_threshold = 5
+                industry_type = 'Semiconductor'
+            else:
+                excellent_threshold = 7
+                good_threshold = 4
+                industry_type = 'Tech'
+
+            # Generate assessment
+            if avg_efficiency > excellent_threshold:
+                return {
+                    'type': 'rd_efficiency',
+                    'severity': 'Info',
+                    'message': f'Superior R&D efficiency',
+                    'details': f'${avg_efficiency:.1f} revenue per $1 R&D (vs ~${excellent_threshold} {industry_type} avg) - efficient innovation'
+                }
+            elif avg_efficiency > good_threshold:
+                return {
+                    'type': 'rd_efficiency',
+                    'severity': 'Info',
+                    'message': f'Healthy R&D efficiency',
+                    'details': f'${avg_efficiency:.1f} revenue per $1 R&D ({rd_pct_revenue:.1f}% of revenue) - solid innovation ROI'
+                }
+            else:
+                return {
+                    'type': 'rd_efficiency',
+                    'severity': 'Caution',
+                    'message': f'Low R&D efficiency',
+                    'details': f'${avg_efficiency:.1f} revenue per $1 R&D (below ${good_threshold} {industry_type} benchmark) - R&D spending not translating to revenue'
+                }
+
+        except Exception as e:
+            logger.warning(f"Error analyzing R&D efficiency for {symbol}: {e}")
 
         return None
 
