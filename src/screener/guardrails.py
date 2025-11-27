@@ -102,6 +102,9 @@ class GuardrailCalculator:
             # 4. Debt Maturity Wall
             result['debt_maturity_wall'] = self._calc_debt_maturity_wall(balance, cashflow)
 
+            # 5. Benford's Law (Fraud Detection - Advanced)
+            result['benfords_law'] = self._calc_benfords_law_analysis(income, balance, cashflow)
+
             # Legacy placeholders (kept for backward compatibility)
             result['debt_maturity_<24m_%'] = result['debt_maturity_wall'].get('short_term_debt_pct')
             result['rate_mix_variable_%'] = None
@@ -1626,5 +1629,164 @@ class GuardrailCalculator:
 
         except Exception as e:
             logger.warning(f"Error calculating debt maturity wall: {e}")
+
+        return result
+
+    def _calc_benfords_law_analysis(
+        self,
+        income: List[Dict],
+        balance: List[Dict],
+        cashflow: List[Dict]
+    ) -> Dict:
+        """
+        Benford's Law Analysis: Detección avanzada de fraude contable.
+
+        Benford's Law establece que en datasets naturales, la distribución de primeros
+        dígitos sigue un patrón logarítmico específico:
+        - Dígito 1: ~30.1%
+        - Dígito 2: ~17.6%
+        - Dígito 3: ~12.5%
+        - ...
+        - Dígito 9: ~4.6%
+
+        Números fabricados/manipulados tienden a tener distribución más uniforme.
+
+        Analiza: Revenue, Net Income, Operating Cash Flow, Total Assets
+
+        Returns:
+        {
+            'chi_square_statistic': float,  # Chi-square test statistic
+            'deviation_score': float,  # 0-100, higher = more suspicious
+            'suspicious_metrics': List[str],  # Which metrics deviate
+            'status': str,  # 'VERDE', 'AMBAR', 'ROJO'
+            'message': str
+        }
+        """
+        result = {
+            'chi_square_statistic': None,
+            'deviation_score': None,
+            'suspicious_metrics': [],
+            'status': 'VERDE',
+            'message': 'Insufficient data for Benford analysis'
+        }
+
+        if not income or not balance or not cashflow:
+            return result
+
+        try:
+            # Benford's Law expected distribution
+            benford_expected = {
+                '1': 0.301,
+                '2': 0.176,
+                '3': 0.125,
+                '4': 0.097,
+                '5': 0.079,
+                '6': 0.067,
+                '7': 0.058,
+                '8': 0.051,
+                '9': 0.046
+            }
+
+            # Collect financial numbers from multiple periods
+            all_numbers = []
+
+            # Revenue (quarterly)
+            for quarter_data in income[:20]:  # Up to 5 years
+                revenue = quarter_data.get('revenue', 0)
+                if revenue > 0:
+                    all_numbers.append(revenue)
+
+                net_income = quarter_data.get('netIncome', 0)
+                if net_income != 0:  # Can be negative
+                    all_numbers.append(abs(net_income))
+
+                operating_income = quarter_data.get('operatingIncome', 0)
+                if operating_income != 0:
+                    all_numbers.append(abs(operating_income))
+
+            # Balance sheet items
+            for quarter_data in balance[:20]:
+                total_assets = quarter_data.get('totalAssets', 0)
+                if total_assets > 0:
+                    all_numbers.append(total_assets)
+
+                current_assets = quarter_data.get('totalCurrentAssets', 0)
+                if current_assets > 0:
+                    all_numbers.append(current_assets)
+
+            # Cash flow
+            for quarter_data in cashflow[:20]:
+                operating_cf = quarter_data.get('operatingCashFlow', 0)
+                if operating_cf != 0:
+                    all_numbers.append(abs(operating_cf))
+
+            if len(all_numbers) < 30:  # Need minimum sample size
+                result['message'] = f'Insufficient data points ({len(all_numbers)}/30 needed)'
+                return result
+
+            # Extract first digits
+            first_digits = []
+            for number in all_numbers:
+                # Convert to string and get first non-zero digit
+                num_str = str(int(abs(number)))
+                if num_str and num_str[0] != '0':
+                    first_digits.append(num_str[0])
+
+            # Calculate observed distribution
+            total_count = len(first_digits)
+            observed_dist = {}
+            for digit in '123456789':
+                count = first_digits.count(digit)
+                observed_dist[digit] = count / total_count if total_count > 0 else 0
+
+            # Calculate chi-square statistic
+            chi_square = 0
+            deviations = {}
+
+            for digit in '123456789':
+                expected = benford_expected[digit]
+                observed = observed_dist.get(digit, 0)
+                expected_count = expected * total_count
+
+                if expected_count > 0:
+                    chi_square += ((observed * total_count - expected_count) ** 2) / expected_count
+                    deviation_pct = ((observed - expected) / expected) * 100
+                    deviations[digit] = deviation_pct
+
+            result['chi_square_statistic'] = chi_square
+
+            # Calculate deviation score (0-100)
+            # Chi-square critical value for 8 degrees of freedom:
+            # - p=0.05 (95% confidence): 15.51
+            # - p=0.01 (99% confidence): 20.09
+            # Normalize to 0-100 scale
+            deviation_score = min(100, (chi_square / 20.09) * 100)
+            result['deviation_score'] = deviation_score
+
+            # Identify suspicious metrics (digits that deviate >50% from expected)
+            suspicious_digits = []
+            for digit, dev_pct in deviations.items():
+                if abs(dev_pct) > 50:  # >50% deviation from Benford expected
+                    suspicious_digits.append(f"Digit {digit}: {dev_pct:+.0f}% vs expected")
+
+            result['suspicious_metrics'] = suspicious_digits
+
+            # Determine status
+            # NOTE: Benford's Law is INFORMATIONAL - many legitimate reasons for deviations
+            # (small sample, specific industry patterns, rounding, etc.)
+            # Only flag as AMBAR if EXTREMELY suspicious, never ROJO
+            if deviation_score > 75:  # Very high deviation
+                result['status'] = 'AMBAR'
+                result['message'] = f'Unusual digit distribution (chi²={chi_square:.1f}) - review for data quality'
+            elif deviation_score > 50:
+                result['status'] = 'AMBAR'
+                result['message'] = f'Moderate digit distribution deviation (chi²={chi_square:.1f})'
+            else:
+                result['status'] = 'VERDE'
+                result['message'] = f'Digit distribution consistent with Benford\'s Law (chi²={chi_square:.1f})'
+
+        except Exception as e:
+            logger.warning(f"Error calculating Benford's Law analysis: {e}")
+            result['message'] = f'Error in Benford analysis: {str(e)[:50]}'
 
         return result
