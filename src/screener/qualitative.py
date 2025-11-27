@@ -62,6 +62,7 @@ class QualitativeAnalyzer:
             'news_tags': [],
             'pr_highlights': [],
             'transcript_TLDR': {},
+            'backlog_data': {},  # New: backlog/order book analysis
             'mna_recent': [],
             'top_risks': [],
             'risks': [],  # UI expects this
@@ -98,6 +99,15 @@ class QualitativeAnalyzer:
 
             # 6. Latest earnings transcript
             summary['transcript_TLDR'] = self._summarize_transcript(symbol)
+
+            # 6b. Backlog analysis (for order-driven industrials)
+            # Get industry from profile
+            try:
+                profile = self.fmp.get_profile(symbol)
+                industry = profile[0].get('industry', '') if profile else ''
+            except:
+                industry = ''
+            summary['backlog_data'] = self._extract_backlog_data(symbol, industry)
 
             # 7. Recent M&A
             summary['mna_recent'] = self._get_recent_mna(symbol)
@@ -944,6 +954,196 @@ class QualitativeAnalyzer:
             logger.warning(f"Failed to summarize transcript for {symbol}: {e}")
 
         return tldr
+
+    def _extract_backlog_data(self, symbol: str, industry: str = '') -> Dict:
+        """
+        Extract backlog/order book data from latest earnings call transcript.
+        Particularly valuable for order-driven industrials: Aerospace & Defense,
+        Heavy Equipment, Shipbuilding, Capital Goods, etc.
+
+        Returns:
+        {
+            'backlog_mentioned': bool,
+            'backlog_value': str,  # e.g., "$45.2B"
+            'backlog_change': str,  # e.g., "+12% YoY"
+            'book_to_bill': str,   # e.g., "1.2x"
+            'backlog_duration': str,  # e.g., "18 months"
+            'backlog_snippets': List[str],  # Relevant quotes
+            'order_trend': str  # 'Positive', 'Stable', 'Declining', or 'Unknown'
+        }
+        """
+        result = {
+            'backlog_mentioned': False,
+            'backlog_value': None,
+            'backlog_change': None,
+            'book_to_bill': None,
+            'backlog_duration': None,
+            'backlog_snippets': [],
+            'order_trend': 'Unknown'
+        }
+
+        # Only relevant for order-driven companies
+        order_driven_keywords = [
+            'aerospace', 'defense', 'aircraft', 'aviation',
+            'heavy equipment', 'machinery', 'capital goods',
+            'shipbuilding', 'industrial equipment', 'construction equipment',
+            'engineering', 'turbine', 'locomotive', 'mining equipment'
+        ]
+
+        industry_lower = industry.lower()
+        is_order_driven = any(keyword in industry_lower for keyword in order_driven_keywords)
+
+        if not is_order_driven:
+            # Not an order-driven business - skip backlog analysis
+            return result
+
+        try:
+            # Get latest transcript
+            transcripts = self.fmp.get_earnings_call_transcript(symbol)
+
+            if not transcripts:
+                return result
+
+            transcript = transcripts[0]
+            content = transcript.get('content', '')
+
+            if not content:
+                return result
+
+            content_lower = content.lower()
+
+            # Check if backlog is mentioned
+            backlog_keywords = ['backlog', 'order book', 'orders', 'book-to-bill', 'book to bill', 'bookings']
+            backlog_mentioned = any(keyword in content_lower for keyword in backlog_keywords)
+
+            if not backlog_mentioned:
+                return result
+
+            result['backlog_mentioned'] = True
+
+            # Extract backlog value (dollar amounts)
+            # Pattern: "backlog of $X.XB" or "order book of $X.X billion"
+            backlog_value_patterns = [
+                r'backlog\s+(?:of|is|was|totaled|reached|stood at)\s+[\$€£]?([\d,.]+)\s*(billion|million|B|M|bn|mn)',
+                r'order\s+book\s+(?:of|is|was|totaled|reached|stood at)\s+[\$€£]?([\d,.]+)\s*(billion|million|B|M|bn|mn)',
+                r'total\s+backlog\s+[\$€£]?([\d,.]+)\s*(billion|million|B|M|bn|mn)',
+                r'[\$€£]([\d,.]+)\s*(billion|million|B|M|bn|mn)\s+(?:in|of)\s+backlog'
+            ]
+
+            for pattern in backlog_value_patterns:
+                match = re.search(pattern, content_lower)
+                if match:
+                    value = match.group(1)
+                    unit = match.group(2)
+                    # Normalize unit
+                    if unit.lower() in ['billion', 'b', 'bn']:
+                        unit_str = 'B'
+                    else:
+                        unit_str = 'M'
+                    result['backlog_value'] = f"${value}{unit_str}"
+                    break
+
+            # Extract backlog change (YoY or QoQ)
+            change_patterns = [
+                r'backlog\s+(?:increased|grew|rose|up|higher)\s+(?:by\s+)?([\d.]+)%',
+                r'backlog\s+(?:decreased|declined|fell|down|lower)\s+(?:by\s+)?([\d.]+)%',
+                r'([\d.]+)%\s+(?:increase|growth|rise)\s+in\s+backlog',
+                r'([\d.]+)%\s+(?:decrease|decline|drop)\s+in\s+backlog',
+                r'backlog\s+of\s+[\$€£][\d,.]+[BMbm],?\s+(?:up|down)\s+([\d.]+)%'
+            ]
+
+            for pattern in change_patterns:
+                match = re.search(pattern, content_lower)
+                if match:
+                    change_pct = match.group(1)
+                    # Check if positive or negative from context
+                    context = match.group(0).lower()
+                    if any(word in context for word in ['increase', 'grew', 'rose', 'up', 'higher']):
+                        result['backlog_change'] = f"+{change_pct}%"
+                        result['order_trend'] = 'Positive'
+                    elif any(word in context for word in ['decrease', 'declined', 'fell', 'down', 'lower']):
+                        result['backlog_change'] = f"-{change_pct}%"
+                        result['order_trend'] = 'Declining'
+                    else:
+                        result['backlog_change'] = f"{change_pct}%"
+                    break
+
+            # Extract book-to-bill ratio
+            btb_patterns = [
+                r'book[- ]to[- ]bill\s+(?:ratio\s+)?(?:of\s+)?(\d+\.?\d*)\b',
+                r'book[- ]to[- ]bill\s+(?:was|is)\s+(\d+\.?\d*)\b',
+                r'btb\s+(?:ratio\s+)?(?:of\s+)?(\d+\.?\d*)\b'
+            ]
+
+            for pattern in btb_patterns:
+                match = re.search(pattern, content_lower)
+                if match:
+                    btb_value = match.group(1)
+                    result['book_to_bill'] = f"{btb_value}x"
+                    # Book-to-bill > 1.0 is positive (orders exceeding revenue)
+                    try:
+                        btb_float = float(btb_value)
+                        if btb_float > 1.0:
+                            result['order_trend'] = 'Positive'
+                        elif btb_float < 0.9:
+                            result['order_trend'] = 'Declining'
+                        else:
+                            result['order_trend'] = 'Stable'
+                    except:
+                        pass
+                    break
+
+            # Extract backlog duration
+            duration_patterns = [
+                r'backlog\s+(?:represents|equals|covers)\s+(?:approximately\s+)?([\d.]+)\s+(months|quarters|years)',
+                r'([\d.]+)[- ](month|quarter|year)\s+backlog',
+                r'backlog\s+of\s+(?:approximately\s+)?([\d.]+)\s+(months|quarters|years)'
+            ]
+
+            for pattern in duration_patterns:
+                match = re.search(pattern, content_lower)
+                if match:
+                    duration_num = match.group(1)
+                    duration_unit = match.group(2)
+                    result['backlog_duration'] = f"{duration_num} {duration_unit}"
+                    break
+
+            # Extract relevant snippets (sentences mentioning backlog)
+            sentences = re.split(r'[.!?]\s+', content)
+            for sentence in sentences:
+                sentence_lower = sentence.lower()
+                if any(keyword in sentence_lower for keyword in backlog_keywords):
+                    # Clean up and limit length
+                    snippet = sentence.strip()[:200]
+                    if snippet and len(snippet) > 30:  # Meaningful snippet
+                        result['backlog_snippets'].append(snippet)
+
+            # Limit snippets to top 3 most relevant
+            result['backlog_snippets'] = result['backlog_snippets'][:3]
+
+            # If no explicit change detected but backlog mentioned, check overall sentiment
+            if result['order_trend'] == 'Unknown' and result['backlog_mentioned']:
+                # Look for qualitative indicators
+                positive_indicators = ['strong backlog', 'robust backlog', 'record backlog', 'growing backlog',
+                                     'healthy backlog', 'solid backlog', 'improving backlog']
+                negative_indicators = ['weak backlog', 'declining backlog', 'softening backlog', 'lower backlog',
+                                     'reduced backlog', 'challenging backlog']
+
+                if any(indicator in content_lower for indicator in positive_indicators):
+                    result['order_trend'] = 'Positive'
+                elif any(indicator in content_lower for indicator in negative_indicators):
+                    result['order_trend'] = 'Declining'
+                else:
+                    result['order_trend'] = 'Stable'
+
+            logger.info(f"Backlog analysis for {symbol}: {result['order_trend']} trend, "
+                       f"Value: {result.get('backlog_value', 'N/A')}, "
+                       f"Change: {result.get('backlog_change', 'N/A')}")
+
+        except Exception as e:
+            logger.warning(f"Failed to extract backlog data for {symbol}: {e}")
+
+        return result
 
     # ===================================
     # 7. Recent M&A
