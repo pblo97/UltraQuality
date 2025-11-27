@@ -86,10 +86,25 @@ class GuardrailCalculator:
             # Calculate revenue growth (3-year CAGR) for declining business detection
             result['revenue_growth_3y'] = self._calc_revenue_growth_3y(income)
 
-            # Debt metrics (if available)
-            # Note: debt maturity and rate mix require detailed debt schedules (often not in API)
-            result['debt_maturity_<24m_%'] = None  # Placeholder
-            result['rate_mix_variable_%'] = None  # Placeholder
+            # ===================================
+            # ADVANCED RED FLAGS (High Priority)
+            # ===================================
+
+            # 1. Working Capital Red Flags
+            result['working_capital'] = self._calc_working_capital_flags(balance, income)
+
+            # 2. Margin Trajectory
+            result['margin_trajectory'] = self._calc_margin_trajectory(income)
+
+            # 3. Cash Conversion Quality
+            result['cash_conversion'] = self._calc_cash_conversion_quality(income, cashflow)
+
+            # 4. Debt Maturity Wall
+            result['debt_maturity_wall'] = self._calc_debt_maturity_wall(balance, cashflow)
+
+            # Legacy placeholders (kept for backward compatibility)
+            result['debt_maturity_<24m_%'] = result['debt_maturity_wall'].get('short_term_debt_pct')
+            result['rate_mix_variable_%'] = None
 
             # Determine status and reasons
             result['guardrail_status'], result['guardrail_reasons'] = self._assess_guardrails(
@@ -941,6 +956,56 @@ class GuardrailCalculator:
                 amber_flags += 1
                 reasons.append(f"Revenue flat/declining {revenue_growth:.1f}% (3Y)")
 
+        # ===================================
+        # ADVANCED RED FLAGS ASSESSMENT
+        # ===================================
+
+        # 1. Working Capital Red Flags
+        wc = guardrails.get('working_capital', {})
+        if wc.get('status') == 'ROJO':
+            red_flags += 1
+            if wc.get('flags'):
+                reasons.append(f"WC: {wc['flags'][0]}")
+        elif wc.get('status') == 'AMBAR':
+            amber_flags += 1
+            if wc.get('flags'):
+                reasons.append(f"WC: {wc['flags'][0]}")
+
+        # 2. Margin Trajectory
+        mt = guardrails.get('margin_trajectory', {})
+        if mt.get('status') == 'ROJO':
+            red_flags += 1
+            reasons.append("Margins compressing (losing pricing power)")
+        elif mt.get('status') == 'AMBAR':
+            amber_flags += 1
+            if mt.get('gross_margin_trajectory') == 'Compressing':
+                reasons.append("Gross margin compressing")
+
+        # 3. Cash Conversion Quality
+        cc = guardrails.get('cash_conversion', {})
+        if cc.get('status') == 'ROJO':
+            red_flags += 1
+            fcf_ni = cc.get('fcf_to_ni_current')
+            if fcf_ni is not None:
+                reasons.append(f"FCF/NI {fcf_ni:.0f}% (low cash conversion)")
+        elif cc.get('status') == 'AMBAR':
+            amber_flags += 1
+            if cc.get('fcf_to_ni_trend') == 'Deteriorating':
+                reasons.append("Cash conversion deteriorating")
+
+        # 4. Debt Maturity Wall
+        dm = guardrails.get('debt_maturity_wall', {})
+        if dm.get('status') == 'ROJO':
+            red_flags += 1
+            if any('REFINANCING RISK' in flag for flag in dm.get('flags', [])):
+                reasons.append("Refinancing risk (ST debt + low liquidity)")
+            elif dm.get('flags'):
+                reasons.append(f"Debt: {dm['flags'][0][:50]}")
+        elif dm.get('status') == 'AMBAR':
+            amber_flags += 1
+            if dm.get('interest_coverage') and dm.get('interest_coverage') < 3.0:
+                reasons.append(f"Interest coverage {dm['interest_coverage']:.1f}x")
+
         # Determine status
         if red_flags > 0:
             status = 'ROJO'
@@ -975,3 +1040,570 @@ class GuardrailCalculator:
         except Exception as e:
             logger.warning(f"Error calculating revenue growth: {e}")
             return None
+
+    # ===================================
+    # ADVANCED RED FLAGS (High Priority)
+    # ===================================
+
+    def _calc_working_capital_flags(
+        self,
+        balance: List[Dict],
+        income: List[Dict]
+    ) -> Dict:
+        """
+        Working Capital Red Flags: Detecta deterioro operativo temprano.
+
+        Métricas:
+        - DSO (Days Sales Outstanding): A/R collection speed
+        - DIO (Days Inventory Outstanding): Inventory turnover
+        - DPO (Days Payables Outstanding): Payment timing
+        - Cash Conversion Cycle: DSO + DIO - DPO
+        - Trend (últimos 8 quarters): Improving/Stable/Deteriorating
+
+        Red Flags:
+        - DSO increasing = customers paying slower (demand weakness or credit quality issues)
+        - DIO increasing = inventory piling up (demand weakness)
+        - CCC increasing = working capital consuming more cash
+
+        Returns:
+        {
+            'dso_current': float,
+            'dio_current': float,
+            'dpo_current': float,
+            'ccc_current': float,
+            'dso_trend': str,  # 'Improving', 'Stable', 'Deteriorating'
+            'dio_trend': str,
+            'ccc_trend': str,
+            'dso_change_8q': float,  # Change over last 8 quarters (days)
+            'ccc_change_8q': float,
+            'status': str,  # 'VERDE', 'AMBAR', 'ROJO'
+            'flags': List[str]
+        }
+        """
+        result = {
+            'dso_current': None,
+            'dio_current': None,
+            'dpo_current': None,
+            'ccc_current': None,
+            'dso_trend': 'Unknown',
+            'dio_trend': 'Unknown',
+            'ccc_trend': 'Unknown',
+            'dso_change_8q': None,
+            'ccc_change_8q': None,
+            'status': 'VERDE',
+            'flags': []
+        }
+
+        if not balance or not income or len(balance) < 8 or len(income) < 8:
+            return result
+
+        try:
+            # Calculate DSO, DIO, DPO for last 8 quarters
+            dso_history = []
+            dio_history = []
+            dpo_history = []
+            ccc_history = []
+
+            for i in range(min(8, len(balance), len(income))):
+                bs = balance[i]
+                inc = income[i]
+
+                # Revenue (quarterly)
+                revenue = inc.get('revenue', 0)
+                cogs = inc.get('costOfRevenue', 0)
+
+                # Balance sheet items
+                receivables = bs.get('netReceivables', 0)
+                inventory = bs.get('inventory', 0)
+                payables = bs.get('accountPayables', 0)
+
+                if revenue > 0:
+                    # DSO = (Receivables / Revenue) * 90 (quarterly)
+                    dso = (receivables / revenue) * 90 if revenue > 0 else 0
+                    dso_history.append(dso)
+                else:
+                    dso_history.append(None)
+
+                if cogs > 0:
+                    # DIO = (Inventory / COGS) * 90
+                    dio = (inventory / cogs) * 90 if cogs > 0 else 0
+                    dio_history.append(dio)
+
+                    # DPO = (Payables / COGS) * 90
+                    dpo = (payables / cogs) * 90 if cogs > 0 else 0
+                    dpo_history.append(dpo)
+                else:
+                    dio_history.append(None)
+                    dpo_history.append(None)
+
+                # Cash Conversion Cycle
+                if dso_history[-1] is not None and dio_history[-1] is not None:
+                    ccc = dso_history[-1] + dio_history[-1] - dpo_history[-1]
+                    ccc_history.append(ccc)
+                else:
+                    ccc_history.append(None)
+
+            # Current metrics (latest quarter)
+            result['dso_current'] = dso_history[0] if dso_history[0] is not None else None
+            result['dio_current'] = dio_history[0] if dio_history[0] is not None else None
+            result['dpo_current'] = dpo_history[0] if dpo_history[0] is not None else None
+            result['ccc_current'] = ccc_history[0] if ccc_history[0] is not None else None
+
+            # Trend analysis (compare recent 2Q vs older 2Q)
+            def analyze_trend(history):
+                """Returns 'Improving', 'Stable', 'Deteriorating'"""
+                if len([x for x in history if x is not None]) < 4:
+                    return 'Unknown'
+
+                # Filter out None values
+                valid_history = [x for x in history if x is not None]
+                if len(valid_history) < 4:
+                    return 'Unknown'
+
+                recent_avg = np.mean(valid_history[:2])  # Most recent 2Q
+                older_avg = np.mean(valid_history[-2:])  # Oldest 2Q
+
+                if older_avg == 0:
+                    return 'Unknown'
+
+                change_pct = ((recent_avg - older_avg) / older_avg) * 100
+
+                # For DSO, DIO, CCC: Lower is better (converting to cash faster)
+                if change_pct < -5:
+                    return 'Improving'
+                elif change_pct > 5:
+                    return 'Deteriorating'
+                else:
+                    return 'Stable'
+
+            result['dso_trend'] = analyze_trend(dso_history)
+            result['dio_trend'] = analyze_trend(dio_history)
+            result['ccc_trend'] = analyze_trend(ccc_history)
+
+            # Calculate 8Q change (absolute days change)
+            if len(dso_history) >= 8 and dso_history[0] is not None and dso_history[7] is not None:
+                result['dso_change_8q'] = dso_history[0] - dso_history[7]
+
+            if len(ccc_history) >= 8 and ccc_history[0] is not None and ccc_history[7] is not None:
+                result['ccc_change_8q'] = ccc_history[0] - ccc_history[7]
+
+            # Determine status and flags
+            flags = []
+
+            # DSO red flags
+            if result['dso_trend'] == 'Deteriorating':
+                flags.append(f"DSO deteriorating ({result['dso_current']:.0f} days)")
+                if result['dso_change_8q'] and result['dso_change_8q'] > 10:
+                    flags.append(f"DSO increased {result['dso_change_8q']:.0f} days in 8Q (customers paying slower)")
+
+            # DIO red flags
+            if result['dio_trend'] == 'Deteriorating':
+                flags.append(f"DIO deteriorating ({result['dio_current']:.0f} days)")
+
+            # CCC red flags
+            if result['ccc_trend'] == 'Deteriorating':
+                flags.append(f"Cash conversion cycle deteriorating ({result['ccc_current']:.0f} days)")
+                if result['ccc_change_8q'] and result['ccc_change_8q'] > 15:
+                    flags.append(f"CCC increased {result['ccc_change_8q']:.0f} days in 8Q (working capital consuming more cash)")
+
+            # Determine overall status
+            if len(flags) >= 3 or (result['ccc_change_8q'] and result['ccc_change_8q'] > 20):
+                result['status'] = 'ROJO'
+            elif len(flags) >= 1:
+                result['status'] = 'AMBAR'
+            else:
+                result['status'] = 'VERDE'
+
+            result['flags'] = flags
+
+        except Exception as e:
+            logger.warning(f"Error calculating working capital flags: {e}")
+
+        return result
+
+    def _calc_margin_trajectory(
+        self,
+        income: List[Dict]
+    ) -> Dict:
+        """
+        Margin Trajectory: Separa moats reales (expanding margins) vs commodities (compressing).
+
+        Métricas:
+        - Gross Margin trend (últimos 12Q)
+        - Operating Margin trend (últimos 12Q)
+        - Trajectory: Expanding/Stable/Compressing
+
+        Signals:
+        - Expanding margins = pricing power / operating leverage
+        - Compressing margins despite growth = losing pricing power (commodity)
+
+        Returns:
+        {
+            'gross_margin_current': float (%),
+            'operating_margin_current': float (%),
+            'gross_margin_3y_ago': float (%),
+            'operating_margin_3y_ago': float (%),
+            'gross_margin_change': float (bps),
+            'operating_margin_change': float (bps),
+            'gross_margin_trajectory': str,  # 'Expanding', 'Stable', 'Compressing'
+            'operating_margin_trajectory': str,
+            'status': str,  # 'VERDE', 'AMBAR', 'ROJO'
+            'signals': List[str]
+        }
+        """
+        result = {
+            'gross_margin_current': None,
+            'operating_margin_current': None,
+            'gross_margin_3y_ago': None,
+            'operating_margin_3y_ago': None,
+            'gross_margin_change': None,
+            'operating_margin_change': None,
+            'gross_margin_trajectory': 'Unknown',
+            'operating_margin_trajectory': 'Unknown',
+            'status': 'VERDE',
+            'signals': []
+        }
+
+        if not income or len(income) < 12:
+            return result
+
+        try:
+            # Calculate margins for last 12 quarters
+            gross_margins = []
+            operating_margins = []
+
+            for i in range(min(12, len(income))):
+                inc = income[i]
+                revenue = inc.get('revenue', 0)
+                gross_profit = inc.get('grossProfit', 0)
+                operating_income = inc.get('operatingIncome', 0)
+
+                if revenue > 0:
+                    gm = (gross_profit / revenue) * 100
+                    om = (operating_income / revenue) * 100
+                    gross_margins.append(gm)
+                    operating_margins.append(om)
+                else:
+                    gross_margins.append(None)
+                    operating_margins.append(None)
+
+            # Current margins
+            result['gross_margin_current'] = gross_margins[0] if gross_margins[0] is not None else None
+            result['operating_margin_current'] = operating_margins[0] if operating_margins[0] is not None else None
+
+            # 3Y ago margins
+            if len(gross_margins) >= 12:
+                result['gross_margin_3y_ago'] = gross_margins[11] if gross_margins[11] is not None else None
+                result['operating_margin_3y_ago'] = operating_margins[11] if operating_margins[11] is not None else None
+
+            # Calculate change (in basis points)
+            if result['gross_margin_current'] is not None and result['gross_margin_3y_ago'] is not None:
+                result['gross_margin_change'] = (result['gross_margin_current'] - result['gross_margin_3y_ago']) * 100  # bps
+
+            if result['operating_margin_current'] is not None and result['operating_margin_3y_ago'] is not None:
+                result['operating_margin_change'] = (result['operating_margin_current'] - result['operating_margin_3y_ago']) * 100  # bps
+
+            # Trajectory analysis
+            def analyze_margin_trajectory(margins):
+                """Returns 'Expanding', 'Stable', 'Compressing'"""
+                valid_margins = [m for m in margins if m is not None]
+                if len(valid_margins) < 8:
+                    return 'Unknown'
+
+                # Linear regression on margins
+                x = np.arange(len(valid_margins))
+                y = np.array(valid_margins)
+
+                # Simple slope calculation
+                slope = np.polyfit(x, y, 1)[0]
+
+                # slope is in % per quarter
+                # Positive slope = expanding, negative = compressing
+                if slope > 0.15:  # >15 bps per quarter = expanding
+                    return 'Expanding'
+                elif slope < -0.15:  # <-15 bps per quarter = compressing
+                    return 'Compressing'
+                else:
+                    return 'Stable'
+
+            result['gross_margin_trajectory'] = analyze_margin_trajectory(gross_margins)
+            result['operating_margin_trajectory'] = analyze_margin_trajectory(operating_margins)
+
+            # Generate signals
+            signals = []
+
+            if result['gross_margin_trajectory'] == 'Expanding':
+                signals.append(f"✓ Gross margin expanding ({result['gross_margin_change']:.0f} bps in 3Y) - pricing power evident")
+            elif result['gross_margin_trajectory'] == 'Compressing':
+                signals.append(f"⚠️  Gross margin compressing ({result['gross_margin_change']:.0f} bps in 3Y) - losing pricing power")
+
+            if result['operating_margin_trajectory'] == 'Expanding':
+                signals.append(f"✓ Operating margin expanding ({result['operating_margin_change']:.0f} bps in 3Y) - operating leverage")
+            elif result['operating_margin_trajectory'] == 'Compressing':
+                signals.append(f"⚠️  Operating margin compressing ({result['operating_margin_change']:.0f} bps in 3Y) - cost pressure")
+
+            # Status determination
+            if (result['gross_margin_trajectory'] == 'Compressing' and
+                result['operating_margin_trajectory'] == 'Compressing'):
+                result['status'] = 'ROJO'
+                signals.append("ROJO: Both margins compressing = commodity business or losing competitive position")
+            elif (result['gross_margin_trajectory'] == 'Compressing' or
+                  result['operating_margin_trajectory'] == 'Compressing'):
+                result['status'] = 'AMBAR'
+            elif (result['gross_margin_trajectory'] == 'Expanding' and
+                  result['operating_margin_trajectory'] == 'Expanding'):
+                result['status'] = 'VERDE'
+                signals.append("VERDE: Both margins expanding = strong moat + operating leverage")
+            else:
+                result['status'] = 'VERDE'
+
+            result['signals'] = signals
+
+        except Exception as e:
+            logger.warning(f"Error calculating margin trajectory: {e}")
+
+        return result
+
+    def _calc_cash_conversion_quality(
+        self,
+        income: List[Dict],
+        cashflow: List[Dict]
+    ) -> Dict:
+        """
+        Cash Conversion Quality: Separa earnings reales vs manipulados.
+
+        Métricas:
+        - FCF / Net Income ratio (debe ser >80% consistentemente)
+        - FCF / Revenue % (efficiency)
+        - Capex Intensity (Capex / Revenue)
+        - Trend (últimos 8Q)
+
+        Red Flags:
+        - FCF/NI < 50% = Earnings not converting to cash (accruals too high)
+        - FCF/NI declining = Quality deteriorating
+        - High capex intensity = Capital-intensive business (harder to scale)
+
+        Returns:
+        {
+            'fcf_to_ni_current': float (%),
+            'fcf_to_revenue_current': float (%),
+            'capex_intensity_current': float (%),
+            'fcf_to_ni_avg_8q': float (%),
+            'fcf_to_ni_trend': str,  # 'Improving', 'Stable', 'Deteriorating'
+            'status': str,
+            'flags': List[str]
+        }
+        """
+        result = {
+            'fcf_to_ni_current': None,
+            'fcf_to_revenue_current': None,
+            'capex_intensity_current': None,
+            'fcf_to_ni_avg_8q': None,
+            'fcf_to_ni_trend': 'Unknown',
+            'status': 'VERDE',
+            'flags': []
+        }
+
+        if not income or not cashflow or len(income) < 8 or len(cashflow) < 8:
+            return result
+
+        try:
+            fcf_to_ni_history = []
+
+            for i in range(min(8, len(income), len(cashflow))):
+                inc = income[i]
+                cf = cashflow[i]
+
+                revenue = inc.get('revenue', 0)
+                net_income = inc.get('netIncome', 0)
+                operating_cf = cf.get('operatingCashFlow', 0)
+                capex = abs(cf.get('capitalExpenditure', 0))  # Usually negative
+
+                # Free Cash Flow = Operating CF - Capex
+                fcf = operating_cf - capex
+
+                # FCF / Net Income
+                if net_income > 0:
+                    fcf_to_ni = (fcf / net_income) * 100
+                    fcf_to_ni_history.append(fcf_to_ni)
+                else:
+                    fcf_to_ni_history.append(None)
+
+                # Current quarter metrics
+                if i == 0:
+                    if net_income > 0:
+                        result['fcf_to_ni_current'] = (fcf / net_income) * 100
+                    if revenue > 0:
+                        result['fcf_to_revenue_current'] = (fcf / revenue) * 100
+                        result['capex_intensity_current'] = (capex / revenue) * 100
+
+            # Average FCF/NI over 8Q
+            valid_ratios = [r for r in fcf_to_ni_history if r is not None]
+            if valid_ratios:
+                result['fcf_to_ni_avg_8q'] = np.mean(valid_ratios)
+
+            # Trend analysis
+            if len(valid_ratios) >= 4:
+                recent_avg = np.mean(valid_ratios[:2])
+                older_avg = np.mean(valid_ratios[-2:])
+
+                if older_avg != 0:
+                    change_pct = ((recent_avg - older_avg) / abs(older_avg)) * 100
+
+                    if change_pct > 10:
+                        result['fcf_to_ni_trend'] = 'Improving'
+                    elif change_pct < -10:
+                        result['fcf_to_ni_trend'] = 'Deteriorating'
+                    else:
+                        result['fcf_to_ni_trend'] = 'Stable'
+
+            # Generate flags
+            flags = []
+
+            # Low conversion
+            if result['fcf_to_ni_current'] is not None and result['fcf_to_ni_current'] < 50:
+                flags.append(f"⚠️  FCF/NI ratio {result['fcf_to_ni_current']:.0f}% (< 50%) - earnings not converting to cash")
+
+            if result['fcf_to_ni_avg_8q'] is not None and result['fcf_to_ni_avg_8q'] < 60:
+                flags.append(f"⚠️  Avg FCF/NI {result['fcf_to_ni_avg_8q']:.0f}% over 8Q - consistently low cash conversion")
+
+            # Deteriorating trend
+            if result['fcf_to_ni_trend'] == 'Deteriorating':
+                flags.append("⚠️  FCF/NI ratio deteriorating - earnings quality declining")
+
+            # High capex intensity
+            if result['capex_intensity_current'] is not None and result['capex_intensity_current'] > 15:
+                flags.append(f"Capital-intensive business ({result['capex_intensity_current']:.1f}% capex/revenue)")
+
+            # Status
+            if result['fcf_to_ni_current'] is not None:
+                if result['fcf_to_ni_current'] < 40 or (result['fcf_to_ni_avg_8q'] and result['fcf_to_ni_avg_8q'] < 40):
+                    result['status'] = 'ROJO'
+                    flags.append("ROJO: Very low cash conversion - potential earnings manipulation")
+                elif result['fcf_to_ni_current'] < 60 or result['fcf_to_ni_trend'] == 'Deteriorating':
+                    result['status'] = 'AMBAR'
+                else:
+                    result['status'] = 'VERDE'
+
+            result['flags'] = flags
+
+        except Exception as e:
+            logger.warning(f"Error calculating cash conversion quality: {e}")
+
+        return result
+
+    def _calc_debt_maturity_wall(
+        self,
+        balance: List[Dict],
+        cashflow: List[Dict]
+    ) -> Dict:
+        """
+        Debt Maturity Wall: Detecta riesgo de refinanciamiento.
+
+        Métricas:
+        - Short-term debt as % of total debt
+        - Current debt / (Cash + Operating CF)
+        - Interest coverage with current rates
+        - Liquidity ratio
+
+        Red Flags:
+        - >40% debt maturing in 12-24 months + low cash = refinancing risk
+        - Interest coverage <3x = distress risk
+        - Short-term debt > Cash + OCF = liquidity crisis potential
+
+        Returns:
+        {
+            'short_term_debt_pct': float (% of total debt),
+            'debt_due_12m': float ($),
+            'cash_and_equivalents': float ($),
+            'liquidity_ratio': float (Cash / ST Debt),
+            'interest_coverage': float (EBIT / Interest),
+            'status': str,
+            'flags': List[str]
+        }
+        """
+        result = {
+            'short_term_debt_pct': None,
+            'debt_due_12m': None,
+            'cash_and_equivalents': None,
+            'liquidity_ratio': None,
+            'interest_coverage': None,
+            'status': 'VERDE',
+            'flags': []
+        }
+
+        if not balance or not cashflow:
+            return result
+
+        try:
+            bs = balance[0]
+            cf = cashflow[0] if cashflow else {}
+
+            # Debt metrics
+            short_term_debt = bs.get('shortTermDebt', 0)
+            long_term_debt = bs.get('longTermDebt', 0)
+            total_debt = short_term_debt + long_term_debt
+
+            # Liquidity
+            cash = bs.get('cashAndCashEquivalents', 0)
+            operating_cf = cf.get('operatingCashFlow', 0) if cf else 0
+
+            result['debt_due_12m'] = short_term_debt
+            result['cash_and_equivalents'] = cash
+
+            # Short-term debt as % of total
+            if total_debt > 0:
+                result['short_term_debt_pct'] = (short_term_debt / total_debt) * 100
+
+            # Liquidity ratio
+            if short_term_debt > 0:
+                result['liquidity_ratio'] = cash / short_term_debt
+
+            # Interest coverage (simplified - from cashflow statement)
+            interest_paid = abs(cf.get('interestPaid', 0)) if cf else 0
+
+            # Get EBIT from income statement (we'd need to fetch it)
+            # For now, use operating cash flow as proxy
+            if interest_paid > 0 and operating_cf > 0:
+                result['interest_coverage'] = operating_cf / interest_paid
+
+            # Generate flags
+            flags = []
+
+            # Maturity wall
+            if result['short_term_debt_pct'] is not None and result['short_term_debt_pct'] > 40:
+                flags.append(f"⚠️  {result['short_term_debt_pct']:.0f}% of debt due within 12 months")
+
+            # Liquidity crisis risk
+            if result['liquidity_ratio'] is not None:
+                if result['liquidity_ratio'] < 0.5:
+                    flags.append(f"🚨 Liquidity ratio {result['liquidity_ratio']:.2f}x - cash insufficient to cover ST debt")
+                elif result['liquidity_ratio'] < 1.0:
+                    flags.append(f"⚠️  Liquidity ratio {result['liquidity_ratio']:.2f}x - tight liquidity")
+
+            # Interest coverage
+            if result['interest_coverage'] is not None:
+                if result['interest_coverage'] < 2.0:
+                    flags.append(f"🚨 Interest coverage {result['interest_coverage']:.1f}x - distress risk")
+                elif result['interest_coverage'] < 3.0:
+                    flags.append(f"⚠️  Interest coverage {result['interest_coverage']:.1f}x - limited cushion")
+
+            # Refinancing risk (combining factors)
+            if (result['short_term_debt_pct'] and result['short_term_debt_pct'] > 40 and
+                result['liquidity_ratio'] and result['liquidity_ratio'] < 1.0):
+                flags.append("🚨 REFINANCING RISK: High ST debt + low liquidity")
+
+            # Status
+            if any('🚨' in flag for flag in flags):
+                result['status'] = 'ROJO'
+            elif len(flags) >= 2:
+                result['status'] = 'AMBAR'
+            else:
+                result['status'] = 'VERDE'
+
+            result['flags'] = flags
+
+        except Exception as e:
+            logger.warning(f"Error calculating debt maturity wall: {e}")
+
+        return result
