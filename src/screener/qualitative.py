@@ -235,6 +235,12 @@ class QualitativeAnalyzer:
                             'roe_%': row.get('roe_%'),
                             'efficiency_ratio': row.get('efficiency_ratio')
                         })
+                    elif company_type == 'asset_manager':
+                        snapshot_row.update({
+                            'pe_ttm': row.get('pe_ttm'),
+                            'roe_%': row.get('roe_%'),
+                            'aum_growth_%': row.get('aum_growth_%', 'N/A')
+                        })
                     elif company_type == 'reit':
                         snapshot_row.update({
                             'p_ffo': row.get('p_ffo'),
@@ -1190,10 +1196,28 @@ class QualitativeAnalyzer:
                     'multiple_weight': 0.55
                 }
 
+            # Asset Managers / Private Equity (fee-based, AUM-driven)
+            # Research: P/E multiple appropriate, NOT P/B (asset-light)
+            # Calibrated with Blackstone (~18x), KKR (~17x), Brookfield (~16x), Partners Group (~20x)
+            elif any(kw in industry + sector for kw in [
+                'asset management', 'wealth management', 'investment management',
+                'private equity', 'hedge fund', 'alternative investments',
+                'asset manager', 'investment advisor', 'fund management'
+            ]):
+                return {
+                    'profile': 'asset_manager',
+                    'primary_metric': 'P/E',
+                    'secondary_metric': 'Price/AUM',
+                    'wacc': 0.09,  # Lower than banks (asset-light, stable management fees)
+                    'expected_multiple_pe': (15, 20),  # Quality AM range
+                    'dcf_weight': 0.50,  # Equal weight: DCF + P/E blend (user requested)
+                    'multiple_weight': 0.50
+                }
+
             # Asset-based industries (Real Estate, Banks, Insurance)
             # Research: P/B well-suited for tangible assets
             elif any(kw in industry + sector for kw in [
-                'real estate', 'reit', 'bank', 'insurance', 'financial'
+                'real estate', 'reit', 'bank', 'insurance', 'financial', 'credit services'
             ]):
                 return {
                     'profile': 'asset_based',
@@ -1275,11 +1299,23 @@ class QualitativeAnalyzer:
             if 'reit' in industry or 'real estate investment trust' in industry:
                 return 'reit'
 
-            # Financials (banks, insurance, asset managers)
+            # Asset Managers & Private Equity (specialized financial sub-type)
+            # These are fee-based businesses driven by AUM, not balance sheet leverage
+            # Examples: Blackstone, KKR, Brookfield, Partners Group, Apollo, Carlyle
+            asset_manager_keywords = [
+                'asset management', 'wealth management', 'investment management',
+                'private equity', 'hedge fund', 'alternative investments',
+                'asset manager', 'investment advisor', 'fund management'
+            ]
+
+            if any(kw in industry for kw in asset_manager_keywords):
+                return 'asset_manager'
+
+            # Financials (banks, insurance, other financial services)
             if sector == 'financial services' or sector == 'financial':
                 return 'financial'
 
-            if any(kw in industry for kw in ['bank', 'insurance', 'asset management', 'capital markets']):
+            if any(kw in industry for kw in ['bank', 'insurance', 'capital markets', 'credit services']):
                 return 'financial'
 
             # Utilities
@@ -1752,6 +1788,34 @@ class QualitativeAnalyzer:
 
                 base_cf = ocf - maintenance_capex
 
+            elif company_type == 'asset_manager':
+                # Asset Managers / Private Equity: Fee-based businesses
+                # Use NORMALIZED earnings (ex extraordinary performance fees)
+
+                net_income = income[0].get('netIncome', 0)
+
+                # Attempt to normalize: remove extraordinary performance fees
+                # Performance fees are typically volatile and non-recurring
+                # Heuristic: If current year earnings >40% above prior year, likely includes big performance fee
+                if len(income) > 1:
+                    net_income_prev = income[1].get('netIncome', 1)
+                    if net_income_prev > 0:
+                        earnings_growth = (net_income - net_income_prev) / net_income_prev
+
+                        if earnings_growth > 0.40:
+                            # Likely extraordinary performance fee - use average of last 2 years
+                            normalized_earnings = (net_income + net_income_prev) / 2
+                            logger.info(f"DCF Asset Manager: {symbol} normalizing earnings ({earnings_growth:.1%} growth) - using 2Y avg: ${normalized_earnings:,.0f}")
+                            add_note(f"💡 Normalized earnings (2Y avg) to remove performance fee volatility")
+                            base_cf = normalized_earnings
+                        else:
+                            # Normal earnings
+                            base_cf = net_income
+                    else:
+                        base_cf = net_income
+                else:
+                    base_cf = net_income
+
             else:  # Financial or unknown (treat unknown as non_financial)
                 if company_type in ['financial', 'bank', 'insurance']:
                     # Use earnings (net income) for financials
@@ -1785,18 +1849,33 @@ class QualitativeAnalyzer:
             else:
                 revenue_growth = 0.08  # Default 8%
 
-            # Stage 1 growth (5 years): taper from current to 10%
-            growth_stage1 = (revenue_growth + 0.10) / 2  # Average of current and 10%
-
-            # Stage 2 (terminal): 3% perpetual
-            terminal_growth = 0.03
+            # Asset Manager specific: More conservative growth assumptions
+            # Growth driven by AUM, not revenue multiples
+            if company_type == 'asset_manager':
+                # Realistic AUM growth: 8-12% annually (industry average)
+                # Cap stage 1 growth at 12% (optimistic but realistic for quality AMs)
+                growth_stage1 = min(revenue_growth, 0.12)
+                if growth_stage1 < 0.08:
+                    growth_stage1 = 0.08  # Minimum 8% for quality AMs
+                terminal_growth = 0.05  # Slightly higher terminal (AUM compounds)
+                logger.info(f"DCF Asset Manager: {symbol} using AUM-linked growth - Stage1: {growth_stage1:.1%}, Terminal: {terminal_growth:.1%}")
+                add_note(f"💡 Growth linked to realistic AUM expansion ({growth_stage1:.0%} / {terminal_growth:.0%})")
+            else:
+                # Standard growth assumptions for other company types
+                # Stage 1 growth (5 years): taper from current to 10%
+                growth_stage1 = (revenue_growth + 0.10) / 2  # Average of current and 10%
+                # Stage 2 (terminal): 3% perpetual
+                terminal_growth = 0.03
 
             # === WACC (use industry-specific if provided) ===
 
             if wacc_override:
                 wacc = wacc_override
+            elif company_type == 'asset_manager':
+                wacc = 0.09  # Lower than banks (asset-light, predictable fees)
+                # Asset managers have stable fee streams, lower leverage than banks
             elif company_type == 'financial':
-                wacc = 0.12  # Higher for financials
+                wacc = 0.12  # Higher for financials (leverage risk)
             elif company_type == 'reit':
                 wacc = 0.09  # Lower for REITs (stable cash flows)
             elif company_type == 'utility':
@@ -2051,8 +2130,86 @@ class QualitativeAnalyzer:
 
                 return fair_value_per_share if fair_value_per_share > 0 else None
 
-            else:  # Financial
-                # Use P/B (Price to Book) for financials instead of P/E
+            elif company_type == 'asset_manager':
+                # Asset Managers / PE: Use P/E multiple (NOT P/B)
+                # P/B is inappropriate for fee-based, asset-light businesses
+                # Calibrated with Blackstone, KKR, Brookfield, Partners Group, Apollo
+
+                net_income = income[0].get('netIncome', 0)
+
+                # Normalize for performance fees if needed (same logic as DCF)
+                if len(income) > 1:
+                    net_income_prev = income[1].get('netIncome', 1)
+                    if net_income_prev > 0:
+                        earnings_growth = (net_income - net_income_prev) / net_income_prev
+                        if earnings_growth > 0.40:
+                            # Use average to smooth out performance fee volatility
+                            net_income = (net_income + net_income_prev) / 2
+                            add_note(f"💡 Normalized earnings for forward P/E")
+
+                # Forward earnings (modest growth: 8-12%)
+                if len(income) > 1:
+                    revenue_growth = (income[0].get('revenue', 0) - income[1].get('revenue', 1)) / income[1].get('revenue', 1)
+                    growth_rate = max(0.08, min(revenue_growth, 0.12))  # 8-12%
+                else:
+                    growth_rate = 0.10
+
+                earnings_forward = net_income * (1 + growth_rate)
+                earnings_per_share = earnings_forward / shares
+
+                if earnings_per_share <= 0:
+                    msg = f"Forward Multiple (Asset Manager): EPS <= 0 (got {earnings_per_share:.2f})"
+                    logger.warning(f"{symbol} {msg}")
+                    add_note(f"✗ {msg}")
+                    return None
+
+                # Sector P/E for quality asset managers
+                # Research: Blackstone ~18x, KKR ~17x, Brookfield ~16x, Partners Group ~20x
+                # Apollo ~15x, Carlyle ~14x
+                # Average: ~17x for quality AMs
+                # Range: 15-20x depending on AUM growth quality
+
+                peer_pe = None
+                if peers_df is not None and 'pe_ttm' in peers_df.columns:
+                    stock_peers = self.fmp.get_stock_peers(symbol)
+                    if stock_peers and 'peersList' in stock_peers[0]:
+                        peer_symbols = stock_peers[0]['peersList'][:5]
+
+                        peer_pes = []
+                        for peer in peer_symbols:
+                            if peer in peers_df.index:
+                                pe = peers_df.loc[peer, 'pe_ttm']
+                                # Sanity: P/E 10-30x for asset managers
+                                if pe and pe > 10 and pe < 30:
+                                    peer_pes.append(pe)
+
+                        if peer_pes:
+                            peer_pe = sum(peer_pes) / len(peer_pes)
+                            logger.info(f"Forward Multiple (Asset Manager): {symbol} peer P/E={peer_pe:.1f}x from {len(peer_pes)} peers")
+                            add_note(f"✓ Peer P/E: {peer_pe:.1f}x (from {len(peer_pes)} asset manager peers)")
+
+                # Fallback: sector average P/E = 17x (calibrated with BX, KKR, BAM, PGHN)
+                if not peer_pe:
+                    peer_pe = 17.0
+                    logger.info(f"Forward Multiple (Asset Manager): {symbol} using sector P/E={peer_pe:.1f}x")
+                    add_note(f"✓ Sector P/E: {peer_pe:.1f}x (Blackstone/KKR/Brookfield avg)")
+
+                fair_value = earnings_per_share * peer_pe
+
+                logger.info(f"Forward Multiple (Asset Manager): {symbol} fair_value=${fair_value:.2f} (EPS=${earnings_per_share:.2f} × P/E={peer_pe:.1f}x)")
+
+                # Sanity check
+                if fair_value > earnings_per_share * 30:
+                    msg = f"Forward Multiple (Asset Manager): Fair value ${fair_value:.2f} seems too high (>30x EPS). Capping at 25x."
+                    logger.warning(f"{symbol} {msg}")
+                    add_note(f"⚠️ {msg}")
+                    fair_value = earnings_per_share * 25
+
+                return fair_value if fair_value > 0 else None
+
+            else:  # Financial (banks, insurance)
+                # Use P/B (Price to Book) for traditional financials
+                # Asset managers handled separately above
 
                 book_value = balance[0].get('totalStockholdersEquity', 0)
 
