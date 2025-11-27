@@ -959,51 +959,72 @@ class GuardrailCalculator:
         # ===================================
         # ADVANCED RED FLAGS ASSESSMENT
         # ===================================
+        # NOTE: These are early warning indicators, not automatic disqualifiers
+        # Only count as RED FLAG if SEVERE, otherwise just informational
 
         # 1. Working Capital Red Flags
+        # WC deterioration is early warning, NOT automatic red flag
         wc = guardrails.get('working_capital', {})
         if wc.get('status') == 'ROJO':
-            red_flags += 1
-            if wc.get('flags'):
-                reasons.append(f"WC: {wc['flags'][0]}")
+            # Only red flag if EXTREME deterioration (CCC +20 days or 3+ flags)
+            if wc.get('ccc_change_8q') and wc.get('ccc_change_8q') > 30:
+                amber_flags += 1  # Amber, not red - could be temporary
+                reasons.append(f"WC: CCC +{wc['ccc_change_8q']:.0f} days (severe deterioration)")
+            elif len(wc.get('flags', [])) >= 3:
+                amber_flags += 1
+                reasons.append(f"WC: Multiple deterioration signals")
         elif wc.get('status') == 'AMBAR':
-            amber_flags += 1
-            if wc.get('flags'):
-                reasons.append(f"WC: {wc['flags'][0]}")
+            # Don't count amber WC at all - too common, often cyclical
+            pass
 
         # 2. Margin Trajectory
+        # Margin compression can be cyclical or strategic (e.g. growth investment)
+        # Only flag if BOTH margins compressing AND company is mature
         mt = guardrails.get('margin_trajectory', {})
         if mt.get('status') == 'ROJO':
-            red_flags += 1
-            reasons.append("Margins compressing (losing pricing power)")
+            # Check if company is mature (not high-growth)
+            revenue_growth = guardrails.get('revenue_growth_3y', 0)
+            if revenue_growth and revenue_growth < 5:  # Mature company (<5% growth)
+                amber_flags += 1  # Amber, not red - could be cyclical
+                reasons.append("Margins compressing (mature company)")
+            # If high-growth company, ignore margin compression (normal for growth phase)
         elif mt.get('status') == 'AMBAR':
-            amber_flags += 1
-            if mt.get('gross_margin_trajectory') == 'Compressing':
-                reasons.append("Gross margin compressing")
+            # Don't count - single margin compressing is common
+            pass
 
         # 3. Cash Conversion Quality
+        # Low FCF conversion is SERIOUS - indicates potential earnings manipulation
         cc = guardrails.get('cash_conversion', {})
         if cc.get('status') == 'ROJO':
+            # This IS a real red flag - earnings not converting to cash
             red_flags += 1
             fcf_ni = cc.get('fcf_to_ni_current')
-            if fcf_ni is not None:
-                reasons.append(f"FCF/NI {fcf_ni:.0f}% (low cash conversion)")
+            if fcf_ni is not None and fcf_ni < 40:
+                reasons.append(f"FCF/NI {fcf_ni:.0f}% (earnings quality concern)")
         elif cc.get('status') == 'AMBAR':
-            amber_flags += 1
-            if cc.get('fcf_to_ni_trend') == 'Deteriorating':
-                reasons.append("Cash conversion deteriorating")
+            # Only amber if consistently low, not just one bad quarter
+            if cc.get('fcf_to_ni_avg_8q') and cc.get('fcf_to_ni_avg_8q') < 60:
+                amber_flags += 1
+                reasons.append(f"Low FCF conversion (8Q avg {cc['fcf_to_ni_avg_8q']:.0f}%)")
 
         # 4. Debt Maturity Wall
+        # Refinancing risk is CRITICAL - can lead to bankruptcy
         dm = guardrails.get('debt_maturity_wall', {})
         if dm.get('status') == 'ROJO':
-            red_flags += 1
+            # This IS a real red flag - liquidity crisis potential
             if any('REFINANCING RISK' in flag for flag in dm.get('flags', [])):
+                red_flags += 1
                 reasons.append("Refinancing risk (ST debt + low liquidity)")
-            elif dm.get('flags'):
-                reasons.append(f"Debt: {dm['flags'][0][:50]}")
+            elif dm.get('interest_coverage') and dm.get('interest_coverage') < 2.0:
+                red_flags += 1
+                reasons.append(f"Interest coverage {dm['interest_coverage']:.1f}x (distress)")
+            elif dm.get('liquidity_ratio') and dm.get('liquidity_ratio') < 0.5:
+                red_flags += 1
+                reasons.append(f"Liquidity crisis (cash/ST debt {dm['liquidity_ratio']:.2f}x)")
         elif dm.get('status') == 'AMBAR':
-            amber_flags += 1
+            # Only amber if interest coverage is weak
             if dm.get('interest_coverage') and dm.get('interest_coverage') < 3.0:
+                amber_flags += 1
                 reasons.append(f"Interest coverage {dm['interest_coverage']:.1f}x")
 
         # Determine status

@@ -66,7 +66,8 @@ class QualitativeAnalyzer:
             'mna_recent': [],
             'top_risks': [],
             'risks': [],  # UI expects this
-            'intrinsic_value': {}  # New: valuation analysis
+            'intrinsic_value': {},  # New: valuation analysis
+            'contextual_warnings': []  # New: non-disqualifying warnings (customer concentration, etc.)
         }
 
         try:
@@ -128,6 +129,13 @@ class QualitativeAnalyzer:
                 company_type,
                 peers_df,
                 summary.get('peers_list', [])
+            )
+
+            # 10. Contextual Warnings (non-disqualifying)
+            # These are informational only, don't affect scoring
+            summary['contextual_warnings'] = self._assess_contextual_warnings(
+                symbol,
+                summary['transcript_TLDR']
             )
 
         except Exception as e:
@@ -1144,6 +1152,304 @@ class QualitativeAnalyzer:
             logger.warning(f"Failed to extract backlog data for {symbol}: {e}")
 
         return result
+
+    def _assess_contextual_warnings(
+        self,
+        symbol: str,
+        transcript_tldr: Dict
+    ) -> List[Dict]:
+        """
+        Assess contextual warnings (non-disqualifying, informational only).
+        These do NOT affect scoring VERDE/AMBAR/ROJO.
+
+        Métricas:
+        1. Customer Concentration - revenue dependency on few customers
+        2. Management Turnover - CEO/CFO changes (instability flag)
+        3. Geographic Revenue Exposure - geopolitical risk
+
+        Returns: List of warning dicts:
+        {
+            'type': str,  # 'customer_concentration', 'management_turnover', 'geographic_risk'
+            'severity': str,  # 'Info', 'Caution', 'Warning'
+            'message': str,
+            'details': str
+        }
+        """
+        warnings = []
+
+        try:
+            # 1. Customer Concentration Analysis
+            customer_warning = self._analyze_customer_concentration(symbol)
+            if customer_warning:
+                warnings.append(customer_warning)
+
+            # 2. Management Turnover Flags
+            mgmt_warning = self._analyze_management_turnover(symbol)
+            if mgmt_warning:
+                warnings.append(mgmt_warning)
+
+            # 3. Geographic Revenue Exposure
+            geo_warning = self._analyze_geographic_exposure(symbol)
+            if geo_warning:
+                warnings.append(geo_warning)
+
+        except Exception as e:
+            logger.warning(f"Error assessing contextual warnings for {symbol}: {e}")
+
+        return warnings
+
+    def _analyze_customer_concentration(self, symbol: str) -> Optional[Dict]:
+        """
+        Analyze customer concentration risk from earnings call transcripts.
+
+        High Risk: Single customer >20% of revenue
+        Medium Risk: Single customer 10-20%
+        Low Risk: Top customer <10%
+        """
+        try:
+            # Get latest transcript
+            transcripts = self.fmp.get_earnings_call_transcript(symbol)
+            if not transcripts:
+                return None
+
+            transcript = transcripts[0]
+            content = transcript.get('content', '')
+            if not content:
+                return None
+
+            content_lower = content.lower()
+
+            # Search patterns for customer concentration
+            concentration_patterns = [
+                r'(?:largest|top|single|major)\s+customer\s+(?:represents|accounts for|comprises)\s+(?:approximately\s+)?([\d.]+)%',
+                r'([\d.]+)%\s+of\s+(?:our\s+)?(?:total\s+)?revenue\s+(?:comes\s+)?from\s+(?:a\s+)?single\s+customer',
+                r'customer\s+concentration\s+(?:of\s+)?(?:approximately\s+)?([\d.]+)%',
+                r'one\s+customer\s+accounted\s+for\s+(?:approximately\s+)?([\d.]+)%'
+            ]
+
+            max_concentration = 0
+            for pattern in concentration_patterns:
+                matches = re.findall(pattern, content_lower)
+                for match in matches:
+                    try:
+                        pct = float(match)
+                        if pct > max_concentration and pct < 100:  # Sanity check
+                            max_concentration = pct
+                    except:
+                        pass
+
+            # Also search for qualitative mentions
+            high_risk_keywords = [
+                'significant customer concentration',
+                'heavily dependent on',
+                'reliance on a single customer',
+                'loss of our largest customer'
+            ]
+
+            has_qualitative_mention = any(kw in content_lower for kw in high_risk_keywords)
+
+            # Generate warning
+            if max_concentration > 20 or (has_qualitative_mention and max_concentration > 15):
+                return {
+                    'type': 'customer_concentration',
+                    'severity': 'Warning',
+                    'message': f'High customer concentration risk',
+                    'details': f'Single customer represents {max_concentration:.0f}% of revenue - loss would be material'
+                }
+            elif max_concentration > 10:
+                return {
+                    'type': 'customer_concentration',
+                    'severity': 'Caution',
+                    'message': f'Moderate customer concentration',
+                    'details': f'Top customer {max_concentration:.0f}% of revenue - monitor for changes'
+                }
+            elif has_qualitative_mention:
+                return {
+                    'type': 'customer_concentration',
+                    'severity': 'Info',
+                    'message': 'Customer concentration mentioned',
+                    'details': 'Management discussed customer concentration in earnings call'
+                }
+
+        except Exception as e:
+            logger.warning(f"Error analyzing customer concentration for {symbol}: {e}")
+
+        return None
+
+    def _analyze_management_turnover(self, symbol: str) -> Optional[Dict]:
+        """
+        Analyze CEO/CFO turnover as instability flag.
+
+        High Risk: 2+ CFO changes in 3 years
+        Medium Risk: CEO change in last 2 years
+        Info: Recent C-suite departure
+        """
+        try:
+            # Get key executives
+            executives = self.fmp.get_key_executives(symbol)
+            if not executives:
+                return None
+
+            # FMP doesn't provide tenure history, so we'll check news
+            # for recent departures/changes
+            news = self.fmp.get_stock_news(symbol, limit=50)
+            if not news:
+                return None
+
+            # Search for executive changes in news
+            cfo_changes = 0
+            ceo_changes = 0
+            recent_departures = []
+
+            for article in news:
+                title = article.get('title', '').lower()
+                text = article.get('text', '').lower()
+                date = article.get('publishedDate', '')
+
+                # Check for CFO/CEO changes
+                if any(keyword in title or keyword in text for keyword in [
+                    'cfo resign', 'cfo depart', 'cfo step', 'chief financial officer resign',
+                    'new cfo', 'appoint cfo', 'interim cfo'
+                ]):
+                    cfo_changes += 1
+                    recent_departures.append(f"CFO change mentioned in news ({date[:10]})")
+
+                if any(keyword in title or keyword in text for keyword in [
+                    'ceo resign', 'ceo depart', 'ceo step', 'chief executive resign',
+                    'new ceo', 'appoint ceo', 'interim ceo'
+                ]):
+                    ceo_changes += 1
+                    recent_departures.append(f"CEO change mentioned in news ({date[:10]})")
+
+            # Generate warning
+            if cfo_changes >= 2:
+                return {
+                    'type': 'management_turnover',
+                    'severity': 'Warning',
+                    'message': 'High CFO turnover',
+                    'details': f'{cfo_changes} CFO changes in recent news - often precedes accounting issues'
+                }
+            elif ceo_changes >= 1 and cfo_changes >= 1:
+                return {
+                    'type': 'management_turnover',
+                    'severity': 'Warning',
+                    'message': 'Multiple C-suite changes',
+                    'details': f'CEO and CFO changes detected - management instability'
+                }
+            elif ceo_changes >= 1:
+                return {
+                    'type': 'management_turnover',
+                    'severity': 'Caution',
+                    'message': 'CEO change detected',
+                    'details': 'New CEO may implement strategic changes - monitor execution'
+                }
+            elif cfo_changes >= 1:
+                return {
+                    'type': 'management_turnover',
+                    'severity': 'Caution',
+                    'message': 'CFO change detected',
+                    'details': 'New CFO - watch for accounting policy changes'
+                }
+
+        except Exception as e:
+            logger.warning(f"Error analyzing management turnover for {symbol}: {e}")
+
+        return None
+
+    def _analyze_geographic_exposure(self, symbol: str) -> Optional[Dict]:
+        """
+        Analyze geographic revenue exposure for geopolitical risk.
+
+        High Risk: >30% revenue from high-risk regions (China, Russia, etc.)
+        Medium Risk: 15-30% from high-risk regions
+        Info: Significant international exposure
+        """
+        try:
+            # FMP has revenue-geographic-segmentation endpoint for some companies
+            # This is not always available, so gracefully handle
+
+            # Note: FMP API client may not have this endpoint exposed
+            # We'll try to infer from earnings transcript instead
+
+            transcripts = self.fmp.get_earnings_call_transcript(symbol)
+            if not transcripts:
+                return None
+
+            transcript = transcripts[0]
+            content = transcript.get('content', '')
+            if not content:
+                return None
+
+            content_lower = content.lower()
+
+            # High-risk regions
+            high_risk_regions = {
+                'china': r'china\s+revenue|revenue\s+(?:from\s+)?china|chinese\s+market',
+                'russia': r'russia\s+revenue|revenue\s+(?:from\s+)?russia|russian\s+market',
+                'middle east': r'middle\s+east|mena\s+region'
+            }
+
+            exposures = {}
+            for region, pattern in high_risk_regions.items():
+                # Look for revenue percentage mentions
+                region_pattern = pattern + r'.*?([\d.]+)%'
+                matches = re.findall(region_pattern, content_lower)
+                if matches:
+                    try:
+                        pct = float(matches[0])
+                        if pct < 100:  # Sanity check
+                            exposures[region] = pct
+                    except:
+                        pass
+
+            # Generate warning based on highest exposure
+            if exposures:
+                max_region = max(exposures, key=exposures.get)
+                max_exposure = exposures[max_region]
+
+                if max_exposure > 30:
+                    return {
+                        'type': 'geographic_risk',
+                        'severity': 'Warning',
+                        'message': f'High {max_region.title()} exposure',
+                        'details': f'{max_exposure:.0f}% revenue from {max_region.title()} - geopolitical risk'
+                    }
+                elif max_exposure > 15:
+                    return {
+                        'type': 'geographic_risk',
+                        'severity': 'Caution',
+                        'message': f'Moderate {max_region.title()} exposure',
+                        'details': f'{max_exposure:.0f}% revenue from {max_region.title()} - monitor tensions'
+                    }
+                else:
+                    return {
+                        'type': 'geographic_risk',
+                        'severity': 'Info',
+                        'message': f'{max_region.title()} presence',
+                        'details': f'{max_exposure:.0f}% revenue from {max_region.title()}'
+                    }
+
+            # Check for qualitative mentions of geographic concerns
+            geo_risk_keywords = [
+                'geopolitical risk',
+                'trade tensions',
+                'tariff impact',
+                'export restrictions',
+                'sanctions'
+            ]
+
+            if any(keyword in content_lower for keyword in geo_risk_keywords):
+                return {
+                    'type': 'geographic_risk',
+                    'severity': 'Info',
+                    'message': 'Geopolitical concerns mentioned',
+                    'details': 'Management discussed geographic/trade risks in earnings call'
+                }
+
+        except Exception as e:
+            logger.warning(f"Error analyzing geographic exposure for {symbol}: {e}")
+
+        return None
 
     # ===================================
     # 7. Recent M&A
