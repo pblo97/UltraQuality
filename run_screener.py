@@ -4486,7 +4486,7 @@ with tab7:
                             # Analyze
                             tech_result = tech_analyzer.analyze(symbol, sector=sector)
 
-                            # Add to results
+                            # Add to results (using NEW enhanced analyzer fields)
                             technical_results.append({
                                 'ticker': symbol,
                                 'name': row.get('name', ''),
@@ -4495,11 +4495,17 @@ with tab7:
                                 'fundamental_score': row['composite_0_100'],
                                 'technical_score': tech_result['score'],
                                 'technical_signal': tech_result['signal'],
-                                'momentum_12m': tech_result['momentum_12m'],
-                                'trend': tech_result['trend'],
-                                'sector_status': tech_result['sector_status'],
-                                'warnings_count': len(tech_result['warnings']),
-                                'warnings': tech_result['warnings'],
+                                'market_regime': tech_result.get('market_regime', 'UNKNOWN'),
+                                'momentum_12m': tech_result.get('momentum_12m', 0),
+                                'momentum_6m': tech_result.get('momentum_6m', 0),
+                                'momentum_consistency': tech_result.get('momentum_consistency', 'N/A'),
+                                'sharpe_12m': tech_result.get('sharpe_12m', 0),
+                                'trend': tech_result.get('trend', 'UNKNOWN'),
+                                'sector_status': tech_result.get('sector_status', 'UNKNOWN'),
+                                'market_status': tech_result.get('market_status', 'UNKNOWN'),
+                                'volume_profile': tech_result.get('volume_profile', 'UNKNOWN'),
+                                'warnings_count': len(tech_result.get('warnings', [])),
+                                'warnings': tech_result.get('warnings', []),
                                 'full_analysis': tech_result
                             })
                         except Exception as e:
@@ -4627,19 +4633,24 @@ with tab7:
                 st.write(f"**{len(df_filtered)}** stocks match filters")
 
                 # Main table
-                st.subheader("📊 Technical Ranking")
+                st.subheader("📊 Technical Ranking (Enhanced)")
 
                 display_cols = [
                     'ticker', 'name', 'sector',
+                    'market_regime',
                     'technical_score', 'technical_signal',
-                    'momentum_12m', 'trend', 'sector_status',
+                    'momentum_6m', 'momentum_consistency',
+                    'sharpe_12m', 'trend',
+                    'sector_status', 'market_status',
+                    'volume_profile',
                     'fundamental_score', 'fundamental_decision',
                     'warnings_count'
                 ]
 
                 # Format for display
                 df_display = df_filtered[display_cols].copy()
-                df_display['momentum_12m'] = df_display['momentum_12m'].apply(lambda x: f"{x:+.1f}%")
+                df_display['momentum_6m'] = df_display['momentum_6m'].apply(lambda x: f"{x:+.1f}%")
+                df_display['sharpe_12m'] = df_display['sharpe_12m'].apply(lambda x: f"{x:.2f}")
 
                 st.dataframe(
                     df_display,
@@ -4737,49 +4748,107 @@ with tab7:
                                 "70% Fund + 30% Tech"
                             )
 
-                        # Component scores
-                        st.markdown("#### Technical Components")
+                        # Market Context
+                        market_regime = full_analysis.get('market_regime', 'UNKNOWN')
+                        regime_emoji = '🟢' if market_regime == 'BULL' else '🔴' if market_regime == 'BEAR' else '🟡'
+
+                        st.markdown(f"#### {regime_emoji} Market Context: {market_regime}")
+                        st.caption(f"Confidence: {full_analysis.get('regime_confidence', 'unknown')}")
+
+                        # Component scores (NEW scoring system)
+                        st.markdown("#### 📊 Technical Components (NEW Scoring)")
 
                         components = full_analysis.get('component_scores', {})
 
-                        col1, col2, col3, col4 = st.columns(4)
+                        col1, col2, col3, col4, col5 = st.columns(5)
 
                         with col1:
-                            st.metric("Momentum (12M)", f"{components.get('momentum', 0):.0f}/35")
-                            st.caption(f"{full_analysis.get('momentum_12m', 0):+.1f}% return")
+                            st.metric("Multi-TF Momentum", f"{components.get('momentum', 0):.0f}/25")
+                            st.caption(f"{full_analysis.get('momentum_consistency', 'N/A')}")
 
                         with col2:
-                            st.metric("Sector Strength", f"{components.get('sector', 0):.0f}/25")
-                            st.caption(full_analysis.get('sector_status', 'Unknown'))
+                            st.metric("Risk-Adjusted", f"{components.get('risk_adjusted', 0):.0f}/15")
+                            st.caption(f"Sharpe: {full_analysis.get('sharpe_12m', 0):.2f}")
 
                         with col3:
-                            st.metric("Trend (MA200)", f"{components.get('trend', 0):.0f}/25")
-                            st.caption(full_analysis.get('trend', 'Unknown'))
+                            st.metric("Sector Relative", f"{components.get('sector_relative', 0):.0f}/15")
+                            st.caption(full_analysis.get('sector_status', 'N/A'))
 
                         with col4:
-                            st.metric("Volume", f"{components.get('volume', 0):.0f}/15")
-                            st.caption(full_analysis.get('volume_status', 'Unknown'))
+                            st.metric("Market Relative", f"{components.get('market_relative', 0):.0f}/10")
+                            st.caption(full_analysis.get('market_status', 'N/A'))
 
-                        # Detailed metrics
-                        st.markdown("#### Detailed Metrics")
+                        with col5:
+                            st.metric("Volume Profile", f"{components.get('volume', 0):.0f}/10")
+                            st.caption(full_analysis.get('volume_profile', 'N/A'))
 
-                        col1, col2 = st.columns(2)
+                        # Regime Adjustment
+                        regime_adj = components.get('regime_adjustment', 0)
+                        if regime_adj != 0:
+                            st.info(f"⚖️ Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
 
-                        with col1:
-                            st.markdown("**Momentum & Trend:**")
-                            st.write(f"- 12M Return: {full_analysis.get('momentum_12m', 0):+.1f}%")
-                            st.write(f"- Status: {full_analysis.get('momentum_status', 'Unknown')}")
-                            st.write(f"- Trend: {full_analysis.get('trend', 'Unknown')}")
-                            st.write(f"- Distance from MA200: {full_analysis.get('distance_from_ma200', 0):+.1f}%")
-                            st.write(f"- Golden Cross: {'✅' if full_analysis.get('golden_cross') else '❌'}")
+                        # Detailed metrics (NEW - organized by category)
+                        st.markdown("#### 📈 Detailed Metrics")
 
-                        with col2:
-                            st.markdown("**Sector Analysis:**")
-                            st.write(f"- Sector: {full_analysis.get('sector', 'Unknown')}")
-                            st.write(f"- Sector Return (6M): {full_analysis.get('sector_momentum_6m', 0):+.1f}%")
-                            st.write(f"- Relative Strength: {full_analysis.get('relative_strength', 0):+.1f}%")
-                            st.write(f"- Sector Status: {full_analysis.get('sector_status', 'Unknown')}")
-                            st.write(f"- Volume Ratio: {full_analysis.get('volume_ratio', 0):.2f}x avg")
+                        tab1, tab2, tab3, tab4 = st.tabs(["Momentum", "Risk & Relative Strength", "Trend & Volume", "Market Context"])
+
+                        with tab1:
+                            st.markdown("**Multi-Timeframe Momentum:**")
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("12M Return", f"{full_analysis.get('momentum_12m', 0):+.1f}%")
+                            with col2:
+                                st.metric("6M Return", f"{full_analysis.get('momentum_6m', 0):+.1f}%")
+                            with col3:
+                                st.metric("3M Return", f"{full_analysis.get('momentum_3m', 0):+.1f}%")
+                            with col4:
+                                st.metric("1M Return", f"{full_analysis.get('momentum_1m', 0):+.1f}%")
+
+                            st.write(f"**Consistency:** {full_analysis.get('momentum_consistency', 'N/A')}")
+                            st.write(f"**Status:** {full_analysis.get('momentum_status', 'N/A')}")
+
+                        with tab2:
+                            col1, col2 = st.columns(2)
+
+                            with col1:
+                                st.markdown("**Risk Metrics:**")
+                                st.write(f"- Sharpe Ratio (12M): {full_analysis.get('sharpe_12m', 0):.2f}")
+                                st.write(f"- Volatility (12M): {full_analysis.get('volatility_12m', 0):.1f}%")
+                                st.write(f"- Risk Status: {full_analysis.get('risk_adjusted_status', 'N/A')}")
+
+                            with col2:
+                                st.markdown("**Relative Strength:**")
+                                st.write(f"- vs Sector: {full_analysis.get('sector_relative', 0):+.1f}%")
+                                st.write(f"- vs Market (SPY): {full_analysis.get('market_relative', 0):+.1f}%")
+                                st.write(f"- Sector Status: {full_analysis.get('sector_status', 'N/A')}")
+                                st.write(f"- Market Status: {full_analysis.get('market_status', 'N/A')}")
+
+                        with tab3:
+                            col1, col2 = st.columns(2)
+
+                            with col1:
+                                st.markdown("**Trend Analysis:**")
+                                st.write(f"- Trend: {full_analysis.get('trend', 'N/A')}")
+                                st.write(f"- Distance from MA200: {full_analysis.get('distance_from_ma200', 0):+.1f}%")
+                                st.write(f"- Golden Cross: {'✅' if full_analysis.get('golden_cross') else '❌'}")
+
+                            with col2:
+                                st.markdown("**Volume Analysis:**")
+                                st.write(f"- Profile: {full_analysis.get('volume_profile', 'N/A')}")
+                                st.write(f"- Trend: {full_analysis.get('volume_trend', 'N/A')}")
+                                st.write(f"- Accumulation Ratio: {full_analysis.get('accumulation_ratio', 0):.2f}")
+
+                        with tab4:
+                            st.markdown("**Market Environment:**")
+                            st.write(f"- Regime: **{market_regime}** ({full_analysis.get('regime_confidence', 'unknown')} confidence)")
+
+                            # Show regime details if available (would need to expose this in result)
+                            st.info("""
+                            **Market regime affects momentum effectiveness:**
+                            - 🟢 **BULL**: Momentum +20% more effective
+                            - 🔴 **BEAR**: Momentum -60% effectiveness (crowding)
+                            - 🟡 **SIDEWAYS**: Normal momentum behavior
+                            """)
 
                         # Warnings
                         warnings = full_analysis.get('warnings', [])

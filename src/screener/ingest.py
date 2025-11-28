@@ -282,6 +282,23 @@ class FMPClient:
         """
         return self._request(f'quote/{symbol}', cache=False)  # Real-time data, no cache
 
+    def get_historical_prices(self, symbol: str, from_date: str = None, to_date: str = None) -> Dict:
+        """
+        Endpoint: /historical-price-full/{symbol}
+        Returns: {'symbol': 'AAPL', 'historical': [{'date': '2024-01-01', 'open': 100, 'high': 105, ...}, ...]}
+
+        Args:
+            symbol: Stock ticker
+            from_date: Optional start date (YYYY-MM-DD)
+            to_date: Optional end date (YYYY-MM-DD)
+        """
+        params = {}
+        if from_date:
+            params['from'] = from_date
+        if to_date:
+            params['to'] = to_date
+        return self._request(f'historical-price-full/{symbol}', params, cache=self.cache_symbol)
+
     # ========================
     # Financial Statements
     # ========================

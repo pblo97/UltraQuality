@@ -44,6 +44,7 @@ class CachedFMPClient:
         self.ttls = {
             'profile': timedelta(days=7),
             'quote': timedelta(hours=6),  # Real-time quote, refresh 4x/day
+            'historical_prices': timedelta(days=1),  # Historical prices, daily EOD refresh
             'balance_sheet': timedelta(days=1),
             'income_statement': timedelta(days=1),
             'cash_flow': timedelta(days=1),
@@ -181,6 +182,16 @@ class CachedFMPClient:
             'quote',
             self.fmp.get_quote,
             symbol
+        )
+
+    def get_historical_prices(self, symbol, from_date=None, to_date=None):
+        """Get historical prices (cached 1 day)."""
+        return self._fetch_with_cache(
+            'historical_prices',
+            self.fmp.get_historical_prices,
+            symbol,
+            from_date=from_date,
+            to_date=to_date
         )
 
     def get_balance_sheet(self, symbol, period='quarter', limit=8):
