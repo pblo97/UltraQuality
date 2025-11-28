@@ -4537,6 +4537,27 @@ with tab7:
 
                     st.success("✅ Technical analysis complete!")
 
+                    # Debug info - show signal distribution
+                    with st.expander("📊 Analysis Summary", expanded=True):
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.write("**Signal Distribution:**")
+                            signal_counts = df_tech['technical_signal'].value_counts()
+                            for signal, count in signal_counts.items():
+                                st.write(f"- {signal}: {count} ({count/len(df_tech)*100:.1f}%)")
+
+                        with col2:
+                            st.write("**Score Stats:**")
+                            st.write(f"- Min: {df_tech['technical_score'].min():.1f}")
+                            st.write(f"- Avg: {df_tech['technical_score'].mean():.1f}")
+                            st.write(f"- Max: {df_tech['technical_score'].max():.1f}")
+
+                        with col3:
+                            st.write("**Top 3 Stocks:**")
+                            top3 = df_tech.nlargest(3, 'technical_score')
+                            for _, row in top3.iterrows():
+                                st.write(f"- {row['ticker']}: {row['technical_score']:.0f} ({row['technical_signal']})")
+
                 except Exception as e:
                     st.error(f"❌ Error initializing technical analysis: {str(e)}")
                     st.exception(e)
@@ -4577,7 +4598,7 @@ with tab7:
                     tech_signal_filter = st.multiselect(
                         "Technical Signal",
                         options=['BUY', 'HOLD', 'SELL'],
-                        default=['BUY', 'HOLD'],
+                        default=['BUY', 'HOLD', 'SELL'],  # Show all by default
                         key='tech_signal_filter'
                     )
 
@@ -4592,7 +4613,7 @@ with tab7:
                 with col3:
                     min_tech_score = st.slider(
                         "Min Technical Score",
-                        0, 100, 50,
+                        0, 100, 0,  # Start at 0 to show all results
                         key='min_tech_score'
                     )
 
