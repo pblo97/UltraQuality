@@ -4850,22 +4850,28 @@ with tab7:
                             - 🟡 **SIDEWAYS**: Normal momentum behavior
                             """)
 
-                        # Warnings
+                        # Warnings & Diagnostics
+                        st.markdown("#### ⚠️ Warnings & Diagnostics")
+
+                        # Check for errors first
+                        if 'error' in full_analysis:
+                            st.error(f"🔴 **Analysis Error**: {full_analysis['error']}")
+                            st.info("💡 **Common causes**: API issues, insufficient historical data (<250 days), or missing API key configuration. Check Streamlit logs for details.")
+
                         warnings = full_analysis.get('warnings', [])
                         if warnings:
-                            st.markdown("#### ⚠️ Warnings")
-
                             for warning in warnings:
-                                severity = warning.get('severity', 'LOW')
+                                # Support both 'type' and 'severity' keys
+                                severity = warning.get('type', warning.get('severity', 'LOW'))
                                 message = warning.get('message', '')
 
-                                if severity == 'HIGH':
-                                    st.error(f"🔴 **HIGH**: {message}")
+                                if severity in ['HIGH', 'ERROR']:
+                                    st.error(f"🔴 **{severity}**: {message}")
                                 elif severity == 'MEDIUM':
-                                    st.warning(f"🟡 **MEDIUM**: {message}")
+                                    st.warning(f"🟡 **{severity}**: {message}")
                                 else:
-                                    st.info(f"🔵 **LOW**: {message}")
-                        else:
+                                    st.info(f"🔵 **{severity}**: {message}")
+                        elif 'error' not in full_analysis:
                             st.success("✅ No technical warnings")
 
                         # Recommendation
