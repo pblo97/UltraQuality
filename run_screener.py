@@ -949,7 +949,7 @@ except:
     st.sidebar.warning("⚠️ Secrets not accessible")
 
 # Main content
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["🏠 Home", "📊 Results", "📈 Analytics", "🔎 Calibration", "🔍 Qualitative", "🎯 Custom Analysis", "ℹ️ About"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["🏠 Home", "📊 Results", "📈 Analytics", "🔎 Calibration", "🔍 Qualitative", "🎯 Custom Analysis", "📈 Technical", "ℹ️ About"])
 
 with tab1:
     st.header("Run Screener")
@@ -4168,6 +4168,406 @@ with tab7:
     - [Documentation](https://github.com/pblo97/UltraQuality)
     - [FMP API](https://financialmodelingprep.com)
     """)
+
+with tab8:
+    st.header("📈 Technical Analysis")
+
+    st.markdown("""
+    Análisis técnico basado en **evidencia académica 2020-2024**:
+    - ✅ **Momentum 12M** (Jegadeesh & Titman, Moskowitz)
+    - ✅ **Sector Relative Strength** (Bretscher 2023, Arnott 2024)
+    - ✅ **Trend MA200** (Brock et al. 1992)
+    - ✅ **Volume Confirmation**
+
+    ❌ **NO incluye**: RSI, MACD, Stochastic, Fibonacci (sin evidencia post-2010)
+    """)
+
+    if 'results' not in st.session_state:
+        st.info("👈 Run the screener first to analyze technical signals")
+
+    else:
+        # Get results
+        df = get_results_with_current_params()
+
+        # Filter to BUY and MONITOR only
+        df_technical = df[df['decision'].isin(['BUY', 'MONITOR'])].copy()
+
+        if len(df_technical) == 0:
+            st.warning("⚠️ No BUY or MONITOR signals found. Run screener with different parameters.")
+        else:
+            st.success(f"📊 Analyzing **{len(df_technical)}** stocks (BUY + MONITOR signals)")
+
+            # Analyze technical for all BUY/MONITOR stocks
+            with st.spinner("Running technical analysis... This may take 30-60 seconds"):
+                # Initialize analyzer (lazy import)
+                try:
+                    from screener.technical import TechnicalAnalyzer
+                    from screener.cache import CachedFMPClient
+                    from screener.ingest import FMPClient
+                    import yaml
+
+                    # Setup FMP client
+                    with open('settings.yaml') as f:
+                        config = yaml.safe_load(f)
+
+                    # Get API key
+                    api_key = st.secrets.get('fmp_api_key')
+                    if not api_key:
+                        api_key = config['fmp'].get('api_key')
+
+                    fmp_base = FMPClient(api_key, config['fmp'])
+                    fmp = CachedFMPClient(fmp_base, cache_dir='.cache')
+
+                    # Initialize analyzer
+                    tech_analyzer = TechnicalAnalyzer(fmp)
+
+                    # Analyze each stock
+                    technical_results = []
+                    progress_bar = st.progress(0)
+
+                    for idx, row in df_technical.iterrows():
+                        symbol = row['ticker']
+                        sector = row.get('sector', 'Unknown')
+
+                        try:
+                            # Analyze
+                            tech_result = tech_analyzer.analyze(symbol, sector=sector)
+
+                            # Add to results
+                            technical_results.append({
+                                'ticker': symbol,
+                                'name': row.get('name', ''),
+                                'sector': sector,
+                                'fundamental_decision': row['decision'],
+                                'fundamental_score': row['composite_0_100'],
+                                'technical_score': tech_result['score'],
+                                'technical_signal': tech_result['signal'],
+                                'momentum_12m': tech_result['momentum_12m'],
+                                'trend': tech_result['trend'],
+                                'sector_status': tech_result['sector_status'],
+                                'warnings_count': len(tech_result['warnings']),
+                                'warnings': tech_result['warnings'],
+                                'full_analysis': tech_result
+                            })
+                        except Exception as e:
+                            logger.error(f"Error analyzing {symbol}: {e}")
+                            # Add with error
+                            technical_results.append({
+                                'ticker': symbol,
+                                'name': row.get('name', ''),
+                                'sector': sector,
+                                'fundamental_decision': row['decision'],
+                                'fundamental_score': row['composite_0_100'],
+                                'technical_score': 50,
+                                'technical_signal': 'ERROR',
+                                'momentum_12m': 0,
+                                'trend': 'ERROR',
+                                'sector_status': 'ERROR',
+                                'warnings_count': 1,
+                                'warnings': [{'type': 'ERROR', 'message': str(e)}],
+                                'full_analysis': None
+                            })
+
+                        # Update progress
+                        progress_bar.progress((idx + 1) / len(df_technical))
+
+                    progress_bar.empty()
+
+                    # Create DataFrame
+                    df_tech = pd.DataFrame(technical_results)
+
+                    # Sort by technical score
+                    df_tech = df_tech.sort_values('technical_score', ascending=False)
+
+                    # Save to session state
+                    st.session_state['technical_results'] = df_tech
+
+                    st.success("✅ Technical analysis complete!")
+
+                except Exception as e:
+                    st.error(f"❌ Error initializing technical analysis: {str(e)}")
+                    st.exception(e)
+
+            # Display results
+            if 'technical_results' in st.session_state:
+                df_tech = st.session_state['technical_results']
+
+                # Summary metrics
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    tech_buys = len(df_tech[df_tech['technical_signal'] == 'BUY'])
+                    st.metric("🟢 Tech BUY", tech_buys, f"{tech_buys/len(df_tech)*100:.0f}%")
+
+                with col2:
+                    tech_holds = len(df_tech[df_tech['technical_signal'] == 'HOLD'])
+                    st.metric("🟡 Tech HOLD", tech_holds, f"{tech_holds/len(df_tech)*100:.0f}%")
+
+                with col3:
+                    avg_tech_score = df_tech['technical_score'].mean()
+                    st.metric("Avg Tech Score", f"{avg_tech_score:.1f}")
+
+                with col4:
+                    # Strong buys (both fundamental and technical)
+                    strong_buys = len(df_tech[
+                        (df_tech['fundamental_decision'] == 'BUY') &
+                        (df_tech['technical_signal'] == 'BUY')
+                    ])
+                    st.metric("💎 Strong BUY", strong_buys, "Fund + Tech")
+
+                st.markdown("---")
+
+                # Filters
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    tech_signal_filter = st.multiselect(
+                        "Technical Signal",
+                        options=['BUY', 'HOLD', 'SELL'],
+                        default=['BUY', 'HOLD'],
+                        key='tech_signal_filter'
+                    )
+
+                with col2:
+                    fund_decision_filter = st.multiselect(
+                        "Fundamental Decision",
+                        options=['BUY', 'MONITOR'],
+                        default=['BUY', 'MONITOR'],
+                        key='fund_decision_filter'
+                    )
+
+                with col3:
+                    min_tech_score = st.slider(
+                        "Min Technical Score",
+                        0, 100, 50,
+                        key='min_tech_score'
+                    )
+
+                # Apply filters
+                df_filtered = df_tech[
+                    (df_tech['technical_signal'].isin(tech_signal_filter)) &
+                    (df_tech['fundamental_decision'].isin(fund_decision_filter)) &
+                    (df_tech['technical_score'] >= min_tech_score)
+                ]
+
+                st.write(f"**{len(df_filtered)}** stocks match filters")
+
+                # Main table
+                st.subheader("📊 Technical Ranking")
+
+                display_cols = [
+                    'ticker', 'name', 'sector',
+                    'technical_score', 'technical_signal',
+                    'momentum_12m', 'trend', 'sector_status',
+                    'fundamental_score', 'fundamental_decision',
+                    'warnings_count'
+                ]
+
+                # Format for display
+                df_display = df_filtered[display_cols].copy()
+                df_display['momentum_12m'] = df_display['momentum_12m'].apply(lambda x: f"{x:+.1f}%")
+
+                st.dataframe(
+                    df_display,
+                    use_container_width=True,
+                    height=400,
+                    column_config={
+                        'ticker': 'Ticker',
+                        'name': 'Company',
+                        'sector': 'Sector',
+                        'technical_score': st.column_config.NumberColumn(
+                            'Tech Score',
+                            format='%.0f'
+                        ),
+                        'technical_signal': st.column_config.Column(
+                            'Tech Signal'
+                        ),
+                        'momentum_12m': '12M Return',
+                        'trend': 'Trend',
+                        'sector_status': 'Sector',
+                        'fundamental_score': st.column_config.NumberColumn(
+                            'Fund Score',
+                            format='%.0f'
+                        ),
+                        'fundamental_decision': 'Fund Decision',
+                        'warnings_count': '⚠️'
+                    }
+                )
+
+                # Detailed analysis section
+                st.markdown("---")
+                st.subheader("🔍 Detailed Analysis")
+
+                # Stock selector
+                selected_ticker = st.selectbox(
+                    "Select stock for detailed analysis:",
+                    options=df_filtered['ticker'].tolist(),
+                    key='selected_ticker_technical'
+                )
+
+                if selected_ticker:
+                    # Get full analysis
+                    stock_data = df_filtered[df_filtered['ticker'] == selected_ticker].iloc[0]
+                    full_analysis = stock_data['full_analysis']
+
+                    if full_analysis:
+                        # Display company info
+                        col1, col2 = st.columns([2, 1])
+
+                        with col1:
+                            st.markdown(f"### {selected_ticker} - {stock_data['name']}")
+                            st.caption(f"Sector: {stock_data['sector']}")
+
+                        with col2:
+                            # Combined signal
+                            fund_signal = stock_data['fundamental_decision']
+                            tech_signal = stock_data['technical_signal']
+
+                            if fund_signal == 'BUY' and tech_signal == 'BUY':
+                                st.success("💎 **STRONG BUY** (Fund + Tech)")
+                            elif fund_signal == 'BUY' and tech_signal == 'HOLD':
+                                st.info("🟢 **BUY** (good fundamentals, wait for entry)")
+                            elif fund_signal == 'BUY' and tech_signal == 'SELL':
+                                st.warning("⏸️ **WAIT** (good company, bad timing)")
+                            elif fund_signal == 'MONITOR':
+                                st.info(f"🟡 **MONITOR** (Tech: {tech_signal})")
+
+                        # Score breakdown
+                        st.markdown("#### Score Breakdown")
+
+                        col1, col2, col3 = st.columns(3)
+
+                        with col1:
+                            st.metric(
+                                "Technical Score",
+                                f"{full_analysis['score']:.0f}/100",
+                                delta=full_analysis['signal']
+                            )
+
+                        with col2:
+                            st.metric(
+                                "Fundamental Score",
+                                f"{stock_data['fundamental_score']:.0f}/100",
+                                delta=stock_data['fundamental_decision']
+                            )
+
+                        with col3:
+                            # Combined score (70% fundamental, 30% technical)
+                            combined = (
+                                stock_data['fundamental_score'] * 0.7 +
+                                full_analysis['score'] * 0.3
+                            )
+                            st.metric(
+                                "Combined Score",
+                                f"{combined:.0f}/100",
+                                "70% Fund + 30% Tech"
+                            )
+
+                        # Component scores
+                        st.markdown("#### Technical Components")
+
+                        components = full_analysis.get('component_scores', {})
+
+                        col1, col2, col3, col4 = st.columns(4)
+
+                        with col1:
+                            st.metric("Momentum (12M)", f"{components.get('momentum', 0):.0f}/35")
+                            st.caption(f"{full_analysis.get('momentum_12m', 0):+.1f}% return")
+
+                        with col2:
+                            st.metric("Sector Strength", f"{components.get('sector', 0):.0f}/25")
+                            st.caption(full_analysis.get('sector_status', 'Unknown'))
+
+                        with col3:
+                            st.metric("Trend (MA200)", f"{components.get('trend', 0):.0f}/25")
+                            st.caption(full_analysis.get('trend', 'Unknown'))
+
+                        with col4:
+                            st.metric("Volume", f"{components.get('volume', 0):.0f}/15")
+                            st.caption(full_analysis.get('volume_status', 'Unknown'))
+
+                        # Detailed metrics
+                        st.markdown("#### Detailed Metrics")
+
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.markdown("**Momentum & Trend:**")
+                            st.write(f"- 12M Return: {full_analysis.get('momentum_12m', 0):+.1f}%")
+                            st.write(f"- Status: {full_analysis.get('momentum_status', 'Unknown')}")
+                            st.write(f"- Trend: {full_analysis.get('trend', 'Unknown')}")
+                            st.write(f"- Distance from MA200: {full_analysis.get('distance_from_ma200', 0):+.1f}%")
+                            st.write(f"- Golden Cross: {'✅' if full_analysis.get('golden_cross') else '❌'}")
+
+                        with col2:
+                            st.markdown("**Sector Analysis:**")
+                            st.write(f"- Sector: {full_analysis.get('sector', 'Unknown')}")
+                            st.write(f"- Sector Return (6M): {full_analysis.get('sector_momentum_6m', 0):+.1f}%")
+                            st.write(f"- Relative Strength: {full_analysis.get('relative_strength', 0):+.1f}%")
+                            st.write(f"- Sector Status: {full_analysis.get('sector_status', 'Unknown')}")
+                            st.write(f"- Volume Ratio: {full_analysis.get('volume_ratio', 0):.2f}x avg")
+
+                        # Warnings
+                        warnings = full_analysis.get('warnings', [])
+                        if warnings:
+                            st.markdown("#### ⚠️ Warnings")
+
+                            for warning in warnings:
+                                severity = warning.get('severity', 'LOW')
+                                message = warning.get('message', '')
+
+                                if severity == 'HIGH':
+                                    st.error(f"🔴 **HIGH**: {message}")
+                                elif severity == 'MEDIUM':
+                                    st.warning(f"🟡 **MEDIUM**: {message}")
+                                else:
+                                    st.info(f"🔵 **LOW**: {message}")
+                        else:
+                            st.success("✅ No technical warnings")
+
+                        # Recommendation
+                        st.markdown("#### 💡 Recommendation")
+
+                        fund_score = stock_data['fundamental_score']
+                        tech_score = full_analysis['score']
+
+                        if fund_score >= 75 and tech_score >= 75:
+                            st.success("""
+                            **💎 STRONG BUY**: Excellent fundamentals + favorable technical setup.
+                            Both quality and timing are aligned. Consider building position.
+                            """)
+                        elif fund_score >= 75 and tech_score < 50:
+                            st.warning("""
+                            **⏸️ WAIT**: Great company but poor technical timing.
+                            Consider waiting for pullback or better entry point.
+                            Set price alerts around MA200 support levels.
+                            """)
+                        elif fund_score >= 60 and tech_score >= 75:
+                            st.info("""
+                            **🎯 TACTICAL OPPORTUNITY**: Good fundamentals with strong technical momentum.
+                            May be suitable for shorter-term trade, but monitor fundamentals closely.
+                            """)
+                        else:
+                            st.info("""
+                            **🟡 MONITOR**: Mixed signals. Continue watching for improvement
+                            in either fundamentals or technicals before entry.
+                            """)
+
+                    else:
+                        st.error("No detailed analysis available for this stock.")
+
+                # Download
+                st.markdown("---")
+                st.markdown("### 📥 Download Technical Analysis")
+
+                csv = df_tech.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📄 Download Technical Results (CSV)",
+                    data=csv,
+                    file_name=f"technical_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
 
 # Footer
 st.sidebar.markdown("---")
