@@ -4850,7 +4850,149 @@ with tab7:
                             - 🟡 **SIDEWAYS**: Normal momentum behavior
                             """)
 
+                        # ========== RISK MANAGEMENT (NEW) ==========
+                        st.markdown("---")
+                        st.markdown("#### 🎯 Risk Management & Options Strategies")
+
+                        # Show overextension risk first
+                        overext_risk = full_analysis.get('overextension_risk', 0)
+                        overext_level = full_analysis.get('overextension_level', 'LOW')
+
+                        if overext_risk >= 5:
+                            st.error(f"⚠️ **EXTREME Overextension Risk**: {overext_risk}/7 - High probability of 20-40% correction")
+                        elif overext_risk >= 3:
+                            st.warning(f"⚠️ **HIGH Overextension Risk**: {overext_risk}/7 - Possible 10-20% pullback")
+                        elif overext_risk >= 1:
+                            st.info(f"⚠️ **MEDIUM Overextension Risk**: {overext_risk}/7")
+                        else:
+                            st.success(f"✅ **LOW Overextension Risk**: {overext_risk}/7")
+
+                        # Get risk management recommendations
+                        risk_mgmt = full_analysis.get('risk_management', {})
+
+                        if risk_mgmt:
+                            # Create tabs for different risk management areas
+                            rm_tab1, rm_tab2, rm_tab3, rm_tab4, rm_tab5 = st.tabs([
+                                "📊 Position Sizing",
+                                "🎯 Entry Strategy",
+                                "🛡️ Stop Loss",
+                                "💰 Profit Taking",
+                                "📈 Options Strategies"
+                            ])
+
+                            with rm_tab1:
+                                pos_sizing = risk_mgmt.get('position_sizing', {})
+                                if pos_sizing:
+                                    st.markdown(f"**Recommended Size:** {pos_sizing.get('recommended_size', 'N/A')}")
+                                    st.write(f"**Max Portfolio Weight:** {pos_sizing.get('max_portfolio_weight', 'N/A')}")
+                                    st.info(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
+
+                            with rm_tab2:
+                                entry_strategy = risk_mgmt.get('entry_strategy', {})
+                                if entry_strategy:
+                                    strategy_type = entry_strategy.get('strategy', 'N/A')
+                                    st.markdown(f"**Strategy:** {strategy_type}")
+
+                                    if 'SCALE-IN' in strategy_type:
+                                        st.write(f"**Tranche 1:** {entry_strategy.get('tranche_1', 'N/A')}")
+                                        st.write(f"**Tranche 2:** {entry_strategy.get('tranche_2', 'N/A')}")
+                                        if 'tranche_3' in entry_strategy:
+                                            st.write(f"**Tranche 3:** {entry_strategy.get('tranche_3', 'N/A')}")
+                                    elif 'FULL ENTRY' in strategy_type:
+                                        st.write(f"**Entry Price:** {entry_strategy.get('entry_price', 'N/A')}")
+
+                                    st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
+
+                            with rm_tab3:
+                                stop_loss = risk_mgmt.get('stop_loss', {})
+                                if stop_loss:
+                                    recommended_stop = stop_loss.get('recommended', 'moderate')
+                                    st.markdown(f"**Recommended:** {recommended_stop.upper()}")
+
+                                    stops = stop_loss.get('stops', {})
+
+                                    if 'aggressive' in stops:
+                                        st.markdown("**🔴 Aggressive Stop:**")
+                                        st.write(f"- Level: {stops['aggressive'].get('level', 'N/A')} ({stops['aggressive'].get('distance', 'N/A')})")
+                                        st.caption(stops['aggressive'].get('rationale', ''))
+
+                                    if 'moderate' in stops:
+                                        st.markdown("**🟡 Moderate Stop:**")
+                                        st.write(f"- Level: {stops['moderate'].get('level', 'N/A')} ({stops['moderate'].get('distance', 'N/A')})")
+                                        st.caption(stops['moderate'].get('rationale', ''))
+
+                                    if 'conservative' in stops:
+                                        st.markdown("**🟢 Conservative Stop:**")
+                                        st.write(f"- Level: {stops['conservative'].get('level', 'N/A')} ({stops['conservative'].get('distance', 'N/A')})")
+                                        st.caption(stops['conservative'].get('rationale', ''))
+
+                                    if 'note' in stop_loss:
+                                        st.info(f"💡 {stop_loss['note']}")
+
+                            with rm_tab4:
+                                profit_taking = risk_mgmt.get('profit_taking', {})
+                                if profit_taking:
+                                    st.markdown(f"**Strategy:** {profit_taking.get('strategy', 'N/A')}")
+
+                                    # Display specific fields based on strategy
+                                    for key, value in profit_taking.items():
+                                        if key not in ['strategy', 'rationale'] and value:
+                                            # Format the key nicely
+                                            display_key = key.replace('_', ' ').title()
+                                            st.write(f"**{display_key}:** {value}")
+
+                                    if 'rationale' in profit_taking:
+                                        st.info(f"**Rationale:** {profit_taking['rationale']}")
+
+                            with rm_tab5:
+                                options_strategies = risk_mgmt.get('options_strategies', [])
+                                if options_strategies:
+                                    st.markdown(f"**{len(options_strategies)} Recommended Strategies:**")
+
+                                    for i, strategy in enumerate(options_strategies, 1):
+                                        with st.expander(f"**{i}. {strategy.get('name', 'Strategy')}**", expanded=(i==1)):
+                                            if 'when' in strategy:
+                                                st.write(f"**When:** {strategy['when']}")
+                                            if 'structure' in strategy:
+                                                st.write(f"**Structure:** {strategy['structure']}")
+                                            if 'strike' in strategy:
+                                                st.write(f"**Strike:** {strategy['strike']}")
+                                            if 'example' in strategy:
+                                                st.write(f"**Example:** {strategy['example']}")
+                                            if 'premium' in strategy:
+                                                st.write(f"**Premium:** {strategy['premium']}")
+                                            if 'credit' in strategy:
+                                                st.write(f"**Credit:** {strategy['credit']}")
+                                            if 'cost' in strategy:
+                                                st.write(f"**Cost:** {strategy['cost']}")
+                                            if 'leverage' in strategy:
+                                                st.write(f"**Leverage:** {strategy['leverage']}")
+
+                                            if 'rationale' in strategy:
+                                                st.info(f"**Rationale:** {strategy['rationale']}")
+                                            if 'benefit' in strategy:
+                                                st.success(f"**Benefit:** {strategy['benefit']}")
+                                            if 'risk' in strategy:
+                                                st.warning(f"**Risk:** {strategy['risk']}")
+
+                                            # Show outcomes for certain strategies
+                                            if 'outcome_1' in strategy:
+                                                st.write(f"**Outcome 1:** {strategy['outcome_1']}")
+                                            if 'outcome_2' in strategy:
+                                                st.write(f"**Outcome 2:** {strategy['outcome_2']}")
+
+                                            # Show evidence
+                                            if 'evidence' in strategy:
+                                                st.caption(f"📚 Evidence: {strategy['evidence']}")
+
+                                            # Show additional notes
+                                            if 'note' in strategy:
+                                                st.info(f"💡 {strategy['note']}")
+                                else:
+                                    st.info("No specific options strategies recommended for this setup.")
+
                         # Warnings & Diagnostics
+                        st.markdown("---")
                         st.markdown("#### ⚠️ Warnings & Diagnostics")
 
                         # Check for errors first
