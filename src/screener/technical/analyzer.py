@@ -212,33 +212,33 @@ class EnhancedTechnicalAnalyzer:
                 'regime_confidence': regime_data.get('confidence', 'medium'),
 
                 # Momentum (multi-timeframe)
-                'momentum_12m': momentum_data['12m'],
-                'momentum_6m': momentum_data['6m'],
-                'momentum_3m': momentum_data['3m'],
-                'momentum_1m': momentum_data['1m'],
-                'momentum_consistency': momentum_data['consistency'],
-                'momentum_status': momentum_data['status'],
+                'momentum_12m': momentum_data.get('12m', 0),
+                'momentum_6m': momentum_data.get('6m', 0),
+                'momentum_3m': momentum_data.get('3m', 0),
+                'momentum_1m': momentum_data.get('1m', 0),
+                'momentum_consistency': momentum_data.get('consistency', 'N/A'),
+                'momentum_status': momentum_data.get('status', 'N/A'),
 
                 # Risk metrics
-                'sharpe_12m': risk_data['sharpe'],
-                'volatility_12m': risk_data['volatility'],
-                'risk_adjusted_status': risk_data['status'],
+                'sharpe_12m': risk_data.get('sharpe', 0),
+                'volatility_12m': risk_data.get('volatility', 0),
+                'risk_adjusted_status': risk_data.get('status', 'N/A'),
 
                 # Relative strength
-                'sector_relative': sector_data['relative_strength'],
-                'sector_status': sector_data['status'],
-                'market_relative': market_data['relative_strength'],
-                'market_status': market_data['status'],
+                'sector_relative': sector_data.get('relative_strength', 0),
+                'sector_status': sector_data.get('status', 'UNKNOWN'),
+                'market_relative': market_data.get('relative_strength', 0),
+                'market_status': market_data.get('status', 'N/A'),
 
                 # Trend
-                'trend': trend_data['status'],
-                'distance_from_ma200': trend_data['distance_ma200'],
-                'golden_cross': trend_data['golden_cross'],
+                'trend': trend_data.get('status', 'UNKNOWN'),
+                'distance_from_ma200': trend_data.get('distance_ma200', 0),
+                'golden_cross': trend_data.get('golden_cross', False),
 
                 # Volume
-                'volume_profile': volume_data['profile'],
-                'volume_trend': volume_data['trend'],
-                'accumulation_ratio': volume_data['accumulation_ratio'],
+                'volume_profile': volume_data.get('profile', 'UNKNOWN'),
+                'volume_trend': volume_data.get('trend', 'N/A'),
+                'accumulation_ratio': volume_data.get('accumulation_ratio', 0),
 
                 # Warnings & metadata
                 'warnings': warnings,
@@ -257,7 +257,9 @@ class EnhancedTechnicalAnalyzer:
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing {symbol}: {e}")
+            logger.error(f"Error analyzing {symbol}: {e}", exc_info=True)
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return self._null_result(symbol, f"Analysis error: {str(e)}")
 
     # ============================================================================
@@ -427,8 +429,16 @@ class EnhancedTechnicalAnalyzer:
             }
 
         except Exception as e:
-            logger.error(f"Error calculating multi-timeframe momentum: {e}")
-            return 0, {'error': str(e)}
+            logger.error(f"Error calculating multi-timeframe momentum: {e}", exc_info=True)
+            return 0, {
+                'error': str(e),
+                '12m': 0,
+                '6m': 0,
+                '3m': 0,
+                '1m': 0,
+                'consistency': 'N/A',
+                'status': 'ERROR'
+            }
 
     # ============================================================================
     # 3. RISK-ADJUSTED MOMENTUM (SHARPE)
@@ -507,8 +517,14 @@ class EnhancedTechnicalAnalyzer:
             }
 
         except Exception as e:
-            logger.error(f"Error calculating risk-adjusted momentum: {e}")
-            return 0, {'error': str(e)}
+            logger.error(f"Error calculating risk-adjusted momentum: {e}", exc_info=True)
+            return 0, {
+                'error': str(e),
+                'sharpe': 0,
+                'volatility': 0,
+                'annualized_return': 0,
+                'status': 'ERROR'
+            }
 
     # ============================================================================
     # 4. SECTOR RELATIVE STRENGTH
@@ -591,8 +607,15 @@ class EnhancedTechnicalAnalyzer:
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing sector relative: {e}")
-            return 0, {'error': str(e)}
+            logger.error(f"Error analyzing sector relative: {e}", exc_info=True)
+            return 0, {
+                'error': str(e),
+                'sector_return_6m': 0,
+                'stock_return_6m': 0,
+                'relative_strength': 0,
+                'sector_etf': 'N/A',
+                'status': 'ERROR'
+            }
 
     # ============================================================================
     # 5. MARKET RELATIVE STRENGTH (vs SPY)
@@ -661,8 +684,14 @@ class EnhancedTechnicalAnalyzer:
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing market relative: {e}")
-            return 0, {'error': str(e)}
+            logger.error(f"Error analyzing market relative: {e}", exc_info=True)
+            return 0, {
+                'error': str(e),
+                'market_return_6m': 0,
+                'stock_return_6m': 0,
+                'relative_strength': 0,
+                'status': 'ERROR'
+            }
 
     # ============================================================================
     # 6. TREND ANALYSIS (MA200)
@@ -779,8 +808,15 @@ class EnhancedTechnicalAnalyzer:
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing volume profile: {e}")
-            return 0, {'error': str(e)}
+            logger.error(f"Error analyzing volume profile: {e}", exc_info=True)
+            return 0, {
+                'error': str(e),
+                'profile': 'ERROR',
+                'accumulation_ratio': 0,
+                'volume_trend': 'N/A',
+                'vol_up_days': 0,
+                'vol_down_days': 0
+            }
 
     # ============================================================================
     # REGIME ADJUSTMENT
