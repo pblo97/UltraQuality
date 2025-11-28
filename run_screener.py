@@ -14,9 +14,27 @@ from pathlib import Path
 import pandas as pd
 from datetime import datetime
 from io import BytesIO
+import os
+
+# Load environment variables from .env file (if exists)
+from dotenv import load_dotenv
+load_dotenv()
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
+
+# Helper function to expand environment variables in config values
+def expand_env_vars(value):
+    """Expand ${VAR} or $VAR in strings with environment variables."""
+    if isinstance(value, str):
+        import re
+        # Match ${VAR} or $VAR pattern
+        pattern = r'\$\{([^}]+)\}|\$([A-Za-z_][A-Za-z0-9_]*)'
+        def replace(match):
+            var_name = match.group(1) or match.group(2)
+            return os.environ.get(var_name, match.group(0))
+        return re.sub(pattern, replace, value)
+    return value
 
 # NOTE: We import ScreenerPipeline lazily inside the button click
 # to avoid blocking the UI load with heavy imports
@@ -4426,10 +4444,29 @@ with tab7:
                     with open('settings.yaml') as f:
                         config = yaml.safe_load(f)
 
-                    # Get API key
+                    # Get API key (priority: secrets > config with env expansion)
                     api_key = st.secrets.get('fmp_api_key')
                     if not api_key:
-                        api_key = config['fmp'].get('api_key')
+                        api_key = expand_env_vars(config['fmp'].get('api_key'))
+
+                    # Validate API key
+                    if not api_key or api_key.startswith('${') or api_key == 'your_api_key_here':
+                        st.error("❌ **FMP API Key not configured!**")
+                        st.markdown("""
+                        Please configure your Financial Modeling Prep API key:
+
+                        **Option 1: Streamlit Secrets** (recommended for Streamlit Cloud)
+                        1. Create `.streamlit/secrets.toml`
+                        2. Add: `fmp_api_key = "your_actual_api_key"`
+
+                        **Option 2: Environment Variable** (for local development)
+                        1. Create `.env` file in project root
+                        2. Add: `FMP_API_KEY=your_actual_api_key`
+                        3. Restart the app
+
+                        Get your API key at: https://financialmodelingprep.com
+                        """)
+                        st.stop()
 
                     fmp_base = FMPClient(api_key, config['fmp'])
                     fmp = CachedFMPClient(fmp_base, cache_dir='.cache')
