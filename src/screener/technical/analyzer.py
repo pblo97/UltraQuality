@@ -119,20 +119,37 @@ class EnhancedTechnicalAnalyzer:
             }
         """
         try:
+            logger.info(f"Starting enhanced technical analysis for {symbol}")
+
             # 1. Fetch current quote
             quote = self.fmp.get_quote(symbol)
             if not quote or len(quote) == 0:
+                logger.error(f"{symbol}: No quote data available")
                 return self._null_result(symbol, "No quote data available")
             q = quote[0]
+            logger.debug(f"{symbol}: Quote data retrieved, price={q.get('price', 0)}")
 
             # 2. Fetch historical prices (for multi-timeframe & volatility)
             from_date = (datetime.now() - timedelta(days=400)).strftime('%Y-%m-%d')
-            hist_data = self.fmp.get_historical_prices(symbol, from_date=from_date)
+            logger.debug(f"{symbol}: Fetching historical prices from {from_date}")
 
-            if not hist_data or 'historical' not in hist_data:
-                return self._null_result(symbol, "No historical data available")
+            hist_data = self.fmp.get_historical_prices(symbol, from_date=from_date)
+            logger.debug(f"{symbol}: Historical data type={type(hist_data)}, data={str(hist_data)[:200]}...")
+
+            if not hist_data:
+                logger.error(f"{symbol}: hist_data is None or empty")
+                return self._null_result(symbol, "No historical data available (null response)")
+
+            if isinstance(hist_data, dict) and 'historical' not in hist_data:
+                logger.error(f"{symbol}: hist_data dict but no 'historical' key. Keys: {list(hist_data.keys())}")
+                return self._null_result(symbol, f"No historical data available (missing 'historical' key, got: {list(hist_data.keys())})")
+
+            if isinstance(hist_data, list):
+                logger.error(f"{symbol}: hist_data is a list (expected dict with 'historical' key)")
+                return self._null_result(symbol, "Historical data format error (got list instead of dict)")
 
             prices = hist_data['historical'][::-1]  # Reverse to chronological order
+            logger.info(f"{symbol}: Got {len(prices)} historical price records")
 
             # 3. Detect market regime (BULL/BEAR/SIDEWAYS)
             market_regime, regime_data = self._detect_market_regime()
@@ -347,8 +364,11 @@ class EnhancedTechnicalAnalyzer:
             }
         """
         try:
+            logger.debug(f"Multi-timeframe momentum: Got {len(prices)} price records")
+
             if len(prices) < 250:
-                return 0, {'error': 'Insufficient data'}
+                logger.warning(f"Insufficient data for momentum: {len(prices)} < 250")
+                return 0, {'error': f'Insufficient data ({len(prices)} < 250)', '12m': 0, '6m': 0, '3m': 0, '1m': 0, 'consistency': 'N/A', 'status': 'N/A'}
 
             # Get prices at specific dates
             current_price = prices[-1]['close']
