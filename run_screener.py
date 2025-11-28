@@ -4111,7 +4111,7 @@ with tab6:
         else:
             st.info(f"💡 Enter a ticker above and click 'Analyze' to see detailed quality and valuation analysis")
 
-with tab7:
+with tab8:
     st.header("About UltraQuality Screener")
 
     st.markdown("""
@@ -4385,7 +4385,7 @@ with tab7:
     **UltraQuality Screener** - Combining the best of fundamental and technical analysis, backed by academic research.
     """)
 
-with tab8:
+with tab7:
     st.header("📈 Technical Analysis")
 
     st.markdown("""
@@ -4441,7 +4441,7 @@ with tab8:
                     technical_results = []
                     progress_bar = st.progress(0)
 
-                    for idx, row in df_technical.iterrows():
+                    for i, (idx, row) in enumerate(df_technical.iterrows()):
                         symbol = row['ticker']
                         sector = row.get('sector', 'Unknown')
 
@@ -4485,7 +4485,7 @@ with tab8:
                             })
 
                         # Update progress
-                        progress_bar.progress((idx + 1) / len(df_technical))
+                        progress_bar.progress((i + 1) / len(df_technical))
 
                     progress_bar.empty()
 
