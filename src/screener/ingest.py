@@ -275,6 +275,13 @@ class FMPClient:
         """Single symbol profile."""
         return self._request(f'profile/{symbol}', cache=self.cache_symbol)
 
+    def get_quote(self, symbol: str) -> List[Dict]:
+        """
+        Endpoint: /quote/{symbol}
+        Real-time quote with price, volume, changes, moving averages.
+        """
+        return self._request(f'quote/{symbol}', cache=False)  # Real-time data, no cache
+
     # ========================
     # Financial Statements
     # ========================

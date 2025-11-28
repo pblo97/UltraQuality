@@ -43,6 +43,7 @@ class CachedFMPClient:
         # Cache TTLs by endpoint
         self.ttls = {
             'profile': timedelta(days=7),
+            'quote': timedelta(hours=6),  # Real-time quote, refresh 4x/day
             'balance_sheet': timedelta(days=1),
             'income_statement': timedelta(days=1),
             'cash_flow': timedelta(days=1),
@@ -171,6 +172,14 @@ class CachedFMPClient:
         return self._fetch_with_cache(
             'profile',
             self.fmp.get_profile,
+            symbol
+        )
+
+    def get_quote(self, symbol):
+        """Get real-time quote (cached 6 hours)."""
+        return self._fetch_with_cache(
+            'quote',
+            self.fmp.get_quote,
             symbol
         )
 
