@@ -1,34 +1,56 @@
 """
-Análisis Técnico Basado en Evidencia (2024)
+Enhanced Technical Analysis Based on Academic Evidence (2024)
 
-Implementa solo indicadores con evidencia académica sólida:
+Implements ONLY indicators with solid academic evidence:
+
+**Base Indicators** (Original):
 - Momentum 12M (Jegadeesh & Titman 1993, Moskowitz 2012)
 - Sector Relative Strength (Bretscher 2023, Arnott 2024)
 - Trend MA200 (Brock et al. 1992)
-- Volume confirmation (básico)
+- Volume confirmation (basic)
 
-NO incluye: RSI, MACD, Stochastic, Fibonacci (sin evidencia post-2010)
+**NEW Enhancements** (2024):
+1. Market Regime Detection (Cooper 2004, Blin 2022) - Context matters
+2. Multi-Timeframe Momentum (Novy-Marx 2012) - 1M, 3M, 6M, 12M
+3. Risk-Adjusted Momentum (Daniel & Moskowitz 2016) - Sharpe ratio
+4. Relative Strength vs Market (Blitz 2011) - vs SPY not just sector
+5. Volume Profile (Lee & Swaminathan 2000) - Accumulation/Distribution
+
+**Explicitly EXCLUDED** (no post-2010 evidence):
+- RSI, MACD, Stochastic, Fibonacci, Bollinger Bands
 """
 
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 from datetime import datetime, timedelta
 import logging
+import statistics
 
 logger = logging.getLogger(__name__)
 
 
-class TechnicalAnalyzer:
+class EnhancedTechnicalAnalyzer:
     """
-    Análisis técnico minimalista y basado en evidencia.
+    Evidence-based technical analysis with 2024 enhancements.
 
-    Score: 0-100
-    - 35 pts: Momentum 12 meses individual
-    - 25 pts: Sector Relative Strength
-    - 25 pts: Trend (MA200)
-    - 15 pts: Volume confirmation
+    **NEW Scoring System: 0-100**
+
+    Base Components (60 pts):
+    - 25 pts: Multi-Timeframe Momentum (12M, 6M, 3M, 1M consistency)
+    - 15 pts: Sector Relative Strength
+    - 10 pts: Market Relative Strength (vs SPY)
+    - 10 pts: Trend (MA200)
+
+    Risk Adjustments (25 pts):
+    - 15 pts: Risk-Adjusted Return (Sharpe-based)
+    - 10 pts: Volume Profile (accumulation/distribution)
+
+    Market Regime Bonus/Penalty (±15 pts):
+    - Bull Market: +10 pts for momentum stocks
+    - Bear Market: -10 pts for momentum stocks
+    - Sideways: No adjustment
     """
 
-    # Mapeo de sectores a ETFs (USA principalmente)
+    # Sector to ETF mapping
     SECTOR_ETFS = {
         'Technology': 'XLK',
         'Healthcare': 'XLV',
@@ -41,7 +63,7 @@ class TechnicalAnalyzer:
         'Real Estate': 'XLRE',
         'Communication Services': 'XLC',
         'Utilities': 'XLU',
-        # Aliases comunes
+        # Aliases
         'Information Technology': 'XLK',
         'Health Care': 'XLV',
         'Financial Services': 'XLF',
@@ -51,481 +73,868 @@ class TechnicalAnalyzer:
         'Telecommunication Services': 'XLC',
     }
 
+    # Market regime thresholds
+    VIX_BULL_THRESHOLD = 20
+    VIX_BEAR_THRESHOLD = 30
+
     def __init__(self, fmp_client):
         """
         Args:
-            fmp_client: Cliente FMP (puede ser CachedFMPClient)
+            fmp_client: FMP client (preferably CachedFMPClient)
         """
         self.fmp = fmp_client
+        self._market_regime_cache = None
+        self._market_regime_timestamp = None
+
+    # ============================================================================
+    # MAIN ANALYSIS METHOD
+    # ============================================================================
 
     def analyze(self, symbol: str, sector: str = None, country: str = 'USA') -> Dict:
         """
-        Analiza aspectos técnicos de una empresa.
+        Enhanced technical analysis with 7 improvements.
 
         Args:
-            symbol: Ticker de la empresa (ej: 'AAPL')
-            sector: Sector de la empresa (ej: 'Technology')
-            country: País (default: 'USA')
+            symbol: Stock ticker (e.g., 'AAPL')
+            sector: Company sector (e.g., 'Technology')
+            country: Market country (default: 'USA')
 
         Returns:
             {
                 'score': 0-100,
                 'signal': 'BUY' | 'HOLD' | 'SELL',
-                'momentum_12m': float (% return),
+                'market_regime': 'BULL' | 'BEAR' | 'SIDEWAYS',
+                'momentum_12m': float,
+                'momentum_6m': float,
+                'momentum_3m': float,
+                'momentum_1m': float,
+                'momentum_consistency': str,
+                'sharpe_12m': float,
                 'trend': 'UPTREND' | 'DOWNTREND' | 'NEUTRAL',
-                'distance_from_ma200': float (%),
-                'sector_status': str,
-                'warnings': [list of warning messages],
-                'timestamp': datetime
+                'sector_relative': float,
+                'market_relative': float,
+                'volume_profile': str ('ACCUMULATION' | 'DISTRIBUTION' | 'NEUTRAL'),
+                'warnings': List[Dict],
+                'components': Dict (detailed breakdown),
             }
         """
         try:
-            # Fetch data (1 endpoint, cacheado)
+            # 1. Fetch current quote
             quote = self.fmp.get_quote(symbol)
-
             if not quote or len(quote) == 0:
                 return self._null_result(symbol, "No quote data available")
-
             q = quote[0]
 
-            # Extract data
+            # 2. Fetch historical prices (for multi-timeframe & volatility)
+            from_date = (datetime.now() - timedelta(days=400)).strftime('%Y-%m-%d')
+            hist_data = self.fmp.get_historical_prices(symbol, from_date=from_date)
+
+            if not hist_data or 'historical' not in hist_data:
+                return self._null_result(symbol, "No historical data available")
+
+            prices = hist_data['historical'][::-1]  # Reverse to chronological order
+
+            # 3. Detect market regime (BULL/BEAR/SIDEWAYS)
+            market_regime, regime_data = self._detect_market_regime()
+
+            # 4. Calculate multi-timeframe momentum
+            momentum_scores, momentum_data = self._analyze_multi_timeframe_momentum(prices)
+
+            # 5. Calculate risk-adjusted momentum (Sharpe)
+            risk_score, risk_data = self._analyze_risk_adjusted_momentum(prices)
+
+            # 6. Analyze sector relative strength
+            sector_score, sector_data = self._analyze_sector_relative(
+                symbol, prices, sector, country
+            )
+
+            # 7. Analyze market relative strength (vs SPY)
+            market_score, market_data = self._analyze_market_relative(prices)
+
+            # 8. Analyze trend (MA200)
             price = q.get('price', 0)
-            change_1y = q.get('changesPercentage', 0)  # Already calculated by FMP!
-            ma_200 = q.get('priceAvg200', 0)
             ma_50 = q.get('priceAvg50', 0)
-            volume = q.get('volume', 0)
-            avg_volume = q.get('avgVolume', 1)
-
-            # Calculate 6M return for sector comparison
-            change_6m = change_1y * 0.5  # Rough approximation (FMP doesn't have 6M directly)
-
-            # Calculate components
-            momentum_score, momentum_data = self._analyze_momentum(change_1y)
-            sector_score, sector_data = self._analyze_sector_strength(
-                symbol, change_6m, sector, country
-            )
+            ma_200 = q.get('priceAvg200', 0)
             trend_score, trend_data = self._analyze_trend(price, ma_50, ma_200)
-            volume_score, volume_data = self._analyze_volume(volume, avg_volume)
 
-            # Total score
-            total_score = momentum_score + sector_score + trend_score + volume_score
+            # 9. Analyze volume profile (accumulation/distribution)
+            volume_score, volume_data = self._analyze_volume_profile(prices)
 
-            # Warnings
-            warnings = self._generate_warnings(
-                change_1y, price, ma_200, volume, avg_volume, sector_data
+            # 10. Apply market regime adjustment
+            regime_adjustment = self._calculate_regime_adjustment(
+                market_regime, momentum_data, trend_data
             )
 
-            # Signal
-            signal = self._generate_signal(total_score, trend_data['status'], sector_data)
+            # 11. Calculate total score
+            total_score = (
+                momentum_scores +
+                risk_score +
+                sector_score +
+                market_score +
+                trend_score +
+                volume_score +
+                regime_adjustment
+            )
+
+            total_score = max(0, min(100, total_score))  # Clamp to 0-100
+
+            # 12. Generate warnings
+            warnings = self._generate_warnings(
+                momentum_data, volume_data, sector_data, market_data, regime_data
+            )
+
+            # 13. Generate signal
+            signal = self._generate_signal(total_score, trend_data, market_regime)
 
             return {
-                'score': min(total_score, 100),
+                'score': round(total_score, 1),
                 'signal': signal,
 
-                # Momentum details
-                'momentum_12m': change_1y,
+                # Market context
+                'market_regime': market_regime,
+                'regime_confidence': regime_data.get('confidence', 'medium'),
+
+                # Momentum (multi-timeframe)
+                'momentum_12m': momentum_data['12m'],
+                'momentum_6m': momentum_data['6m'],
+                'momentum_3m': momentum_data['3m'],
+                'momentum_1m': momentum_data['1m'],
+                'momentum_consistency': momentum_data['consistency'],
                 'momentum_status': momentum_data['status'],
 
-                # Sector details
-                'sector': sector_data.get('sector_name', 'Unknown'),
-                'sector_momentum_6m': sector_data.get('sector_return', 0),
-                'relative_strength': sector_data.get('relative_strength', 0),
-                'sector_status': sector_data.get('status', 'UNKNOWN'),
+                # Risk metrics
+                'sharpe_12m': risk_data['sharpe'],
+                'volatility_12m': risk_data['volatility'],
+                'risk_adjusted_status': risk_data['status'],
 
-                # Trend details
+                # Relative strength
+                'sector_relative': sector_data['relative_strength'],
+                'sector_status': sector_data['status'],
+                'market_relative': market_data['relative_strength'],
+                'market_status': market_data['status'],
+
+                # Trend
                 'trend': trend_data['status'],
                 'distance_from_ma200': trend_data['distance_ma200'],
                 'golden_cross': trend_data['golden_cross'],
 
-                # Volume details
-                'volume_status': volume_data['status'],
-                'volume_ratio': volume_data['ratio'],
+                # Volume
+                'volume_profile': volume_data['profile'],
+                'volume_trend': volume_data['trend'],
+                'accumulation_ratio': volume_data['accumulation_ratio'],
 
-                # Warnings
+                # Warnings & metadata
                 'warnings': warnings,
                 'timestamp': datetime.now().isoformat(),
 
-                # Component scores (for debugging)
+                # Component scores (for transparency)
                 'component_scores': {
-                    'momentum': momentum_score,
-                    'sector': sector_score,
+                    'momentum': momentum_scores,
+                    'risk_adjusted': risk_score,
+                    'sector_relative': sector_score,
+                    'market_relative': market_score,
                     'trend': trend_score,
-                    'volume': volume_score
+                    'volume': volume_score,
+                    'regime_adjustment': regime_adjustment,
                 }
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing {symbol}: {str(e)}")
-            return self._null_result(symbol, f"Error: {str(e)}")
+            logger.error(f"Error analyzing {symbol}: {e}")
+            return self._null_result(symbol, f"Analysis error: {str(e)}")
 
-    def _analyze_momentum(self, change_1y: float) -> tuple:
+    # ============================================================================
+    # 1. MARKET REGIME DETECTION
+    # ============================================================================
+
+    def _detect_market_regime(self) -> Tuple[str, Dict]:
         """
-        Analiza momentum de 12 meses.
+        Detect current market regime: BULL, BEAR, or SIDEWAYS.
 
-        Evidencia: Jegadeesh & Titman (1993), Moskowitz (2012)
+        Evidence: Cooper et al. (2004), Blin et al. (2022)
+        - Momentum works +20% better in bull markets
+        - In bear markets, momentum decays 60% (crowding)
+
+        Logic:
+        - BULL: SPY > MA200 AND VIX < 20
+        - BEAR: SPY < MA200 AND VIX > 30
+        - SIDEWAYS: Everything else
 
         Returns:
-            (score: 0-35, data: dict)
-        """
-        score = 0
-
-        if change_1y >= 20:
-            score = 35
-            status = 'VERY_STRONG'
-        elif change_1y >= 15:
-            score = 30
-            status = 'STRONG'
-        elif change_1y >= 10:
-            score = 22
-            status = 'MODERATE'
-        elif change_1y >= 5:
-            score = 13
-            status = 'WEAK_POSITIVE'
-        elif change_1y >= 0:
-            score = 5
-            status = 'NEUTRAL'
-        else:
-            score = 0
-            status = 'NEGATIVE'
-
-        return score, {
-            'status': status,
-            'value': change_1y
-        }
-
-    def _analyze_sector_strength(self, symbol: str, stock_return_6m: float,
-                                 sector: str = None, country: str = 'USA') -> tuple:
-        """
-        Analiza fortaleza relativa vs sector.
-
-        Evidencia: Bretscher et al. (2023), Arnott (2024)
-        - Sector momentum importa 60% del total momentum
-        - Relative strength predice outperformance
-
-        Returns:
-            (score: 0-25, data: dict)
-        """
-        score = 0
-
-        # Si no hay sector, score neutral
-        if not sector:
-            return 12, {
-                'sector_name': 'Unknown',
-                'sector_return': 0,
-                'relative_strength': 0,
-                'status': 'UNKNOWN'
+            regime: 'BULL' | 'BEAR' | 'SIDEWAYS'
+            data: {
+                'spy_vs_ma200': float (%),
+                'vix': float,
+                'confidence': 'high' | 'medium' | 'low'
             }
-
-        # Get sector ETF
-        sector_etf = self.SECTOR_ETFS.get(sector)
-
-        if not sector_etf:
-            # Sector no mapeado, score neutral
-            return 12, {
-                'sector_name': sector,
-                'sector_return': 0,
-                'relative_strength': 0,
-                'status': 'NO_ETF_AVAILABLE'
-            }
+        """
+        # Cache for 6 hours (market regime doesn't change that fast)
+        if self._market_regime_cache and self._market_regime_timestamp:
+            age = datetime.now() - self._market_regime_timestamp
+            if age < timedelta(hours=6):
+                return self._market_regime_cache
 
         try:
-            # Get sector ETF performance
-            sector_quote = self.fmp.get_quote(sector_etf)
-            if not sector_quote or len(sector_quote) == 0:
-                return 12, {
-                    'sector_name': sector,
-                    'sector_etf': sector_etf,
-                    'sector_return': 0,
-                    'relative_strength': 0,
-                    'status': 'NO_DATA'
-                }
+            # Fetch SPY quote
+            spy_quote = self.fmp.get_quote('SPY')
+            if not spy_quote:
+                return 'SIDEWAYS', {'error': 'No SPY data', 'confidence': 'low'}
 
-            # Sector return (using 1Y as proxy for 6M)
-            sector_return_6m = sector_quote[0].get('changesPercentage', 0) * 0.5
+            spy = spy_quote[0]
+            spy_price = spy.get('price', 0)
+            spy_ma200 = spy.get('priceAvg200', 0)
+            spy_vs_ma = ((spy_price - spy_ma200) / spy_ma200 * 100) if spy_ma200 > 0 else 0
 
-            # Relative strength
-            relative_strength = stock_return_6m - sector_return_6m
+            # Fetch VIX quote
+            vix_quote = self.fmp.get_quote('^VIX')
+            vix_value = 20  # Default neutral
+            if vix_quote and len(vix_quote) > 0:
+                vix_value = vix_quote[0].get('price', 20)
 
-            # Score based on:
-            # 1. Sector absolute momentum (40% of 25pts = 10pts)
-            # 2. Relative strength (60% of 25pts = 15pts)
-
-            # 1. Sector momentum (10 pts)
-            if sector_return_6m > 15:
-                score += 10  # Hot sector
-                sector_status = 'HOT_SECTOR'
-            elif sector_return_6m > 5:
-                score += 7   # Positive sector
-                sector_status = 'POSITIVE_SECTOR'
-            elif sector_return_6m > 0:
-                score += 5   # Weak positive
-                sector_status = 'NEUTRAL_SECTOR'
-            elif sector_return_6m > -10:
-                score += 2   # Weak sector
-                sector_status = 'WEAK_SECTOR'
+            # Determine regime
+            if spy_vs_ma > 0 and vix_value < self.VIX_BULL_THRESHOLD:
+                regime = 'BULL'
+                confidence = 'high' if (spy_vs_ma > 3 and vix_value < 15) else 'medium'
+            elif spy_vs_ma < 0 and vix_value > self.VIX_BEAR_THRESHOLD:
+                regime = 'BEAR'
+                confidence = 'high' if (spy_vs_ma < -3 and vix_value > 35) else 'medium'
             else:
-                score += 0   # Cold sector
-                sector_status = 'COLD_SECTOR'
+                regime = 'SIDEWAYS'
+                confidence = 'medium'
 
-            # 2. Relative strength (15 pts)
-            if relative_strength > 10:
-                score += 15  # Strong outperformer
-                relative_status = 'STRONG_OUTPERFORMER'
-            elif relative_strength > 5:
-                score += 12  # Outperformer
-                relative_status = 'OUTPERFORMER'
-            elif relative_strength > 0:
-                score += 8   # Slight outperformer
-                relative_status = 'SLIGHT_OUTPERFORMER'
-            elif relative_strength > -5:
-                score += 4   # Slight underperformer
-                relative_status = 'SLIGHT_UNDERPERFORMER'
-            elif relative_strength > -10:
-                score += 2   # Underperformer
-                relative_status = 'UNDERPERFORMER'
-            else:
-                score += 0   # Strong underperformer
-                relative_status = 'STRONG_UNDERPERFORMER'
+            result = (regime, {
+                'spy_vs_ma200': round(spy_vs_ma, 2),
+                'vix': round(vix_value, 2),
+                'confidence': confidence
+            })
 
-            # Combined status
-            if 'OUTPERFORMER' in relative_status and 'HOT' in sector_status:
-                status = 'EXCELLENT'  # Best case
-            elif 'OUTPERFORMER' in relative_status:
-                status = 'GOOD'
-            elif 'COLD' in sector_status:
-                status = 'AVOID'
+            # Cache result
+            self._market_regime_cache = result
+            self._market_regime_timestamp = datetime.now()
+
+            return result
+
+        except Exception as e:
+            logger.warning(f"Error detecting market regime: {e}")
+            return 'SIDEWAYS', {'error': str(e), 'confidence': 'low'}
+
+    # ============================================================================
+    # 2. MULTI-TIMEFRAME MOMENTUM
+    # ============================================================================
+
+    def _analyze_multi_timeframe_momentum(self, prices: List[Dict]) -> Tuple[float, Dict]:
+        """
+        Calculate momentum across multiple timeframes: 1M, 3M, 6M, 12M.
+
+        Evidence: Novy-Marx (2012) - "Intermediate momentum" (6-12M) is strongest
+        - 12M momentum: Long-term trend
+        - 6M momentum: Intermediate (most predictive)
+        - 3M momentum: Recent acceleration
+        - 1M momentum: Short-term reversal detection
+
+        Scoring (25 pts total):
+        - 10 pts: 12M return
+        - 8 pts: 6M return
+        - 5 pts: 3M return
+        - 2 pts: Consistency bonus (all aligned)
+
+        Returns:
+            score: 0-25
+            data: {
+                '12m': float, '6m': float, '3m': float, '1m': float,
+                'consistency': 'HIGH' | 'MEDIUM' | 'LOW',
+                'status': str
+            }
+        """
+        try:
+            if len(prices) < 250:
+                return 0, {'error': 'Insufficient data'}
+
+            # Get prices at specific dates
+            current_price = prices[-1]['close']
+            price_1m = prices[-22]['close'] if len(prices) >= 22 else current_price
+            price_3m = prices[-66]['close'] if len(prices) >= 66 else current_price
+            price_6m = prices[-132]['close'] if len(prices) >= 132 else current_price
+            price_12m = prices[-250]['close'] if len(prices) >= 250 else current_price
+
+            # Calculate returns
+            ret_1m = ((current_price - price_1m) / price_1m * 100) if price_1m > 0 else 0
+            ret_3m = ((current_price - price_3m) / price_3m * 100) if price_3m > 0 else 0
+            ret_6m = ((current_price - price_6m) / price_6m * 100) if price_6m > 0 else 0
+            ret_12m = ((current_price - price_12m) / price_12m * 100) if price_12m > 0 else 0
+
+            # Score each timeframe
+            score_12m = self._score_return(ret_12m, max_return=60) * 10  # 0-10 pts
+            score_6m = self._score_return(ret_6m, max_return=30) * 8     # 0-8 pts
+            score_3m = self._score_return(ret_3m, max_return=15) * 5     # 0-5 pts
+
+            # Consistency bonus: All positive OR all negative (directional clarity)
+            positive_count = sum([ret_12m > 0, ret_6m > 0, ret_3m > 0, ret_1m > 0])
+            if positive_count == 4:
+                consistency = 'HIGH'
+                consistency_bonus = 2  # All bullish
+            elif positive_count == 0:
+                consistency = 'HIGH'
+                consistency_bonus = -2  # All bearish (penalty)
+            elif positive_count >= 3:
+                consistency = 'MEDIUM'
+                consistency_bonus = 1
             else:
+                consistency = 'LOW'
+                consistency_bonus = 0
+
+            total_score = score_12m + score_6m + score_3m + consistency_bonus
+
+            # Status
+            if ret_6m > 15:
+                status = 'STRONG'
+            elif ret_6m > 5:
+                status = 'POSITIVE'
+            elif ret_6m > -5:
                 status = 'NEUTRAL'
+            elif ret_6m > -15:
+                status = 'NEGATIVE'
+            else:
+                status = 'WEAK'
 
-            return score, {
-                'sector_name': sector,
-                'sector_etf': sector_etf,
-                'sector_return': sector_return_6m,
-                'stock_return': stock_return_6m,
-                'relative_strength': relative_strength,
-                'sector_status': sector_status,
-                'relative_status': relative_status,
+            return max(0, min(25, total_score)), {
+                '12m': round(ret_12m, 1),
+                '6m': round(ret_6m, 1),
+                '3m': round(ret_3m, 1),
+                '1m': round(ret_1m, 1),
+                'consistency': consistency,
                 'status': status
             }
 
         except Exception as e:
-            logger.warning(f"Error fetching sector data for {sector}: {str(e)}")
-            # Error, neutral score
-            return 12, {
-                'sector_name': sector,
-                'sector_return': 0,
-                'relative_strength': 0,
-                'status': 'ERROR',
-                'error': str(e)
-            }
+            logger.error(f"Error calculating multi-timeframe momentum: {e}")
+            return 0, {'error': str(e)}
 
-    def _analyze_trend(self, price: float, ma_50: float, ma_200: float) -> tuple:
+    # ============================================================================
+    # 3. RISK-ADJUSTED MOMENTUM (SHARPE)
+    # ============================================================================
+
+    def _analyze_risk_adjusted_momentum(self, prices: List[Dict]) -> Tuple[float, Dict]:
         """
-        Analiza tendencia usando Moving Averages.
+        Calculate risk-adjusted return (Sharpe-based momentum).
 
-        Evidencia: Brock et al. (1992)
+        Evidence: Daniel & Moskowitz (2016) - "Momentum Crashes"
+        - High-volatility momentum is dangerous
+        - Sharpe ratio predicts better than raw return
+        - Risk-adjusted momentum avoids crashes
+
+        Scoring (15 pts):
+        - Sharpe > 2.0: 15 pts (excellent)
+        - Sharpe 1.5-2.0: 12 pts
+        - Sharpe 1.0-1.5: 9 pts
+        - Sharpe 0.5-1.0: 6 pts
+        - Sharpe < 0.5: 0-3 pts
 
         Returns:
-            (score: 0-25, data: dict)
+            score: 0-15
+            data: {
+                'sharpe': float,
+                'volatility': float (annualized %),
+                'status': str
+            }
         """
-        score = 0
+        try:
+            if len(prices) < 250:
+                return 0, {'error': 'Insufficient data'}
 
-        if not ma_200 or ma_200 == 0:
-            return 12, {
-                'status': 'NO_DATA',
-                'distance_ma200': 0,
-                'golden_cross': False
+            # Calculate daily returns for past 12 months
+            daily_returns = []
+            for i in range(len(prices) - 250, len(prices) - 1):
+                ret = (prices[i + 1]['close'] - prices[i]['close']) / prices[i]['close']
+                daily_returns.append(ret)
+
+            # Calculate metrics
+            mean_return = statistics.mean(daily_returns)
+            volatility = statistics.stdev(daily_returns)
+
+            # Annualize
+            annual_return = mean_return * 252 * 100  # to %
+            annual_volatility = volatility * (252 ** 0.5) * 100  # to %
+
+            # Sharpe ratio (assuming 0% risk-free rate for simplicity)
+            sharpe = (mean_return / volatility) * (252 ** 0.5) if volatility > 0 else 0
+
+            # Score based on Sharpe
+            if sharpe >= 2.0:
+                score = 15
+                status = 'EXCELLENT'
+            elif sharpe >= 1.5:
+                score = 12
+                status = 'GOOD'
+            elif sharpe >= 1.0:
+                score = 9
+                status = 'MODERATE'
+            elif sharpe >= 0.5:
+                score = 6
+                status = 'WEAK'
+            elif sharpe >= 0:
+                score = 3
+                status = 'POOR'
+            else:
+                score = 0
+                status = 'NEGATIVE'
+
+            return score, {
+                'sharpe': round(sharpe, 2),
+                'volatility': round(annual_volatility, 1),
+                'annualized_return': round(annual_return, 1),
+                'status': status
             }
 
-        # Calculate distances
+        except Exception as e:
+            logger.error(f"Error calculating risk-adjusted momentum: {e}")
+            return 0, {'error': str(e)}
+
+    # ============================================================================
+    # 4. SECTOR RELATIVE STRENGTH
+    # ============================================================================
+
+    def _analyze_sector_relative(
+        self, symbol: str, prices: List[Dict], sector: str, country: str
+    ) -> Tuple[float, Dict]:
+        """
+        Analyze sector relative strength.
+
+        Evidence: Bretscher et al. (2023) - Sector momentum = 60% of total momentum
+
+        Scoring (15 pts):
+        - 10 pts: Sector absolute performance (6M)
+        - 5 pts: Stock vs sector outperformance
+
+        Returns:
+            score: 0-15
+            data: {...}
+        """
+        try:
+            if not sector or country != 'USA':
+                return 0, {'status': 'UNKNOWN', 'relative_strength': 0}
+
+            sector_etf = self.SECTOR_ETFS.get(sector)
+            if not sector_etf:
+                return 0, {'status': 'UNKNOWN', 'sector': sector}
+
+            # Get stock 6M return
+            if len(prices) < 132:
+                return 0, {'error': 'Insufficient data'}
+
+            stock_current = prices[-1]['close']
+            stock_6m_ago = prices[-132]['close']
+            stock_ret_6m = ((stock_current - stock_6m_ago) / stock_6m_ago * 100) if stock_6m_ago > 0 else 0
+
+            # Get sector ETF 6M return
+            from_date = (datetime.now() - timedelta(days=200)).strftime('%Y-%m-%d')
+            sector_hist = self.fmp.get_historical_prices(sector_etf, from_date=from_date)
+
+            if not sector_hist or 'historical' not in sector_hist:
+                return 0, {'error': 'No sector data'}
+
+            sector_prices = sector_hist['historical'][::-1]
+            if len(sector_prices) < 132:
+                return 0, {'error': 'Insufficient sector data'}
+
+            sector_current = sector_prices[-1]['close']
+            sector_6m_ago = sector_prices[-132]['close']
+            sector_ret_6m = ((sector_current - sector_6m_ago) / sector_6m_ago * 100) if sector_6m_ago > 0 else 0
+
+            # Calculate relative strength
+            relative_strength = stock_ret_6m - sector_ret_6m
+
+            # Score sector absolute (0-10 pts)
+            sector_score = self._score_return(sector_ret_6m, max_return=20) * 10
+
+            # Score relative outperformance (0-5 pts)
+            relative_score = self._score_return(relative_strength, max_return=10) * 5
+
+            total_score = sector_score + relative_score
+
+            # Status
+            if sector_ret_6m > 10:
+                status = 'HOT'
+            elif sector_ret_6m > 0:
+                status = 'GOOD'
+            elif sector_ret_6m > -10:
+                status = 'NEUTRAL'
+            else:
+                status = 'COLD'
+
+            return max(0, min(15, total_score)), {
+                'sector_return_6m': round(sector_ret_6m, 1),
+                'stock_return_6m': round(stock_ret_6m, 1),
+                'relative_strength': round(relative_strength, 1),
+                'sector_etf': sector_etf,
+                'status': status
+            }
+
+        except Exception as e:
+            logger.error(f"Error analyzing sector relative: {e}")
+            return 0, {'error': str(e)}
+
+    # ============================================================================
+    # 5. MARKET RELATIVE STRENGTH (vs SPY)
+    # ============================================================================
+
+    def _analyze_market_relative(self, prices: List[Dict]) -> Tuple[float, Dict]:
+        """
+        Analyze relative strength vs market (SPY).
+
+        Evidence: Blitz et al. (2011) - Market-relative momentum
+
+        Scoring (10 pts):
+        - Outperform SPY by >10% in 6M: 10 pts
+        - Outperform SPY by 0-10%: 5-10 pts
+        - Underperform SPY: 0-5 pts
+
+        Returns:
+            score: 0-10
+            data: {...}
+        """
+        try:
+            if len(prices) < 132:
+                return 0, {'error': 'Insufficient data'}
+
+            # Get stock 6M return
+            stock_current = prices[-1]['close']
+            stock_6m_ago = prices[-132]['close']
+            stock_ret_6m = ((stock_current - stock_6m_ago) / stock_6m_ago * 100) if stock_6m_ago > 0 else 0
+
+            # Get SPY 6M return
+            from_date = (datetime.now() - timedelta(days=200)).strftime('%Y-%m-%d')
+            spy_hist = self.fmp.get_historical_prices('SPY', from_date=from_date)
+
+            if not spy_hist or 'historical' not in spy_hist:
+                return 0, {'error': 'No SPY data'}
+
+            spy_prices = spy_hist['historical'][::-1]
+            if len(spy_prices) < 132:
+                return 0, {'error': 'Insufficient SPY data'}
+
+            spy_current = spy_prices[-1]['close']
+            spy_6m_ago = spy_prices[-132]['close']
+            spy_ret_6m = ((spy_current - spy_6m_ago) / spy_6m_ago * 100) if spy_6m_ago > 0 else 0
+
+            # Calculate relative strength
+            relative_strength = stock_ret_6m - spy_ret_6m
+
+            # Score (0-10 pts)
+            score = self._score_return(relative_strength, max_return=20) * 10
+
+            # Status
+            if relative_strength > 10:
+                status = 'OUTPERFORMER'
+            elif relative_strength > 0:
+                status = 'BEATING_MARKET'
+            elif relative_strength > -10:
+                status = 'INLINE'
+            else:
+                status = 'UNDERPERFORMER'
+
+            return max(0, min(10, score)), {
+                'market_return_6m': round(spy_ret_6m, 1),
+                'stock_return_6m': round(stock_ret_6m, 1),
+                'relative_strength': round(relative_strength, 1),
+                'status': status
+            }
+
+        except Exception as e:
+            logger.error(f"Error analyzing market relative: {e}")
+            return 0, {'error': str(e)}
+
+    # ============================================================================
+    # 6. TREND ANALYSIS (MA200)
+    # ============================================================================
+
+    def _analyze_trend(self, price: float, ma_50: float, ma_200: float) -> Tuple[float, Dict]:
+        """
+        Analyze trend using moving averages.
+
+        Evidence: Brock et al. (1992) - MA200 cross predictive
+
+        Scoring (10 pts):
+        - Price > MA200 + Golden Cross: 10 pts
+        - Price > MA200: 7 pts
+        - Price < MA200: 0-3 pts
+
+        Returns:
+            score: 0-10
+            data: {...}
+        """
+        if price == 0 or ma_200 == 0:
+            return 0, {'status': 'UNKNOWN', 'distance_ma200': 0, 'golden_cross': False}
+
         distance_ma200 = ((price - ma_200) / ma_200 * 100)
-        golden_cross = (ma_50 > ma_200) if (ma_50 and ma_200) else False
+        golden_cross = ma_50 > ma_200 if (ma_50 > 0 and ma_200 > 0) else False
 
-        # Determine trend
         if price > ma_200:
-            # Uptrend
-            if distance_ma200 < 5:
-                score = 15
-                status = 'UPTREND_EARLY'
-            elif distance_ma200 < 20:
-                score = 25
-                status = 'UPTREND'
-            elif distance_ma200 < 30:
-                score = 18
-                status = 'UPTREND_EXTENDED'
-            else:
-                score = 10
-                status = 'UPTREND_OVEREXTENDED'
-
-            # Bonus for golden cross
             if golden_cross:
-                score += 3
-                score = min(score, 25)  # Cap at 25
-
-        elif price > ma_200 * 0.95:
-            score = 10
-            status = 'NEUTRAL'
-
-        else:
-            # Downtrend
-            score = 0
-            if price < ma_200 * 0.90:
-                status = 'DOWNTREND_STRONG'
+                score = 10
+                status = 'UPTREND'
             else:
-                status = 'DOWNTREND'
+                score = 7
+                status = 'UPTREND'
+        else:
+            # Below MA200
+            score = max(0, 5 + distance_ma200 / 5)  # Penalty for distance below
+            status = 'DOWNTREND'
 
         return score, {
             'status': status,
-            'distance_ma200': distance_ma200,
+            'distance_ma200': round(distance_ma200, 1),
             'golden_cross': golden_cross
         }
 
-    def _analyze_volume(self, volume: int, avg_volume: int) -> tuple:
+    # ============================================================================
+    # 7. VOLUME PROFILE (ACCUMULATION/DISTRIBUTION)
+    # ============================================================================
+
+    def _analyze_volume_profile(self, prices: List[Dict]) -> Tuple[float, Dict]:
         """
-        Analiza volumen para confirmación.
+        Analyze volume profile to detect accumulation/distribution.
+
+        Evidence: Lee & Swaminathan (2000) - Volume momentum interaction
+
+        Metrics:
+        - Volume on up days vs down days
+        - Volume trend (increasing/decreasing)
+
+        Scoring (10 pts):
+        - Accumulation (vol on up days > down days): 7-10 pts
+        - Neutral: 4-6 pts
+        - Distribution (vol on down days > up days): 0-3 pts
 
         Returns:
-            (score: 0-15, data: dict)
+            score: 0-10
+            data: {...}
         """
-        if avg_volume == 0 or avg_volume is None:
-            return 7, {'status': 'UNKNOWN', 'ratio': 0}
+        try:
+            if len(prices) < 66:  # Need 3 months
+                return 0, {'error': 'Insufficient data'}
 
-        ratio = volume / avg_volume
+            # Analyze last 3 months
+            recent_prices = prices[-66:]
 
-        if ratio >= 1.5:
-            score = 15
-            status = 'VERY_HIGH'
-        elif ratio >= 1.2:
-            score = 12
-            status = 'HIGH'
-        elif ratio >= 0.8:
-            score = 8
-            status = 'NORMAL'
-        elif ratio >= 0.5:
-            score = 4
-            status = 'LOW'
-        else:
-            score = 0
-            status = 'VERY_LOW'
+            vol_on_up_days = 0
+            vol_on_down_days = 0
 
-        return score, {
-            'status': status,
-            'ratio': ratio
-        }
+            for i in range(1, len(recent_prices)):
+                price_change = recent_prices[i]['close'] - recent_prices[i - 1]['close']
+                volume = recent_prices[i].get('volume', 0)
 
-    def _generate_warnings(self, change_1y: float, price: float,
-                          ma_200: float, volume: int, avg_volume: int,
-                          sector_data: dict) -> list:
+                if price_change > 0:
+                    vol_on_up_days += volume
+                elif price_change < 0:
+                    vol_on_down_days += volume
+
+            # Calculate accumulation ratio
+            total_vol = vol_on_up_days + vol_on_down_days
+            accumulation_ratio = (vol_on_up_days / total_vol) if total_vol > 0 else 0.5
+
+            # Determine profile
+            if accumulation_ratio > 0.55:
+                profile = 'ACCUMULATION'
+                score = 7 + (accumulation_ratio - 0.55) * 20  # 7-10 pts
+            elif accumulation_ratio > 0.45:
+                profile = 'NEUTRAL'
+                score = 4 + (accumulation_ratio - 0.45) * 20  # 4-6 pts
+            else:
+                profile = 'DISTRIBUTION'
+                score = accumulation_ratio * 8  # 0-3 pts
+
+            # Volume trend
+            recent_vol = sum(p.get('volume', 0) for p in prices[-22:]) / 22
+            older_vol = sum(p.get('volume', 0) for p in prices[-66:-44]) / 22
+            volume_trend = 'INCREASING' if recent_vol > older_vol * 1.1 else \
+                          'DECREASING' if recent_vol < older_vol * 0.9 else 'STABLE'
+
+            return max(0, min(10, score)), {
+                'profile': profile,
+                'accumulation_ratio': round(accumulation_ratio, 2),
+                'volume_trend': volume_trend,
+                'vol_up_days': vol_on_up_days,
+                'vol_down_days': vol_on_down_days
+            }
+
+        except Exception as e:
+            logger.error(f"Error analyzing volume profile: {e}")
+            return 0, {'error': str(e)}
+
+    # ============================================================================
+    # REGIME ADJUSTMENT
+    # ============================================================================
+
+    def _calculate_regime_adjustment(
+        self, regime: str, momentum_data: Dict, trend_data: Dict
+    ) -> float:
         """
-        Genera warnings basados en condiciones de riesgo.
+        Adjust score based on market regime.
+
+        Evidence: Cooper et al. (2004), Blin et al. (2022)
+        - Momentum 20% more effective in bull markets
+        - Momentum 60% less effective in bear markets
+
+        Adjustments:
+        - BULL + positive momentum: +10 pts
+        - BULL + negative momentum: 0 pts
+        - BEAR + positive momentum: -10 pts (fade the rally)
+        - BEAR + negative momentum: 0 pts
+        - SIDEWAYS: No adjustment
+
+        Returns:
+            adjustment: -10 to +10 pts
+        """
+        if regime == 'SIDEWAYS':
+            return 0
+
+        # Check if momentum is positive
+        momentum_positive = momentum_data.get('6m', 0) > 0
+
+        if regime == 'BULL':
+            if momentum_positive and trend_data.get('status') == 'UPTREND':
+                return 10  # Bull + momentum = strong
+            else:
+                return 0
+
+        elif regime == 'BEAR':
+            if momentum_positive:
+                return -10  # Bear market rally = trap
+            else:
+                return 0  # Bear + negative momentum = normal
+
+        return 0
+
+    # ============================================================================
+    # WARNINGS
+    # ============================================================================
+
+    def _generate_warnings(
+        self,
+        momentum_data: Dict,
+        volume_data: Dict,
+        sector_data: Dict,
+        market_data: Dict,
+        regime_data: Dict
+    ) -> List[Dict]:
+        """
+        Generate warnings based on analysis.
+
+        Returns:
+            List of {'type': 'HIGH'|'MEDIUM'|'LOW', 'message': str}
         """
         warnings = []
 
-        # 1. Meme stock detection
-        if change_1y > 100:
+        # Momentum inconsistency
+        if momentum_data.get('consistency') == 'LOW':
             warnings.append({
-                'type': 'MEME_STOCK_RISK',
-                'severity': 'HIGH',
-                'message': f'Extreme 1Y gain (+{change_1y:.0f}%). Possible meme stock or bubble.'
+                'type': 'MEDIUM',
+                'message': f"Momentum inconsistency: 1M={momentum_data.get('1m')}%, 12M={momentum_data.get('12m')}%"
             })
 
-        # 2. Sobreextensión vs MA200
-        if ma_200 and price > ma_200:
-            distance = (price - ma_200) / ma_200 * 100
-            if distance > 30:
+        # Distribution warning
+        if volume_data.get('profile') == 'DISTRIBUTION':
+            warnings.append({
+                'type': 'HIGH',
+                'message': f"Volume distribution detected (ratio={volume_data.get('accumulation_ratio')})"
+            })
+
+        # Cold sector warning
+        if sector_data.get('status') == 'COLD':
+            warnings.append({
+                'type': 'MEDIUM',
+                'message': f"Cold sector: {sector_data.get('sector_etf')} down {sector_data.get('sector_return_6m')}% in 6M"
+            })
+
+        # Market underperformance
+        if market_data.get('status') == 'UNDERPERFORMER':
+            warnings.append({
+                'type': 'LOW',
+                'message': f"Underperforming market by {abs(market_data.get('relative_strength'))}%"
+            })
+
+        # Bear market warning
+        if regime_data.get('confidence') != 'low':
+            spy_vs_ma = regime_data.get('spy_vs_ma200', 0)
+            vix = regime_data.get('vix', 20)
+            if spy_vs_ma < -5 or vix > 30:
                 warnings.append({
-                    'type': 'OVEREXTENDED',
-                    'severity': 'MEDIUM',
-                    'message': f'Price {distance:.0f}% above MA200. Potential pullback risk.'
+                    'type': 'HIGH',
+                    'message': f"Bear market conditions: SPY {spy_vs_ma:.1f}% vs MA200, VIX {vix:.1f}"
                 })
-
-        # 3. Downtrend fuerte
-        if ma_200 and price < ma_200 * 0.85:
-            warnings.append({
-                'type': 'STRONG_DOWNTREND',
-                'severity': 'HIGH',
-                'message': 'Price >15% below MA200. Strong downtrend.'
-            })
-
-        # 4. Low volume
-        if avg_volume and volume < avg_volume * 0.5:
-            warnings.append({
-                'type': 'LOW_VOLUME',
-                'severity': 'LOW',
-                'message': 'Volume 50% below average. Weak signal reliability.'
-            })
-
-        # 5. Sector warnings
-        if sector_data.get('status') == 'AVOID':
-            warnings.append({
-                'type': 'COLD_SECTOR',
-                'severity': 'HIGH',
-                'message': f"Sector {sector_data.get('sector_name', '')} is weak ({sector_data.get('sector_return', 0):+.0f}% 6M)."
-            })
-
-        if 'UNDERPERFORMER' in sector_data.get('relative_status', ''):
-            warnings.append({
-                'type': 'RELATIVE_WEAKNESS',
-                'severity': 'MEDIUM',
-                'message': f"Underperforming sector by {abs(sector_data.get('relative_strength', 0)):.0f}%."
-            })
 
         return warnings
 
-    def _generate_signal(self, score: int, trend: str, sector_data: dict) -> str:
+    # ============================================================================
+    # SIGNAL GENERATION
+    # ============================================================================
+
+    def _generate_signal(self, score: float, trend_data: Dict, regime: str) -> str:
         """
-        Genera señal de trading basada en score y trend.
+        Generate BUY/HOLD/SELL signal.
+
+        Rules:
+        - BUY: score >= 75 AND uptrend
+        - HOLD: score 50-75 OR mixed signals
+        - SELL: score < 50
+
+        Returns:
+            'BUY' | 'HOLD' | 'SELL'
         """
-        # SELL if cold sector
-        if sector_data.get('status') == 'AVOID':
-            return 'SELL'
+        is_uptrend = trend_data.get('status') == 'UPTREND'
 
-        # SELL if downtrend
-        if 'DOWNTREND' in trend:
-            return 'SELL'
-
-        # BUY if excellent sector + high score
-        if sector_data.get('status') == 'EXCELLENT' and score >= 70:
+        if score >= 75 and is_uptrend:
             return 'BUY'
-
-        # BUY if high score
-        if score >= 75:
-            return 'BUY'
-
-        # HOLD
-        if score >= 50:
+        elif score >= 50:
             return 'HOLD'
+        else:
+            return 'SELL'
 
-        return 'SELL'
+    # ============================================================================
+    # HELPER METHODS
+    # ============================================================================
+
+    def _score_return(self, return_pct: float, max_return: float = 50) -> float:
+        """
+        Convert return % to score 0-1.
+
+        Args:
+            return_pct: Return percentage
+            max_return: Max return for score=1.0
+
+        Returns:
+            score: 0.0 to 1.0
+        """
+        if return_pct >= max_return:
+            return 1.0
+        elif return_pct <= -max_return:
+            return 0.0
+        else:
+            # Linear interpolation
+            return 0.5 + (return_pct / (2 * max_return))
 
     def _null_result(self, symbol: str, reason: str) -> Dict:
-        """
-        Resultado nulo cuando no hay datos.
-        """
+        """Return null result when analysis fails."""
         return {
-            'score': 50,  # Neutral
-            'signal': 'HOLD',
+            'score': 0,
+            'signal': 'SELL',
+            'market_regime': 'UNKNOWN',
             'momentum_12m': 0,
-            'momentum_status': 'UNKNOWN',
-            'sector': 'Unknown',
-            'sector_momentum_6m': 0,
-            'relative_strength': 0,
-            'sector_status': 'UNKNOWN',
+            'momentum_6m': 0,
+            'momentum_3m': 0,
+            'momentum_1m': 0,
+            'momentum_consistency': 'UNKNOWN',
+            'sharpe_12m': 0,
             'trend': 'UNKNOWN',
-            'distance_from_ma200': 0,
-            'golden_cross': False,
-            'volume_status': 'UNKNOWN',
-            'volume_ratio': 0,
-            'warnings': [{
-                'type': 'NO_DATA',
-                'severity': 'HIGH',
-                'message': reason
-            }],
+            'sector_relative': 0,
+            'market_relative': 0,
+            'volume_profile': 'UNKNOWN',
+            'warnings': [{'type': 'HIGH', 'message': reason}],
             'timestamp': datetime.now().isoformat(),
-            'component_scores': {
-                'momentum': 0,
-                'sector': 0,
-                'trend': 0,
-                'volume': 0
-            }
+            'error': reason
         }
+
+
+# Backward compatibility alias
+TechnicalAnalyzer = EnhancedTechnicalAnalyzer
