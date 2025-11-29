@@ -5050,7 +5050,7 @@ with tab7:
                 # ========== ADVANCED TOOLS (NEW) ==========
                 if selected_ticker and full_analysis:
                     st.markdown("---")
-                    st.markdown("## 🚀 Advanced Risk Management Tools")
+                    st.markdown("## Advanced Risk Management Tools")
 
                     st.markdown("""
                     Herramientas avanzadas basadas en investigación académica para análisis profundo y toma de decisiones.
@@ -5077,8 +5077,6 @@ with tab7:
                         ])
 
                         with adv_tab1:
-                            st.markdown("### 📊 Interactive Charts")
-
                             col1, col2 = st.columns([2, 1])
 
                             with col1:
@@ -5111,8 +5109,6 @@ with tab7:
                                     st.error(f"Error rendering gauge: {e}")
 
                         with adv_tab2:
-                            st.markdown("### 🔬 Historical Overextension Analysis")
-
                             st.info("""
                             **¿Qué hace?** Analiza 2 años de historial para encontrar todas las veces que este stock
                             estuvo sobreextendido (>40% sobre MA200) y calcula:
@@ -5127,8 +5123,6 @@ with tab7:
                                 st.error(f"Error in backtesting: {e}")
 
                         with adv_tab3:
-                            st.markdown("### 💰 Options Strategy Calculator")
-
                             st.info("""
                             **¿Qué hace?** Calcula métricas exactas para 5 estrategias de opciones:
                             - Covered Call (income generation)
@@ -5147,8 +5141,6 @@ with tab7:
                                 st.info("💡 Make sure scipy is installed: `pip install scipy>=1.11.0`")
 
                         with adv_tab4:
-                            st.markdown("### 🌡️ Market Timing Dashboard")
-
                             st.info("""
                             **¿Qué hace?** Analiza condiciones macro del mercado:
                             - % de stocks overextended (riesgo de corrección)
@@ -5169,8 +5161,6 @@ with tab7:
                                 st.error(f"Error in market timing: {e}")
 
                         with adv_tab5:
-                            st.markdown("### 💼 Portfolio Tracker")
-
                             st.info("""
                             **¿Qué hace?** Trackea tus posiciones y genera alertas automáticas:
                             - Track entry price, tranches, P&L
