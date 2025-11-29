@@ -56,7 +56,7 @@ def render_price_levels_chart(
 
     # Fetch current quote
     try:
-        quote = fmp_client.get_quote([symbol])
+        quote = fmp_client.get_quote(symbol)  # Pass string, not list
         if not quote or len(quote) == 0:
             st.warning("⚠️ No current price data available")
             return
@@ -198,7 +198,7 @@ def render_options_calculator(symbol: str, fmp_client, full_analysis: Dict):
 
     # Fetch current quote
     try:
-        quote = fmp_client.get_quote([symbol])
+        quote = fmp_client.get_quote(symbol)  # Pass string, not list
         if not quote or len(quote) == 0:
             st.warning("⚠️ No current price data available")
             return
