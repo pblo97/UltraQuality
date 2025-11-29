@@ -215,7 +215,8 @@ def create_price_levels_chart(
             y=1.02,
             xanchor="right",
             x=1
-        )
+        ),
+        margin=dict(l=100, r=20, t=80, b=60)  # Aumentar margen izquierdo para evitar solapamiento
     )
 
     return fig
