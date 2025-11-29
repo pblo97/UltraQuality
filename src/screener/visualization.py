@@ -156,7 +156,7 @@ def create_price_levels_chart(
         line_dash="dash",
         line_color="#7f7f7f",
         annotation_text=f"MA200: ${ma_200:.2f}",
-        annotation_position="right"
+        annotation_position="bottom right"
     )
 
     # Add MA50 line
@@ -165,7 +165,7 @@ def create_price_levels_chart(
         line_dash="dot",
         line_color="#bcbd22",
         annotation_text=f"MA50: ${ma_50:.2f}",
-        annotation_position="right"
+        annotation_position="top right"
     )
 
     # Add current price line
@@ -174,30 +174,34 @@ def create_price_levels_chart(
         line_color="#1f77b4",
         line_width=2,
         annotation_text=f"Current: ${current_price:.2f}",
-        annotation_position="left"
+        annotation_position="top right"
     )
 
     # Add entry levels
-    for entry in entry_levels:
+    for i, entry in enumerate(entry_levels):
+        # Alternate positions to avoid overlap
+        position = "bottom right" if i % 2 == 0 else "top right"
         fig.add_hline(
             y=entry['price'],
             line_color=entry['color'],
             line_width=2,
             line_dash="dash",
-            annotation_text=entry['label'],
-            annotation_position="left"
+            annotation_text=f"{entry['label']}: ${entry['price']:.2f}",
+            annotation_position=position
         )
 
     # Add stop loss levels
-    for stop in stop_levels:
+    for i, stop in enumerate(stop_levels):
         line_width = 3 if stop.get('recommended') else 1
+        # Alternate positions to avoid overlap
+        position = "bottom right" if i % 2 == 0 else "top right"
         fig.add_hline(
             y=stop['price'],
             line_color=stop['color'],
             line_width=line_width,
             line_dash="dot",
-            annotation_text=stop['label'] + (" ⭐" if stop.get('recommended') else ""),
-            annotation_position="right"
+            annotation_text=stop['label'] + (" ⭐" if stop.get('recommended') else "") + f" ${stop['price']:.2f}",
+            annotation_position=position
         )
 
     # Update layout
@@ -216,7 +220,7 @@ def create_price_levels_chart(
             xanchor="right",
             x=1
         ),
-        margin=dict(l=100, r=20, t=80, b=60)  # Aumentar margen izquierdo para evitar solapamiento
+        margin=dict(l=60, r=150, t=80, b=60)  # Margen derecho amplio para anotaciones
     )
 
     return fig
