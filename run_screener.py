@@ -5094,7 +5094,7 @@ with tab7:
 
                                     render_price_levels_chart(
                                         symbol=selected_ticker,
-                                        stock_data=stock_data,
+                                        fmp_client=fmp,
                                         full_analysis=full_analysis,
                                         historical_prices=historical_prices
                                     )
@@ -5135,7 +5135,7 @@ with tab7:
                             """)
 
                             try:
-                                render_options_calculator(selected_ticker, stock_data, full_analysis)
+                                render_options_calculator(selected_ticker, fmp, full_analysis)
                             except Exception as e:
                                 st.error(f"Error in options calculator: {e}")
                                 st.info("💡 Make sure scipy is installed: `pip install scipy>=1.11.0`")
