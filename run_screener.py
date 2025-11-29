@@ -12,7 +12,7 @@ import streamlit as st
 import sys
 from pathlib import Path
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 import os
 
@@ -5046,6 +5046,211 @@ with tab7:
 
                     else:
                         st.error("No detailed analysis available for this stock.")
+
+                # ========== ADVANCED TOOLS (NEW) ==========
+                if selected_stock and full_analysis:
+                    st.markdown("---")
+                    st.markdown("## 🚀 Advanced Risk Management Tools")
+
+                    st.markdown("""
+                    Herramientas avanzadas basadas en investigación académica para análisis profundo y toma de decisiones.
+                    """)
+
+                    # Import advanced UI components (lazy import)
+                    try:
+                        from screener.advanced_ui import (
+                            render_price_levels_chart,
+                            render_overextension_gauge,
+                            render_backtesting_section,
+                            render_options_calculator,
+                            render_market_timing_dashboard,
+                            render_portfolio_tracker
+                        )
+
+                        # Create tabs for different tools
+                        adv_tab1, adv_tab2, adv_tab3, adv_tab4, adv_tab5 = st.tabs([
+                            "📊 Visualizations",
+                            "🔬 Backtesting",
+                            "💰 Options",
+                            "🌡️ Market Timing",
+                            "💼 Portfolio"
+                        ])
+
+                        with adv_tab1:
+                            st.markdown("### 📊 Interactive Charts")
+
+                            col1, col2 = st.columns([2, 1])
+
+                            with col1:
+                                # Price Levels Chart
+                                try:
+                                    # Get historical data if available
+                                    historical_prices = None
+                                    try:
+                                        from_date = (datetime.now() - timedelta(days=100)).strftime('%Y-%m-%d')
+                                        hist_data = fmp_cached.get_historical_prices(selected_stock, from_date=from_date)
+                                        if hist_data and 'historical' in hist_data:
+                                            historical_prices = hist_data['historical'][::-1]  # Chronological
+                                    except:
+                                        pass
+
+                                    render_price_levels_chart(
+                                        symbol=selected_stock,
+                                        stock_data=stock_data,
+                                        full_analysis=full_analysis,
+                                        historical_prices=historical_prices
+                                    )
+                                except Exception as e:
+                                    st.error(f"Error rendering chart: {e}")
+
+                            with col2:
+                                # Overextension Gauge
+                                try:
+                                    render_overextension_gauge(full_analysis)
+                                except Exception as e:
+                                    st.error(f"Error rendering gauge: {e}")
+
+                        with adv_tab2:
+                            st.markdown("### 🔬 Historical Overextension Analysis")
+
+                            st.info("""
+                            **¿Qué hace?** Analiza 2 años de historial para encontrar todas las veces que este stock
+                            estuvo sobreextendido (>40% sobre MA200) y calcula:
+                            - Corrección promedio
+                            - Días hasta corrección
+                            - Win rate de estrategias scale-in vs full entry
+                            """)
+
+                            try:
+                                render_backtesting_section(selected_stock, fmp_cached)
+                            except Exception as e:
+                                st.error(f"Error in backtesting: {e}")
+
+                        with adv_tab3:
+                            st.markdown("### 💰 Options Strategy Calculator")
+
+                            st.info("""
+                            **¿Qué hace?** Calcula métricas exactas para 5 estrategias de opciones:
+                            - Covered Call (income generation)
+                            - Protective Put (downside protection)
+                            - Collar (zero-cost protection)
+                            - Cash-Secured Put (entry at discount)
+                            - Bull Put Spread (defined risk/reward)
+
+                            Incluye: Premium, Max P&L, Break-even, Annualized Return, Probability, Greeks
+                            """)
+
+                            try:
+                                render_options_calculator(selected_stock, stock_data, full_analysis)
+                            except Exception as e:
+                                st.error(f"Error in options calculator: {e}")
+                                st.info("💡 Make sure scipy is installed: `pip install scipy>=1.11.0`")
+
+                        with adv_tab4:
+                            st.markdown("### 🌡️ Market Timing Dashboard")
+
+                            st.info("""
+                            **¿Qué hace?** Analiza condiciones macro del mercado:
+                            - % de stocks overextended (riesgo de corrección)
+                            - Breakdown por sector
+                            - VIX (fear/greed indicator)
+                            - Market breadth
+                            - Recomendación: DEFENSIVE/CAUTIOUS/NEUTRAL/BULLISH
+                            """)
+
+                            try:
+                                # Get top stocks from screening results if available
+                                top_stocks = None
+                                if 'df_tech' in locals() and df_tech is not None and len(df_tech) > 0:
+                                    top_stocks = df_tech['symbol'].head(20).tolist()
+
+                                render_market_timing_dashboard(fmp_cached, top_stocks)
+                            except Exception as e:
+                                st.error(f"Error in market timing: {e}")
+
+                        with adv_tab5:
+                            st.markdown("### 💼 Portfolio Tracker")
+
+                            st.info("""
+                            **¿Qué hace?** Trackea tus posiciones y genera alertas automáticas:
+                            - Track entry price, tranches, P&L
+                            - Alertas de scale-in opportunities (near MA50/MA200)
+                            - Alertas de stop loss triggered
+                            - Alertas de profit targets hit
+                            - Portfolio summary con total P&L
+                            """)
+
+                            try:
+                                render_portfolio_tracker(fmp_cached)
+                            except Exception as e:
+                                st.error(f"Error in portfolio tracker: {e}")
+
+                        # Help section
+                        with st.expander("📚 Guía de Uso de Advanced Tools"):
+                            st.markdown("""
+                            ### Flujo Recomendado
+
+                            1. **Visualizations** 📊
+                               - Revisa el gráfico de price levels para ver dónde están los niveles clave
+                               - El gauge muestra el nivel de overextension risk (0-7)
+
+                            2. **Backtesting** 🔬
+                               - Valida con datos históricos si correcciones son comunes
+                               - Compara performance de full entry vs scale-in
+
+                            3. **Options** 💰
+                               - Calcula estrategia óptima (covered call si overextended, protective put si high risk)
+                               - Revisa Greeks para entender sensibilidad
+
+                            4. **Market Timing** 🌡️
+                               - Verifica condiciones macro antes de entrar
+                               - Si DEFENSIVE (risk 7+), espera mejor momento
+
+                            5. **Portfolio** 💼
+                               - Agrega posición para tracking automático
+                               - Recibe alertas cuando price hits key levels
+
+                            ### Casos de Uso
+
+                            **Stock Overextendido (ej: +58% sobre MA200)**
+                            1. Visualizations → Confirma zona overextension
+                            2. Backtesting → Valida que correcciones históricas fueron -25% avg
+                            3. Options → Covered call para income mientras esperas pullback
+                            4. Market Timing → Si CAUTIOUS/DEFENSIVE, no entres full position
+                            5. Portfolio → Scale-in 3 tranches (25% now, 35% @MA50, 40% @MA200)
+
+                            **Stock con Pullback (ej: -15% en 2 semanas)**
+                            1. Visualizations → Confirma que salió de zona overextension
+                            2. Backtesting → Valida que rebotes desde MA50 son +18% avg
+                            3. Options → Cash-secured put para entry at discount
+                            4. Market Timing → Si NEUTRAL/BULLISH, OK para agregar
+                            5. Portfolio → Add tranche 2 cuando alerta dice "near MA50"
+
+                            ### Documentación Completa
+
+                            Ver `ADVANCED_FEATURES.md` para:
+                            - Explicación detallada de cada tool
+                            - Ejemplos con NVDA, AAPL
+                            - Mejores prácticas
+                            - Referencias académicas
+                            - Troubleshooting
+                            """)
+
+                    except ImportError as e:
+                        st.warning(f"""
+                        ⚠️ Advanced Tools no disponibles.
+
+                        Error: {e}
+
+                        Para habilitar las Advanced Tools, asegúrate de tener instaladas las dependencias:
+                        ```bash
+                        pip install scipy>=1.11.0 toml>=0.10.2
+                        ```
+                        """)
+                    except Exception as e:
+                        st.error(f"Error loading Advanced Tools: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
 
                 # Download
                 st.markdown("---")
