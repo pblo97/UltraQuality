@@ -5088,7 +5088,7 @@ with tab7:
                                     historical_prices = None
                                     try:
                                         from_date = (datetime.now() - timedelta(days=100)).strftime('%Y-%m-%d')
-                                        hist_data = fmp_cached.get_historical_prices(selected_ticker, from_date=from_date)
+                                        hist_data = fmp.get_historical_prices(selected_ticker, from_date=from_date)
                                         if hist_data and 'historical' in hist_data:
                                             historical_prices = hist_data['historical'][::-1]  # Chronological
                                     except:
@@ -5122,7 +5122,7 @@ with tab7:
                             """)
 
                             try:
-                                render_backtesting_section(selected_ticker, fmp_cached)
+                                render_backtesting_section(selected_ticker, fmp)
                             except Exception as e:
                                 st.error(f"Error in backtesting: {e}")
 
@@ -5161,10 +5161,10 @@ with tab7:
                             try:
                                 # Get top stocks from screening results if available
                                 top_stocks = None
-                                if 'df_tech' in locals() and df_tech is not None and len(df_tech) > 0:
-                                    top_stocks = df_tech['symbol'].head(20).tolist()
+                                if 'df_filtered' in locals() and df_filtered is not None and len(df_filtered) > 0:
+                                    top_stocks = df_filtered['ticker'].head(20).tolist()
 
-                                render_market_timing_dashboard(fmp_cached, top_stocks)
+                                render_market_timing_dashboard(fmp, top_stocks)
                             except Exception as e:
                                 st.error(f"Error in market timing: {e}")
 
@@ -5181,7 +5181,7 @@ with tab7:
                             """)
 
                             try:
-                                render_portfolio_tracker(fmp_cached)
+                                render_portfolio_tracker(fmp)
                             except Exception as e:
                                 st.error(f"Error in portfolio tracker: {e}")
 
