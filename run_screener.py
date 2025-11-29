@@ -5048,7 +5048,7 @@ with tab7:
                         st.error("No detailed analysis available for this stock.")
 
                 # ========== ADVANCED TOOLS (NEW) ==========
-                if selected_stock and full_analysis:
+                if selected_ticker and full_analysis:
                     st.markdown("---")
                     st.markdown("## 🚀 Advanced Risk Management Tools")
 
@@ -5088,14 +5088,14 @@ with tab7:
                                     historical_prices = None
                                     try:
                                         from_date = (datetime.now() - timedelta(days=100)).strftime('%Y-%m-%d')
-                                        hist_data = fmp_cached.get_historical_prices(selected_stock, from_date=from_date)
+                                        hist_data = fmp_cached.get_historical_prices(selected_ticker, from_date=from_date)
                                         if hist_data and 'historical' in hist_data:
                                             historical_prices = hist_data['historical'][::-1]  # Chronological
                                     except:
                                         pass
 
                                     render_price_levels_chart(
-                                        symbol=selected_stock,
+                                        symbol=selected_ticker,
                                         stock_data=stock_data,
                                         full_analysis=full_analysis,
                                         historical_prices=historical_prices
@@ -5122,7 +5122,7 @@ with tab7:
                             """)
 
                             try:
-                                render_backtesting_section(selected_stock, fmp_cached)
+                                render_backtesting_section(selected_ticker, fmp_cached)
                             except Exception as e:
                                 st.error(f"Error in backtesting: {e}")
 
@@ -5141,7 +5141,7 @@ with tab7:
                             """)
 
                             try:
-                                render_options_calculator(selected_stock, stock_data, full_analysis)
+                                render_options_calculator(selected_ticker, stock_data, full_analysis)
                             except Exception as e:
                                 st.error(f"Error in options calculator: {e}")
                                 st.info("💡 Make sure scipy is installed: `pip install scipy>=1.11.0`")
