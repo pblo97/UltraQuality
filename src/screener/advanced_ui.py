@@ -39,7 +39,7 @@ except ImportError:
 
 def render_price_levels_chart(
     symbol: str,
-    stock_data: Dict,
+    fmp_client,
     full_analysis: Dict,
     historical_prices: Optional[List[Dict]] = None
 ):
@@ -48,16 +48,26 @@ def render_price_levels_chart(
 
     Args:
         symbol: Stock symbol
-        stock_data: Stock fundamental data
+        fmp_client: FMP client for fetching quote data
         full_analysis: Technical analysis results
         historical_prices: Optional historical price data
     """
     st.markdown("### Price Levels Visualization")
 
-    # Get data from stock_data (DataFrame row)
-    current_price = stock_data.get('price', 0)
-    ma_50 = stock_data.get('priceAvg50', 0)
-    ma_200 = stock_data.get('priceAvg200', 0)
+    # Fetch current quote
+    try:
+        quote = fmp_client.get_quote([symbol])
+        if not quote or len(quote) == 0:
+            st.warning("⚠️ No current price data available")
+            return
+
+        q = quote[0]
+        current_price = q.get('price', 0)
+        ma_50 = q.get('priceAvg50', 0)
+        ma_200 = q.get('priceAvg200', 0)
+    except Exception as e:
+        st.error(f"Error fetching quote: {e}")
+        return
 
     risk_management = full_analysis.get('risk_management', {})
     overextension_risk = full_analysis.get('overextension_risk', 0)
@@ -182,12 +192,30 @@ def render_backtesting_section(symbol: str, fmp_client):
                 )
 
 
-def render_options_calculator(symbol: str, stock_data: Dict, full_analysis: Dict):
+def render_options_calculator(symbol: str, fmp_client, full_analysis: Dict):
     """Render options P&L calculator."""
     st.markdown("### Options Strategy Calculator")
 
-    current_price = stock_data.get('price', 0)
+    # Fetch current quote
+    try:
+        quote = fmp_client.get_quote([symbol])
+        if not quote or len(quote) == 0:
+            st.warning("⚠️ No current price data available")
+            return
+
+        current_price = quote[0].get('price', 0)
+        if not current_price or current_price == 0:
+            st.warning("⚠️ No valid price data")
+            return
+    except Exception as e:
+        st.error(f"Error fetching quote: {e}")
+        return
+
     volatility = full_analysis.get('volatility_12m', 30) / 100  # Convert to decimal
+
+    # Ensure volatility is valid (avoid division by zero)
+    if volatility == 0:
+        volatility = 0.30  # Default to 30% if not available
 
     calc = OptionsCalculator()
 
