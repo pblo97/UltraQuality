@@ -52,25 +52,28 @@ def render_price_levels_chart(
         full_analysis: Technical analysis results
         historical_prices: Optional historical price data
     """
-    st.markdown("### 📊 Price Levels Visualization")
+    st.markdown("### Price Levels Visualization")
 
+    # Get data from stock_data (DataFrame row)
     current_price = stock_data.get('price', 0)
-    ma_50 = full_analysis.get('component_scores', {}).get('ma_50', 0)
-    ma_200 = full_analysis.get('component_scores', {}).get('ma_200', 0)
-
-    # Get from quote if not in component_scores
-    if ma_50 == 0:
-        ma_50 = stock_data.get('priceAvg50', 0)
-    if ma_200 == 0:
-        ma_200 = stock_data.get('priceAvg200', 0)
+    ma_50 = stock_data.get('priceAvg50', 0)
+    ma_200 = stock_data.get('priceAvg200', 0)
 
     risk_management = full_analysis.get('risk_management', {})
     overextension_risk = full_analysis.get('overextension_risk', 0)
     distance_ma200 = full_analysis.get('distance_from_ma200', 0)
 
-    if current_price == 0 or ma_200 == 0:
-        st.warning("Insufficient data for price levels chart")
+    # Validate we have minimum required data
+    if not current_price or current_price == 0:
+        st.warning("⚠️ No current price data available")
         return
+
+    if not ma_200 or ma_200 == 0:
+        st.info("ℹ️ MA200 not available - fetching historical data...")
+        # MA200 will be calculated from historical prices if available
+        if not historical_prices or len(historical_prices) < 200:
+            st.warning("⚠️ Insufficient historical data (need 200+ days for MA200)")
+            return
 
     fig = create_price_levels_chart(
         symbol=symbol,
@@ -88,7 +91,7 @@ def render_price_levels_chart(
 
 def render_overextension_gauge(full_analysis: Dict):
     """Render overextension risk gauge."""
-    st.markdown("### ⚠️ Overextension Risk Gauge")
+    st.markdown("### Overextension Risk Gauge")
 
     overextension_risk = full_analysis.get('overextension_risk', 0)
     overextension_level = full_analysis.get('overextension_level', 'LOW')
@@ -105,9 +108,9 @@ def render_overextension_gauge(full_analysis: Dict):
 
 def render_backtesting_section(symbol: str, fmp_client):
     """Render backtesting analysis section."""
-    st.markdown("### 🔬 Historical Overextension Analysis")
+    st.markdown("### Historical Overextension Analysis")
 
-    with st.expander("📚 What is this?", expanded=False):
+    with st.expander("What is this?", expanded=False):
         st.markdown("""
         Analyzes all past instances when this stock was overextended (>40% above MA200).
         Shows:
@@ -181,7 +184,7 @@ def render_backtesting_section(symbol: str, fmp_client):
 
 def render_options_calculator(symbol: str, stock_data: Dict, full_analysis: Dict):
     """Render options P&L calculator."""
-    st.markdown("### 💰 Options Strategy Calculator")
+    st.markdown("### Options Strategy Calculator")
 
     current_price = stock_data.get('price', 0)
     volatility = full_analysis.get('volatility_12m', 30) / 100  # Convert to decimal
@@ -294,7 +297,7 @@ def render_options_calculator(symbol: str, stock_data: Dict, full_analysis: Dict
 
 def render_market_timing_dashboard(fmp_client, top_stocks: List[str] = None):
     """Render market timing dashboard."""
-    st.markdown("### 🌡️ Market Timing Dashboard")
+    st.markdown("### Market Timing Dashboard")
 
     with st.expander("📚 What is this?", expanded=False):
         st.markdown("""
@@ -375,7 +378,7 @@ def render_market_timing_dashboard(fmp_client, top_stocks: List[str] = None):
 
 def render_portfolio_tracker(fmp_client):
     """Render portfolio tracking interface."""
-    st.markdown("### 💼 Portfolio Tracker")
+    st.markdown("### Portfolio Tracker")
 
     tracker = PortfolioTracker()
 
