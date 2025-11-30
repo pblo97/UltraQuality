@@ -4858,12 +4858,12 @@ with tab7:
                         overext_risk = full_analysis.get('overextension_risk', 0)
                         overext_level = full_analysis.get('overextension_level', 'LOW')
 
-                        if overext_risk >= 5:
+                        if overext_risk >= 6:
                             st.error(f"⚠️ **EXTREME Overextension Risk**: {overext_risk}/7 - High probability of 20-40% correction")
-                        elif overext_risk >= 3:
+                        elif overext_risk >= 4:
                             st.warning(f"⚠️ **HIGH Overextension Risk**: {overext_risk}/7 - Possible 10-20% pullback")
-                        elif overext_risk >= 1:
-                            st.info(f"⚠️ **MEDIUM Overextension Risk**: {overext_risk}/7")
+                        elif overext_risk >= 2:
+                            st.info(f"⚠️ **MEDIUM Overextension Risk**: {overext_risk}/7 - Monitor for reversal")
                         else:
                             st.success(f"✅ **LOW Overextension Risk**: {overext_risk}/7")
 
@@ -5021,12 +5021,32 @@ with tab7:
 
                         fund_score = stock_data['fundamental_score']
                         tech_score = full_analysis['score']
+                        overext_risk = full_analysis.get('overextension_risk', 0)
+                        distance_ma200 = full_analysis.get('distance_from_ma200', 0)
 
+                        # Incorporate overextension risk into final recommendation
                         if fund_score >= 75 and tech_score >= 75:
-                            st.success("""
-                            **💎 STRONG BUY**: Excellent fundamentals + favorable technical setup.
-                            Both quality and timing are aligned. Consider building position.
-                            """)
+                            if overext_risk >= 6:
+                                st.error(f"""
+                                **🛑 DO NOT BUY**: Excellent quality BUT EXTREME overextension ({distance_ma200:+.1f}% from MA200).
+                                Risk of 20-40% correction is too high. Wait for pullback to MA200 support.
+                                """)
+                            elif overext_risk >= 4:
+                                st.warning(f"""
+                                **⚠️ WAIT FOR PULLBACK**: Great fundamentals + strong technicals BUT overextended ({distance_ma200:+.1f}% from MA200).
+                                High risk of 10-20% correction. Consider scale-in strategy ONLY if you must enter.
+                                Better entry: Wait for retest of MA50 (${full_analysis.get('component_scores', {}).get('ma_50', 0):.2f}) or MA200.
+                                """)
+                            elif overext_risk >= 2:
+                                st.info(f"""
+                                **🟡 BUY WITH CAUTION**: Excellent fundamentals + favorable technicals, but moderately overextended ({distance_ma200:+.1f}% from MA200).
+                                Recommended: Use scale-in approach (50% now, 50% on 5-10% pullback). Monitor closely for reversal signals.
+                                """)
+                            else:
+                                st.success("""
+                                **💎 STRONG BUY**: Excellent fundamentals + favorable technical setup.
+                                Both quality and timing are aligned. Low overextension risk. Consider building position.
+                                """)
                         elif fund_score >= 75 and tech_score < 50:
                             st.warning("""
                             **⏸️ WAIT**: Great company but poor technical timing.
@@ -5034,10 +5054,16 @@ with tab7:
                             Set price alerts around MA200 support levels.
                             """)
                         elif fund_score >= 60 and tech_score >= 75:
-                            st.info("""
-                            **🎯 TACTICAL OPPORTUNITY**: Good fundamentals with strong technical momentum.
-                            May be suitable for shorter-term trade, but monitor fundamentals closely.
-                            """)
+                            if overext_risk >= 4:
+                                st.warning(f"""
+                                **⚠️ RISKY TRADE**: Decent fundamentals with momentum BUT overextended ({distance_ma200:+.1f}% from MA200).
+                                High reversal risk. Only for experienced traders with tight stops.
+                                """)
+                            else:
+                                st.info("""
+                                **🎯 TACTICAL OPPORTUNITY**: Good fundamentals with strong technical momentum.
+                                May be suitable for shorter-term trade, but monitor fundamentals closely.
+                                """)
                         else:
                             st.info("""
                             **🟡 MONITOR**: Mixed signals. Continue watching for improvement
