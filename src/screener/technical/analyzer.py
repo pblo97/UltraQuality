@@ -1180,22 +1180,47 @@ class EnhancedTechnicalAnalyzer:
                 'rationale': 'Wait for technical improvement'
             }
 
-        if overextension_risk >= 5:
-            # Extreme overextension - wait for pullback
+        # Determine expected pullback based on distance from MA200 (consistent with warnings)
+        abs_distance = abs(distance_ma200)
+
+        if abs_distance > 60:
+            # EXTREME: >60% from MA200 → expect 20-40% correction
             return {
                 'strategy': 'SCALE-IN (3 tranches)',
-                'tranche_1': f'25% NOW at ${price:.2f} (momentum entry)',
-                'tranche_2': f'35% at MA50 ${ma_50:.2f} (~{((ma_50-price)/price*100):+.1f}% pullback)',
-                'tranche_3': f'40% at MA200 ${ma_200:.2f} (~{((ma_200-price)/price*100):+.1f}% pullback)',
-                'rationale': f'Extreme overextension ({distance_ma200:+.1f}% from MA200) - high probability of 20-40% correction. Scale-in reduces timing risk.'
+                'tranche_1': f'20% NOW at ${price:.2f} (minimal momentum entry)',
+                'tranche_2': f'30% on 20% pullback to ${price*0.80:.2f}',
+                'tranche_3': f'50% on 30% pullback to ${price*0.70:.2f}',
+                'rationale': f'EXTREME overextension ({distance_ma200:+.1f}% from MA200) - expect 20-40% correction. Most capital reserved for deep pullback.'
             }
-        elif overextension_risk >= 3:
-            # High overextension - scaled entry
+        elif abs_distance > 50:
+            # SEVERE: >50% from MA200 → expect 15-30% correction
+            pullback_15pct = price * 0.85
+            pullback_25pct = price * 0.75
+            return {
+                'strategy': 'SCALE-IN (2 tranches)',
+                'tranche_1': f'40% NOW at ${price:.2f}',
+                'tranche_2': f'60% on 15-25% pullback to ${pullback_25pct:.2f}-${pullback_15pct:.2f}',
+                'rationale': f'Severe overextension ({distance_ma200:+.1f}% from MA200) - expect 15-30% correction. Reserve majority for pullback.'
+            }
+        elif abs_distance > 40:
+            # SIGNIFICANT: >40% from MA200 → expect 10-20% pullback
+            pullback_10pct = price * 0.90
+            pullback_15pct = price * 0.85
             return {
                 'strategy': 'SCALE-IN (2 tranches)',
                 'tranche_1': f'60% NOW at ${price:.2f}',
-                'tranche_2': f'40% on 10-15% pullback to ${price*0.88:.2f}-${price*0.90:.2f}',
-                'rationale': f'Significant overextension ({distance_ma200:+.1f}% from MA200). Reserve capital for likely pullback.'
+                'tranche_2': f'40% on 10-15% pullback to ${pullback_15pct:.2f}-${pullback_10pct:.2f}',
+                'rationale': f'Significant overextension ({distance_ma200:+.1f}% from MA200) - possible 10-20% pullback. Reserve capital for likely dip.'
+            }
+        elif overextension_risk >= 3:
+            # Moderate overextension based on other factors (volatility, momentum)
+            pullback_8pct = price * 0.92
+            pullback_12pct = price * 0.88
+            return {
+                'strategy': 'SCALE-IN (2 tranches)',
+                'tranche_1': f'70% NOW at ${price:.2f}',
+                'tranche_2': f'30% on 8-12% pullback to ${pullback_12pct:.2f}-${pullback_8pct:.2f}',
+                'rationale': f'Moderate overextension risk ({overextension_risk}/7). Small reserve for potential consolidation.'
             }
         else:
             # Low overextension - full entry acceptable
