@@ -4858,12 +4858,12 @@ with tab7:
                         overext_risk = full_analysis.get('overextension_risk', 0)
                         overext_level = full_analysis.get('overextension_level', 'LOW')
 
-                        if overext_risk >= 5:
+                        if overext_risk >= 6:
                             st.error(f"⚠️ **EXTREME Overextension Risk**: {overext_risk}/7 - High probability of 20-40% correction")
-                        elif overext_risk >= 3:
+                        elif overext_risk >= 4:
                             st.warning(f"⚠️ **HIGH Overextension Risk**: {overext_risk}/7 - Possible 10-20% pullback")
-                        elif overext_risk >= 1:
-                            st.info(f"⚠️ **MEDIUM Overextension Risk**: {overext_risk}/7")
+                        elif overext_risk >= 2:
+                            st.info(f"⚠️ **MEDIUM Overextension Risk**: {overext_risk}/7 - Monitor for reversal")
                         else:
                             st.success(f"✅ **LOW Overextension Risk**: {overext_risk}/7")
 

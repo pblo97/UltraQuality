@@ -271,9 +271,9 @@ class EnhancedTechnicalAnalyzer:
 
                 # Overextension risk (NEW)
                 'overextension_risk': overextension_risk,
-                'overextension_level': 'EXTREME' if overextension_risk >= 5 else
-                                      'HIGH' if overextension_risk >= 3 else
-                                      'MEDIUM' if overextension_risk >= 1 else 'LOW',
+                'overextension_level': 'EXTREME' if overextension_risk >= 6 else
+                                      'HIGH' if overextension_risk >= 4 else
+                                      'MEDIUM' if overextension_risk >= 2 else 'LOW',
 
                 # Risk management recommendations (NEW)
                 'risk_management': risk_mgmt_recs,
