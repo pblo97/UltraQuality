@@ -5037,14 +5037,24 @@ with tab7:
 
                         # Step 2: Technical Timing Assessment (includes overextension)
                         st.markdown("**⏰ Technical Timing:**")
-                        if overextension_risk >= 5:
-                            # Extreme overextension overrides good tech score
+                        abs_distance = abs(distance_ma200)
+
+                        if abs_distance > 60:
+                            # Extreme overextension
                             st.error(f"🔴 POOR TIMING - Extreme overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                             st.caption("⚠️ Expect 20-40% pullback. Wait for correction.")
-                        elif overextension_risk >= 3:
-                            # High overextension
-                            st.warning(f"🟡 CAUTIOUS TIMING - High overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                        elif abs_distance > 50:
+                            # Severe overextension
+                            st.error(f"🔴 POOR TIMING - Severe overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                            st.caption("⚠️ Expect 15-30% correction. Scale-in recommended (majority capital on pullback).")
+                        elif abs_distance > 40:
+                            # Significant overextension
+                            st.warning(f"🟡 CAUTIOUS TIMING - Significant overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                             st.caption("⚠️ Possible 10-20% pullback. Scale-in recommended.")
+                        elif overextension_risk >= 3:
+                            # Moderate overextension (from other factors like volatility)
+                            st.warning(f"🟡 CAUTIOUS TIMING - Moderate overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                            st.caption("⚠️ Possible 8-12% consolidation. Consider small reserve.")
                         elif tech_score >= 75:
                             st.success(f"✅ EXCELLENT ({tech_score}/100) - Favorable technical setup, low overextension ({overextension_risk}/7)")
                         elif tech_score >= 60:
@@ -5066,9 +5076,24 @@ with tab7:
 
                         # STRONG fundamentals but HIGH overextension - WAIT or SCALE-IN
                         elif fund_score >= 75 and overextension_risk >= 3:
-                            st.warning("""
-                            **⏸️ STRONG COMPANY, WAIT FOR PULLBACK**: Excellent fundamentals but stock is overextended.
-                            **Action**: Set alerts for 10-20% pullback or use scale-in strategy (small position now, larger on dip).
+                            # Determine expected pullback range based on distance
+                            if abs_distance > 60:
+                                pullback_range = "20-40%"
+                                strategy_desc = "(minimal position now, majority on deep pullback)"
+                            elif abs_distance > 50:
+                                pullback_range = "15-30%"
+                                strategy_desc = "(40% now, 60% on pullback)"
+                            elif abs_distance > 40:
+                                pullback_range = "10-20%"
+                                strategy_desc = "(60% now, 40% on pullback)"
+                            else:
+                                pullback_range = "8-15%"
+                                strategy_desc = "(70% now, 30% on pullback)"
+
+                            st.warning(f"""
+                            **⏸️ STRONG COMPANY, WAIT FOR PULLBACK**: Excellent fundamentals but stock is overextended ({distance_ma200:+.1f}% from MA200).
+                            **Expected pullback**: {pullback_range}
+                            **Action**: Set alerts or use scale-in strategy {strategy_desc}.
                             Consider cash-secured puts to enter at discount.
                             """)
 
