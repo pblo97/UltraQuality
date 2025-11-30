@@ -5016,54 +5016,84 @@ with tab7:
                         elif 'error' not in full_analysis:
                             st.success("✅ No technical warnings")
 
-                        # Recommendation
+                        # Recommendation (UPDATED: Now considers overextension risk)
                         st.markdown("#### 💡 Recommendation")
 
                         fund_score = stock_data['fundamental_score']
                         tech_score = full_analysis['score']
-                        overext_risk = full_analysis.get('overextension_risk', 0)
+                        overextension_risk = full_analysis.get('overextension_risk', 0)
                         distance_ma200 = full_analysis.get('distance_from_ma200', 0)
 
-                        # Incorporate overextension risk into final recommendation
-                        if fund_score >= 75 and tech_score >= 75:
-                            if overext_risk >= 6:
-                                st.error(f"""
-                                **🛑 DO NOT BUY**: Excellent quality BUT EXTREME overextension ({distance_ma200:+.1f}% from MA200).
-                                Risk of 20-40% correction is too high. Wait for pullback to MA200 support.
-                                """)
-                            elif overext_risk >= 4:
-                                st.warning(f"""
-                                **⚠️ WAIT FOR PULLBACK**: Great fundamentals + strong technicals BUT overextended ({distance_ma200:+.1f}% from MA200).
-                                High risk of 10-20% correction. Consider scale-in strategy ONLY if you must enter.
-                                Better entry: Wait for retest of MA50 (${full_analysis.get('component_scores', {}).get('ma_50', 0):.2f}) or MA200.
-                                """)
-                            elif overext_risk >= 2:
-                                st.info(f"""
-                                **🟡 BUY WITH CAUTION**: Excellent fundamentals + favorable technicals, but moderately overextended ({distance_ma200:+.1f}% from MA200).
-                                Recommended: Use scale-in approach (50% now, 50% on 5-10% pullback). Monitor closely for reversal signals.
-                                """)
-                            else:
-                                st.success("""
-                                **💎 STRONG BUY**: Excellent fundamentals + favorable technical setup.
-                                Both quality and timing are aligned. Low overextension risk. Consider building position.
-                                """)
+                        # Step 1: Fundamental Quality Assessment
+                        st.markdown("**📊 Fundamental Quality:**")
+                        if fund_score >= 75:
+                            st.success(f"✅ EXCELLENT ({fund_score}/100) - High-quality company with strong fundamentals")
+                        elif fund_score >= 60:
+                            st.info(f"✅ GOOD ({fund_score}/100) - Solid fundamentals")
+                        elif fund_score >= 50:
+                            st.warning(f"⚠️ MODERATE ({fund_score}/100) - Mixed fundamentals")
+                        else:
+                            st.error(f"❌ WEAK ({fund_score}/100) - Fundamental concerns")
+
+                        # Step 2: Technical Timing Assessment (includes overextension)
+                        st.markdown("**⏰ Technical Timing:**")
+                        if overextension_risk >= 5:
+                            # Extreme overextension overrides good tech score
+                            st.error(f"🔴 POOR TIMING - Extreme overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                            st.caption("⚠️ Expect 20-40% pullback. Wait for correction.")
+                        elif overextension_risk >= 3:
+                            # High overextension
+                            st.warning(f"🟡 CAUTIOUS TIMING - High overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                            st.caption("⚠️ Possible 10-20% pullback. Scale-in recommended.")
+                        elif tech_score >= 75:
+                            st.success(f"✅ EXCELLENT ({tech_score}/100) - Favorable technical setup, low overextension ({overextension_risk}/7)")
+                        elif tech_score >= 60:
+                            st.info(f"✅ GOOD ({tech_score}/100) - Decent technical setup")
+                        elif tech_score >= 50:
+                            st.warning(f"⚠️ MODERATE ({tech_score}/100) - Mixed technical signals")
+                        else:
+                            st.error(f"❌ WEAK ({tech_score}/100) - Unfavorable technicals")
+
+                        # Step 3: Final Combined Recommendation
+                        st.markdown("**🎯 Final Recommendation:**")
+
+                        # STRONG BUY: Great fundamentals + Great timing + Low overextension
+                        if fund_score >= 75 and tech_score >= 75 and overextension_risk < 2:
+                            st.success("""
+                            **💎 STRONG BUY**: Excellent fundamentals + favorable technical setup + low overextension.
+                            Both quality and timing are aligned. Consider building full position.
+                            """)
+
+                        # STRONG fundamentals but HIGH overextension - WAIT or SCALE-IN
+                        elif fund_score >= 75 and overextension_risk >= 3:
+                            st.warning("""
+                            **⏸️ STRONG COMPANY, WAIT FOR PULLBACK**: Excellent fundamentals but stock is overextended.
+                            **Action**: Set alerts for 10-20% pullback or use scale-in strategy (small position now, larger on dip).
+                            Consider cash-secured puts to enter at discount.
+                            """)
+
+                        # STRONG fundamentals but poor tech score (not due to overextension)
                         elif fund_score >= 75 and tech_score < 50:
                             st.warning("""
                             **⏸️ WAIT**: Great company but poor technical timing.
                             Consider waiting for pullback or better entry point.
                             Set price alerts around MA200 support levels.
                             """)
-                        elif fund_score >= 60 and tech_score >= 75:
-                            if overext_risk >= 4:
-                                st.warning(f"""
-                                **⚠️ RISKY TRADE**: Decent fundamentals with momentum BUT overextended ({distance_ma200:+.1f}% from MA200).
-                                High reversal risk. Only for experienced traders with tight stops.
-                                """)
-                            else:
-                                st.info("""
-                                **🎯 TACTICAL OPPORTUNITY**: Good fundamentals with strong technical momentum.
-                                May be suitable for shorter-term trade, but monitor fundamentals closely.
-                                """)
+
+                        # Good fundamentals + Strong technicals + Moderate overextension
+                        elif fund_score >= 60 and tech_score >= 75 and overextension_risk >= 2:
+                            st.info("""
+                            **🎯 TACTICAL SCALE-IN**: Good fundamentals with strong momentum, but moderate overextension.
+                            Use scale-in strategy (e.g., 50% now, 50% on pullback).
+                            """)
+
+                        # Good fundamentals + Strong technicals + Low overextension
+                        elif fund_score >= 60 and tech_score >= 75 and overextension_risk < 2:
+                            st.info("""
+                            **🎯 TACTICAL BUY**: Good fundamentals with strong technical momentum and low overextension.
+                            May be suitable for shorter-term trade, but monitor fundamentals closely.
+                            """)
+
                         else:
                             st.info("""
                             **🟡 MONITOR**: Mixed signals. Continue watching for improvement
