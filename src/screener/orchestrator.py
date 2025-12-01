@@ -358,6 +358,14 @@ class ScreenerPipeline:
         df['is_financial'] = df.apply(self._classify_financial, axis=1)
         df['is_REIT'] = df.apply(self._classify_reit, axis=1)
         df['is_utility'] = df.apply(self._classify_utility, axis=1)
+        df['is_ETF'] = df.apply(self._classify_etf, axis=1)
+
+        # Filter out ETFs (Exchange Traded Funds should not be in stock screener)
+        etf_count = df['is_ETF'].sum()
+        if etf_count > 0:
+            logger.info(f"Filtering out {etf_count} ETFs from universe")
+            df = df[~df['is_ETF']]
+            logger.info(f"After ETF filter: {len(df)} stocks remaining")
 
         # Standardize columns
         df = df.rename(columns={
@@ -408,6 +416,89 @@ class ScreenerPipeline:
         """Classify if company is a utility."""
         sector = (row.get('sector') or '').lower()
         return 'utilities' in sector or 'utility' in sector
+
+    def _classify_etf(self, row) -> bool:
+        """
+        Classify if instrument is an ETF (Exchange Traded Fund).
+
+        ETFs should be filtered out from stock screeners as they are:
+        - Not individual companies with fundamentals
+        - Baskets of other securities
+        - Have different risk/return profiles
+
+        Detection criteria:
+        - Name contains: ETF, Fund, Index, Trust (with exceptions)
+        - Industry contains: Exchange Traded Fund, Investment Trust
+        - Type field = 'etf' (if available)
+        """
+        name = (row.get('name') or row.get('companyName') or '').lower()
+        industry = (row.get('industry') or '').lower()
+        type_field = (row.get('type') or '').lower()
+
+        # Direct type indicator
+        if type_field == 'etf':
+            return True
+
+        # Industry indicators
+        etf_industries = [
+            'exchange traded fund',
+            'exchange-traded fund',
+            'investment trust',
+            'closed-end fund',
+            'open-end fund'
+        ]
+
+        for ind in etf_industries:
+            if ind in industry:
+                return True
+
+        # Name indicators (with common patterns)
+        # ETF keywords
+        etf_keywords = [
+            ' etf',           # Space before to avoid "marketplace", "et cetera"
+            'etf ',           # Space after
+            ' fund',          # Generic funds
+            'index fund',
+            'yield etf',
+            'income etf',
+            'dividend etf',
+            'sector etf',
+            'covered call',   # Common in Canadian ETFs (e.g., Hamilton, Purpose)
+            'yield maximizer', # Canadian covered call ETFs
+            'premium yield',
+            'high interest savings',  # Money market ETFs
+            'money market',
+            'cash management',
+            'aggregate bond',
+            'bond index',
+            'equity index',
+            'composite index',
+            'total market',
+            'global x',       # ETF provider
+            'ishares',        # ETF provider
+            'vanguard',       # ETF provider (though some are funds, most are ETFs)
+            'betapro',        # Leveraged ETF provider
+            'harvest',        # Canadian ETF provider
+            'hamilton',       # Canadian ETF provider
+            'purpose',        # Canadian ETF provider
+            'evolve',         # Canadian ETF provider
+        ]
+
+        for keyword in etf_keywords:
+            if keyword in name:
+                # Exception: Some companies have "fund" or "trust" in name but are REITs or operating companies
+                # Allow REITs through (they're already classified separately)
+                if 'reit' in industry or 'real estate investment trust' in industry:
+                    return False
+                # Exception: Royalty trusts/funds (e.g., A&W Revenue Royalties Income Fund)
+                if 'royalt' in name or 'royalt' in industry:
+                    return False
+                # Exception: Mortgage Investment Corporations
+                if 'mortgage' in name and 'investment' in name and 'corporation' in name:
+                    return False
+                return True
+
+        return False
 
     # ===================================
     # STAGE 2: TOP-K SELECTION
