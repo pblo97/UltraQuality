@@ -4129,7 +4129,7 @@ with tab6:
         else:
             st.info(f"💡 Enter a ticker above and click 'Analyze' to see detailed quality and valuation analysis")
 
-with tab9:
+with tab8:
     st.header("🔬 Quick Technical Analysis")
 
     st.markdown("""
@@ -4527,7 +4527,7 @@ with tab9:
             st.code("MSFT")
             st.caption("Microsoft")
 
-with tab8:
+with tab9:
     st.header("About UltraQuality Screener")
 
     st.markdown("""
