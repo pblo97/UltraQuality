@@ -681,6 +681,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         # 🌎 AMERICAS
         "🇺🇸 United States": "US",
         "🇨🇦 Canada": "CA",
+        "🇲🇽 Mexico": "MX",
         "🇧🇷 Brazil": "BR",
         "🇦🇷 Argentina": "AR",
         "🇨🇱 Chile": "CL",
@@ -774,6 +775,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         # Major Markets
         "US": "🇺🇸 NYSE, NASDAQ, AMEX (5000+ stocks)",
         "CA": "🇨🇦 Toronto Stock Exchange (TSX)",
+        "MX": "🇲🇽 Bolsa Mexicana de Valores (BMV)",
         "UK": "🇬🇧 London Stock Exchange (LSE)",
         "DE": "🇩🇪 Frankfurt/XETRA (DAX, MDAX)",
         "FR": "🇫🇷 Euronext Paris (CAC 40)",
