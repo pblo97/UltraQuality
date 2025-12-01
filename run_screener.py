@@ -967,7 +967,7 @@ except:
     st.sidebar.warning("⚠️ Secrets not accessible")
 
 # Main content
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["🏠 Home", "📊 Results", "📈 Analytics", "🔎 Calibration", "🔍 Qualitative", "🎯 Custom Analysis", "📈 Technical", "ℹ️ About"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["🏠 Home", "📊 Results", "📈 Analytics", "🔎 Calibration", "🔍 Qualitative", "🎯 Custom Analysis", "📈 Technical", "🔬 Quick Technical", "ℹ️ About"])
 
 with tab1:
     st.header("Run Screener")
@@ -4128,6 +4128,404 @@ with tab6:
 
         else:
             st.info(f"💡 Enter a ticker above and click 'Analyze' to see detailed quality and valuation analysis")
+
+with tab9:
+    st.header("🔬 Quick Technical Analysis")
+
+    st.markdown("""
+    **Analyze any stock's technical setup instantly** - No screener needed!
+
+    Features:
+    - 📊 Multi-timeframe momentum (12M, 6M, 3M, 1M)
+    - ⚖️ Risk-adjusted returns (Sharpe ratio)
+    - 📈 Relative strength (vs Sector & Market)
+    - 🎯 Entry strategy & position sizing
+    - 🛡️ Stop loss recommendations
+    - 💰 Profit targets
+    - 📈 Options strategies (7 evidence-based strategies)
+    """)
+
+    st.markdown("---")
+
+    # Input section
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        quick_ticker = st.text_input(
+            "Enter Ticker Symbol",
+            placeholder="e.g., AAPL, GOOGL, MSFT, LRCX, etc.",
+            key="quick_tech_ticker"
+        ).upper().strip()
+
+    with col2:
+        quick_country = st.selectbox(
+            "Market",
+            options=["USA", "Canada", "UK", "Other"],
+            index=0,
+            key="quick_tech_country"
+        )
+
+    # Map country selection to country code
+    country_mapping = {
+        "USA": "US",
+        "Canada": "CA",
+        "UK": "UK",
+        "Other": "US"  # Default to US
+    }
+    quick_country_code = country_mapping.get(quick_country, "US")
+
+    analyze_button = st.button("🚀 Analyze Technical Setup", type="primary", use_container_width=True, key="quick_tech_analyze")
+
+    if analyze_button and quick_ticker:
+        with st.spinner(f"Analyzing {quick_ticker}..."):
+            try:
+                # Initialize FMP client
+                from screener.ingest import FMPClient
+                from screener.technical.analyzer import EnhancedTechnicalAnalyzer
+
+                api_key = st.secrets.get('FMP_API_KEY', '')
+                if not api_key or api_key.startswith('your_'):
+                    st.error("❌ FMP API Key not configured. Add FMP_API_KEY to Streamlit secrets.")
+                else:
+                    fmp = FMPClient(api_key, {})
+
+                    # Get company profile first
+                    profile = fmp.get_quote(quick_ticker)
+                    if not profile or len(profile) == 0:
+                        st.error(f"❌ Ticker '{quick_ticker}' not found. Please verify the symbol is correct.")
+                    else:
+                        company_info = profile[0]
+                        company_name = company_info.get('name', quick_ticker)
+                        sector = company_info.get('sector', 'Unknown')
+                        exchange = company_info.get('exchange', 'Unknown')
+                        price = company_info.get('price', 0)
+
+                        # Run technical analysis
+                        analyzer = EnhancedTechnicalAnalyzer(fmp)
+                        full_analysis = analyzer.analyze(quick_ticker, sector=sector, country=quick_country_code)
+
+                        if 'error' in full_analysis:
+                            st.error(f"❌ Analysis failed: {full_analysis['error']}")
+                        else:
+                            # ========== HEADER ==========
+                            st.success(f"✅ Analysis complete for **{quick_ticker}** - {company_name}")
+
+                            col1, col2, col3 = st.columns([2, 1, 1])
+
+                            with col1:
+                                st.markdown(f"### {quick_ticker} - {company_name}")
+                                st.caption(f"**Sector:** {sector} | **Exchange:** {exchange} | **Price:** ${price:.2f}")
+
+                            with col2:
+                                tech_score = full_analysis.get('score', 0)
+                                signal = full_analysis.get('signal', 'HOLD')
+
+                                if signal == 'BUY':
+                                    st.success(f"**🟢 {signal}**")
+                                elif signal == 'HOLD':
+                                    st.info(f"**🟡 {signal}**")
+                                else:
+                                    st.error(f"**🔴 {signal}**")
+
+                                st.metric("Technical Score", f"{tech_score:.0f}/100")
+
+                            with col3:
+                                market_regime = full_analysis.get('market_regime', 'UNKNOWN')
+                                regime_emoji = '🟢' if market_regime == 'BULL' else '🔴' if market_regime == 'BEAR' else '🟡'
+                                st.metric("Market Regime", f"{regime_emoji} {market_regime}")
+                                st.caption(f"Confidence: {full_analysis.get('regime_confidence', 'unknown')}")
+
+                            st.markdown("---")
+
+                            # ========== COMPONENT SCORES ==========
+                            st.markdown("#### 📊 Technical Components")
+
+                            components = full_analysis.get('component_scores', {})
+
+                            col1, col2, col3, col4, col5 = st.columns(5)
+
+                            with col1:
+                                st.metric("Multi-TF Momentum", f"{components.get('momentum', 0):.0f}/25")
+                                st.caption(f"{full_analysis.get('momentum_consistency', 'N/A')}")
+
+                            with col2:
+                                st.metric("Risk-Adjusted", f"{components.get('risk_adjusted', 0):.0f}/15")
+                                st.caption(f"Sharpe: {full_analysis.get('sharpe_12m', 0):.2f}")
+
+                            with col3:
+                                st.metric("Sector Relative", f"{components.get('sector_relative', 0):.0f}/15")
+                                st.caption(full_analysis.get('sector_status', 'N/A'))
+
+                            with col4:
+                                st.metric("Market Relative", f"{components.get('market_relative', 0):.0f}/10")
+                                st.caption(full_analysis.get('market_status', 'N/A'))
+
+                            with col5:
+                                st.metric("Volume Profile", f"{components.get('volume', 0):.0f}/10")
+                                st.caption(full_analysis.get('volume_profile', 'N/A'))
+
+                            # Regime Adjustment
+                            regime_adj = components.get('regime_adjustment', 0)
+                            if regime_adj != 0:
+                                st.info(f"⚖️ Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
+
+                            # ========== DETAILED METRICS ==========
+                            st.markdown("#### 📈 Detailed Metrics")
+
+                            detail_tab1, detail_tab2, detail_tab3, detail_tab4 = st.tabs([
+                                "Momentum", "Risk & Relative Strength", "Trend & Volume", "Market Context"
+                            ])
+
+                            with detail_tab1:
+                                st.markdown("**Multi-Timeframe Momentum:**")
+                                mom_col1, mom_col2, mom_col3, mom_col4 = st.columns(4)
+                                with mom_col1:
+                                    st.metric("12M Return", f"{full_analysis.get('momentum_12m', 0):+.1f}%")
+                                with mom_col2:
+                                    st.metric("6M Return", f"{full_analysis.get('momentum_6m', 0):+.1f}%")
+                                with mom_col3:
+                                    st.metric("3M Return", f"{full_analysis.get('momentum_3m', 0):+.1f}%")
+                                with mom_col4:
+                                    st.metric("1M Return", f"{full_analysis.get('momentum_1m', 0):+.1f}%")
+
+                                st.write(f"**Consistency:** {full_analysis.get('momentum_consistency', 'N/A')}")
+                                st.write(f"**Status:** {full_analysis.get('momentum_status', 'N/A')}")
+
+                            with detail_tab2:
+                                risk_col1, risk_col2 = st.columns(2)
+
+                                with risk_col1:
+                                    st.markdown("**Risk Metrics:**")
+                                    st.write(f"- Sharpe Ratio (12M): {full_analysis.get('sharpe_12m', 0):.2f}")
+                                    st.write(f"- Volatility (12M): {full_analysis.get('volatility_12m', 0):.1f}%")
+                                    st.write(f"- Risk Status: {full_analysis.get('risk_adjusted_status', 'N/A')}")
+
+                                with risk_col2:
+                                    st.markdown("**Relative Strength:**")
+                                    st.write(f"- vs Sector: {full_analysis.get('sector_relative', 0):+.1f}%")
+                                    st.write(f"- vs Market (SPY): {full_analysis.get('market_relative', 0):+.1f}%")
+                                    st.write(f"- Sector Status: {full_analysis.get('sector_status', 'N/A')}")
+                                    st.write(f"- Market Status: {full_analysis.get('market_status', 'N/A')}")
+
+                            with detail_tab3:
+                                trend_col1, trend_col2 = st.columns(2)
+
+                                with trend_col1:
+                                    st.markdown("**Trend Analysis:**")
+                                    st.write(f"- Trend: {full_analysis.get('trend', 'N/A')}")
+                                    st.write(f"- Distance from MA200: {full_analysis.get('distance_from_ma200', 0):+.1f}%")
+                                    st.write(f"- Golden Cross: {'✅' if full_analysis.get('golden_cross') else '❌'}")
+
+                                with trend_col2:
+                                    st.markdown("**Volume Analysis:**")
+                                    st.write(f"- Profile: {full_analysis.get('volume_profile', 'N/A')}")
+                                    st.write(f"- Trend: {full_analysis.get('volume_trend', 'N/A')}")
+                                    st.write(f"- Accumulation Ratio: {full_analysis.get('accumulation_ratio', 0):.2f}")
+
+                            with detail_tab4:
+                                st.markdown("**Market Environment:**")
+                                st.write(f"- Regime: **{market_regime}** ({full_analysis.get('regime_confidence', 'unknown')} confidence)")
+
+                                st.info("""
+                                **Market regime affects momentum effectiveness:**
+                                - 🟢 **BULL**: Momentum +20% more effective
+                                - 🔴 **BEAR**: Momentum -60% effectiveness (crowding)
+                                - 🟡 **SIDEWAYS**: Normal momentum behavior
+                                """)
+
+                            # ========== RISK MANAGEMENT ==========
+                            st.markdown("---")
+                            st.markdown("#### 🎯 Risk Management & Options Strategies")
+
+                            # Show overextension risk first
+                            overext_risk = full_analysis.get('overextension_risk', 0)
+                            overext_level = full_analysis.get('overextension_level', 'LOW')
+                            distance_ma200 = full_analysis.get('distance_from_ma200', 0)
+
+                            if overext_risk >= 6:
+                                st.error(f"⚠️ **EXTREME Overextension Risk**: {overext_risk}/7 - High probability of 20-40% correction")
+                            elif overext_risk >= 4:
+                                st.warning(f"⚠️ **HIGH Overextension Risk**: {overext_risk}/7 - Possible 15-30% pullback")
+                            elif overext_risk >= 2:
+                                st.info(f"⚠️ **MEDIUM Overextension Risk**: {overext_risk}/7 - Monitor for reversal")
+                            else:
+                                st.success(f"✅ **LOW Overextension Risk**: {overext_risk}/7")
+
+                            st.caption(f"Distance from MA200: {distance_ma200:+.1f}%")
+
+                            # Get risk management recommendations
+                            risk_mgmt = full_analysis.get('risk_management', {})
+
+                            if risk_mgmt:
+                                # Create tabs for different risk management areas
+                                rm_tab1, rm_tab2, rm_tab3, rm_tab4, rm_tab5 = st.tabs([
+                                    "📊 Position Sizing",
+                                    "🎯 Entry Strategy",
+                                    "🛡️ Stop Loss",
+                                    "💰 Profit Taking",
+                                    "📈 Options Strategies"
+                                ])
+
+                                with rm_tab1:
+                                    pos_sizing = risk_mgmt.get('position_sizing', {})
+                                    if pos_sizing:
+                                        st.markdown(f"**Recommended Size:** {pos_sizing.get('recommended_size', 'N/A')}")
+                                        st.write(f"**Max Portfolio Weight:** {pos_sizing.get('max_portfolio_weight', 'N/A')}")
+                                        st.info(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
+
+                                with rm_tab2:
+                                    entry_strategy = risk_mgmt.get('entry_strategy', {})
+                                    if entry_strategy:
+                                        strategy_type = entry_strategy.get('strategy', 'N/A')
+                                        st.markdown(f"**Strategy:** {strategy_type}")
+
+                                        if 'SCALE-IN' in strategy_type:
+                                            st.write(f"**Tranche 1:** {entry_strategy.get('tranche_1', 'N/A')}")
+                                            st.write(f"**Tranche 2:** {entry_strategy.get('tranche_2', 'N/A')}")
+                                            if 'tranche_3' in entry_strategy:
+                                                st.write(f"**Tranche 3:** {entry_strategy.get('tranche_3', 'N/A')}")
+                                        elif 'FULL ENTRY' in strategy_type:
+                                            st.write(f"**Entry Price:** {entry_strategy.get('entry_price', 'N/A')}")
+
+                                        st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
+
+                                with rm_tab3:
+                                    stop_loss = risk_mgmt.get('stop_loss', {})
+                                    if stop_loss:
+                                        recommended_stop = stop_loss.get('recommended', 'moderate')
+                                        st.markdown(f"**Recommended:** {recommended_stop.upper()}")
+
+                                        stops = stop_loss.get('stops', {})
+
+                                        if 'aggressive' in stops:
+                                            st.markdown("**🔴 Aggressive Stop:**")
+                                            st.write(f"- Level: {stops['aggressive'].get('level', 'N/A')} ({stops['aggressive'].get('distance', 'N/A')})")
+                                            st.caption(stops['aggressive'].get('rationale', ''))
+
+                                        if 'moderate' in stops:
+                                            st.markdown("**🟡 Moderate Stop:**")
+                                            st.write(f"- Level: {stops['moderate'].get('level', 'N/A')} ({stops['moderate'].get('distance', 'N/A')})")
+                                            st.caption(stops['moderate'].get('rationale', ''))
+
+                                        if 'conservative' in stops:
+                                            st.markdown("**🟢 Conservative Stop:**")
+                                            st.write(f"- Level: {stops['conservative'].get('level', 'N/A')} ({stops['conservative'].get('distance', 'N/A')})")
+                                            st.caption(stops['conservative'].get('rationale', ''))
+
+                                        if 'note' in stop_loss:
+                                            st.info(f"💡 {stop_loss['note']}")
+
+                                with rm_tab4:
+                                    profit_taking = risk_mgmt.get('profit_taking', {})
+                                    if profit_taking:
+                                        st.markdown(f"**Strategy:** {profit_taking.get('strategy', 'N/A')}")
+
+                                        # Display specific fields based on strategy
+                                        for key, value in profit_taking.items():
+                                            if key not in ['strategy', 'rationale'] and value:
+                                                # Format the key nicely
+                                                display_key = key.replace('_', ' ').title()
+                                                st.write(f"**{display_key}:** {value}")
+
+                                        if 'rationale' in profit_taking:
+                                            st.info(f"**Rationale:** {profit_taking['rationale']}")
+
+                                with rm_tab5:
+                                    options_strategies = risk_mgmt.get('options_strategies', [])
+                                    if options_strategies:
+                                        st.markdown(f"**{len(options_strategies)} Recommended Strategies:**")
+                                        st.caption("💡 Based on academic research (Black-Scholes, Whaley 2002, Daniel & Moskowitz 2016, etc.)")
+
+                                        for i, strategy in enumerate(options_strategies, 1):
+                                            with st.expander(f"**{i}. {strategy.get('name', 'Strategy')}**", expanded=(i<=2)):
+                                                if 'when' in strategy:
+                                                    st.write(f"**When:** {strategy['when']}")
+                                                if 'structure' in strategy:
+                                                    st.write(f"**Structure:** {strategy['structure']}")
+                                                if 'strike' in strategy:
+                                                    st.write(f"**Strike:** {strategy['strike']}")
+                                                if 'example' in strategy:
+                                                    st.write(f"**Example:** {strategy['example']}")
+                                                if 'premium' in strategy:
+                                                    st.write(f"**Premium:** {strategy['premium']}")
+                                                if 'credit' in strategy:
+                                                    st.write(f"**Credit:** {strategy['credit']}")
+                                                if 'cost' in strategy:
+                                                    st.write(f"**Cost:** {strategy['cost']}")
+                                                if 'leverage' in strategy:
+                                                    st.write(f"**Leverage:** {strategy['leverage']}")
+                                                if 'max_profit' in strategy:
+                                                    st.write(f"**Max Profit:** {strategy['max_profit']}")
+                                                if 'max_loss' in strategy:
+                                                    st.write(f"**Max Loss:** {strategy['max_loss']}")
+
+                                                if 'rationale' in strategy:
+                                                    st.info(f"**Rationale:** {strategy['rationale']}")
+                                                if 'benefit' in strategy:
+                                                    st.success(f"**Benefit:** {strategy['benefit']}")
+                                                if 'risk' in strategy:
+                                                    st.warning(f"**Risk:** {strategy['risk']}")
+
+                                                # Show outcomes for certain strategies
+                                                if 'outcome_1' in strategy:
+                                                    st.write(f"**Outcome 1:** {strategy['outcome_1']}")
+                                                if 'outcome_2' in strategy:
+                                                    st.write(f"**Outcome 2:** {strategy['outcome_2']}")
+
+                                                # Show evidence
+                                                if 'evidence' in strategy:
+                                                    st.caption(f"📚 Evidence: {strategy['evidence']}")
+
+                                                # Show additional notes
+                                                if 'note' in strategy:
+                                                    st.info(f"💡 {strategy['note']}")
+                                    else:
+                                        st.info("No specific options strategies recommended for this setup.")
+
+                            # ========== WARNINGS ==========
+                            st.markdown("---")
+                            st.markdown("#### ⚠️ Warnings & Diagnostics")
+
+                            warnings = full_analysis.get('warnings', [])
+                            if warnings:
+                                for warning in warnings:
+                                    severity = warning.get('type', warning.get('severity', 'LOW'))
+                                    message = warning.get('message', '')
+
+                                    if severity in ['HIGH', 'ERROR']:
+                                        st.error(f"🔴 **{severity}**: {message}")
+                                    elif severity == 'MEDIUM':
+                                        st.warning(f"🟡 **{severity}**: {message}")
+                                    else:
+                                        st.info(f"🔵 **{severity}**: {message}")
+                            else:
+                                st.success("✅ No technical warnings")
+
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+                import traceback
+                with st.expander("🔍 Debug Info"):
+                    st.code(traceback.format_exc())
+
+    elif analyze_button and not quick_ticker:
+        st.warning("⚠️ Please enter a ticker symbol")
+
+    else:
+        # Show examples
+        st.info("💡 **Try these examples:**")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.code("AAPL")
+            st.caption("Apple Inc.")
+        with col2:
+            st.code("GOOGL")
+            st.caption("Alphabet")
+        with col3:
+            st.code("LRCX")
+            st.caption("Lam Research")
+        with col4:
+            st.code("MSFT")
+            st.caption("Microsoft")
 
 with tab8:
     st.header("About UltraQuality Screener")
