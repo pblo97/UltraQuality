@@ -5119,9 +5119,39 @@ with tab7:
                             May be suitable for shorter-term trade, but monitor fundamentals closely.
                             """)
 
+                        # Both GOOD (60-75 range) - Solid opportunity but not excellent
+                        elif fund_score >= 60 and tech_score >= 60:
+                            if overextension_risk >= 2:
+                                st.info("""
+                                **✅ BUY (Scale-in)**: Solid fundamentals and technical setup, but moderate overextension.
+                                Consider scale-in approach (60-70% now, 30-40% on pullback).
+                                """)
+                            else:
+                                st.success("""
+                                **✅ BUY**: Solid fundamentals and favorable technical timing.
+                                Both quality and timing are good. Consider building position (75-100%).
+                                Quality may not be "excellent" but setup is favorable for entry.
+                                """)
+
+                        # Good fundamentals (60+) but moderate technicals (50-60)
+                        elif fund_score >= 60 and tech_score >= 50:
+                            st.info("""
+                            **🟡 CAUTIOUS BUY**: Good fundamentals but moderate technical timing.
+                            Consider smaller position (50-60%) or wait for technical improvement.
+                            """)
+
+                        # Moderate fundamentals (50-60) but good technicals (60+)
+                        elif fund_score >= 50 and tech_score >= 60:
+                            st.info("""
+                            **🟡 HOLD/TACTICAL**: Moderate fundamentals but favorable technicals.
+                            May be suitable for tactical trade with tight stops. Monitor fundamentals closely.
+                            Not a long-term core holding due to fundamental quality.
+                            """)
+
+                        # Weak on both or other mixed signals
                         else:
                             st.info("""
-                            **🟡 MONITOR**: Mixed signals. Continue watching for improvement
+                            **🟡 MONITOR**: Mixed or weak signals. Continue watching for improvement
                             in either fundamentals or technicals before entry.
                             """)
 
