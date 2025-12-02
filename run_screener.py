@@ -733,6 +733,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
 
         # 🌏 ASIA - EMERGING
         "🇮🇳 India": "IN",
+        "🇮🇩 Indonesia": "ID",
         "🇹🇭 Thailand": "TH",
         "🇻🇳 Vietnam": "VN",
         "🇧🇩 Bangladesh": "BD",
@@ -781,6 +782,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "FR": "🇫🇷 Euronext Paris (CAC 40)",
         "JP": "🇯🇵 Tokyo Stock Exchange (TSE)",
         "IN": "🇮🇳 National Stock Exchange (NSE)",
+        "ID": "🇮🇩 Indonesia Stock Exchange (IDX)",
         "HK": "🇭🇰 Hong Kong Exchange (Alibaba, Tencent)",
         "BR": "🇧🇷 B3 São Paulo (Petrobras, Vale)",
         "AU": "🇦🇺 Australian Securities Exchange (ASX)",
@@ -826,6 +828,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
 
         # 🥉 LARGE EMERGING MARKETS ($100-200M mcap)
         "IN": {"mcap": 200.0, "vol": 1.0},       # India - NSE
+        "ID": {"mcap": 150.0, "vol": 0.5},       # Indonesia - IDX
         "BR": {"mcap": 150.0, "vol": 0.5},       # Brazil - B3
         "HK": {"mcap": 200.0, "vol": 1.0},       # Hong Kong
         "KR": {"mcap": 200.0, "vol": 1.0},       # South Korea - KRX
