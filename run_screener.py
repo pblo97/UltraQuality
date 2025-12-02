@@ -732,6 +732,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "🇭🇰 Hong Kong": "HK",  # Note: Often used for Chinese companies
 
         # 🌏 ASIA - EMERGING
+        "🇨🇳 China": "CN",
         "🇮🇳 India": "IN",
         "🇮🇩 Indonesia": "ID",
         "🇹🇭 Thailand": "TH",
@@ -781,6 +782,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "DE": "🇩🇪 Frankfurt/XETRA (DAX, MDAX)",
         "FR": "🇫🇷 Euronext Paris (CAC 40)",
         "JP": "🇯🇵 Tokyo Stock Exchange (TSE)",
+        "CN": "🇨🇳 Shanghai & Shenzhen Stock Exchanges",
         "IN": "🇮🇳 National Stock Exchange (NSE)",
         "ID": "🇮🇩 Indonesia Stock Exchange (IDX)",
         "HK": "🇭🇰 Hong Kong Exchange (Alibaba, Tencent)",
@@ -827,6 +829,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "NZ": {"mcap": 100.0, "vol": 0.3},       # New Zealand
 
         # 🥉 LARGE EMERGING MARKETS ($100-200M mcap)
+        "CN": {"mcap": 200.0, "vol": 1.0},       # China - Shanghai/Shenzhen
         "IN": {"mcap": 200.0, "vol": 1.0},       # India - NSE
         "ID": {"mcap": 150.0, "vol": 0.5},       # Indonesia - IDX
         "BR": {"mcap": 150.0, "vol": 0.5},       # Brazil - B3
