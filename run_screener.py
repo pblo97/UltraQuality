@@ -3174,6 +3174,8 @@ with tab6:
 
                 # Run full analysis (without needing screener results)
                 # company_type will be auto-detected if set to 'unknown'
+                # Note: Market selector is informative only - analysis works for all markets
+                # Some data (insider trading, PRs) may not be available outside USA
                 analysis = qual_analyzer.analyze_symbol(
                     custom_ticker,
                     company_type='unknown',  # Auto-detect
@@ -4265,9 +4267,9 @@ with tab8:
                 from screener.ingest import FMPClient
                 from screener.technical.analyzer import EnhancedTechnicalAnalyzer
 
-                api_key = st.secrets.get('FMP_API_KEY', '')
+                api_key = st.secrets.get('fmp_api_key', '')
                 if not api_key or api_key.startswith('your_'):
-                    st.error("❌ FMP API Key not configured. Add FMP_API_KEY to Streamlit secrets.")
+                    st.error("❌ FMP API Key not configured. Add fmp_api_key to Streamlit secrets.")
                 else:
                     fmp = FMPClient(api_key, {})
 
