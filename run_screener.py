@@ -4352,10 +4352,38 @@ with tab8:
                 # Initialize FMP client
                 from screener.ingest import FMPClient
                 from screener.technical.analyzer import EnhancedTechnicalAnalyzer
+                import yaml
 
-                api_key = st.secrets.get('fmp_api_key', '')
-                if not api_key or api_key.startswith('your_'):
-                    st.error("❌ FMP API Key not configured. Add fmp_api_key to Streamlit secrets.")
+                # Get API key (priority: secrets > config with env expansion)
+                api_key = st.secrets.get('fmp_api_key')
+                if not api_key:
+                    # Fallback to settings.yaml with env variable expansion
+                    try:
+                        with open('settings.yaml') as f:
+                            config = yaml.safe_load(f)
+                        api_key = expand_env_vars(config['fmp'].get('api_key'))
+                    except Exception as e:
+                        st.error(f"❌ Could not load API key from settings.yaml: {e}")
+                        api_key = None
+
+                # Validate API key
+                if not api_key or api_key.startswith('${') or api_key == 'your_api_key_here':
+                    st.error("❌ FMP API Key not configured!")
+                    st.markdown("""
+                    Please configure your Financial Modeling Prep API key:
+
+                    **Option 1: Streamlit Secrets** (recommended for Streamlit Cloud)
+                    1. Create `.streamlit/secrets.toml`
+                    2. Add: `fmp_api_key = "your_actual_api_key"`
+
+                    **Option 2: Environment Variable** (for local development)
+                    1. Create `.env` file in project root
+                    2. Add: `FMP_API_KEY=your_actual_api_key`
+                    3. Update `settings.yaml` to reference it: `api_key: ${FMP_API_KEY}`
+                    4. Restart the app
+
+                    Get your API key at: https://financialmodelingprep.com
+                    """)
                 else:
                     fmp = FMPClient(api_key, {})
 
