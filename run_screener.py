@@ -3109,8 +3109,8 @@ with tab6:
     with col1:
         custom_ticker = st.text_input(
             "Enter Ticker Symbol",
-            placeholder="e.g., MSFT, GOOGL, BRK.B",
-            help="Enter any valid stock ticker"
+            placeholder="e.g., MSFT, CSU (no need for .TO), ASML",
+            help="Enter ticker without market suffix - we'll add it automatically based on your market selection"
         ).upper().strip()
 
     with col2:
@@ -3148,6 +3148,43 @@ with tab6:
         )
         custom_country_code = custom_market_options.get(custom_market, "US")
 
+    # Helper function to add market suffix to ticker if needed
+    def format_ticker_for_market_custom(ticker: str, country_code: str) -> str:
+        """Add market suffix to ticker based on country code."""
+        if not ticker:
+            return ticker
+
+        # Market suffix mapping
+        suffix_map = {
+            "CA": ".TO",      # Canada - Toronto Stock Exchange
+            "UK": ".L",       # UK - London Stock Exchange
+            "DE": ".DE",      # Germany - Frankfurt
+            "FR": ".PA",      # France - Paris
+            "ES": ".MC",      # Spain - Madrid
+            "MX": ".MX",      # Mexico - BMV
+            "BR": ".SA",      # Brazil - Sao Paulo
+            "AU": ".AX",      # Australia - ASX
+            "JP": ".T",       # Japan - Tokyo
+            "IN": ".NS",      # India - NSE (or .BO for BSE)
+            "HK": ".HK",      # Hong Kong
+            "CN": ".SS",      # China - Shanghai (or .SZ for Shenzhen)
+            "KR": ".KS",      # South Korea - KOSPI
+            "SG": ".SI",      # Singapore
+            "CH": ".SW",      # Switzerland - SIX
+            "NL": ".AS",      # Netherlands - Amsterdam
+            "SE": ".ST",      # Sweden - Stockholm
+            "NO": ".OL",      # Norway - Oslo
+            "DK": ".CO",      # Denmark - Copenhagen
+        }
+
+        suffix = suffix_map.get(country_code)
+
+        # If no suffix needed (US) or already has a suffix, return as-is
+        if not suffix or "." in ticker:
+            return ticker
+
+        return f"{ticker}{suffix}"
+
     with col3:
         st.markdown("")  # Spacing
         st.markdown("")  # Spacing
@@ -3158,9 +3195,17 @@ with tab6:
             type="primary"
         )
 
+    # Format ticker with market suffix (needed for both analysis and display)
+    formatted_custom_ticker = format_ticker_for_market_custom(custom_ticker, custom_country_code) if custom_ticker else ""
+
     if analyze_button and custom_ticker:
-        with st.spinner(f"🔄 Analyzing {custom_ticker}... This may take 30-60 seconds"):
+
+        with st.spinner(f"🔄 Analyzing {formatted_custom_ticker}... This may take 30-60 seconds"):
             try:
+                # Show formatted ticker if different from input
+                if formatted_custom_ticker != custom_ticker:
+                    st.info(f"📍 Using ticker: **{formatted_custom_ticker}** (added {custom_market} market suffix)")
+
                 # Import dependencies
                 from screener.orchestrator import ScreenerPipeline
                 from screener.qualitative import QualitativeAnalyzer
@@ -3177,15 +3222,15 @@ with tab6:
                 # Note: Market selector is informative only - analysis works for all markets
                 # Some data (insider trading, PRs) may not be available outside USA
                 analysis = qual_analyzer.analyze_symbol(
-                    custom_ticker,
+                    formatted_custom_ticker,
                     company_type='unknown',  # Auto-detect
                     peers_df=None  # No peer comparison in custom analysis
                 )
 
                 if analysis and 'error' not in analysis:
-                    st.session_state[f'custom_{custom_ticker}'] = analysis
-                    st.session_state[f'custom_{custom_ticker}_market'] = custom_country_code
-                    st.success(f"✅ Analysis for {custom_ticker} complete! (Market: {custom_market})")
+                    st.session_state[f'custom_{formatted_custom_ticker}'] = analysis
+                    st.session_state[f'custom_{formatted_custom_ticker}_market'] = custom_country_code
+                    st.success(f"✅ Analysis for {formatted_custom_ticker} complete! (Market: {custom_market})")
 
                     # Show market-specific data availability note
                     if custom_country_code != "US":
@@ -3202,20 +3247,20 @@ with tab6:
                 else:
                     error_msg = analysis.get('error', 'Unknown error') if analysis else 'Failed to retrieve data'
                     st.error(f"❌ Analysis failed: {error_msg}")
-                    st.info(f"💡 Troubleshooting tips:\n- Verify ticker format for {custom_market} (e.g., Canadian stocks often use .TO suffix)\n- Some tickers may have limited data availability\n- Try selecting a different market if the ticker is listed on multiple exchanges")
+                    st.info(f"💡 Troubleshooting tips:\n- Ticker: {formatted_custom_ticker}\n- Market suffix has been added automatically\n- Some tickers may have limited data availability\n- Try selecting a different market if the ticker is listed on multiple exchanges")
 
             except Exception as e:
                 st.error(f"❌ Analysis failed: {str(e)}")
                 st.info(f"💡 Please check:\n- Ticker symbol is correct for {custom_market}\n- Stock is publicly traded and has financial data\n- API connection is working properly")
 
     # Display cached analysis if available
-    if custom_ticker and f'custom_{custom_ticker}' in st.session_state:
-        analysis = st.session_state[f'custom_{custom_ticker}']
+    if formatted_custom_ticker and f'custom_{formatted_custom_ticker}' in st.session_state:
+        analysis = st.session_state[f'custom_{formatted_custom_ticker}']
 
         st.markdown("---")
 
         # Company Info
-        st.subheader(f"📊 {custom_ticker} - Company Overview")
+        st.subheader(f"📊 {formatted_custom_ticker} - Company Overview")
 
         # Business Summary
         with st.expander("📝 Business Summary", expanded=False):
@@ -4218,8 +4263,9 @@ with tab8:
     with col1:
         quick_ticker = st.text_input(
             "Enter Ticker Symbol",
-            placeholder="e.g., AAPL, GOOGL, MSFT, LRCX, etc.",
-            key="quick_tech_ticker"
+            placeholder="e.g., AAPL, CSU (no need for .TO), ASML",
+            key="quick_tech_ticker",
+            help="Enter ticker without market suffix - we'll add it automatically"
         ).upper().strip()
 
     with col2:
@@ -4258,10 +4304,50 @@ with tab8:
     # Get country code from selection
     quick_country_code = quick_market_options.get(quick_country, "US")
 
+    # Helper function to add market suffix to ticker if needed
+    def format_ticker_for_market(ticker: str, country_code: str) -> str:
+        """Add market suffix to ticker based on country code."""
+        if not ticker:
+            return ticker
+
+        # Market suffix mapping
+        suffix_map = {
+            "CA": ".TO",      # Canada - Toronto Stock Exchange
+            "UK": ".L",       # UK - London Stock Exchange
+            "DE": ".DE",      # Germany - Frankfurt
+            "FR": ".PA",      # France - Paris
+            "ES": ".MC",      # Spain - Madrid
+            "MX": ".MX",      # Mexico - BMV
+            "BR": ".SA",      # Brazil - Sao Paulo
+            "AU": ".AX",      # Australia - ASX
+            "JP": ".T",       # Japan - Tokyo
+            "IN": ".NS",      # India - NSE (or .BO for BSE)
+            "HK": ".HK",      # Hong Kong
+            "CN": ".SS",      # China - Shanghai (or .SZ for Shenzhen)
+            "KR": ".KS",      # South Korea - KOSPI
+            "SG": ".SI",      # Singapore
+            "CH": ".SW",      # Switzerland - SIX
+            "NL": ".AS",      # Netherlands - Amsterdam
+            "SE": ".ST",      # Sweden - Stockholm
+            "NO": ".OL",      # Norway - Oslo
+            "DK": ".CO",      # Denmark - Copenhagen
+        }
+
+        suffix = suffix_map.get(country_code)
+
+        # If no suffix needed (US) or already has a suffix, return as-is
+        if not suffix or "." in ticker:
+            return ticker
+
+        return f"{ticker}{suffix}"
+
     analyze_button = st.button("🚀 Analyze Technical Setup", type="primary", use_container_width=True, key="quick_tech_analyze")
 
     if analyze_button and quick_ticker:
-        with st.spinner(f"Analyzing {quick_ticker}..."):
+        # Format ticker with market suffix
+        formatted_ticker = format_ticker_for_market(quick_ticker, quick_country_code)
+
+        with st.spinner(f"Analyzing {formatted_ticker}..."):
             try:
                 # Initialize FMP client
                 from screener.ingest import FMPClient
@@ -4273,31 +4359,35 @@ with tab8:
                 else:
                     fmp = FMPClient(api_key, {})
 
+                    # Show formatted ticker if different from input
+                    if formatted_ticker != quick_ticker:
+                        st.info(f"📍 Using ticker: **{formatted_ticker}** (added {quick_country} market suffix)")
+
                     # Get company profile first
-                    profile = fmp.get_quote(quick_ticker)
+                    profile = fmp.get_quote(formatted_ticker)
                     if not profile or len(profile) == 0:
-                        st.error(f"❌ Ticker '{quick_ticker}' not found. Please verify the symbol is correct.")
+                        st.error(f"❌ Ticker '{formatted_ticker}' not found. Please verify the symbol is correct.")
                     else:
                         company_info = profile[0]
-                        company_name = company_info.get('name', quick_ticker)
+                        company_name = company_info.get('name', formatted_ticker)
                         sector = company_info.get('sector', 'Unknown')
                         exchange = company_info.get('exchange', 'Unknown')
                         price = company_info.get('price', 0)
 
                         # Run technical analysis
                         analyzer = EnhancedTechnicalAnalyzer(fmp)
-                        full_analysis = analyzer.analyze(quick_ticker, sector=sector, country=quick_country_code)
+                        full_analysis = analyzer.analyze(formatted_ticker, sector=sector, country=quick_country_code)
 
                         if 'error' in full_analysis:
                             st.error(f"❌ Analysis failed: {full_analysis['error']}")
                         else:
                             # ========== HEADER ==========
-                            st.success(f"✅ Analysis complete for **{quick_ticker}** - {company_name}")
+                            st.success(f"✅ Analysis complete for **{formatted_ticker}** - {company_name}")
 
                             col1, col2, col3 = st.columns([2, 1, 1])
 
                             with col1:
-                                st.markdown(f"### {quick_ticker} - {company_name}")
+                                st.markdown(f"### {formatted_ticker} - {company_name}")
                                 st.caption(f"**Sector:** {sector} | **Exchange:** {exchange} | **Price:** ${price:.2f}")
 
                             with col2:
