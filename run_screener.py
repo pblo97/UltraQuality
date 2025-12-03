@@ -3096,8 +3096,15 @@ with tab6:
     Perfect for researching specific tickers that caught your attention.
     """)
 
+    st.info("""
+    📍 **Multi-Market Support:** This tool works with stocks from all major global markets!
+
+    **Note:** Some data (insider trading, press releases, transcripts) may have limited availability outside USA markets.
+    The analysis will show "N/A" for unavailable data and focus on available metrics.
+    """)
+
     # Ticker input
-    col1, col2 = st.columns([2, 1])
+    col1, col2, col3 = st.columns([2, 1, 1])
 
     with col1:
         custom_ticker = st.text_input(
@@ -3107,6 +3114,41 @@ with tab6:
         ).upper().strip()
 
     with col2:
+        # Market selector (same as Quick Technical)
+        custom_market_options = {
+            "🇺🇸 USA": "US",
+            "🇨🇦 Canada": "CA",
+            "🇲🇽 Mexico": "MX",
+            "🇧🇷 Brazil": "BR",
+            "🇬🇧 UK": "UK",
+            "🇩🇪 Germany": "DE",
+            "🇫🇷 France": "FR",
+            "🇪🇸 Spain": "ES",
+            "🇨🇳 China": "CN",
+            "🇯🇵 Japan": "JP",
+            "🇮🇳 India": "IN",
+            "🇮🇩 Indonesia": "ID",
+            "🇭🇰 Hong Kong": "HK",
+            "🇰🇷 South Korea": "KR",
+            "🇸🇬 Singapore": "SG",
+            "🇦🇺 Australia": "AU",
+            "🇨🇭 Switzerland": "CH",
+            "🇳🇱 Netherlands": "NL",
+            "🇸🇪 Sweden": "SE",
+            "🇳🇴 Norway": "NO",
+            "🇩🇰 Denmark": "DK"
+        }
+
+        custom_market = st.selectbox(
+            "Market",
+            options=list(custom_market_options.keys()),
+            index=0,
+            key="custom_market_select",
+            help="Select the stock's primary market/exchange"
+        )
+        custom_country_code = custom_market_options.get(custom_market, "US")
+
+    with col3:
         st.markdown("")  # Spacing
         st.markdown("")  # Spacing
         analyze_button = st.button(
@@ -3140,16 +3182,29 @@ with tab6:
 
                 if analysis and 'error' not in analysis:
                     st.session_state[f'custom_{custom_ticker}'] = analysis
-                    st.success(f"✅ Analysis for {custom_ticker} complete!")
+                    st.session_state[f'custom_{custom_ticker}_market'] = custom_country_code
+                    st.success(f"✅ Analysis for {custom_ticker} complete! (Market: {custom_market})")
+
+                    # Show market-specific data availability note
+                    if custom_country_code != "US":
+                        st.warning("""
+                        ⚠️ **Non-US Market Detected**: Some sections may show limited data:
+                        - Insider Trading (USA-focused)
+                        - Press Releases (limited international coverage)
+                        - Earnings Transcripts (availability varies)
+
+                        Core financial metrics (valuation, profitability, balance sheet) should be fully available.
+                        """)
+
                     st.rerun()
                 else:
                     error_msg = analysis.get('error', 'Unknown error') if analysis else 'Failed to retrieve data'
                     st.error(f"❌ Analysis failed: {error_msg}")
-                    st.info("💡 Make sure the ticker is valid and try again. Some tickers may have limited data.")
+                    st.info(f"💡 Troubleshooting tips:\n- Verify ticker format for {custom_market} (e.g., Canadian stocks often use .TO suffix)\n- Some tickers may have limited data availability\n- Try selecting a different market if the ticker is listed on multiple exchanges")
 
             except Exception as e:
                 st.error(f"❌ Analysis failed: {str(e)}")
-                st.info("💡 Please check that the ticker is valid and try again.")
+                st.info(f"💡 Please check:\n- Ticker symbol is correct for {custom_market}\n- Stock is publicly traded and has financial data\n- API connection is working properly")
 
     # Display cached analysis if available
     if custom_ticker and f'custom_{custom_ticker}' in st.session_state:
@@ -4166,21 +4221,40 @@ with tab8:
         ).upper().strip()
 
     with col2:
+        # Use the same comprehensive market options as the main screener
+        quick_market_options = {
+            "🇺🇸 USA": "US",
+            "🇨🇦 Canada": "CA",
+            "🇲🇽 Mexico": "MX",
+            "🇧🇷 Brazil": "BR",
+            "🇬🇧 UK": "UK",
+            "🇩🇪 Germany": "DE",
+            "🇫🇷 France": "FR",
+            "🇪🇸 Spain": "ES",
+            "🇨🇳 China": "CN",
+            "🇯🇵 Japan": "JP",
+            "🇮🇳 India": "IN",
+            "🇮🇩 Indonesia": "ID",
+            "🇭🇰 Hong Kong": "HK",
+            "🇰🇷 South Korea": "KR",
+            "🇸🇬 Singapore": "SG",
+            "🇦🇺 Australia": "AU",
+            "🇨🇭 Switzerland": "CH",
+            "🇳🇱 Netherlands": "NL",
+            "🇸🇪 Sweden": "SE",
+            "🇳🇴 Norway": "NO",
+            "🇩🇰 Denmark": "DK"
+        }
+
         quick_country = st.selectbox(
             "Market",
-            options=["USA", "Canada", "UK", "Other"],
+            options=list(quick_market_options.keys()),
             index=0,
             key="quick_tech_country"
         )
 
-    # Map country selection to country code
-    country_mapping = {
-        "USA": "US",
-        "Canada": "CA",
-        "UK": "UK",
-        "Other": "US"  # Default to US
-    }
-    quick_country_code = country_mapping.get(quick_country, "US")
+    # Get country code from selection
+    quick_country_code = quick_market_options.get(quick_country, "US")
 
     analyze_button = st.button("🚀 Analyze Technical Setup", type="primary", use_container_width=True, key="quick_tech_analyze")
 
