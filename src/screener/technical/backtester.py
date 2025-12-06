@@ -233,8 +233,8 @@ class WalkForwardBacktester:
         entry_date = None
         highest_price = 0
 
-        equity = [10000]  # Starting capital
-        current_equity = 10000
+        equity = []  # Equity curve (one value per data row)
+        current_equity = 10000  # Starting capital
         position_size = 0
 
         for i in range(len(data)):
