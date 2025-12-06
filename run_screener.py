@@ -4343,6 +4343,10 @@ with tab8:
 
     analyze_button = st.button("🚀 Analyze Technical Setup", type="primary", use_container_width=True, key="quick_tech_analyze")
 
+    # Check if we have cached analysis in session state
+    session_key = f"quick_tech_{formatted_ticker}" if formatted_ticker else None
+    has_cached_analysis = session_key and session_key in st.session_state
+
     if analyze_button and quick_ticker:
         # Format ticker with market suffix
         formatted_ticker = format_ticker_for_market(quick_ticker, quick_country_code)
@@ -4409,6 +4413,18 @@ with tab8:
                         if 'error' in full_analysis:
                             st.error(f"❌ Analysis failed: {full_analysis['error']}")
                         else:
+                            # Save to session state for persistence
+                            st.session_state[session_key] = {
+                                'full_analysis': full_analysis,
+                                'company_info': company_info,
+                                'formatted_ticker': formatted_ticker,
+                                'company_name': company_name,
+                                'sector': sector,
+                                'exchange': exchange,
+                                'price': price,
+                                'fmp': fmp  # Save FMP client for backtesting
+                            }
+
                             # ========== HEADER ==========
                             st.success(f"✅ Analysis complete for **{formatted_ticker}** - {company_name}")
 
@@ -4968,6 +4984,571 @@ with tab8:
 
     elif analyze_button and not quick_ticker:
         st.warning("⚠️ Please enter a ticker symbol")
+
+    # Display cached analysis if available (persists across checkbox changes)
+    elif has_cached_analysis:
+        cached_data = st.session_state[session_key]
+
+        full_analysis = cached_data['full_analysis']
+        company_info = cached_data['company_info']
+        formatted_ticker = cached_data['formatted_ticker']
+        company_name = cached_data['company_name']
+        sector = cached_data['sector']
+        exchange = cached_data['exchange']
+        price = cached_data['price']
+        fmp = cached_data['fmp']
+
+        # ========== HEADER ==========
+        st.success(f"✅ Analysis for **{formatted_ticker}** - {company_name}")
+
+        col1, col2, col3 = st.columns([2, 1, 1])
+
+        with col1:
+            st.markdown(f"### {formatted_ticker} - {company_name}")
+            st.caption(f"**Sector:** {sector} | **Exchange:** {exchange} | **Price:** ${price:.2f}")
+
+        with col2:
+            tech_score = full_analysis.get('score', 0)
+            signal = full_analysis.get('signal', 'HOLD')
+
+            if signal == 'BUY':
+                st.success(f"**🟢 {signal}**")
+            elif signal == 'HOLD':
+                st.info(f"**🟡 {signal}**")
+            else:
+                st.error(f"**🔴 {signal}**")
+
+            st.metric("Technical Score", f"{tech_score:.0f}/100")
+
+        with col3:
+            market_regime = full_analysis.get('market_regime', 'UNKNOWN')
+            regime_emoji = '🟢' if market_regime == 'BULL' else '🔴' if market_regime == 'BEAR' else '🟡'
+            st.metric("Market Regime", f"{regime_emoji} {market_regime}")
+            st.caption(f"Confidence: {full_analysis.get('regime_confidence', 'unknown')}")
+
+        st.markdown("---")
+
+        # ========== COMPONENT SCORES ==========
+        st.markdown("#### 📊 Technical Components")
+
+        components = full_analysis.get('component_scores', {})
+
+        col1, col2, col3, col4, col5 = st.columns(5)
+
+        with col1:
+            st.metric("Multi-TF Momentum", f"{components.get('momentum', 0):.0f}/25")
+            st.caption(f"{full_analysis.get('momentum_consistency', 'N/A')}")
+
+        with col2:
+            st.metric("Risk-Adjusted", f"{components.get('risk_adjusted', 0):.0f}/15")
+            st.caption(f"Sharpe: {full_analysis.get('sharpe_12m', 0):.2f}")
+
+        with col3:
+            st.metric("Sector Relative", f"{components.get('sector_relative', 0):.0f}/15")
+            st.caption(full_analysis.get('sector_status', 'N/A'))
+
+        with col4:
+            st.metric("Market Relative", f"{components.get('market_relative', 0):.0f}/10")
+            st.caption(full_analysis.get('market_status', 'N/A'))
+
+        with col5:
+            st.metric("Volume Profile", f"{components.get('volume', 0):.0f}/10")
+            st.caption(full_analysis.get('volume_profile', 'N/A'))
+
+        # Regime Adjustment
+        regime_adj = components.get('regime_adjustment', 0)
+        if regime_adj != 0:
+            st.info(f"⚖️ Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
+
+        # ========== DETAILED METRICS ==========
+        st.markdown("#### 📈 Detailed Metrics")
+
+        detail_tab1, detail_tab2, detail_tab3, detail_tab4 = st.tabs([
+            "Momentum", "Risk & Relative Strength", "Trend & Volume", "Market Context"
+        ])
+
+        with detail_tab1:
+            st.markdown("**Multi-Timeframe Momentum:**")
+            mom_col1, mom_col2, mom_col3, mom_col4 = st.columns(4)
+            with mom_col1:
+                st.metric("12M Return", f"{full_analysis.get('momentum_12m', 0):+.1f}%")
+            with mom_col2:
+                st.metric("6M Return", f"{full_analysis.get('momentum_6m', 0):+.1f}%")
+            with mom_col3:
+                st.metric("3M Return", f"{full_analysis.get('momentum_3m', 0):+.1f}%")
+            with mom_col4:
+                st.metric("1M Return", f"{full_analysis.get('momentum_1m', 0):+.1f}%")
+
+            st.write(f"**Consistency:** {full_analysis.get('momentum_consistency', 'N/A')}")
+            st.write(f"**Status:** {full_analysis.get('momentum_status', 'N/A')}")
+
+        with detail_tab2:
+            risk_col1, risk_col2 = st.columns(2)
+
+            with risk_col1:
+                st.markdown("**Risk Metrics:**")
+                st.write(f"- Sharpe Ratio (12M): {full_analysis.get('sharpe_12m', 0):.2f}")
+                st.write(f"- Volatility (12M): {full_analysis.get('volatility_12m', 0):.1f}%")
+                st.write(f"- Risk Status: {full_analysis.get('risk_adjusted_status', 'N/A')}")
+
+            with risk_col2:
+                st.markdown("**Relative Strength:**")
+                st.write(f"- vs Sector: {full_analysis.get('sector_relative', 0):+.1f}%")
+                st.write(f"- vs Market (SPY): {full_analysis.get('market_relative', 0):+.1f}%")
+                st.write(f"- Sector Status: {full_analysis.get('sector_status', 'N/A')}")
+                st.write(f"- Market Status: {full_analysis.get('market_status', 'N/A')}")
+
+        with detail_tab3:
+            trend_col1, trend_col2 = st.columns(2)
+
+            with trend_col1:
+                st.markdown("**Trend Analysis:**")
+                st.write(f"- Trend: {full_analysis.get('trend', 'N/A')}")
+                st.write(f"- Distance from MA200: {full_analysis.get('distance_from_ma200', 0):+.1f}%")
+                st.write(f"- Golden Cross: {'✅' if full_analysis.get('golden_cross') else '❌'}")
+
+            with trend_col2:
+                st.markdown("**Volume Analysis:**")
+                st.write(f"- Profile: {full_analysis.get('volume_profile', 'N/A')}")
+                st.write(f"- Trend: {full_analysis.get('volume_trend', 'N/A')}")
+                st.write(f"- Accumulation Ratio: {full_analysis.get('accumulation_ratio', 0):.2f}")
+
+        with detail_tab4:
+            st.markdown("**Market Environment:**")
+            st.write(f"- Regime: **{market_regime}** ({full_analysis.get('regime_confidence', 'unknown')} confidence)")
+
+            st.info("""
+            **Market regime affects momentum effectiveness:**
+            - 🟢 **BULL**: Momentum +20% more effective
+            - 🔴 **BEAR**: Momentum -60% effectiveness (crowding)
+            - 🟡 **SIDEWAYS**: Normal momentum behavior
+            """)
+
+        # ========== RISK MANAGEMENT ==========
+        st.markdown("---")
+        st.markdown("#### 🎯 Risk Management & Options Strategies")
+
+        # Show overextension risk first
+        overext_risk = full_analysis.get('overextension_risk', 0)
+        overext_level = full_analysis.get('overextension_level', 'LOW')
+        distance_ma200 = full_analysis.get('distance_from_ma200', 0)
+
+        if overext_risk >= 6:
+            st.error(f"⚠️ **EXTREME Overextension Risk**: {overext_risk}/7 - High probability of 20-40% correction")
+        elif overext_risk >= 4:
+            st.warning(f"⚠️ **HIGH Overextension Risk**: {overext_risk}/7 - Possible 15-30% pullback")
+        elif overext_risk >= 2:
+            st.info(f"⚠️ **MEDIUM Overextension Risk**: {overext_risk}/7 - Monitor for reversal")
+        else:
+            st.success(f"✅ **LOW Overextension Risk**: {overext_risk}/7")
+
+        st.caption(f"Distance from MA200: {distance_ma200:+.1f}%")
+
+        # Get risk management recommendations
+        risk_mgmt = full_analysis.get('risk_management', {})
+
+        if risk_mgmt:
+            # Create tabs for different risk management areas
+            rm_tab1, rm_tab2, rm_tab3, rm_tab4, rm_tab5 = st.tabs([
+                "📊 Position Sizing",
+                "🎯 Entry Strategy",
+                "🛡️ Stop Loss",
+                "💰 Profit Taking",
+                "📈 Options Strategies"
+            ])
+
+            with rm_tab1:
+                pos_sizing = risk_mgmt.get('position_sizing', {})
+                if pos_sizing:
+                    st.markdown(f"**Recommended Size:** {pos_sizing.get('recommended_size', 'N/A')}")
+                    st.write(f"**Max Portfolio Weight:** {pos_sizing.get('max_portfolio_weight', 'N/A')}")
+                    st.info(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
+
+            with rm_tab2:
+                entry_strategy = risk_mgmt.get('entry_strategy', {})
+                if entry_strategy:
+                    strategy_type = entry_strategy.get('strategy', 'N/A')
+                    st.markdown(f"**Strategy:** {strategy_type}")
+
+                    if 'SCALE-IN' in strategy_type:
+                        st.write(f"**Tranche 1:** {entry_strategy.get('tranche_1', 'N/A')}")
+                        st.write(f"**Tranche 2:** {entry_strategy.get('tranche_2', 'N/A')}")
+                        if 'tranche_3' in entry_strategy:
+                            st.write(f"**Tranche 3:** {entry_strategy.get('tranche_3', 'N/A')}")
+                    elif 'FULL ENTRY' in strategy_type:
+                        st.write(f"**Entry Price:** {entry_strategy.get('entry_price', 'N/A')}")
+
+                    st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
+
+            with rm_tab3:
+                stop_loss = risk_mgmt.get('stop_loss', {})
+                if stop_loss:
+                    recommended_stop = stop_loss.get('recommended', 'moderate')
+                    st.markdown(f"**Recommended:** {recommended_stop.upper()}")
+
+                    stops = stop_loss.get('stops', {})
+
+                    if 'aggressive' in stops:
+                        st.markdown("**🔴 Aggressive Stop:**")
+                        st.write(f"- Level: {stops['aggressive'].get('level', 'N/A')} ({stops['aggressive'].get('distance', 'N/A')})")
+                        st.caption(stops['aggressive'].get('rationale', ''))
+
+                    if 'moderate' in stops:
+                        st.markdown("**🟡 Moderate Stop:**")
+                        st.write(f"- Level: {stops['moderate'].get('level', 'N/A')} ({stops['moderate'].get('distance', 'N/A')})")
+                        st.caption(stops['moderate'].get('rationale', ''))
+
+                    if 'conservative' in stops:
+                        st.markdown("**🟢 Conservative Stop:**")
+                        st.write(f"- Level: {stops['conservative'].get('level', 'N/A')} ({stops['conservative'].get('distance', 'N/A')})")
+                        st.caption(stops['conservative'].get('rationale', ''))
+
+                    if 'note' in stop_loss:
+                        st.info(f"💡 {stop_loss['note']}")
+
+            with rm_tab4:
+                profit_taking = risk_mgmt.get('profit_taking', {})
+                if profit_taking:
+                    st.markdown(f"**Strategy:** {profit_taking.get('strategy', 'N/A')}")
+
+                    # Display specific fields based on strategy
+                    for key, value in profit_taking.items():
+                        if key not in ['strategy', 'rationale'] and value:
+                            # Format the key nicely
+                            display_key = key.replace('_', ' ').title()
+                            st.write(f"**{display_key}:** {value}")
+
+                    if 'rationale' in profit_taking:
+                        st.info(f"**Rationale:** {profit_taking['rationale']}")
+
+            with rm_tab5:
+                options_strategies = risk_mgmt.get('options_strategies', [])
+                if options_strategies:
+                    st.markdown(f"**{len(options_strategies)} Recommended Strategies:**")
+                    st.caption("💡 Based on academic research (Black-Scholes, Whaley 2002, Daniel & Moskowitz 2016, etc.)")
+
+                    for i, strategy in enumerate(options_strategies, 1):
+                        with st.expander(f"**{i}. {strategy.get('name', 'Strategy')}**", expanded=(i<=2)):
+                            if 'when' in strategy:
+                                st.write(f"**When:** {strategy['when']}")
+                            if 'structure' in strategy:
+                                st.write(f"**Structure:** {strategy['structure']}")
+                            if 'strike' in strategy:
+                                st.write(f"**Strike:** {strategy['strike']}")
+                            if 'example' in strategy:
+                                st.write(f"**Example:** {strategy['example']}")
+                            if 'premium' in strategy:
+                                st.write(f"**Premium:** {strategy['premium']}")
+                            if 'credit' in strategy:
+                                st.write(f"**Credit:** {strategy['credit']}")
+                            if 'cost' in strategy:
+                                st.write(f"**Cost:** {strategy['cost']}")
+                            if 'leverage' in strategy:
+                                st.write(f"**Leverage:** {strategy['leverage']}")
+                            if 'max_profit' in strategy:
+                                st.write(f"**Max Profit:** {strategy['max_profit']}")
+                            if 'max_loss' in strategy:
+                                st.write(f"**Max Loss:** {strategy['max_loss']}")
+
+                            if 'rationale' in strategy:
+                                st.info(f"**Rationale:** {strategy['rationale']}")
+                            if 'benefit' in strategy:
+                                st.success(f"**Benefit:** {strategy['benefit']}")
+                            if 'risk' in strategy:
+                                st.warning(f"**Risk:** {strategy['risk']}")
+
+                            # Show outcomes for certain strategies
+                            if 'outcome_1' in strategy:
+                                st.write(f"**Outcome 1:** {strategy['outcome_1']}")
+                            if 'outcome_2' in strategy:
+                                st.write(f"**Outcome 2:** {strategy['outcome_2']}")
+
+                            # Show evidence
+                            if 'evidence' in strategy:
+                                st.caption(f"📚 Evidence: {strategy['evidence']}")
+
+                            # Show additional notes
+                            if 'note' in strategy:
+                                st.info(f"💡 {strategy['note']}")
+                else:
+                    st.info("No specific options strategies recommended for this setup.")
+
+        # ========== WARNINGS ==========
+        st.markdown("---")
+        st.markdown("#### ⚠️ Warnings & Diagnostics")
+
+        warnings = full_analysis.get('warnings', [])
+        if warnings:
+            for warning in warnings:
+                severity = warning.get('type', warning.get('severity', 'LOW'))
+                message = warning.get('message', '')
+
+                if severity in ['HIGH', 'ERROR']:
+                    st.error(f"🔴 **{severity}**: {message}")
+                elif severity == 'MEDIUM':
+                    st.warning(f"🟡 **{severity}**: {message}")
+                else:
+                    st.info(f"🔵 **{severity}**: {message}")
+        else:
+            st.success("✅ No technical warnings")
+
+        # ========== WALK-FORWARD BACKTESTING & OPTIMIZATION ==========
+        st.markdown("---")
+        st.markdown("### 🔬 Walk-Forward Backtesting & Parameter Optimization")
+
+        st.info("""
+        **Academic Evidence-Based Testing:**
+        - Walk-forward analysis validates parameters out-of-sample
+        - Detects overfitting before it costs you money
+        - Shows when to ENTER and when to EXIT
+
+        Based on: Han, Zhou & Zhu (2016), Dai (2021), Barroso & Santa-Clara (2015)
+        """)
+
+        # Checkbox to enable backtesting
+        run_backtest = st.checkbox(
+            "🔬 Run Walk-Forward Backtest & Optimization",
+            value=False,
+            help="This will take 30-60 seconds. Optimizes entry/exit parameters and validates them out-of-sample.",
+            key="quick_tech_backtest_checkbox"
+        )
+
+        if run_backtest:
+            with st.spinner("Running walk-forward optimization... This may take 30-60 seconds"):
+                try:
+                    from screener.technical import (
+                        WalkForwardBacktester,
+                        create_entry_exit_chart,
+                        create_equity_curve_chart,
+                        create_parameter_stability_chart,
+                        create_trade_distribution_chart,
+                        create_current_decision_panel
+                    )
+
+                    # Get extended historical data for backtesting
+                    from_date_backtest = (datetime.now() - timedelta(days=500)).strftime('%Y-%m-%d')
+                    hist_data_backtest = fmp.get_historical_prices(formatted_ticker, from_date=from_date_backtest)
+
+                    if hist_data_backtest and 'historical' in hist_data_backtest:
+                        prices_backtest = hist_data_backtest['historical'][::-1]  # Chronological order
+
+                        # Convert to DataFrame
+                        prices_df = pd.DataFrame(prices_backtest)
+                        prices_df = prices_df[['date', 'open', 'high', 'low', 'close', 'volume']].copy()
+                        prices_df['date'] = pd.to_datetime(prices_df['date'])
+
+                        # Define parameter grid to optimize
+                        parameter_grid = {
+                            # Exit rules
+                            'trailing_stop_pct': [7, 10, 12, 15],
+                            'momentum_threshold': [-3, -5, -7, -10],
+                            'ma200_days_below': [3, 5, 7],
+
+                            # Entry rules
+                            'momentum_entry_min': [0, 5, 10],
+                        }
+
+                        # Initialize and run backtester
+                        backtester = WalkForwardBacktester(prices_df)
+
+                        backtest_results = backtester.run_walk_forward(
+                            parameter_grid=parameter_grid,
+                            train_days=250,
+                            test_days=60,
+                            step_days=30
+                        )
+
+                        if backtest_results and backtest_results['windows']:
+                            st.success("✅ Backtest complete!")
+
+                            # ========== DECISION PANEL ==========
+                            st.markdown("---")
+                            st.markdown("### 🎯 CURRENT DECISION: Should I Buy/Sell/Hold?")
+
+                            # Calculate current indicators
+                            current_data = prices_df.iloc[-1].copy()
+                            prices_df_with_indicators = backtester._calculate_indicators(prices_df)
+                            current_data = prices_df_with_indicators.iloc[-1]
+
+                            decision_panel = create_current_decision_panel(
+                                current_data=current_data,
+                                optimal_params=backtest_results['optimal_params'],
+                                trades=backtest_results['all_trades']
+                            )
+
+                            # Display decision
+                            action = decision_panel['action']
+                            confidence = decision_panel['confidence']
+
+                            # Color-coded decision
+                            if action == 'BUY':
+                                st.success(f"## 🟢 {action} - Confidence: {confidence}")
+                            elif action == 'SELL':
+                                st.error(f"## 🔴 {action} - Confidence: {confidence}")
+                            elif action == 'HOLD':
+                                st.info(f"## 🔵 {action} - Confidence: {confidence}")
+                            else:  # WAIT
+                                st.warning(f"## 🟡 {action} - Confidence: {confidence}")
+
+                            # Show reasoning
+                            st.markdown("**Reasoning:**")
+                            for reason in decision_panel['reasons']:
+                                st.write(reason)
+
+                            if decision_panel['warnings']:
+                                st.markdown("**⚠️ Warnings:**")
+                                for warning in decision_panel['warnings']:
+                                    st.warning(warning)
+
+                            # Show expected metrics
+                            if decision_panel['metrics']:
+                                st.markdown("**📊 Expected Performance (Based on Backtest):**")
+                                metric_cols = st.columns(4)
+                                metrics = decision_panel['metrics']
+
+                                with metric_cols[0]:
+                                    st.metric("Win Rate", metrics.get('expected_win_rate', 'N/A'))
+                                with metric_cols[1]:
+                                    st.metric("Avg Win", metrics.get('avg_win', 'N/A'))
+                                with metric_cols[2]:
+                                    st.metric("Avg Loss", metrics.get('avg_loss', 'N/A'))
+                                with metric_cols[3]:
+                                    st.metric("Profit Factor", metrics.get('profit_factor', 'N/A'))
+
+                            # ========== OPTIMIZED PARAMETERS ==========
+                            st.markdown("---")
+                            st.markdown("### ⚙️ Optimized Parameters (Out-of-Sample)")
+
+                            param_cols = st.columns(4)
+                            optimal_params = backtest_results['optimal_params']
+
+                            with param_cols[0]:
+                                st.metric(
+                                    "Trailing Stop",
+                                    f"{optimal_params.get('trailing_stop_pct', 0):.0f}%",
+                                    help="Stop loss distance from highest high"
+                                )
+
+                            with param_cols[1]:
+                                st.metric(
+                                    "Momentum Exit",
+                                    f"{optimal_params.get('momentum_threshold', 0):.0f}%",
+                                    help="Exit if 12M momentum falls below this"
+                                )
+
+                            with param_cols[2]:
+                                st.metric(
+                                    "Days Below MA200",
+                                    f"{optimal_params.get('ma200_days_below', 0):.0f}",
+                                    help="Exit after this many days below MA200"
+                                )
+
+                            with param_cols[3]:
+                                st.metric(
+                                    "Min Entry Momentum",
+                                    f"{optimal_params.get('momentum_entry_min', 0):.0f}%",
+                                    help="Minimum 12M momentum to enter"
+                                )
+
+                            # ========== PERFORMANCE METRICS ==========
+                            st.markdown("---")
+                            st.markdown("### 📊 Performance Metrics (In-Sample vs Out-of-Sample)")
+
+                            metrics_table_data = []
+                            in_sample = backtest_results['in_sample_metrics']
+                            out_sample = backtest_results['out_sample_metrics']
+                            degradation = backtest_results['degradation_ratio']
+
+                            metrics_to_show = [
+                                ('Sharpe Ratio', 'sharpe_ratio'),
+                                ('Total Return (%)', 'total_return'),
+                                ('Win Rate (%)', 'win_rate'),
+                                ('Profit Factor', 'profit_factor'),
+                                ('Max Drawdown (%)', 'max_drawdown'),
+                                ('Num Trades', 'num_trades'),
+                                ('Avg Trade Duration (days)', 'avg_trade_duration')
+                            ]
+
+                            for display_name, key in metrics_to_show:
+                                in_val = in_sample.get(key, 0)
+                                out_val = out_sample.get(key, 0)
+                                deg = degradation.get(key, 1.0) if key in degradation else 1.0
+
+                                metrics_table_data.append({
+                                    'Metric': display_name,
+                                    'In-Sample': f"{in_val:.2f}",
+                                    'Out-of-Sample': f"{out_val:.2f}",
+                                    'Degradation': f"{deg:.2f}x" if key in degradation else "N/A"
+                                })
+
+                            st.table(pd.DataFrame(metrics_table_data))
+
+                            # Degradation assessment
+                            overall_deg = degradation.get('overall', 1.0)
+                            if overall_deg >= 0.85:
+                                st.success(f"✅ Low overfitting risk - Degradation: {overall_deg:.2%}")
+                            elif overall_deg >= 0.70:
+                                st.warning(f"⚠️ Moderate overfitting - Degradation: {overall_deg:.2%}")
+                            else:
+                                st.error(f"🔴 High overfitting risk - Degradation: {overall_deg:.2%}")
+
+                            # ========== VISUALIZATIONS ==========
+                            st.markdown("---")
+                            st.markdown("### 📈 Interactive Visualizations")
+
+                            # Entry/Exit Signals Chart
+                            st.markdown("#### 🎯 Entry/Exit Signals")
+                            entry_exit_fig = create_entry_exit_chart(
+                                prices=prices_df_with_indicators,
+                                trades=backtest_results['all_trades'][-50:] if len(backtest_results['all_trades']) > 50 else backtest_results['all_trades'],  # Last 50 trades
+                                current_params=optimal_params,
+                                show_current_signals=True
+                            )
+                            st.plotly_chart(entry_exit_fig, use_container_width=True)
+
+                            # Equity Curve
+                            st.markdown("#### 📉 Equity Curve & Drawdown")
+                            if not backtest_results['equity_curve'].empty:
+                                equity_fig = create_equity_curve_chart(
+                                    equity_curve=backtest_results['equity_curve'],
+                                    in_sample_metrics=in_sample,
+                                    out_sample_metrics=out_sample
+                                )
+                                st.plotly_chart(equity_fig, use_container_width=True)
+
+                            # Trade Distribution
+                            st.markdown("#### 📊 Trade Return Distribution")
+                            if backtest_results['all_trades']:
+                                dist_fig = create_trade_distribution_chart(backtest_results['all_trades'])
+                                st.plotly_chart(dist_fig, use_container_width=True)
+
+                            # Parameter Stability
+                            st.markdown("#### ⚙️ Parameter Stability Across Windows")
+                            if backtest_results['parameter_stability']:
+                                stability_fig = create_parameter_stability_chart(
+                                    backtest_results['parameter_stability']
+                                )
+                                st.plotly_chart(stability_fig, use_container_width=True)
+
+                                # Explain stability
+                                st.caption("""
+                                **Coefficient of Variation (CV)**: Lower is better
+                                - CV < 0.2: Very stable (✅ Reliable)
+                                - CV 0.2-0.5: Moderately stable (⚠️ Use with caution)
+                                - CV > 0.5: Unstable (🔴 Parameter changes too much across windows)
+                                """)
+
+                        else:
+                            st.warning("⚠️ Not enough data for walk-forward analysis. Need at least 400 days of historical data.")
+
+                    else:
+                        st.error("❌ Could not fetch historical data for backtesting")
+
+                except Exception as e:
+                    st.error(f"❌ Backtesting error: {str(e)}")
+                    import traceback
+                    with st.expander("🔍 Debug Info"):
+                        st.code(traceback.format_exc())
 
     else:
         # Show examples
