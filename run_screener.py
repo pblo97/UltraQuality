@@ -4753,7 +4753,8 @@ with tab8:
                                         )
 
                                         # Get extended historical data for backtesting
-                                        from_date_backtest = (datetime.now() - timedelta(days=500)).strftime('%Y-%m-%d')
+                                        # Need ~4 years (1500 days) to have enough data after 252-day momentum warmup
+                                        from_date_backtest = (datetime.now() - timedelta(days=1500)).strftime('%Y-%m-%d')
                                         hist_data_backtest = fmp.get_historical_prices(formatted_ticker, from_date=from_date_backtest)
 
                                         if hist_data_backtest and 'historical' in hist_data_backtest:
@@ -4763,6 +4764,12 @@ with tab8:
                                             prices_df = pd.DataFrame(prices_backtest)
                                             prices_df = prices_df[['date', 'open', 'high', 'low', 'close', 'volume']].copy()
                                             prices_df['date'] = pd.to_datetime(prices_df['date'])
+
+                                            # Check if we have enough data
+                                            if len(prices_df) < 500:
+                                                st.warning(f"⚠️ Only {len(prices_df)} days of data available. Need at least 500 days for reliable walk-forward backtesting. Results may be unreliable.")
+                                            elif len(prices_df) < 750:
+                                                st.info(f"ℹ️ {len(prices_df)} days of data available. Recommended: 750+ days for more robust results.")
 
                                             # Define parameter grid to optimize
                                             parameter_grid = {
@@ -5360,7 +5367,8 @@ with tab8:
                     )
 
                     # Get extended historical data for backtesting
-                    from_date_backtest = (datetime.now() - timedelta(days=500)).strftime('%Y-%m-%d')
+                    # Need ~4 years (1500 days) to have enough data after 252-day momentum warmup
+                    from_date_backtest = (datetime.now() - timedelta(days=1500)).strftime('%Y-%m-%d')
                     hist_data_backtest = fmp.get_historical_prices(formatted_ticker, from_date=from_date_backtest)
 
                     if hist_data_backtest and 'historical' in hist_data_backtest:
@@ -5370,6 +5378,12 @@ with tab8:
                         prices_df = pd.DataFrame(prices_backtest)
                         prices_df = prices_df[['date', 'open', 'high', 'low', 'close', 'volume']].copy()
                         prices_df['date'] = pd.to_datetime(prices_df['date'])
+
+                        # Check if we have enough data
+                        if len(prices_df) < 500:
+                            st.warning(f"⚠️ Only {len(prices_df)} days of data available. Need at least 500 days for reliable walk-forward backtesting. Results may be unreliable.")
+                        elif len(prices_df) < 750:
+                            st.info(f"ℹ️ {len(prices_df)} days of data available. Recommended: 750+ days for more robust results.")
 
                         # Define parameter grid to optimize
                         parameter_grid = {
