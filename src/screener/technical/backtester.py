@@ -65,13 +65,21 @@ class WalkForwardBacktester:
         """
         logger.info("Starting walk-forward optimization...")
 
+        # Default parameters (median values from typical grid)
+        default_params = {
+            'trailing_stop_pct': 10,
+            'momentum_threshold': -5,
+            'ma200_days_below': 5,
+            'momentum_entry_min': 5
+        }
+
         results = {
             'windows': [],
-            'optimal_params': None,
+            'optimal_params': default_params.copy(),
             'in_sample_metrics': {},
             'out_sample_metrics': {},
             'degradation_ratio': {},
-            'equity_curve': None,
+            'equity_curve': pd.DataFrame(),
             'all_trades': [],
             'parameter_stability': {}
         }
@@ -463,18 +471,28 @@ class WalkForwardBacktester:
     def _aggregate_best_params(self, window_results: List[Dict]) -> Dict:
         """Find most stable parameters across windows."""
         # Mode (most common) for each parameter
-        all_params = [w['best_params'] for w in window_results]
+        all_params = [w['best_params'] for w in window_results if w['best_params']]
 
         if not all_params:
-            return {}
+            # Return default parameters if no valid params found
+            return {
+                'trailing_stop_pct': 10,
+                'momentum_threshold': -5,
+                'ma200_days_below': 5,
+                'momentum_entry_min': 5
+            }
 
         aggregated = {}
         param_names = all_params[0].keys()
 
         for param in param_names:
-            values = [p[param] for p in all_params]
-            # Use median for numerical stability
-            aggregated[param] = np.median(values)
+            values = [p[param] for p in all_params if param in p and p[param] is not None]
+            if values:
+                # Use median for numerical stability
+                aggregated[param] = np.median(values)
+            else:
+                # Default value if no valid values found
+                aggregated[param] = 10 if 'stop' in param else 5
 
         return aggregated
 
