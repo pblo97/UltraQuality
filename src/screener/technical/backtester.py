@@ -210,6 +210,14 @@ class WalkForwardBacktester:
                 best_score = score
                 best_params = params.copy()
 
+        # If no valid parameters found, use median values from grid
+        if best_params is None:
+            logger.warning("No valid parameters found in grid search, using median values")
+            best_params = {}
+            for param_name, param_vals in zip(param_names, param_values):
+                best_params[param_name] = np.median(param_vals)
+            best_score = 0
+
         return best_params, best_score
 
     def _backtest_strategy(
@@ -365,7 +373,9 @@ class WalkForwardBacktester:
                 'profit_factor': 0,
                 'max_drawdown': 0,
                 'num_trades': 0,
-                'avg_trade_duration': 0
+                'avg_trade_duration': 0,
+                'avg_win': 0,
+                'avg_loss': 0
             }
 
         returns = [t['return_pct'] / 100 for t in trades]
