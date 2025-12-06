@@ -4703,6 +4703,263 @@ with tab8:
                             else:
                                 st.success("✅ No technical warnings")
 
+                            # ========== WALK-FORWARD BACKTESTING & OPTIMIZATION ==========
+                            st.markdown("---")
+                            st.markdown("### 🔬 Walk-Forward Backtesting & Parameter Optimization")
+
+                            st.info("""
+                            **Academic Evidence-Based Testing:**
+                            - Walk-forward analysis validates parameters out-of-sample
+                            - Detects overfitting before it costs you money
+                            - Shows when to ENTER and when to EXIT
+
+                            Based on: Han, Zhou & Zhu (2016), Dai (2021), Barroso & Santa-Clara (2015)
+                            """)
+
+                            # Checkbox to enable backtesting
+                            run_backtest = st.checkbox(
+                                "🔬 Run Walk-Forward Backtest & Optimization",
+                                value=False,
+                                help="This will take 30-60 seconds. Optimizes entry/exit parameters and validates them out-of-sample."
+                            )
+
+                            if run_backtest:
+                                with st.spinner("Running walk-forward optimization... This may take 30-60 seconds"):
+                                    try:
+                                        from screener.technical import (
+                                            WalkForwardBacktester,
+                                            create_entry_exit_chart,
+                                            create_equity_curve_chart,
+                                            create_parameter_stability_chart,
+                                            create_trade_distribution_chart,
+                                            create_current_decision_panel
+                                        )
+
+                                        # Get extended historical data for backtesting
+                                        from_date_backtest = (datetime.now() - timedelta(days=500)).strftime('%Y-%m-%d')
+                                        hist_data_backtest = fmp.get_historical_prices(formatted_ticker, from_date=from_date_backtest)
+
+                                        if hist_data_backtest and 'historical' in hist_data_backtest:
+                                            prices_backtest = hist_data_backtest['historical'][::-1]  # Chronological order
+
+                                            # Convert to DataFrame
+                                            prices_df = pd.DataFrame(prices_backtest)
+                                            prices_df = prices_df[['date', 'open', 'high', 'low', 'close', 'volume']].copy()
+                                            prices_df['date'] = pd.to_datetime(prices_df['date'])
+
+                                            # Define parameter grid to optimize
+                                            parameter_grid = {
+                                                # Exit rules
+                                                'trailing_stop_pct': [7, 10, 12, 15],
+                                                'momentum_threshold': [-3, -5, -7, -10],
+                                                'ma200_days_below': [3, 5, 7],
+
+                                                # Entry rules
+                                                'momentum_entry_min': [0, 5, 10],
+                                            }
+
+                                            # Initialize and run backtester
+                                            backtester = WalkForwardBacktester(prices_df)
+
+                                            backtest_results = backtester.run_walk_forward(
+                                                parameter_grid=parameter_grid,
+                                                train_days=250,
+                                                test_days=60,
+                                                step_days=30
+                                            )
+
+                                            if backtest_results and backtest_results['windows']:
+                                                st.success("✅ Backtest complete!")
+
+                                                # ========== DECISION PANEL ==========
+                                                st.markdown("---")
+                                                st.markdown("### 🎯 CURRENT DECISION: Should I Buy/Sell/Hold?")
+
+                                                # Calculate current indicators
+                                                current_data = prices_df.iloc[-1].copy()
+                                                prices_df_with_indicators = backtester._calculate_indicators(prices_df)
+                                                current_data = prices_df_with_indicators.iloc[-1]
+
+                                                decision_panel = create_current_decision_panel(
+                                                    current_data=current_data,
+                                                    optimal_params=backtest_results['optimal_params'],
+                                                    trades=backtest_results['all_trades']
+                                                )
+
+                                                # Display decision
+                                                action = decision_panel['action']
+                                                confidence = decision_panel['confidence']
+
+                                                # Color-coded decision
+                                                if action == 'BUY':
+                                                    st.success(f"## 🟢 {action} - Confidence: {confidence}")
+                                                elif action == 'SELL':
+                                                    st.error(f"## 🔴 {action} - Confidence: {confidence}")
+                                                elif action == 'HOLD':
+                                                    st.info(f"## 🔵 {action} - Confidence: {confidence}")
+                                                else:  # WAIT
+                                                    st.warning(f"## 🟡 {action} - Confidence: {confidence}")
+
+                                                # Show reasoning
+                                                st.markdown("**Reasoning:**")
+                                                for reason in decision_panel['reasons']:
+                                                    st.write(reason)
+
+                                                if decision_panel['warnings']:
+                                                    st.markdown("**⚠️ Warnings:**")
+                                                    for warning in decision_panel['warnings']:
+                                                        st.warning(warning)
+
+                                                # Show expected metrics
+                                                if decision_panel['metrics']:
+                                                    st.markdown("**📊 Expected Performance (Based on Backtest):**")
+                                                    metric_cols = st.columns(4)
+                                                    metrics = decision_panel['metrics']
+
+                                                    with metric_cols[0]:
+                                                        st.metric("Win Rate", metrics.get('expected_win_rate', 'N/A'))
+                                                    with metric_cols[1]:
+                                                        st.metric("Avg Win", metrics.get('avg_win', 'N/A'))
+                                                    with metric_cols[2]:
+                                                        st.metric("Avg Loss", metrics.get('avg_loss', 'N/A'))
+                                                    with metric_cols[3]:
+                                                        st.metric("Profit Factor", metrics.get('profit_factor', 'N/A'))
+
+                                                # ========== OPTIMIZED PARAMETERS ==========
+                                                st.markdown("---")
+                                                st.markdown("### ⚙️ Optimized Parameters (Out-of-Sample)")
+
+                                                param_cols = st.columns(4)
+                                                optimal_params = backtest_results['optimal_params']
+
+                                                with param_cols[0]:
+                                                    st.metric(
+                                                        "Trailing Stop",
+                                                        f"{optimal_params.get('trailing_stop_pct', 0):.0f}%",
+                                                        help="Stop loss distance from highest high"
+                                                    )
+
+                                                with param_cols[1]:
+                                                    st.metric(
+                                                        "Momentum Exit",
+                                                        f"{optimal_params.get('momentum_threshold', 0):.0f}%",
+                                                        help="Exit if 12M momentum falls below this"
+                                                    )
+
+                                                with param_cols[2]:
+                                                    st.metric(
+                                                        "Days Below MA200",
+                                                        f"{optimal_params.get('ma200_days_below', 0):.0f}",
+                                                        help="Exit after this many days below MA200"
+                                                    )
+
+                                                with param_cols[3]:
+                                                    st.metric(
+                                                        "Min Entry Momentum",
+                                                        f"{optimal_params.get('momentum_entry_min', 0):.0f}%",
+                                                        help="Minimum 12M momentum to enter"
+                                                    )
+
+                                                # ========== PERFORMANCE METRICS ==========
+                                                st.markdown("---")
+                                                st.markdown("### 📊 Performance Metrics (In-Sample vs Out-of-Sample)")
+
+                                                metrics_table_data = []
+                                                in_sample = backtest_results['in_sample_metrics']
+                                                out_sample = backtest_results['out_sample_metrics']
+                                                degradation = backtest_results['degradation_ratio']
+
+                                                metrics_to_show = [
+                                                    ('Sharpe Ratio', 'sharpe_ratio'),
+                                                    ('Total Return (%)', 'total_return'),
+                                                    ('Win Rate (%)', 'win_rate'),
+                                                    ('Profit Factor', 'profit_factor'),
+                                                    ('Max Drawdown (%)', 'max_drawdown'),
+                                                    ('Num Trades', 'num_trades'),
+                                                    ('Avg Trade Duration (days)', 'avg_trade_duration')
+                                                ]
+
+                                                for display_name, key in metrics_to_show:
+                                                    in_val = in_sample.get(key, 0)
+                                                    out_val = out_sample.get(key, 0)
+                                                    deg = degradation.get(key, 1.0) if key in degradation else 1.0
+
+                                                    metrics_table_data.append({
+                                                        'Metric': display_name,
+                                                        'In-Sample': f"{in_val:.2f}",
+                                                        'Out-of-Sample': f"{out_val:.2f}",
+                                                        'Degradation': f"{deg:.2f}x" if key in degradation else "N/A"
+                                                    })
+
+                                                st.table(pd.DataFrame(metrics_table_data))
+
+                                                # Degradation assessment
+                                                overall_deg = degradation.get('overall', 1.0)
+                                                if overall_deg >= 0.85:
+                                                    st.success(f"✅ Low overfitting risk - Degradation: {overall_deg:.2%}")
+                                                elif overall_deg >= 0.70:
+                                                    st.warning(f"⚠️ Moderate overfitting - Degradation: {overall_deg:.2%}")
+                                                else:
+                                                    st.error(f"🔴 High overfitting risk - Degradation: {overall_deg:.2%}")
+
+                                                # ========== VISUALIZATIONS ==========
+                                                st.markdown("---")
+                                                st.markdown("### 📈 Interactive Visualizations")
+
+                                                # Entry/Exit Signals Chart
+                                                st.markdown("#### 🎯 Entry/Exit Signals")
+                                                entry_exit_fig = create_entry_exit_chart(
+                                                    prices=prices_df_with_indicators,
+                                                    trades=backtest_results['all_trades'][-50:] if len(backtest_results['all_trades']) > 50 else backtest_results['all_trades'],  # Last 50 trades
+                                                    current_params=optimal_params,
+                                                    show_current_signals=True
+                                                )
+                                                st.plotly_chart(entry_exit_fig, use_container_width=True)
+
+                                                # Equity Curve
+                                                st.markdown("#### 📉 Equity Curve & Drawdown")
+                                                if not backtest_results['equity_curve'].empty:
+                                                    equity_fig = create_equity_curve_chart(
+                                                        equity_curve=backtest_results['equity_curve'],
+                                                        in_sample_metrics=in_sample,
+                                                        out_sample_metrics=out_sample
+                                                    )
+                                                    st.plotly_chart(equity_fig, use_container_width=True)
+
+                                                # Trade Distribution
+                                                st.markdown("#### 📊 Trade Return Distribution")
+                                                if backtest_results['all_trades']:
+                                                    dist_fig = create_trade_distribution_chart(backtest_results['all_trades'])
+                                                    st.plotly_chart(dist_fig, use_container_width=True)
+
+                                                # Parameter Stability
+                                                st.markdown("#### ⚙️ Parameter Stability Across Windows")
+                                                if backtest_results['parameter_stability']:
+                                                    stability_fig = create_parameter_stability_chart(
+                                                        backtest_results['parameter_stability']
+                                                    )
+                                                    st.plotly_chart(stability_fig, use_container_width=True)
+
+                                                    # Explain stability
+                                                    st.caption("""
+                                                    **Coefficient of Variation (CV)**: Lower is better
+                                                    - CV < 0.2: Very stable (✅ Reliable)
+                                                    - CV 0.2-0.5: Moderately stable (⚠️ Use with caution)
+                                                    - CV > 0.5: Unstable (🔴 Parameter changes too much across windows)
+                                                    """)
+
+                                            else:
+                                                st.warning("⚠️ Not enough data for walk-forward analysis. Need at least 400 days of historical data.")
+
+                                        else:
+                                            st.error("❌ Could not fetch historical data for backtesting")
+
+                                    except Exception as e:
+                                        st.error(f"❌ Backtesting error: {str(e)}")
+                                        import traceback
+                                        with st.expander("🔍 Debug Info"):
+                                            st.code(traceback.format_exc())
+
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
                 import traceback
