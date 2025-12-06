@@ -4343,13 +4343,14 @@ with tab8:
 
     analyze_button = st.button("🚀 Analyze Technical Setup", type="primary", use_container_width=True, key="quick_tech_analyze")
 
+    # Format ticker with market suffix (for session state key)
+    formatted_ticker = format_ticker_for_market(quick_ticker, quick_country_code) if quick_ticker else None
+
     # Check if we have cached analysis in session state
     session_key = f"quick_tech_{formatted_ticker}" if formatted_ticker else None
     has_cached_analysis = session_key and session_key in st.session_state
 
     if analyze_button and quick_ticker:
-        # Format ticker with market suffix
-        formatted_ticker = format_ticker_for_market(quick_ticker, quick_country_code)
 
         with st.spinner(f"Analyzing {formatted_ticker}..."):
             try:
