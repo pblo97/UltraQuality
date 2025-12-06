@@ -253,12 +253,22 @@ class WalkForwardBacktester:
         current_equity = 10000  # Starting capital
         position_size = 0
 
+        # Debug counters
+        entry_signals = 0
+        exit_signals = 0
+        skipped_no_momentum = 0
+
         for i in range(len(data)):
             row = data.iloc[i]
 
             # Check entry conditions
             if not in_position:
+                # Debug: Check why entry signals fail
+                if pd.isna(row['momentum_12m']):
+                    skipped_no_momentum += 1
+
                 if self._check_entry_signal(row, params):
+                    entry_signals += 1
                     in_position = True
                     entry_price = row['close']
                     entry_date = row['date']
@@ -274,6 +284,7 @@ class WalkForwardBacktester:
                 )
 
                 if exit_signal:
+                    exit_signals += 1
                     # Close trade
                     exit_price = row['close']
                     pnl = (exit_price - entry_price) / entry_price
@@ -299,6 +310,18 @@ class WalkForwardBacktester:
                 equity.append(current_value)
             else:
                 equity.append(current_equity)
+
+        # Debug logging
+        logger.info(f"🔍 DEBUG Backtest: {len(data)} rows → {len(trades)} trades")
+        logger.info(f"   Entry signals: {entry_signals}, Exit signals: {exit_signals}")
+        logger.info(f"   Skipped (no momentum_12m): {skipped_no_momentum}/{len(data)}")
+        if len(data) > 0:
+            logger.info(f"   Date range: {data.iloc[0]['date']} to {data.iloc[-1]['date']}")
+            valid_momentum = data['momentum_12m'].notna().sum()
+            logger.info(f"   Valid momentum rows: {valid_momentum}/{len(data)} ({valid_momentum/len(data)*100:.1f}%)")
+            if valid_momentum > 0:
+                logger.info(f"   Momentum 12M range: {data['momentum_12m'].min():.1f}% to {data['momentum_12m'].max():.1f}%")
+                logger.info(f"   Entry threshold: {params.get('momentum_entry_min', 0)}%")
 
         equity_df = pd.DataFrame({
             'date': data['date'],
