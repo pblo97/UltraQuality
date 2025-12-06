@@ -4788,6 +4788,39 @@ with tab8:
                                             if backtest_results and backtest_results['windows']:
                                                 st.success("✅ Backtest complete!")
 
+                                                # ========== DEBUG INFO ==========
+                                                with st.expander("🔍 Debug Info - Why no trades?"):
+                                                    st.markdown("**Data Summary:**")
+                                                    st.write(f"- Total data rows: {len(prices_df)}")
+                                                    st.write(f"- Date range: {prices_df.iloc[0]['date']} to {prices_df.iloc[-1]['date']}")
+                                                    st.write(f"- Total windows: {len(backtest_results['windows'])}")
+                                                    st.write(f"- Total trades (out-of-sample): {len(backtest_results['all_trades'])}")
+
+                                                    # Check momentum availability
+                                                    prices_df_check = backtester._calculate_indicators(prices_df.copy())
+                                                    valid_momentum = prices_df_check['momentum_12m'].notna().sum()
+                                                    st.write(f"- Valid momentum_12m rows: {valid_momentum}/{len(prices_df_check)} ({valid_momentum/len(prices_df_check)*100:.1f}%)")
+
+                                                    if valid_momentum > 0:
+                                                        st.write(f"- Momentum 12M range: {prices_df_check['momentum_12m'].min():.1f}% to {prices_df_check['momentum_12m'].max():.1f}%")
+                                                        st.write(f"- Entry threshold: {backtest_results['optimal_params'].get('momentum_entry_min', 0)}%")
+
+                                                        # Count how many rows meet entry criteria
+                                                        entry_candidates = prices_df_check[
+                                                            (prices_df_check['momentum_12m'] > backtest_results['optimal_params'].get('momentum_entry_min', 0)) &
+                                                            (prices_df_check['close'] > prices_df_check['ma_200'])
+                                                        ]
+                                                        st.write(f"- Rows meeting entry criteria: {len(entry_candidates)}/{valid_momentum}")
+
+                                                    st.markdown("**⚠️ Common Issues:**")
+                                                    if valid_momentum < len(prices_df_check) * 0.5:
+                                                        st.warning("❌ Less than 50% of data has valid momentum_12m (needs 252 days history)")
+                                                        st.info("💡 Solution: Use longer historical data or reduce momentum lookback period")
+
+                                                    if len(backtest_results['all_trades']) == 0:
+                                                        st.error("❌ ZERO trades generated - strategy never entered positions")
+                                                        st.info("💡 Check: (1) momentum_12m availability, (2) entry threshold too high, (3) price always below MA200")
+
                                                 # ========== DECISION PANEL ==========
                                                 st.markdown("---")
                                                 st.markdown("### 🎯 CURRENT DECISION: Should I Buy/Sell/Hold?")
@@ -5361,6 +5394,39 @@ with tab8:
 
                         if backtest_results and backtest_results['windows']:
                             st.success("✅ Backtest complete!")
+
+                            # ========== DEBUG INFO ==========
+                            with st.expander("🔍 Debug Info - Why no trades?"):
+                                st.markdown("**Data Summary:**")
+                                st.write(f"- Total data rows: {len(prices_df)}")
+                                st.write(f"- Date range: {prices_df.iloc[0]['date']} to {prices_df.iloc[-1]['date']}")
+                                st.write(f"- Total windows: {len(backtest_results['windows'])}")
+                                st.write(f"- Total trades (out-of-sample): {len(backtest_results['all_trades'])}")
+
+                                # Check momentum availability
+                                prices_df_check = backtester._calculate_indicators(prices_df.copy())
+                                valid_momentum = prices_df_check['momentum_12m'].notna().sum()
+                                st.write(f"- Valid momentum_12m rows: {valid_momentum}/{len(prices_df_check)} ({valid_momentum/len(prices_df_check)*100:.1f}%)")
+
+                                if valid_momentum > 0:
+                                    st.write(f"- Momentum 12M range: {prices_df_check['momentum_12m'].min():.1f}% to {prices_df_check['momentum_12m'].max():.1f}%")
+                                    st.write(f"- Entry threshold: {backtest_results['optimal_params'].get('momentum_entry_min', 0)}%")
+
+                                    # Count how many rows meet entry criteria
+                                    entry_candidates = prices_df_check[
+                                        (prices_df_check['momentum_12m'] > backtest_results['optimal_params'].get('momentum_entry_min', 0)) &
+                                        (prices_df_check['close'] > prices_df_check['ma_200'])
+                                    ]
+                                    st.write(f"- Rows meeting entry criteria: {len(entry_candidates)}/{valid_momentum}")
+
+                                st.markdown("**⚠️ Common Issues:**")
+                                if valid_momentum < len(prices_df_check) * 0.5:
+                                    st.warning("❌ Less than 50% of data has valid momentum_12m (needs 252 days history)")
+                                    st.info("💡 Solution: Use longer historical data or reduce momentum lookback period")
+
+                                if len(backtest_results['all_trades']) == 0:
+                                    st.error("❌ ZERO trades generated - strategy never entered positions")
+                                    st.info("💡 Check: (1) momentum_12m availability, (2) entry threshold too high, (3) price always below MA200")
 
                             # ========== DECISION PANEL ==========
                             st.markdown("---")
