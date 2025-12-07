@@ -4861,10 +4861,10 @@ with tab8:
                                                                     # (not calendar days - market only trades ~252 days/year)
                                                                     from datetime import timedelta
 
-                                                                    # Find row index where test_start begins, go back 252 ROWS
-                                                                    test_start_idx = prices_df[prices_df['date'] >= test_start].index[0]
-                                                                    warmup_idx = max(0, test_start_idx - 252)
-                                                                    test_warmup_start = prices_df.loc[warmup_idx, 'date']
+                                                                    # Use searchsorted to find POSITIONAL index (works on sorted dates)
+                                                                    test_start_pos = prices_df['date'].searchsorted(test_start, side='left')
+                                                                    warmup_pos = max(0, test_start_pos - 252)
+                                                                    test_warmup_start = prices_df.iloc[warmup_pos]['date']
 
                                                                     test_period_data_with_warmup = prices_df[
                                                                         (prices_df['date'] >= test_warmup_start) &
@@ -4872,7 +4872,7 @@ with tab8:
                                                                     ].copy()
 
                                                                     # Debug: Check data availability
-                                                                    st.caption(f"    🔍 Debug: warmup_start={test_warmup_start.date()} ({len(test_period_data_with_warmup)} rows for indicators, need 252+ for momentum)")
+                                                                    st.caption(f"    🔍 Debug: test_start_pos={test_start_pos}, warmup_pos={warmup_pos}, warmup_start={test_warmup_start.date()} ({len(test_period_data_with_warmup)} rows, need 252+ for momentum)")
 
                                                                     if len(test_period_data_with_warmup) > 252:
                                                                         # Calculate indicators with warmup
