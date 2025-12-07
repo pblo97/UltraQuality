@@ -138,18 +138,21 @@ class WalkForwardBacktester:
             # Debug: Log trades before filtering
             logger.info(f"   Test (before filter): {len(test_trades_all)} trades generated from warmup period")
 
-            # Filter trades to only those that EXIT in the actual test period
-            # (Entries can happen in warmup period, but we only count exits in test period)
-            test_trades = [t for t in test_trades_all if t['exit_date'] >= test_start and t['exit_date'] <= test_end]
+            # Filter trades to only those that ENTER in the actual test period
+            # (We want to test if the strategy generates valid entry signals in out-of-sample period)
+            test_trades = [t for t in test_trades_all if t['entry_date'] >= test_start and t['entry_date'] <= test_end]
 
             # Debug: Show if filtering removed trades
             if len(test_trades_all) > 0 and len(test_trades) == 0:
-                logger.warning(f"   ⚠️ All {len(test_trades_all)} test trades filtered out! Check exit dates.")
+                logger.warning(f"   ⚠️ All {len(test_trades_all)} test trades filtered out! Trades entered in warmup period.")
                 if test_trades_all:
-                    first_exit = test_trades_all[0]['exit_date']
-                    last_exit = test_trades_all[-1]['exit_date']
-                    logger.warning(f"   Trade exit date range: {first_exit} to {last_exit}")
+                    first_entry = test_trades_all[0]['entry_date']
+                    last_entry = test_trades_all[-1]['entry_date']
+                    logger.warning(f"   Trade entry date range: {first_entry} to {last_entry}")
                     logger.warning(f"   Test period: {test_start} to {test_end}")
+                    logger.info(f"   → These trades entered BEFORE test period started (in warmup)")
+            elif len(test_trades) > 0:
+                logger.info(f"   ✅ {len(test_trades)} trades entered during test period")
 
             # Filter equity curve to test period only
             test_equity = test_equity_all[test_equity_all['date'] >= test_start].copy()
