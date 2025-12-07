@@ -99,9 +99,13 @@ class WalkForwardBacktester:
                 (self.prices['date'] <= train_end)
             ].copy()
 
-            # For test data, include 252 days before test_start for indicator warmup
-            # (momentum_12m needs 252 days of history)
-            test_warmup_start = test_start - timedelta(days=252)
+            # For test data, include 252 TRADING days before test_start for indicator warmup
+            # (momentum_12m needs 252 trading days of history, not calendar days)
+            # Find the row index where test_start begins, then go back 252 ROWS
+            test_start_idx = self.prices[self.prices['date'] >= test_start].index[0]
+            warmup_idx = max(0, test_start_idx - 252)  # Go back 252 trading days
+            test_warmup_start = self.prices.loc[warmup_idx, 'date']
+
             test_data_with_warmup = self.prices[
                 (self.prices['date'] >= test_warmup_start) &
                 (self.prices['date'] <= test_end)
