@@ -320,6 +320,9 @@ class WalkForwardBacktester:
                     position_size = current_equity  # Full position
                     days_below_ma200 = 0  # Reset counter
 
+                    # Debug: Log entry for troubleshooting
+                    logger.debug(f"      ENTRY: {row['date']} @ ${entry_price:.2f}, momentum={row.get('momentum_12m', 0):.1f}%")
+
             # Check exit conditions
             elif in_position:
                 highest_price = max(highest_price, row['high'])
@@ -341,6 +344,9 @@ class WalkForwardBacktester:
                     duration = (row['date'] - entry_date).days
                     if duration <= 1:
                         immediate_exits += 1
+
+                    # Debug: Log exit for troubleshooting
+                    logger.debug(f"      EXIT: {row['date']} @ ${row['close']:.2f}, Duration={duration}d, Reason={exit_reason}")
 
                     # Close trade
                     exit_price = row['close']
