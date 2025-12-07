@@ -4831,22 +4831,49 @@ with tab8:
                                                     # Show detailed window analysis
                                                     st.markdown("**📋 Window Details:**")
                                                     if backtest_results['windows']:
-                                                        # Show first 5 windows with MORE detail
-                                                        for idx, window in enumerate(backtest_results['windows'][:5]):
-                                                            train_trades = len(window.get('train_trades', []))
-                                                            test_trades = len(window.get('test_trades', []))
-                                                            train_sharpe = window.get('train_metrics', {}).get('sharpe_ratio', 0)
-                                                            test_sharpe = window.get('test_metrics', {}).get('sharpe_ratio', 0)
+                                                        # Show first 5 windows with trades in train (skip empty ones)
+                                                        windows_with_trades = [w for w in backtest_results['windows'] if len(w.get('train_trades', [])) > 0]
 
-                                                            train_start, train_end = window['train_period']
-                                                            test_start, test_end = window['test_period']
+                                                        if windows_with_trades:
+                                                            st.write(f"**First 5 windows WITH train trades (out of {len(windows_with_trades)} total):**")
+                                                            for idx, window in enumerate(windows_with_trades[:5]):
+                                                                train_trades = len(window.get('train_trades', []))
+                                                                test_trades = len(window.get('test_trades', []))
+                                                                train_sharpe = window.get('train_metrics', {}).get('sharpe_ratio', 0)
+                                                                test_sharpe = window.get('test_metrics', {}).get('sharpe_ratio', 0)
 
-                                                            st.write(f"**Window {idx+1}:**")
-                                                            st.write(f"  • Train: {train_start.date()} to {train_end.date()} → {train_trades} trades (Sharpe: {train_sharpe:.2f})")
-                                                            st.write(f"  • Test:  {test_start.date()} to {test_end.date()} → {test_trades} trades (Sharpe: {test_sharpe:.2f})")
+                                                                train_start, train_end = window['train_period']
+                                                                test_start, test_end = window['test_period']
+
+                                                                window_num = window['window_id'] + 1
+
+                                                                st.write(f"**Window {window_num}:**")
+                                                                st.write(f"  • Train: {train_start.date()} to {train_end.date()} → {train_trades} trades (Sharpe: {train_sharpe:.2f})")
+                                                                st.write(f"  • Test:  {test_start.date()} to {test_end.date()} → {test_trades} trades (Sharpe: {test_sharpe:.2f})")
+
+                                                                # Show sample trades to understand why test = 0
+                                                                if train_trades > 0 and test_trades == 0:
+                                                                    train_trade_sample = window.get('train_trades', [])[0]
+                                                                    st.caption(f"    Sample train trade: Entry {train_trade_sample['entry_date'].date()}, Exit {train_trade_sample['exit_date'].date()}, Duration: {train_trade_sample['duration_days']} days")
+
+                                                        else:
+                                                            st.warning("No windows generated trades in training period (all in warmup)")
+                                                            # Show first 5 windows anyway
+                                                            for idx, window in enumerate(backtest_results['windows'][:5]):
+                                                                train_trades = len(window.get('train_trades', []))
+                                                                test_trades = len(window.get('test_trades', []))
+                                                                train_sharpe = window.get('train_metrics', {}).get('sharpe_ratio', 0)
+                                                                test_sharpe = window.get('test_metrics', {}).get('sharpe_ratio', 0)
+
+                                                                train_start, train_end = window['train_period']
+                                                                test_start, test_end = window['test_period']
+
+                                                                st.write(f"**Window {idx+1}:**")
+                                                                st.write(f"  • Train: {train_start.date()} to {train_end.date()} → {train_trades} trades (Sharpe: {train_sharpe:.2f})")
+                                                                st.write(f"  • Test:  {test_start.date()} to {test_end.date()} → {test_trades} trades (Sharpe: {test_sharpe:.2f})")
 
                                                         if len(backtest_results['windows']) > 5:
-                                                            st.caption(f"... and {len(backtest_results['windows']) - 5} more windows")
+                                                            st.caption(f"... showing {min(5, len(windows_with_trades))} of {len(backtest_results['windows'])} total windows")
 
                                                     # Analyze the problem
                                                     total_train_trades = sum(len(w.get('train_trades', [])) for w in backtest_results['windows'])
@@ -5479,22 +5506,49 @@ with tab8:
                                 # Show detailed window analysis
                                 st.markdown("**📋 Window Details:**")
                                 if backtest_results['windows']:
-                                    # Show first 5 windows with MORE detail
-                                    for idx, window in enumerate(backtest_results['windows'][:5]):
-                                        train_trades = len(window.get('train_trades', []))
-                                        test_trades = len(window.get('test_trades', []))
-                                        train_sharpe = window.get('train_metrics', {}).get('sharpe_ratio', 0)
-                                        test_sharpe = window.get('test_metrics', {}).get('sharpe_ratio', 0)
+                                    # Show first 5 windows with trades in train (skip empty ones)
+                                    windows_with_trades = [w for w in backtest_results['windows'] if len(w.get('train_trades', [])) > 0]
 
-                                        train_start, train_end = window['train_period']
-                                        test_start, test_end = window['test_period']
+                                    if windows_with_trades:
+                                        st.write(f"**First 5 windows WITH train trades (out of {len(windows_with_trades)} total):**")
+                                        for idx, window in enumerate(windows_with_trades[:5]):
+                                            train_trades = len(window.get('train_trades', []))
+                                            test_trades = len(window.get('test_trades', []))
+                                            train_sharpe = window.get('train_metrics', {}).get('sharpe_ratio', 0)
+                                            test_sharpe = window.get('test_metrics', {}).get('sharpe_ratio', 0)
 
-                                        st.write(f"**Window {idx+1}:**")
-                                        st.write(f"  • Train: {train_start.date()} to {train_end.date()} → {train_trades} trades (Sharpe: {train_sharpe:.2f})")
-                                        st.write(f"  • Test:  {test_start.date()} to {test_end.date()} → {test_trades} trades (Sharpe: {test_sharpe:.2f})")
+                                            train_start, train_end = window['train_period']
+                                            test_start, test_end = window['test_period']
+
+                                            window_num = window['window_id'] + 1
+
+                                            st.write(f"**Window {window_num}:**")
+                                            st.write(f"  • Train: {train_start.date()} to {train_end.date()} → {train_trades} trades (Sharpe: {train_sharpe:.2f})")
+                                            st.write(f"  • Test:  {test_start.date()} to {test_end.date()} → {test_trades} trades (Sharpe: {test_sharpe:.2f})")
+
+                                            # Show sample trades to understand why test = 0
+                                            if train_trades > 0 and test_trades == 0:
+                                                train_trade_sample = window.get('train_trades', [])[0]
+                                                st.caption(f"    Sample train trade: Entry {train_trade_sample['entry_date'].date()}, Exit {train_trade_sample['exit_date'].date()}, Duration: {train_trade_sample['duration_days']} days")
+
+                                    else:
+                                        st.warning("No windows generated trades in training period (all in warmup)")
+                                        # Show first 5 windows anyway
+                                        for idx, window in enumerate(backtest_results['windows'][:5]):
+                                            train_trades = len(window.get('train_trades', []))
+                                            test_trades = len(window.get('test_trades', []))
+                                            train_sharpe = window.get('train_metrics', {}).get('sharpe_ratio', 0)
+                                            test_sharpe = window.get('test_metrics', {}).get('sharpe_ratio', 0)
+
+                                            train_start, train_end = window['train_period']
+                                            test_start, test_end = window['test_period']
+
+                                            st.write(f"**Window {idx+1}:**")
+                                            st.write(f"  • Train: {train_start.date()} to {train_end.date()} → {train_trades} trades (Sharpe: {train_sharpe:.2f})")
+                                            st.write(f"  • Test:  {test_start.date()} to {test_end.date()} → {test_trades} trades (Sharpe: {test_sharpe:.2f})")
 
                                     if len(backtest_results['windows']) > 5:
-                                        st.caption(f"... and {len(backtest_results['windows']) - 5} more windows")
+                                        st.caption(f"... showing {min(5, len(windows_with_trades))} of {len(backtest_results['windows'])} total windows")
 
                                 # Analyze the problem
                                 total_train_trades = sum(len(w.get('train_trades', [])) for w in backtest_results['windows'])
