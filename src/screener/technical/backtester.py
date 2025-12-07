@@ -135,9 +135,21 @@ class WalkForwardBacktester:
             # Use data with warmup to calculate indicators properly
             test_trades_all, test_equity_all = self._backtest_strategy(test_data_with_warmup, best_params)
 
+            # Debug: Log trades before filtering
+            logger.info(f"   Test (before filter): {len(test_trades_all)} trades generated from warmup period")
+
             # Filter trades to only those that EXIT in the actual test period
             # (Entries can happen in warmup period, but we only count exits in test period)
             test_trades = [t for t in test_trades_all if t['exit_date'] >= test_start and t['exit_date'] <= test_end]
+
+            # Debug: Show if filtering removed trades
+            if len(test_trades_all) > 0 and len(test_trades) == 0:
+                logger.warning(f"   ⚠️ All {len(test_trades_all)} test trades filtered out! Check exit dates.")
+                if test_trades_all:
+                    first_exit = test_trades_all[0]['exit_date']
+                    last_exit = test_trades_all[-1]['exit_date']
+                    logger.warning(f"   Trade exit date range: {first_exit} to {last_exit}")
+                    logger.warning(f"   Test period: {test_start} to {test_end}")
 
             # Filter equity curve to test period only
             test_equity = test_equity_all[test_equity_all['date'] >= test_start].copy()
