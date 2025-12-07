@@ -257,6 +257,7 @@ class WalkForwardBacktester:
         entry_price = 0
         entry_date = None
         highest_price = 0
+        days_below_ma200 = 0  # Track consecutive days below MA200
 
         equity = []  # Equity curve (one value per data row)
         current_equity = 10000  # Starting capital
@@ -266,6 +267,7 @@ class WalkForwardBacktester:
         entry_signals = 0
         exit_signals = 0
         skipped_no_momentum = 0
+        immediate_exits = 0  # Track exits on same/next day
 
         for i in range(len(data)):
             row = data.iloc[i]
@@ -283,17 +285,30 @@ class WalkForwardBacktester:
                     entry_date = row['date']
                     highest_price = entry_price
                     position_size = current_equity  # Full position
+                    days_below_ma200 = 0  # Reset counter
 
             # Check exit conditions
             elif in_position:
                 highest_price = max(highest_price, row['high'])
 
+                # Update days below MA200 counter
+                if not pd.isna(row['ma_200']) and row['close'] < row['ma_200']:
+                    days_below_ma200 += 1
+                else:
+                    days_below_ma200 = 0  # Reset if back above
+
                 exit_signal, exit_reason = self._check_exit_signal(
-                    row, params, entry_price, highest_price
+                    row, params, entry_price, highest_price, days_below_ma200
                 )
 
                 if exit_signal:
                     exit_signals += 1
+
+                    # Track immediate exits (0-1 day duration)
+                    duration = (row['date'] - entry_date).days
+                    if duration <= 1:
+                        immediate_exits += 1
+
                     # Close trade
                     exit_price = row['close']
                     pnl = (exit_price - entry_price) / entry_price
@@ -305,13 +320,14 @@ class WalkForwardBacktester:
                         'entry_price': entry_price,
                         'exit_price': exit_price,
                         'return_pct': pnl * 100,
-                        'duration_days': (row['date'] - entry_date).days,
+                        'duration_days': duration,
                         'exit_reason': exit_reason
                     }
 
                     trades.append(trade)
                     current_equity = position_value
                     in_position = False
+                    days_below_ma200 = 0  # Reset counter
 
             # Update equity curve
             if in_position:
@@ -323,7 +339,14 @@ class WalkForwardBacktester:
         # Debug logging
         logger.info(f"🔍 DEBUG Backtest: {len(data)} rows → {len(trades)} trades")
         logger.info(f"   Entry signals: {entry_signals}, Exit signals: {exit_signals}")
+        logger.info(f"   Immediate exits (≤1 day): {immediate_exits}/{exit_signals if exit_signals > 0 else 0}")
         logger.info(f"   Skipped (no momentum_12m): {skipped_no_momentum}/{len(data)}")
+
+        # If we have entries but no completed trades, investigate
+        if entry_signals > 0 and len(trades) == 0:
+            logger.warning(f"   ⚠️ {entry_signals} entries generated but 0 completed trades!")
+            logger.warning(f"   This suggests positions are still open at end of backtest period")
+
         if len(data) > 0:
             logger.info(f"   Date range: {data.iloc[0]['date']} to {data.iloc[-1]['date']}")
             valid_momentum = data['momentum_12m'].notna().sum()
@@ -374,7 +397,8 @@ class WalkForwardBacktester:
         row: pd.Series,
         params: Dict,
         entry_price: float,
-        highest_price: float
+        highest_price: float,
+        days_below_ma200: int
     ) -> Tuple[bool, str]:
         """Check if exit conditions are met."""
         # Trailing stop
@@ -390,12 +414,10 @@ class WalkForwardBacktester:
             if row['momentum_12m'] < momentum_threshold:
                 return True, f"Momentum deterioration (<{momentum_threshold}%)"
 
-        # Below MA200 for X days
-        ma200_days = params.get('ma200_days_below', 5)
-        # (Simplified - would need to track consecutive days)
-        if not pd.isna(row['ma_200']):
-            if row['close'] < row['ma_200']:
-                return True, "Below MA200"
+        # Below MA200 for X consecutive days
+        ma200_days_threshold = params.get('ma200_days_below', 5)
+        if days_below_ma200 >= ma200_days_threshold:
+            return True, f"Below MA200 for {days_below_ma200} days"
 
         return False, None
 
