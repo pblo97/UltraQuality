@@ -111,13 +111,22 @@ class WalkForwardBacktester:
             # Optimize parameters on training data
             best_params, best_score = self._optimize_parameters(train_data, parameter_grid)
 
+            # Debug: Log what's happening in this window
+            logger.info(f"🔍 Window {i+1}/{len(windows)} - Train: {len(train_data)} rows, Test: {len(test_data)} rows")
+            logger.info(f"   Best params: {best_params}")
+            logger.info(f"   Best score: {best_score:.2f}")
+
             # Backtest on training data (in-sample)
             train_trades, train_equity = self._backtest_strategy(train_data, best_params)
             train_metrics = self._calculate_metrics(train_trades, train_equity)
 
+            logger.info(f"   Train trades: {len(train_trades)}, Sharpe: {train_metrics.get('sharpe_ratio', 0):.2f}")
+
             # Backtest on test data (out-of-sample)
             test_trades, test_equity = self._backtest_strategy(test_data, best_params)
             test_metrics = self._calculate_metrics(test_trades, test_equity)
+
+            logger.info(f"   Test trades: {len(test_trades)}, Sharpe: {test_metrics.get('sharpe_ratio', 0):.2f}")
 
             # Store window results
             window_result = {
