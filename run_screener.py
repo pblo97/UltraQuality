@@ -4831,17 +4831,22 @@ with tab8:
                                                     # Show detailed window analysis
                                                     st.markdown("**📋 Window Details:**")
                                                     if backtest_results['windows']:
-                                                        # Show first 3 windows as examples
-                                                        for idx, window in enumerate(backtest_results['windows'][:3]):
+                                                        # Show first 5 windows with MORE detail
+                                                        for idx, window in enumerate(backtest_results['windows'][:5]):
                                                             train_trades = len(window.get('train_trades', []))
                                                             test_trades = len(window.get('test_trades', []))
                                                             train_sharpe = window.get('train_metrics', {}).get('sharpe_ratio', 0)
                                                             test_sharpe = window.get('test_metrics', {}).get('sharpe_ratio', 0)
 
-                                                            st.write(f"Window {idx+1}: Train trades={train_trades} (Sharpe: {train_sharpe:.2f}), Test trades={test_trades} (Sharpe: {test_sharpe:.2f})")
+                                                            train_start, train_end = window['train_period']
+                                                            test_start, test_end = window['test_period']
 
-                                                        if len(backtest_results['windows']) > 3:
-                                                            st.caption(f"... and {len(backtest_results['windows']) - 3} more windows")
+                                                            st.write(f"**Window {idx+1}:**")
+                                                            st.write(f"  • Train: {train_start.date()} to {train_end.date()} → {train_trades} trades (Sharpe: {train_sharpe:.2f})")
+                                                            st.write(f"  • Test:  {test_start.date()} to {test_end.date()} → {test_trades} trades (Sharpe: {test_sharpe:.2f})")
+
+                                                        if len(backtest_results['windows']) > 5:
+                                                            st.caption(f"... and {len(backtest_results['windows']) - 5} more windows")
 
                                                     # Analyze the problem
                                                     total_train_trades = sum(len(w.get('train_trades', [])) for w in backtest_results['windows'])
@@ -5474,17 +5479,22 @@ with tab8:
                                 # Show detailed window analysis
                                 st.markdown("**📋 Window Details:**")
                                 if backtest_results['windows']:
-                                    # Show first 3 windows as examples
-                                    for idx, window in enumerate(backtest_results['windows'][:3]):
+                                    # Show first 5 windows with MORE detail
+                                    for idx, window in enumerate(backtest_results['windows'][:5]):
                                         train_trades = len(window.get('train_trades', []))
                                         test_trades = len(window.get('test_trades', []))
                                         train_sharpe = window.get('train_metrics', {}).get('sharpe_ratio', 0)
                                         test_sharpe = window.get('test_metrics', {}).get('sharpe_ratio', 0)
 
-                                        st.write(f"Window {idx+1}: Train trades={train_trades} (Sharpe: {train_sharpe:.2f}), Test trades={test_trades} (Sharpe: {test_sharpe:.2f})")
+                                        train_start, train_end = window['train_period']
+                                        test_start, test_end = window['test_period']
 
-                                    if len(backtest_results['windows']) > 3:
-                                        st.caption(f"... and {len(backtest_results['windows']) - 3} more windows")
+                                        st.write(f"**Window {idx+1}:**")
+                                        st.write(f"  • Train: {train_start.date()} to {train_end.date()} → {train_trades} trades (Sharpe: {train_sharpe:.2f})")
+                                        st.write(f"  • Test:  {test_start.date()} to {test_end.date()} → {test_trades} trades (Sharpe: {test_sharpe:.2f})")
+
+                                    if len(backtest_results['windows']) > 5:
+                                        st.caption(f"... and {len(backtest_results['windows']) - 5} more windows")
 
                                 # Analyze the problem
                                 total_train_trades = sum(len(w.get('train_trades', [])) for w in backtest_results['windows'])
