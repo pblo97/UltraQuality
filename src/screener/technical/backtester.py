@@ -101,10 +101,10 @@ class WalkForwardBacktester:
 
             # For test data, include 252 TRADING days before test_start for indicator warmup
             # (momentum_12m needs 252 trading days of history, not calendar days)
-            # Find the row index where test_start begins, then go back 252 ROWS
-            test_start_idx = self.prices[self.prices['date'] >= test_start].index[0]
-            warmup_idx = max(0, test_start_idx - 252)  # Go back 252 trading days
-            test_warmup_start = self.prices.loc[warmup_idx, 'date']
+            # Use searchsorted to find POSITIONAL index (works on sorted dates)
+            test_start_pos = self.prices['date'].searchsorted(test_start, side='left')
+            warmup_pos = max(0, test_start_pos - 252)  # Go back 252 trading days
+            test_warmup_start = self.prices.iloc[warmup_pos]['date']
 
             test_data_with_warmup = self.prices[
                 (self.prices['date'] >= test_warmup_start) &
