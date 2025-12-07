@@ -4857,29 +4857,40 @@ with tab8:
                                                                     st.caption(f"    Sample train trade: Entry {train_trade_sample['entry_date'].date()}, Exit {train_trade_sample['exit_date'].date()}, Duration: {train_trade_sample['duration_days']} days")
 
                                                                     # Analyze why test has 0 trades
-                                                                    test_period_data = prices_df[
-                                                                        (prices_df['date'] >= test_start) &
+                                                                    # Include 252 days before test_start for momentum calculation
+                                                                    from datetime import timedelta
+                                                                    test_warmup_start = test_start - timedelta(days=252)
+                                                                    test_period_data_with_warmup = prices_df[
+                                                                        (prices_df['date'] >= test_warmup_start) &
                                                                         (prices_df['date'] <= test_end)
                                                                     ].copy()
 
-                                                                    if len(test_period_data) > 0:
-                                                                        test_with_indicators = backtester._calculate_indicators(test_period_data)
-                                                                        test_valid_momentum = test_with_indicators['momentum_12m'].notna().sum()
+                                                                    if len(test_period_data_with_warmup) > 0:
+                                                                        # Calculate indicators with warmup
+                                                                        test_with_indicators = backtester._calculate_indicators(test_period_data_with_warmup)
+
+                                                                        # Filter to actual test period only
+                                                                        test_period_only = test_with_indicators[
+                                                                            (test_with_indicators['date'] >= test_start) &
+                                                                            (test_with_indicators['date'] <= test_end)
+                                                                        ]
+
+                                                                        test_valid_momentum = test_period_only['momentum_12m'].notna().sum()
 
                                                                         # Check entry conditions
                                                                         optimal = window['best_params']
-                                                                        test_meets_momentum = test_with_indicators[
-                                                                            test_with_indicators['momentum_12m'] > optimal.get('momentum_entry_min', 0)
+                                                                        test_meets_momentum = test_period_only[
+                                                                            test_period_only['momentum_12m'] > optimal.get('momentum_entry_min', 0)
                                                                         ]
-                                                                        test_above_ma200 = test_with_indicators[
-                                                                            test_with_indicators['close'] > test_with_indicators['ma_200']
+                                                                        test_above_ma200 = test_period_only[
+                                                                            test_period_only['close'] > test_period_only['ma_200']
                                                                         ]
-                                                                        test_both_conditions = test_with_indicators[
-                                                                            (test_with_indicators['momentum_12m'] > optimal.get('momentum_entry_min', 0)) &
-                                                                            (test_with_indicators['close'] > test_with_indicators['ma_200'])
+                                                                        test_both_conditions = test_period_only[
+                                                                            (test_period_only['momentum_12m'] > optimal.get('momentum_entry_min', 0)) &
+                                                                            (test_period_only['close'] > test_period_only['ma_200'])
                                                                         ]
 
-                                                                        st.caption(f"    ❓ Why 0 test trades: {len(test_period_data)} days → {test_valid_momentum} with momentum → {len(test_meets_momentum)} meet momentum > {optimal.get('momentum_entry_min', 0)}% → {len(test_above_ma200)} above MA200 → {len(test_both_conditions)} meet BOTH ✓")
+                                                                        st.caption(f"    ❓ Why 0 test trades: {len(test_period_only)} days → {test_valid_momentum} with momentum → {len(test_meets_momentum)} meet momentum > {optimal.get('momentum_entry_min', 0)}% → {len(test_above_ma200)} above MA200 → {len(test_both_conditions)} meet BOTH ✓")
 
                                                         else:
                                                             st.warning("No windows generated trades in training period (all in warmup)")
@@ -5557,29 +5568,40 @@ with tab8:
                                                 st.caption(f"    Sample train trade: Entry {train_trade_sample['entry_date'].date()}, Exit {train_trade_sample['exit_date'].date()}, Duration: {train_trade_sample['duration_days']} days")
 
                                                 # Analyze why test has 0 trades
-                                                test_period_data = prices_df[
-                                                    (prices_df['date'] >= test_start) &
+                                                # Include 252 days before test_start for momentum calculation
+                                                from datetime import timedelta
+                                                test_warmup_start = test_start - timedelta(days=252)
+                                                test_period_data_with_warmup = prices_df[
+                                                    (prices_df['date'] >= test_warmup_start) &
                                                     (prices_df['date'] <= test_end)
                                                 ].copy()
 
-                                                if len(test_period_data) > 0:
-                                                    test_with_indicators = backtester._calculate_indicators(test_period_data)
-                                                    test_valid_momentum = test_with_indicators['momentum_12m'].notna().sum()
+                                                if len(test_period_data_with_warmup) > 0:
+                                                    # Calculate indicators with warmup
+                                                    test_with_indicators = backtester._calculate_indicators(test_period_data_with_warmup)
+
+                                                    # Filter to actual test period only
+                                                    test_period_only = test_with_indicators[
+                                                        (test_with_indicators['date'] >= test_start) &
+                                                        (test_with_indicators['date'] <= test_end)
+                                                    ]
+
+                                                    test_valid_momentum = test_period_only['momentum_12m'].notna().sum()
 
                                                     # Check entry conditions
                                                     optimal = window['best_params']
-                                                    test_meets_momentum = test_with_indicators[
-                                                        test_with_indicators['momentum_12m'] > optimal.get('momentum_entry_min', 0)
+                                                    test_meets_momentum = test_period_only[
+                                                        test_period_only['momentum_12m'] > optimal.get('momentum_entry_min', 0)
                                                     ]
-                                                    test_above_ma200 = test_with_indicators[
-                                                        test_with_indicators['close'] > test_with_indicators['ma_200']
+                                                    test_above_ma200 = test_period_only[
+                                                        test_period_only['close'] > test_period_only['ma_200']
                                                     ]
-                                                    test_both_conditions = test_with_indicators[
-                                                        (test_with_indicators['momentum_12m'] > optimal.get('momentum_entry_min', 0)) &
-                                                        (test_with_indicators['close'] > test_with_indicators['ma_200'])
+                                                    test_both_conditions = test_period_only[
+                                                        (test_period_only['momentum_12m'] > optimal.get('momentum_entry_min', 0)) &
+                                                        (test_period_only['close'] > test_period_only['ma_200'])
                                                     ]
 
-                                                    st.caption(f"    ❓ Why 0 test trades: {len(test_period_data)} days → {test_valid_momentum} with momentum → {len(test_meets_momentum)} meet momentum > {optimal.get('momentum_entry_min', 0)}% → {len(test_above_ma200)} above MA200 → {len(test_both_conditions)} meet BOTH ✓")
+                                                    st.caption(f"    ❓ Why 0 test trades: {len(test_period_only)} days → {test_valid_momentum} with momentum → {len(test_meets_momentum)} meet momentum > {optimal.get('momentum_entry_min', 0)}% → {len(test_above_ma200)} above MA200 → {len(test_both_conditions)} meet BOTH ✓")
 
                                     else:
                                         st.warning("No windows generated trades in training period (all in warmup)")
