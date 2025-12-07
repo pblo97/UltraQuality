@@ -99,12 +99,18 @@ class WalkForwardBacktester:
                 (self.prices['date'] <= train_end)
             ].copy()
 
-            test_data = self.prices[
-                (self.prices['date'] >= test_start) &
+            # For test data, include 252 days before test_start for indicator warmup
+            # (momentum_12m needs 252 days of history)
+            test_warmup_start = test_start - timedelta(days=252)
+            test_data_with_warmup = self.prices[
+                (self.prices['date'] >= test_warmup_start) &
                 (self.prices['date'] <= test_end)
             ].copy()
 
-            if len(train_data) < 100 or len(test_data) < 20:
+            # Mark the actual test period (for filtering after indicators calculated)
+            test_period_start_idx = len(test_data_with_warmup[test_data_with_warmup['date'] < test_start])
+
+            if len(train_data) < 100 or len(test_data_with_warmup) < 20:
                 logger.warning(f"Insufficient data in window {i+1}, skipping")
                 continue
 
@@ -123,10 +129,19 @@ class WalkForwardBacktester:
             logger.info(f"   Train trades: {len(train_trades)}, Sharpe: {train_metrics.get('sharpe_ratio', 0):.2f}")
 
             # Backtest on test data (out-of-sample)
-            test_trades, test_equity = self._backtest_strategy(test_data, best_params)
+            # Use data with warmup to calculate indicators properly
+            test_trades_all, test_equity_all = self._backtest_strategy(test_data_with_warmup, best_params)
+
+            # Filter trades to only those that EXIT in the actual test period
+            # (Entries can happen in warmup period, but we only count exits in test period)
+            test_trades = [t for t in test_trades_all if t['exit_date'] >= test_start and t['exit_date'] <= test_end]
+
+            # Filter equity curve to test period only
+            test_equity = test_equity_all[test_equity_all['date'] >= test_start].copy()
+
             test_metrics = self._calculate_metrics(test_trades, test_equity)
 
-            logger.info(f"   Test trades: {len(test_trades)}, Sharpe: {test_metrics.get('sharpe_ratio', 0):.2f}")
+            logger.info(f"   Test trades: {len(test_trades)} (from {len(test_trades_all)} total), Sharpe: {test_metrics.get('sharpe_ratio', 0):.2f}")
 
             # Store window results
             window_result = {
@@ -594,14 +609,21 @@ class WalkForwardBacktester:
         for w in window_results:
             test_start, test_end = w['test_period']
 
-            # Get equity for this test period
-            test_data = self.prices[
-                (self.prices['date'] >= test_start) &
+            # Include warmup period for proper indicator calculation
+            test_warmup_start = test_start - timedelta(days=252)
+            test_data_with_warmup = self.prices[
+                (self.prices['date'] >= test_warmup_start) &
                 (self.prices['date'] <= test_end)
             ].copy()
 
-            _, equity = self._backtest_strategy(test_data, w['best_params'])
-            equity_curves.append(equity)
+            # Run backtest with warmup data
+            _, equity_all = self._backtest_strategy(test_data_with_warmup, w['best_params'])
+
+            # Filter equity curve to actual test period
+            equity = equity_all[equity_all['date'] >= test_start].copy()
+
+            if not equity.empty:
+                equity_curves.append(equity)
 
         if not equity_curves:
             return pd.DataFrame()
