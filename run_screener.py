@@ -4828,6 +4828,35 @@ with tab8:
                                                         st.error("❌ ZERO trades generated - strategy never entered positions")
                                                         st.info("💡 Check: (1) momentum_12m availability, (2) entry threshold too high, (3) price always below MA200")
 
+                                                    # Show detailed window analysis
+                                                    st.markdown("**📋 Window Details:**")
+                                                    if backtest_results['windows']:
+                                                        # Show first 3 windows as examples
+                                                        for idx, window in enumerate(backtest_results['windows'][:3]):
+                                                            train_trades = len(window.get('train_trades', []))
+                                                            test_trades = len(window.get('test_trades', []))
+                                                            train_sharpe = window.get('train_metrics', {}).get('sharpe_ratio', 0)
+                                                            test_sharpe = window.get('test_metrics', {}).get('sharpe_ratio', 0)
+
+                                                            st.write(f"Window {idx+1}: Train trades={train_trades} (Sharpe: {train_sharpe:.2f}), Test trades={test_trades} (Sharpe: {test_sharpe:.2f})")
+
+                                                        if len(backtest_results['windows']) > 3:
+                                                            st.caption(f"... and {len(backtest_results['windows']) - 3} more windows")
+
+                                                    # Analyze the problem
+                                                    total_train_trades = sum(len(w.get('train_trades', [])) for w in backtest_results['windows'])
+                                                    total_test_trades = sum(len(w.get('test_trades', [])) for w in backtest_results['windows'])
+
+                                                    st.write(f"**Summary:** Total train trades: {total_train_trades}, Total test trades: {total_test_trades}")
+
+                                                    if total_train_trades > 0 and total_test_trades == 0:
+                                                        st.error("🚨 **PROBLEM IDENTIFIED:** Trades generated in training but NOT in testing!")
+                                                        st.info("**Possible causes:**")
+                                                        st.write("1. Test windows don't have enough valid momentum data")
+                                                        st.write("2. Test periods have different market conditions than training")
+                                                        st.write("3. Overfitting - parameters only work on training data")
+                                                        st.write("4. Test windows start before momentum_12m warmup completes")
+
                                                 # ========== DECISION PANEL ==========
                                                 st.markdown("---")
                                                 st.markdown("### 🎯 CURRENT DECISION: Should I Buy/Sell/Hold?")
@@ -5441,6 +5470,35 @@ with tab8:
                                 if len(backtest_results['all_trades']) == 0:
                                     st.error("❌ ZERO trades generated - strategy never entered positions")
                                     st.info("💡 Check: (1) momentum_12m availability, (2) entry threshold too high, (3) price always below MA200")
+
+                                # Show detailed window analysis
+                                st.markdown("**📋 Window Details:**")
+                                if backtest_results['windows']:
+                                    # Show first 3 windows as examples
+                                    for idx, window in enumerate(backtest_results['windows'][:3]):
+                                        train_trades = len(window.get('train_trades', []))
+                                        test_trades = len(window.get('test_trades', []))
+                                        train_sharpe = window.get('train_metrics', {}).get('sharpe_ratio', 0)
+                                        test_sharpe = window.get('test_metrics', {}).get('sharpe_ratio', 0)
+
+                                        st.write(f"Window {idx+1}: Train trades={train_trades} (Sharpe: {train_sharpe:.2f}), Test trades={test_trades} (Sharpe: {test_sharpe:.2f})")
+
+                                    if len(backtest_results['windows']) > 3:
+                                        st.caption(f"... and {len(backtest_results['windows']) - 3} more windows")
+
+                                # Analyze the problem
+                                total_train_trades = sum(len(w.get('train_trades', [])) for w in backtest_results['windows'])
+                                total_test_trades = sum(len(w.get('test_trades', [])) for w in backtest_results['windows'])
+
+                                st.write(f"**Summary:** Total train trades: {total_train_trades}, Total test trades: {total_test_trades}")
+
+                                if total_train_trades > 0 and total_test_trades == 0:
+                                    st.error("🚨 **PROBLEM IDENTIFIED:** Trades generated in training but NOT in testing!")
+                                    st.info("**Possible causes:**")
+                                    st.write("1. Test windows don't have enough valid momentum data")
+                                    st.write("2. Test periods have different market conditions than training")
+                                    st.write("3. Overfitting - parameters only work on training data")
+                                    st.write("4. Test windows start before momentum_12m warmup completes")
 
                             # ========== DECISION PANEL ==========
                             st.markdown("---")
