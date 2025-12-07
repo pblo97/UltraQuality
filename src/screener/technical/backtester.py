@@ -117,8 +117,11 @@ class WalkForwardBacktester:
             # Optimize parameters on training data
             best_params, best_score = self._optimize_parameters(train_data, parameter_grid)
 
+            # Calculate test period size (actual test days, not including warmup)
+            test_period_days = (test_end - test_start).days
+
             # Debug: Log what's happening in this window
-            logger.info(f"🔍 Window {i+1}/{len(windows)} - Train: {len(train_data)} rows, Test: {len(test_data)} rows")
+            logger.info(f"🔍 Window {i+1}/{len(windows)} - Train: {len(train_data)} rows, Test: {test_period_days} days ({len(test_data_with_warmup)} with warmup)")
             logger.info(f"   Best params: {best_params}")
             logger.info(f"   Best score: {best_score:.2f}")
 
