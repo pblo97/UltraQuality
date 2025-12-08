@@ -4854,7 +4854,7 @@ with tab8:
                                                                 # Show sample trades to understand why test = 0
                                                                 if train_trades > 0 and test_trades == 0:
                                                                     train_trade_sample = window.get('train_trades', [])[0]
-                                                                    st.caption(f"    Sample train trade: Entry {train_trade_sample['entry_date'].date()}, Exit {train_trade_sample['exit_date'].date()}, Duration: {train_trade_sample['duration_days']} days")
+                                                                    st.caption(f"    Sample train trade: Entry {train_trade_sample['entry_date'].date()}, Exit {train_trade_sample['exit_date'].date()}, Duration: {train_trade_sample['duration_days']} days [CODE_VERSION:bf5de18]")
                                                                     st.caption(f"    🔍 DEBUG CHECKPOINT 1: About to calculate warmup")
 
                                                                     # Analyze why test has 0 trades
