@@ -553,15 +553,53 @@ class WalkForwardBacktester:
         """Calculate degradation from in-sample to out-of-sample."""
         degradation = {}
 
-        for key in ['sharpe_ratio', 'win_rate', 'profit_factor']:
-            if train_metrics[key] > 0:
-                deg = test_metrics[key] / train_metrics[key]
-            else:
-                deg = 0
-            degradation[key] = deg
+        # Sharpe ratio degradation
+        if train_metrics['sharpe_ratio'] > 0:
+            degradation['sharpe_ratio'] = test_metrics['sharpe_ratio'] / train_metrics['sharpe_ratio']
+        else:
+            degradation['sharpe_ratio'] = 0
 
-        # Overall degradation score
-        degradation['overall'] = np.mean(list(degradation.values()))
+        # Total return degradation (only if train return is positive)
+        if train_metrics['total_return'] > 0:
+            degradation['total_return'] = test_metrics['total_return'] / train_metrics['total_return']
+        else:
+            degradation['total_return'] = 0
+
+        # Win rate degradation
+        if train_metrics['win_rate'] > 0:
+            degradation['win_rate'] = test_metrics['win_rate'] / train_metrics['win_rate']
+        else:
+            degradation['win_rate'] = 0
+
+        # Profit factor degradation
+        if train_metrics['profit_factor'] > 0:
+            degradation['profit_factor'] = test_metrics['profit_factor'] / train_metrics['profit_factor']
+        else:
+            degradation['profit_factor'] = 0
+
+        # Max drawdown degradation (inverted - less negative test is better)
+        # Ratio: test_dd / train_dd, where closer to 1.0 is better
+        if train_metrics['max_drawdown'] < 0:
+            degradation['max_drawdown'] = test_metrics['max_drawdown'] / train_metrics['max_drawdown']
+        else:
+            degradation['max_drawdown'] = 1.0
+
+        # Num trades degradation
+        if train_metrics['num_trades'] > 0:
+            degradation['num_trades'] = test_metrics['num_trades'] / train_metrics['num_trades']
+        else:
+            degradation['num_trades'] = 0
+
+        # Avg trade duration (informational, ratio doesn't indicate quality)
+        if train_metrics['avg_trade_duration'] > 0:
+            degradation['avg_trade_duration'] = test_metrics['avg_trade_duration'] / train_metrics['avg_trade_duration']
+        else:
+            degradation['avg_trade_duration'] = 0
+
+        # Overall degradation score (only key metrics)
+        key_metrics = ['sharpe_ratio', 'total_return', 'win_rate', 'profit_factor']
+        valid_degs = [degradation[k] for k in key_metrics if degradation.get(k, 0) > 0]
+        degradation['overall'] = np.mean(valid_degs) if valid_degs else 0
 
         return degradation
 
