@@ -4771,22 +4771,22 @@ with tab8:
                                             elif len(prices_df) < 750:
                                                 st.info(f"ℹ️ {len(prices_df)} days of data available. Recommended: 750+ days for more robust results.")
 
-                                            # Define parameter grid to optimize
-                                            parameter_grid = {
-                                                # Exit rules
-                                                'trailing_stop_pct': [7, 10, 12, 15],
-                                                'momentum_threshold': [-3, -5, -7, -10],
-                                                'ma200_days_below': [3, 5, 7],
-
-                                                # Entry rules
-                                                'momentum_entry_min': [0, 5, 10],
+                                            # Use FIXED parameters based on academic literature
+                                            # Dai et al. (2021): 15-20% trailing stops optimal
+                                            # Momentum research (2020-2024): 12-month with >0% entry
+                                            # MA200: Industry standard with 3-5 day confirmation
+                                            fixed_params = {
+                                                'trailing_stop_pct': 15,        # Mid-range of 15-20% optimal (Dai 2021)
+                                                'momentum_threshold': -5,       # Momentum deterioration exit
+                                                'ma200_days_below': 5,          # 5 consecutive days below MA200
+                                                'momentum_entry_min': 3,        # >0% with 3% buffer for noise reduction
                                             }
 
                                             # Initialize and run backtester
                                             backtester = WalkForwardBacktester(prices_df)
 
-                                            backtest_results = backtester.run_walk_forward(
-                                                parameter_grid=parameter_grid,
+                                            backtest_results = backtester.run_walk_forward_fixed(
+                                                fixed_params=fixed_params,
                                                 train_days=250,
                                                 test_days=60,
                                                 step_days=30
@@ -5446,22 +5446,22 @@ with tab8:
                         elif len(prices_df) < 750:
                             st.info(f"ℹ️ {len(prices_df)} days of data available. Recommended: 750+ days for more robust results.")
 
-                        # Define parameter grid to optimize
-                        parameter_grid = {
-                            # Exit rules
-                            'trailing_stop_pct': [7, 10, 12, 15],
-                            'momentum_threshold': [-3, -5, -7, -10],
-                            'ma200_days_below': [3, 5, 7],
-
-                            # Entry rules
-                            'momentum_entry_min': [0, 5, 10],
+                        # Use FIXED parameters based on academic literature
+                        # Dai et al. (2021): 15-20% trailing stops optimal
+                        # Momentum research (2020-2024): 12-month with >0% entry
+                        # MA200: Industry standard with 3-5 day confirmation
+                        fixed_params = {
+                            'trailing_stop_pct': 15,        # Mid-range of 15-20% optimal (Dai 2021)
+                            'momentum_threshold': -5,       # Momentum deterioration exit
+                            'ma200_days_below': 5,          # 5 consecutive days below MA200
+                            'momentum_entry_min': 3,        # >0% with 3% buffer for noise reduction
                         }
 
                         # Initialize and run backtester
                         backtester = WalkForwardBacktester(prices_df)
 
-                        backtest_results = backtester.run_walk_forward(
-                            parameter_grid=parameter_grid,
+                        backtest_results = backtester.run_walk_forward_fixed(
+                            fixed_params=fixed_params,
                             train_days=250,
                             test_days=60,
                             step_days=30
