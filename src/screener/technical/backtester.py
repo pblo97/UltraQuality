@@ -44,6 +44,138 @@ class WalkForwardBacktester:
         self.prices['date'] = pd.to_datetime(self.prices['date'])
         self.prices = self.prices.sort_values('date').reset_index(drop=True)
 
+    def run_walk_forward_fixed(
+        self,
+        fixed_params: Dict,
+        train_days: int = 250,
+        test_days: int = 60,
+        step_days: int = 30
+    ) -> Dict:
+        """
+        Run walk-forward validation with FIXED parameters (NO optimization).
+
+        This method tests the same parameters across all windows to avoid overfitting.
+        Based on academic literature:
+        - Dai et al. (2021): 15-20% trailing stops optimal
+        - Momentum research: 12-month with skip-1-month standard
+        - MA200: Industry standard with 3-5 day confirmation
+
+        Args:
+            fixed_params: Dictionary with fixed parameter values
+            train_days: Days for training window (for metrics only)
+            test_days: Days for testing window
+            step_days: Days to step forward
+
+        Returns:
+            Complete results dictionary
+        """
+        logger.info(f"Starting walk-forward validation with FIXED parameters: {fixed_params}")
+
+        results = {
+            'windows': [],
+            'optimal_params': fixed_params.copy(),  # Same params for all windows
+            'in_sample_metrics': {},
+            'out_sample_metrics': {},
+            'degradation_ratio': {},
+            'equity_curve': pd.DataFrame(),
+            'all_trades': [],
+            'parameter_stability': {}
+        }
+
+        # Generate walk-forward windows
+        windows = self._generate_windows(train_days, test_days, step_days)
+        logger.info(f"Generated {len(windows)} walk-forward windows with fixed params")
+
+        all_window_results = []
+
+        for i, (train_start, train_end, test_start, test_end) in enumerate(windows):
+            logger.info(f"Processing window {i+1}/{len(windows)}")
+
+            # Get train and test data
+            train_data = self.prices[
+                (self.prices['date'] >= train_start) &
+                (self.prices['date'] <= train_end)
+            ].copy()
+
+            # For test data, include 252 TRADING days before test_start for indicator warmup
+            test_start_pos = self.prices['date'].searchsorted(test_start, side='left')
+            warmup_pos = max(0, test_start_pos - 252)
+            test_warmup_start = self.prices.iloc[warmup_pos]['date']
+
+            test_data_with_warmup = self.prices[
+                (self.prices['date'] >= test_warmup_start) &
+                (self.prices['date'] <= test_end)
+            ].copy()
+
+            if len(train_data) < 100 or len(test_data_with_warmup) < 20:
+                logger.warning(f"Insufficient data in window {i+1}, skipping")
+                continue
+
+            # Use FIXED parameters (no optimization)
+            logger.info(f"   Using fixed params: {fixed_params}")
+
+            # Backtest on training data (for comparison metrics only)
+            train_trades, train_equity = self._backtest_strategy(train_data, fixed_params)
+            train_metrics = self._calculate_metrics(train_trades, train_equity)
+
+            logger.info(f"   Train trades: {len(train_trades)}, Sharpe: {train_metrics.get('sharpe_ratio', 0):.2f}")
+
+            # Backtest on test data (out-of-sample validation)
+            test_trades_all, test_equity_all = self._backtest_strategy(test_data_with_warmup, fixed_params)
+
+            # Filter trades to only those that ENTER in the actual test period
+            test_trades = [t for t in test_trades_all if t['entry_date'] >= test_start and t['entry_date'] <= test_end]
+
+            logger.info(f"   Test trades: {len(test_trades)} (from {len(test_trades_all)} total)")
+
+            # Filter equity curve to test period only
+            test_equity = test_equity_all[test_equity_all['date'] >= test_start].copy()
+
+            test_metrics = self._calculate_metrics(test_trades, test_equity)
+
+            logger.info(f"   Test Sharpe: {test_metrics.get('sharpe_ratio', 0):.2f}")
+
+            # Store window results
+            window_result = {
+                'window_id': i,
+                'train_period': (train_start, train_end),
+                'test_period': (test_start, test_end),
+                'best_params': fixed_params,  # Same for all windows
+                'train_metrics': train_metrics,
+                'test_metrics': test_metrics,
+                'train_trades': train_trades,
+                'test_trades': test_trades,
+                'degradation': self._calculate_degradation(train_metrics, test_metrics)
+            }
+
+            all_window_results.append(window_result)
+            results['all_trades'].extend(test_trades)
+
+        if not all_window_results:
+            logger.error("No valid windows processed")
+            return results
+
+        # Aggregate results across all windows
+        results['windows'] = all_window_results
+        results['optimal_params'] = fixed_params  # Still fixed
+        results['in_sample_metrics'] = self._aggregate_metrics([w['train_metrics'] for w in all_window_results])
+        results['out_sample_metrics'] = self._aggregate_metrics([w['test_metrics'] for w in all_window_results])
+        results['degradation_ratio'] = self._aggregate_degradation([w['degradation'] for w in all_window_results])
+
+        # Parameter stability is N/A (all windows use same params)
+        results['parameter_stability'] = {
+            'trailing_stop_pct': {'mean': fixed_params['trailing_stop_pct'], 'std': 0, 'cv': 0},
+            'momentum_threshold': {'mean': fixed_params['momentum_threshold'], 'std': 0, 'cv': 0},
+            'ma200_days_below': {'mean': fixed_params['ma200_days_below'], 'std': 0, 'cv': 0},
+            'momentum_entry_min': {'mean': fixed_params['momentum_entry_min'], 'std': 0, 'cv': 0}
+        }
+
+        # Build combined equity curve
+        results['equity_curve'] = self._build_equity_curve(all_window_results)
+
+        logger.info("Walk-forward validation complete (fixed parameters)")
+        return results
+
     def run_walk_forward(
         self,
         parameter_grid: Dict,
