@@ -4775,18 +4775,19 @@ with tab8:
                                             # Dai et al. (2021): 15-20% trailing stops optimal
                                             # Momentum research (2020-2024): 12-month with >0% entry
                                             # MA200: Industry standard with 3-5 day confirmation
-                                            fixed_params = {
-                                                'trailing_stop_pct': 15,        # Mid-range of 15-20% optimal (Dai 2021)
-                                                'momentum_threshold': -5,       # Momentum deterioration exit
-                                                'ma200_days_below': 5,          # 5 consecutive days below MA200
-                                                'momentum_entry_min': 3,        # >0% with 3% buffer for noise reduction
+                                            # Grid with 1 combination = equivalent to fixed params (no overfitting)
+                                            parameter_grid = {
+                                                'trailing_stop_pct': [15],      # Mid-range of 15-20% optimal (Dai 2021)
+                                                'momentum_threshold': [-5],     # Momentum deterioration exit
+                                                'ma200_days_below': [5],        # 5 consecutive days below MA200
+                                                'momentum_entry_min': [3],      # >0% with 3% buffer for noise reduction
                                             }
 
                                             # Initialize and run backtester
                                             backtester = WalkForwardBacktester(prices_df)
 
-                                            backtest_results = backtester.run_walk_forward_fixed(
-                                                fixed_params=fixed_params,
+                                            backtest_results = backtester.run_walk_forward(
+                                                parameter_grid=parameter_grid,
                                                 train_days=250,
                                                 test_days=60,
                                                 step_days=30
@@ -5450,18 +5451,19 @@ with tab8:
                         # Dai et al. (2021): 15-20% trailing stops optimal
                         # Momentum research (2020-2024): 12-month with >0% entry
                         # MA200: Industry standard with 3-5 day confirmation
-                        fixed_params = {
-                            'trailing_stop_pct': 15,        # Mid-range of 15-20% optimal (Dai 2021)
-                            'momentum_threshold': -5,       # Momentum deterioration exit
-                            'ma200_days_below': 5,          # 5 consecutive days below MA200
-                            'momentum_entry_min': 3,        # >0% with 3% buffer for noise reduction
+                        # Grid with 1 combination = equivalent to fixed params (no overfitting)
+                        parameter_grid = {
+                            'trailing_stop_pct': [15],      # Mid-range of 15-20% optimal (Dai 2021)
+                            'momentum_threshold': [-5],     # Momentum deterioration exit
+                            'ma200_days_below': [5],        # 5 consecutive days below MA200
+                            'momentum_entry_min': [3],      # >0% with 3% buffer for noise reduction
                         }
 
                         # Initialize and run backtester
                         backtester = WalkForwardBacktester(prices_df)
 
-                        backtest_results = backtester.run_walk_forward_fixed(
-                            fixed_params=fixed_params,
+                        backtest_results = backtester.run_walk_forward(
+                            parameter_grid=parameter_grid,
                             train_days=250,
                             test_days=60,
                             step_days=30
