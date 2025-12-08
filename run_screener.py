@@ -4861,18 +4861,27 @@ with tab8:
                                                                     # (not calendar days - market only trades ~252 days/year)
                                                                     from datetime import timedelta
 
-                                                                    # Use searchsorted to find POSITIONAL index (works on sorted dates)
-                                                                    test_start_pos = prices_df['date'].searchsorted(test_start, side='left')
-                                                                    warmup_pos = max(0, test_start_pos - 252)
-                                                                    test_warmup_start = prices_df.iloc[warmup_pos]['date']
+                                                                    try:
+                                                                        # Use searchsorted to find POSITIONAL index (works on sorted dates)
+                                                                        test_start_pos = prices_df['date'].searchsorted(test_start, side='left')
+                                                                        warmup_pos = max(0, test_start_pos - 252)
+                                                                        test_warmup_start = prices_df.iloc[warmup_pos]['date']
 
-                                                                    test_period_data_with_warmup = prices_df[
-                                                                        (prices_df['date'] >= test_warmup_start) &
-                                                                        (prices_df['date'] <= test_end)
-                                                                    ].copy()
+                                                                        test_period_data_with_warmup = prices_df[
+                                                                            (prices_df['date'] >= test_warmup_start) &
+                                                                            (prices_df['date'] <= test_end)
+                                                                        ].copy()
 
-                                                                    # Debug: Check data availability
-                                                                    st.caption(f"    🔍 Debug: test_start_pos={test_start_pos}, warmup_pos={warmup_pos}, warmup_start={test_warmup_start.date()} ({len(test_period_data_with_warmup)} rows, need 252+ for momentum)")
+                                                                        # Debug: Check data availability
+                                                                        st.caption(f"    🔍 WARMUP DEBUG: pos={test_start_pos}, warmup_pos={warmup_pos}, start={test_warmup_start.date()}, rows={len(test_period_data_with_warmup)}")
+                                                                    except Exception as e:
+                                                                        st.error(f"    ❌ Error calculating warmup: {e}")
+                                                                        # Fallback to old method
+                                                                        test_period_data_with_warmup = prices_df[
+                                                                            (prices_df['date'] >= test_start) &
+                                                                            (prices_df['date'] <= test_end)
+                                                                        ].copy()
+                                                                        st.caption(f"    ⚠️ Using fallback (no warmup): {len(test_period_data_with_warmup)} rows")
 
                                                                     if len(test_period_data_with_warmup) > 252:
                                                                         # Calculate indicators with warmup
