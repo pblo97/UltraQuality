@@ -4855,6 +4855,7 @@ with tab8:
                                                                 if train_trades > 0 and test_trades == 0:
                                                                     train_trade_sample = window.get('train_trades', [])[0]
                                                                     st.caption(f"    Sample train trade: Entry {train_trade_sample['entry_date'].date()}, Exit {train_trade_sample['exit_date'].date()}, Duration: {train_trade_sample['duration_days']} days")
+                                                                    st.caption(f"    🔍 DEBUG CHECKPOINT 1: About to calculate warmup")
 
                                                                     # Analyze why test has 0 trades
                                                                     # Include 252 TRADING days before test_start for momentum calculation
@@ -4862,8 +4863,10 @@ with tab8:
                                                                     from datetime import timedelta
 
                                                                     try:
+                                                                        st.caption(f"    🔍 DEBUG CHECKPOINT 2: Inside try block")
                                                                         # Use searchsorted to find POSITIONAL index (works on sorted dates)
                                                                         test_start_pos = prices_df['date'].searchsorted(test_start, side='left')
+                                                                        st.caption(f"    🔍 DEBUG CHECKPOINT 3: Calculated positions")
                                                                         warmup_pos = max(0, test_start_pos - 252)
                                                                         test_warmup_start = prices_df.iloc[warmup_pos]['date']
 
