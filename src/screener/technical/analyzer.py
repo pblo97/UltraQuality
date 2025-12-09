@@ -196,11 +196,13 @@ class EnhancedTechnicalAnalyzer:
             total_score = max(0, min(100, total_score))  # Clamp to 0-100
 
             # 12. Detect overextension risk (NEW)
+            # IMPORTANT: Pass total_score to filter warnings for strong momentum leaders
             overextension_risk, overext_warnings = self._detect_overextension_risk(
                 trend_data.get('distance_ma200', 0),
                 risk_data.get('volatility', 0),
                 momentum_data.get('1m', 0),
-                momentum_data.get('6m', 0)
+                momentum_data.get('6m', 0),
+                technical_score=total_score  # NEW: Quality Momentum Leaders exception
             )
 
             # 13. Generate warnings (including overextension)
@@ -996,7 +998,8 @@ class EnhancedTechnicalAnalyzer:
         distance_ma200: float,
         volatility: float,
         momentum_1m: float,
-        momentum_6m: float
+        momentum_6m: float,
+        technical_score: float = 0
     ) -> Tuple[int, List[Dict]]:
         """
         Detect overextension risk based on distance from MA200, volatility, and momentum.
@@ -1005,6 +1008,11 @@ class EnhancedTechnicalAnalyzer:
         - George & Hwang (2004) - 52-week high proximity increases near-term reversal risk
         - Daniel & Moskowitz (2016) - High-volatility momentum prone to crashes
         - De Bondt & Thaler (1985) - Extreme price movements tend to revert
+
+        NEW EXCEPTION: Quality Momentum Leaders (technical_score > 80)
+        - Overextension is a FEATURE not a BUG for strong momentum
+        - Filter warnings to avoid missing big winners
+        - Academia: "Let your winners run" (Jegadeesh & Titman)
 
         Risk scoring (0-7 scale):
         - 0-1: LOW risk
@@ -1019,33 +1027,57 @@ class EnhancedTechnicalAnalyzer:
         risk_score = 0
         warnings = []
 
+        # QUALITY MOMENTUM LEADER EXCEPTION
+        # If technical score > 80 (strong momentum + trend + relative strength)
+        # Filter or soften warnings - overextension is strength, not weakness
+        is_momentum_leader = technical_score > 80
+
         # 1. Distance from MA200 (most important)
         abs_distance = abs(distance_ma200)
 
         if abs_distance > 60:
-            risk_score += 4
-            warnings.append({
-                'type': 'HIGH',
-                'message': f'EXTREME overextension: {distance_ma200:+.1f}% from MA200 (>60%). High probability of 20-40% pullback.'
-            })
+            if is_momentum_leader:
+                # Momentum leaders can sustain >60% - use trailing stop instead
+                risk_score += 1  # Reduced from 4
+                warnings.append({
+                    'type': 'LOW',
+                    'message': f'Strong momentum: {distance_ma200:+.1f}% from MA200. Quality Leader - Use Trailing Stop (EMA 20) instead of exiting.'
+                })
+            else:
+                risk_score += 4
+                warnings.append({
+                    'type': 'HIGH',
+                    'message': f'EXTREME overextension: {distance_ma200:+.1f}% from MA200 (>60%). High probability of 20-40% pullback.'
+                })
         elif abs_distance > 50:
-            risk_score += 3
-            warnings.append({
-                'type': 'HIGH',
-                'message': f'Severe overextension: {distance_ma200:+.1f}% from MA200 (>50%). Expect 15-30% correction soon.'
-            })
+            if is_momentum_leader:
+                risk_score += 1  # Reduced from 3
+                warnings.append({
+                    'type': 'LOW',
+                    'message': f'Extended momentum: {distance_ma200:+.1f}% from MA200. Strong trend - Hold with trailing stop.'
+                })
+            else:
+                risk_score += 3
+                warnings.append({
+                    'type': 'HIGH',
+                    'message': f'Severe overextension: {distance_ma200:+.1f}% from MA200 (>50%). Expect 15-30% correction soon.'
+                })
         elif abs_distance > 40:
-            risk_score += 2
-            warnings.append({
-                'type': 'MEDIUM',
-                'message': f'Significant overextension: {distance_ma200:+.1f}% from MA200 (>40%). Possible 10-20% pullback.'
-            })
+            if not is_momentum_leader:
+                # Only warn for non-leaders
+                risk_score += 2
+                warnings.append({
+                    'type': 'MEDIUM',
+                    'message': f'Significant overextension: {distance_ma200:+.1f}% from MA200 (>40%). Possible 10-20% pullback.'
+                })
         elif abs_distance > 30:
-            risk_score += 1
-            warnings.append({
-                'type': 'LOW',
-                'message': f'Moderate overextension: {distance_ma200:+.1f}% from MA200 (>30%). Monitor for reversal signals.'
-            })
+            if not is_momentum_leader:
+                # Only warn for non-leaders
+                risk_score += 1
+                warnings.append({
+                    'type': 'LOW',
+                    'message': f'Moderate overextension: {distance_ma200:+.1f}% from MA200 (>30%). Monitor for reversal signals.'
+                })
 
         # 2. Volatility + Recent momentum (parabolic move detection)
         if volatility > 40 and momentum_1m > 15:
