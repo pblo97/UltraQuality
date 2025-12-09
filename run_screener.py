@@ -1919,15 +1919,24 @@ with tab5:
                         if 'growth_consistency' in intrinsic:
                             revenue_growth = intrinsic['growth_consistency'].get('revenue_growth_5y_cagr', None)
 
+                        # Fallback: Infer growth from PEG if available
+                        if not revenue_growth and peg_ratio:
+                            company_vals = intrinsic.get('valuation_multiples', {}).get('company', {})
+                            eps_growth = company_vals.get('eps_growth_%', None)
+                            if eps_growth:
+                                revenue_growth = eps_growth  # Use EPS growth as proxy
+
                         # Determine predominant method
-                        if peg_ratio and peg_ratio < 1.5 and revenue_growth and revenue_growth > 10:
+                        # Priority 1: If PEG < 1.5, it's a growth company (even without explicit revenue growth data)
+                        if peg_ratio and peg_ratio < 1.5:
                             # Growth company - PEG is king
                             method_icon = "🚀"
                             method_name = "PEG Ratio (Growth Valuation)"
+                            growth_text = f"{revenue_growth:.1f}%" if revenue_growth else "Datos limitados (inferido de PEG < 1.5)"
                             method_reason = f"""
 **Por qué PEG es mejor para esta empresa:**
 - PEG Ratio: {peg_ratio:.2f} (< 1.5 = Growth at reasonable price)
-- Revenue Growth: {revenue_growth:.1f}% (High growth sustained)
+- Growth: {growth_text}
 - DCF subestima empresas de crecimiento porque:
   - No captura AI/platform optionality
   - Assumptions conservadoras (3% terminal growth típico)
@@ -3203,7 +3212,11 @@ with tab5:
 
                     with col3:
                         st.write("**Guardrails**")
-                        st.metric("Status", stock_data.get('guardrail_status', 'N/A'))
+                        # Override status to VERDE if PEG Hammer triggered
+                        if 'growth_override_applied' in locals() and growth_override_applied:
+                            st.metric("Status", "VERDE")
+                        else:
+                            st.metric("Status", stock_data.get('guardrail_status', 'N/A'))
                         if 'altman_z' in stock_data:
                             st.metric("Altman Z-Score", f"{stock_data.get('altman_z', 0):.2f}")
                         if 'beneish_m' in stock_data:
