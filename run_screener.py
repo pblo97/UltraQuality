@@ -4741,6 +4741,7 @@ with tab8:
                                     "Select Backtest Type",
                                     options=["📊 Multi-Strategy Comparison (RECOMMENDED)", "🎯 Single Strategy (Momentum)"],
                                     index=0,
+                                    key="backtest_type_selector",
                                     help="Multi-Strategy compares 3 SIMPLE price-based strategies. Academic research (2024) shows simple strategies outperform complex ones."
                                 )
 
@@ -4757,10 +4758,13 @@ with tab8:
                             run_backtest = st.checkbox(
                                 "🔬 Run Walk-Forward Backtest & Optimization",
                                 value=False,
+                                key="run_backtest_checkbox",
                                 help="This will take 30-60 seconds. Optimizes entry/exit parameters and validates them out-of-sample."
                             )
 
                             if run_backtest:
+                                # Debug: Show which backtest type is selected
+                                st.info(f"ℹ️ Running: **{backtest_type}**")
                                 # ========== MULTI-STRATEGY COMPARISON ==========
                                 if backtest_type.startswith("📊"):
                                     with st.spinner("Testing 3 simple strategies... This may take 30-60 seconds"):
