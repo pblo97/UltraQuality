@@ -24,13 +24,14 @@ logger = logging.getLogger(__name__)
 
 class MultiStrategyTester:
     """
-    Tests 4 SIMPLE strategies on quality/value stocks.
+    Tests 5 strategies for quality/value stocks timing.
 
     Strategies:
-    1. Momentum 12M Academic (NEW) - Ultra-robust, 100 years of evidence
-    2. Price-Volume Simple - Literature-backed best performer
-    3. Pullback Simple - Price action only
-    4. Momentum Puro - Baseline comparison
+    1. Quality/Value Entry (NEW) - Academic filters for Q/V timing
+    2. Momentum 12M Academic - Ultra-robust, 100 years of evidence
+    3. Price-Volume Simple - Literature-backed best performer
+    4. Pullback Simple - Price action only
+    5. Momentum Puro - Baseline comparison
     """
 
     def __init__(self, prices_df: pd.DataFrame):
@@ -46,10 +47,22 @@ class MultiStrategyTester:
 
         # Strategy definitions
         self.strategies = {
+            'quality_value_entry': {
+                'name': 'Quality/Value Entry',
+                'description': 'MA200 + Momentum 12m + Near 52w High (Academic timing filters)',
+                'priority': 1,  # MÁXIMA PRIORIDAD para Q/V timing
+                'params': {
+                    'trailing_stop_pct': 20,  # Stop amplio para capturar tendencia
+                    'ma_period': 200,  # Trend filter
+                    'momentum_12m_min': 0,  # Momentum positivo (top performers)
+                    'high_52w_threshold': 0.85,  # Dentro del 15% del máximo 52w
+                    'ma200_exit_days': 1,  # Sale inmediatamente si rompe MA200
+                }
+            },
             'momentum_12m_academic': {
                 'name': 'Momentum 12M Academic',
                 'description': 'Solo Momentum 12m > 0% (Jegadeesh & Titman 1993-2001, Moskowitz 2012)',
-                'priority': 1,  # MÁXIMA PRIORIDAD - 100 años de evidencia
+                'priority': 2,
                 'params': {
                     'trailing_stop_pct': 20,  # Más amplio para mejor generalización
                     'momentum_12m_min': 0,  # Solo > 0%, sin otros filtros
@@ -59,7 +72,7 @@ class MultiStrategyTester:
             'price_volume_simple': {
                 'name': 'Price-Volume Simple',
                 'description': 'Precio > MA200 + Volumen alto + Momentum 3m positivo',
-                'priority': 2,
+                'priority': 3,
                 'params': {
                     'trailing_stop_pct': 15,  # Dai et al. (2021)
                     'volume_multiplier': 1.5,  # Volumen > 1.5x promedio
@@ -71,7 +84,7 @@ class MultiStrategyTester:
             'pullback_simple': {
                 'name': 'Pullback Simple',
                 'description': 'Uptrend + Pullback a MA50 + Volumen',
-                'priority': 3,
+                'priority': 4,
                 'params': {
                     'trailing_stop_pct': 15,
                     'ma_long': 200,  # Define uptrend
@@ -83,7 +96,7 @@ class MultiStrategyTester:
             'momentum_puro': {
                 'name': 'Momentum Puro',
                 'description': 'Momentum 12m + MA200 (baseline)',
-                'priority': 4,
+                'priority': 5,
                 'params': {
                     'trailing_stop_pct': 15,
                     'momentum_12m_min': 5,  # >5% anual
@@ -115,6 +128,11 @@ class MultiStrategyTester:
         if 'momentum_12m_min' in params or 'momentum_3m_min' in params or 'momentum_exit' in params:
             df['momentum_12m'] = df['close'].pct_change(252) * 100  # 252 trading days = 1 año
             df['momentum_3m'] = df['close'].pct_change(63) * 100   # 63 trading days = 3 meses
+
+        # 52-week high (para Quality/Value Entry)
+        if 'high_52w_threshold' in params:
+            df['high_52w'] = df['high'].rolling(window=252).max()  # 252 trading days = 1 año
+            df['distance_from_52w_high'] = df['close'] / df['high_52w']  # Ratio (1.0 = en el máximo)
 
         # Volumen promedio
         if 'volume_multiplier' in params:
@@ -153,7 +171,31 @@ class MultiStrategyTester:
         strategy = self.strategies[strategy_name]
         params = strategy['params']
 
-        # Strategy 0: Momentum 12M Academic (ULTRA-ROBUST)
+        # Strategy 0: Quality/Value Entry (ACADEMIC TIMING)
+        if strategy_name == 'quality_value_entry':
+            conditions = []
+
+            # 1. Precio > MA200 (uptrend confirmado)
+            if not pd.isna(row['ma_200']):
+                conditions.append(row['close'] > row['ma_200'])
+            else:
+                return False  # Necesita MA200
+
+            # 2. Momentum 12m > 0% (top performers)
+            if not pd.isna(row['momentum_12m']):
+                conditions.append(row['momentum_12m'] > params['momentum_12m_min'])
+            else:
+                return False  # Necesita momentum
+
+            # 3. Cerca del máximo de 52 semanas (dentro del 15%)
+            if not pd.isna(row['distance_from_52w_high']):
+                conditions.append(row['distance_from_52w_high'] >= params['high_52w_threshold'])
+            else:
+                return False  # Necesita 52w high
+
+            return all(conditions)
+
+        # Strategy 1: Momentum 12M Academic (ULTRA-ROBUST)
         if strategy_name == 'momentum_12m_academic':
             # Solo una condición: momentum_12m > 0%
             # Sin MA200, sin volumen, sin otros filtros
@@ -256,7 +298,13 @@ class MultiStrategyTester:
 
         # Strategy-specific exits
 
-        # Strategy 0: Momentum 12M Academic
+        # Strategy 0: Quality/Value Entry
+        if strategy_name == 'quality_value_entry':
+            # Exit: Cierra por debajo de MA200 (pierde tendencia)
+            if 'days_below_ma200' in row and row['days_below_ma200'] >= params['ma200_exit_days']:
+                return True, "break_ma200_trend"
+
+        # Strategy 1: Momentum 12M Academic
         if strategy_name == 'momentum_12m_academic':
             # Exit: Momentum 12m cae por debajo de -10%
             if not pd.isna(row['momentum_12m']) and row['momentum_12m'] < params['momentum_exit']:
