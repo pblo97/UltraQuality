@@ -1879,8 +1879,15 @@ with tab5:
                             growth_override_applied = False
                             growth_override_reason = None
 
-                            # Get PEG Ratio y Growth
-                            peg_ratio = stock_data.get('peg_ratio', None)
+                            # Get PEG Ratio from CORRECT location (valuation_multiples)
+                            peg_ratio = None
+                            if 'valuation_multiples' in intrinsic:
+                                company_vals = intrinsic['valuation_multiples'].get('company', {})
+                                peg_ratio = company_vals.get('peg', None)
+
+                            # Fallback: try stock_data (might be in features)
+                            if not peg_ratio:
+                                peg_ratio = stock_data.get('peg_ratio', None)
 
                             # Get revenue growth from intrinsic data or stock_data
                             revenue_growth = None
