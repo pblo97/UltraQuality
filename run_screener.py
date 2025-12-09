@@ -4839,21 +4839,87 @@ with tab8:
                             st.markdown("---")
                             st.markdown("#### 🎯 Risk Management & Options Strategies")
 
-                            # Show overextension risk first
-                            overext_risk = full_analysis.get('overextension_risk', 0)
-                            overext_level = full_analysis.get('overextension_level', 'LOW')
-                            distance_ma200 = full_analysis.get('distance_from_ma200', 0)
+                            # Calculate TRUE overextension based on VALUATION (not MA200)
+                            # Compare Current Price vs Intrinsic Values
+                            current_price = intrinsic.get('current_price', 0)
 
+                            # Get valuation metrics
+                            dcf_value = intrinsic.get('dcf_value', 0)
+                            fair_value = intrinsic.get('weighted_value', 0)
+
+                            # Get PEG intrinsic value (Growth PEG 1.5)
+                            peg_intrinsic = None
+                            if 'valuation_multiples' in intrinsic:
+                                company_vals = intrinsic['valuation_multiples'].get('company', {})
+                                peg_ratio = company_vals.get('peg', None)
+                                if peg_ratio and peg_ratio > 0 and current_price > 0:
+                                    peg_intrinsic = current_price * (1.5 / peg_ratio)  # Growth PEG 1.5
+
+                            # Calculate overextension vs each metric
+                            overext_risk = 0
+                            overext_details = []
+
+                            if current_price > 0:
+                                # 1. vs PEG Value (most important for growth stocks)
+                                if peg_intrinsic and peg_intrinsic > 0:
+                                    peg_overext = ((current_price - peg_intrinsic) / peg_intrinsic) * 100
+                                    if peg_overext > 50:
+                                        overext_risk += 3
+                                        overext_details.append(f"⚠️ Precio {peg_overext:+.1f}% vs PEG Value (EXTREME)")
+                                    elif peg_overext > 30:
+                                        overext_risk += 2
+                                        overext_details.append(f"⚠️ Precio {peg_overext:+.1f}% vs PEG Value (HIGH)")
+                                    elif peg_overext > 15:
+                                        overext_risk += 1
+                                        overext_details.append(f"⚠️ Precio {peg_overext:+.1f}% vs PEG Value (MEDIUM)")
+                                    elif peg_overext < -10:
+                                        overext_details.append(f"✅ Precio {peg_overext:.1f}% vs PEG Value (UNDERVALUED)")
+                                    else:
+                                        overext_details.append(f"✅ Precio {peg_overext:+.1f}% vs PEG Value (Fair)")
+
+                                # 2. vs DCF Value
+                                if dcf_value > 0:
+                                    dcf_overext = ((current_price - dcf_value) / dcf_value) * 100
+                                    if dcf_overext > 100:
+                                        overext_risk += 2
+                                        overext_details.append(f"⚠️ Precio {dcf_overext:+.1f}% vs DCF (EXTREME)")
+                                    elif dcf_overext > 50:
+                                        overext_risk += 1
+                                        overext_details.append(f"⚠️ Precio {dcf_overext:+.1f}% vs DCF (HIGH)")
+                                    elif dcf_overext < -20:
+                                        overext_details.append(f"✅ Precio {dcf_overext:.1f}% vs DCF (UNDERVALUED)")
+                                    else:
+                                        overext_details.append(f"Precio {dcf_overext:+.1f}% vs DCF")
+
+                                # 3. vs Fair Value (weighted average)
+                                if fair_value > 0:
+                                    fair_overext = ((current_price - fair_value) / fair_value) * 100
+                                    if fair_overext > 80:
+                                        overext_risk += 2
+                                        overext_details.append(f"⚠️ Precio {fair_overext:+.1f}% vs Fair Value (EXTREME)")
+                                    elif fair_overext > 40:
+                                        overext_risk += 1
+                                        overext_details.append(f"⚠️ Precio {fair_overext:+.1f}% vs Fair Value (HIGH)")
+                                    elif fair_overext < -15:
+                                        overext_details.append(f"✅ Precio {fair_overext:.1f}% vs Fair Value (UNDERVALUED)")
+                                    else:
+                                        overext_details.append(f"Precio {fair_overext:+.1f}% vs Fair Value")
+
+                            # Display overextension risk based on VALUATION
                             if overext_risk >= 6:
-                                st.error(f"⚠️ **EXTREME Overextension Risk**: {overext_risk}/7 - High probability of 20-40% correction")
+                                st.error(f"⚠️ **EXTREME Valuation Overextension**: {overext_risk}/7 - Precio muy por encima del valor intrínseco")
                             elif overext_risk >= 4:
-                                st.warning(f"⚠️ **HIGH Overextension Risk**: {overext_risk}/7 - Possible 15-30% pullback")
+                                st.warning(f"⚠️ **HIGH Valuation Overextension**: {overext_risk}/7 - Precio significativamente sobrevalorado")
                             elif overext_risk >= 2:
-                                st.info(f"⚠️ **MEDIUM Overextension Risk**: {overext_risk}/7 - Monitor for reversal")
+                                st.info(f"⚠️ **MEDIUM Valuation Overextension**: {overext_risk}/7 - Precio moderadamente alto")
                             else:
-                                st.success(f"✅ **LOW Overextension Risk**: {overext_risk}/7")
+                                st.success(f"✅ **LOW Valuation Risk**: {overext_risk}/7 - Precio razonable vs valor intrínseco")
 
-                            st.caption(f"Distance from MA200: {distance_ma200:+.1f}%")
+                            # Show breakdown
+                            with st.expander("📊 Detalle de Valuación vs Precio Actual"):
+                                for detail in overext_details:
+                                    st.caption(detail)
+                                st.caption(f"💡 Precio Actual: ${current_price:.2f}")
 
                             # Get risk management recommendations
                             risk_mgmt = full_analysis.get('risk_management', {})
