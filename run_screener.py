@@ -1892,19 +1892,19 @@ with tab5:
 
                             col_peg1, col_peg2, col_peg3 = st.columns([1, 2, 2])
                             with col_peg1:
-                                st.metric("📊 PEG Ratio", f"{peg_ratio:.2f}")
-                                if eps_growth:
-                                    st.caption(f"EPS Growth: {eps_growth:.1f}%")
-                            with col_peg2:
-                                st.markdown(f"### {peg_color} **{peg_label}**")
+                                # Show Intrinsic Value as main metric, PEG in caption
                                 if peg_intrinsic_conservative:
                                     upside_conservative = ((peg_intrinsic_conservative - current_price) / current_price) * 100
-                                    st.caption(f"**Valor PEG (Fair=1.0):** ${peg_intrinsic_conservative:.2f} ({upside_conservative:+.1f}%)")
+                                    st.metric("Valor PEG", f"${peg_intrinsic_conservative:.2f}", delta=f"{upside_conservative:+.1f}%")
+                                    st.caption(f"PEG: {peg_ratio:.2f} | EPS Growth: {eps_growth:.1f}%" if eps_growth else f"PEG: {peg_ratio:.2f}")
+                            with col_peg2:
+                                st.markdown(f"### {peg_color} **{peg_label}**")
+                                st.caption(f"*Fair PEG = 1.0 (conservador)*")
                             with col_peg3:
                                 if peg_intrinsic_growth:
                                     upside_growth = ((peg_intrinsic_growth - current_price) / current_price) * 100
-                                    st.caption(f"**Valor PEG (Growth=1.5):** ${peg_intrinsic_growth:.2f} ({upside_growth:+.1f}%)")
-                                st.caption("*Fair PEG 1.0 = Conservative | 1.5 = Growth Premium*")
+                                    st.caption(f"**Growth PEG 1.5:** ${peg_intrinsic_growth:.2f} ({upside_growth:+.1f}%)")
+                                st.caption("*Premium para empresas de alto crecimiento*")
                         else:
                             st.info("📊 **PEG Ratio:** N/A (Data not available)")
 
