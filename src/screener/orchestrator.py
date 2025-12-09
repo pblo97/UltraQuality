@@ -404,14 +404,26 @@ class ScreenerPipeline:
         Enrich sector with fallback logic for Unknown/empty sectors.
 
         Fallback strategy:
-        1. Use API sector if available and valid
-        2. Infer from industry keywords
-        3. Return 'Unknown' as last resort
+        1. ETF/Index exception (QQQ, SPY, IWM, etc.)
+        2. Use API sector if available and valid
+        3. Infer from industry keywords
+        4. Return 'Unknown' as last resort
 
         Examples:
+        - QQQ: ETF_Index (not Financial Services)
         - Amazon: Industry "Internet Retail" → Sector "Consumer Cyclical"
         - Google: Industry "Internet Content" → Sector "Communication Services"
         """
+        ticker = (row.get('symbol') or row.get('ticker') or '').upper()
+
+        # CRITICAL: ETF/Index Exception (QQQ, SPY, IWM should NOT be compared with stocks)
+        ETF_TICKERS = ['QQQ', 'SPY', 'IWM', 'DIA', 'VTI', 'VOO', 'VEA', 'VWO',
+                       'EFA', 'EEM', 'AGG', 'BND', 'TLT', 'GLD', 'SLV',
+                       'XLK', 'XLF', 'XLE', 'XLV', 'XLI', 'XLC', 'XLY', 'XLP', 'XLRE']
+        if ticker in ETF_TICKERS:
+            logger.info(f"ETF detected: {ticker} → Sector: ETF_Index")
+            return 'ETF_Index'
+
         sector = (row.get('sector') or '').strip()
         industry = (row.get('industry') or '').lower()
 
