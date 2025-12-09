@@ -116,18 +116,45 @@ class MultiStrategyTester:
             df['atr'] = true_range.rolling(window=params['atr_period']).mean()
             df['atr_pct'] = (df['atr'] / df['close']) * 100  # ATR as % of price
 
-        # SPY regime filter
+        # SPY regime filter + momentum relativo
         if 'spy_ma_period' in params and spy_data is not None:
             spy_df = spy_data.copy()
-            spy_df['spy_ma_200'] = spy_df['close'].rolling(window=params['spy_ma_period']).mean()
-            spy_df['spy_regime'] = spy_df['close'] > spy_df['spy_ma_200']  # True = Bull, False = Bear
 
-            # Merge SPY regime to stock data by date
+            # SPY MA200
+            spy_df['spy_ma_200'] = spy_df['close'].rolling(window=params['spy_ma_period']).mean()
+
+            # SPY REGIME MENSUAL (evaluar solo último día del mes)
+            # Evita whipsaws en cruces volátiles diarios
+            spy_df['date'] = pd.to_datetime(spy_df['date'])
+            spy_df['year_month'] = spy_df['date'].dt.to_period('M')
+
+            # Marcar último día de cada mes
+            spy_df['is_month_end'] = spy_df.groupby('year_month')['date'].transform(lambda x: x == x.max())
+
+            # Calcular régimen solo en fin de mes
+            spy_df['spy_regime_raw'] = spy_df['close'] > spy_df['spy_ma_200']
+            spy_df['spy_regime'] = None
+            spy_df.loc[spy_df['is_month_end'], 'spy_regime'] = spy_df.loc[spy_df['is_month_end'], 'spy_regime_raw']
+
+            # Forward fill: mantener régimen del último cierre mensual
+            spy_df['spy_regime'] = spy_df['spy_regime'].fillna(method='ffill')
+
+            # SPY MOMENTUM (para comparación relativa)
+            spy_df['spy_momentum_12_1m'] = spy_df['close'].pct_change(252 - 21) * 100
+            spy_df['spy_momentum_6_1m'] = spy_df['close'].pct_change(126 - 21) * 100
+
+            # Merge SPY data to stock data by date
             df = df.merge(
-                spy_df[['date', 'spy_ma_200', 'spy_regime']],
+                spy_df[['date', 'spy_ma_200', 'spy_regime', 'spy_momentum_12_1m', 'spy_momentum_6_1m']],
                 on='date',
                 how='left'
             )
+
+            # Momentum Relativo: Stock momentum - SPY momentum
+            if 'momentum_12_1m' in df.columns:
+                df['momentum_relative_12m'] = df['momentum_12_1m'] - df['spy_momentum_12_1m']
+            if 'momentum_6_1m' in df.columns:
+                df['momentum_relative_6m'] = df['momentum_6_1m'] - df['spy_momentum_6_1m']
 
         return df
 
@@ -168,6 +195,12 @@ class MultiStrategyTester:
                     conditions.append(row['spy_regime'] == True)  # Bull market required
                 else:
                     return False  # No SPY data = no entry
+
+            # 4. Momentum Relativo > 0 (Stock momentum > SPY momentum)
+            # Evita comprar acciones débiles en mercado fuerte
+            if 'momentum_relative_12m' in row and not pd.isna(row['momentum_relative_12m']):
+                conditions.append(row['momentum_relative_12m'] > 0)  # Stock outperforms SPY
+            # Si no hay datos de SPY momentum, permitir entrada (backward compatibility)
 
             return all(conditions)
 
