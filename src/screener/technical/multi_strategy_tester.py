@@ -259,34 +259,56 @@ class MultiStrategyTester:
         self,
         strategy_name: str,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        warmup_days: int = 252
     ) -> Dict:
         """
         Backtest a single strategy.
+
+        Args:
+            warmup_days: Number of trading days before start_date to include for indicator warmup
 
         Returns:
             Dictionary with trades, metrics, and equity curve
         """
         logger.info(f"Backtesting strategy: {self.strategies[strategy_name]['name']}")
 
-        # Filter date range
+        # Filter date range WITH warmup for indicators
         data = self.prices.copy()
-        if start_date:
+
+        # If we have a start_date, include warmup_days before it
+        if start_date and warmup_days > 0:
+            # Find the position of start_date
+            start_pos = self.prices['date'].searchsorted(start_date, side='left')
+            # Go back warmup_days trading days
+            warmup_pos = max(0, start_pos - warmup_days)
+            warmup_start = self.prices.iloc[warmup_pos]['date']
+
+            # Include data from warmup_start
+            data = data[data['date'] >= warmup_start]
+        elif start_date:
             data = data[data['date'] >= start_date]
+
         if end_date:
             data = data[data['date'] <= end_date]
 
-        # Calculate indicators
+        # Calculate indicators (now has enough history)
         data = self._calculate_indicators(data, strategy_name)
 
-        # Simulate trades
+        # IMPORTANT: Only generate trades for the ACTUAL period (not warmup)
+        if start_date:
+            trade_data = data[data['date'] >= start_date]
+        else:
+            trade_data = data
+
+        # Simulate trades ONLY on the trade_data period
         trades = []
         position_open = False
         entry_price = 0
         entry_date = None
         max_price = 0
 
-        for idx, row in data.iterrows():
+        for idx, row in trade_data.iterrows():
             # Check entry
             if not position_open:
                 if self._check_entry_signal(row, strategy_name, position_open):
