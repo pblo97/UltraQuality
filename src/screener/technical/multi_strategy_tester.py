@@ -259,25 +259,44 @@ class MultiStrategyTester:
         self,
         strategy_name: str,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
+        use_anchored: bool = False
     ) -> Dict:
         """
         Backtest a single strategy.
+
+        Args:
+            strategy_name: Strategy key to backtest
+            start_date: Start date for trade simulation
+            end_date: End date for trade simulation
+            use_anchored: If True, calculate indicators with all data up to end_date
+                         (anchored walk-forward). If False, only use data in range.
 
         Returns:
             Dictionary with trades, metrics, and equity curve
         """
         logger.info(f"Backtesting strategy: {self.strategies[strategy_name]['name']}")
 
-        # Filter date range
-        data = self.prices.copy()
-        if start_date:
-            data = data[data['date'] >= start_date]
-        if end_date:
-            data = data[data['date'] <= end_date]
+        # For anchored walk-forward: calculate indicators with all data up to end_date
+        # Then filter to simulation range
+        if use_anchored and end_date:
+            # Calculate indicators with ALL historical data up to end_date
+            data_for_indicators = self.prices[self.prices['date'] <= end_date].copy()
+            data = self._calculate_indicators(data_for_indicators, strategy_name)
 
-        # Calculate indicators
-        data = self._calculate_indicators(data, strategy_name)
+            # Now filter to simulation range (for trade execution)
+            if start_date:
+                data = data[data['date'] >= start_date]
+        else:
+            # Original behavior: filter first, then calculate
+            data = self.prices.copy()
+            if start_date:
+                data = data[data['date'] >= start_date]
+            if end_date:
+                data = data[data['date'] <= end_date]
+
+            # Calculate indicators
+            data = self._calculate_indicators(data, strategy_name)
 
         # Simulate trades
         trades = []
@@ -514,18 +533,23 @@ class MultiStrategyTester:
 
             for window_idx, (train_start, train_end, test_start, test_end) in enumerate(windows):
                 # Backtest on training window (in-sample)
+                # Use anchored=True so indicators are calculated with all historical data
                 train_result = self.backtest_strategy(
                     strategy_key,
                     start_date=train_start,
-                    end_date=train_end
+                    end_date=train_end,
+                    use_anchored=True  # Calculate indicators with data from beginning to train_end
                 )
                 in_sample_trades.extend(train_result['trades'])
 
                 # Backtest on test window (out-of-sample)
+                # CRITICAL: Use anchored=True to calculate indicators with ALL data up to test_end
+                # This ensures momentum_12m (252 days) has enough historical data
                 test_result = self.backtest_strategy(
                     strategy_key,
                     start_date=test_start,
-                    end_date=test_end
+                    end_date=test_end,
+                    use_anchored=True  # Calculate indicators with data from beginning to test_end
                 )
                 out_sample_trades.extend(test_result['trades'])
 
