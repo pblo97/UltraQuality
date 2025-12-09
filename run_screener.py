@@ -1872,54 +1872,109 @@ with tab5:
                             assessment = intrinsic.get('valuation_assessment', 'Unknown')
                             confidence = intrinsic.get('confidence', 'Low')
 
-                            # === GROWTH OVERRIDE: Ignore DCF conservatism for quality growth stocks ===
-                            # If PEG < 1.5 AND Reverse DCF says "UNDERVALUED", trust growth metrics
-                            # DCF often undervalues tech/growth due to:
-                            # 1. Can't capture optionality (AI, new products, platform effects)
-                            # 2. Conservative assumptions (5-10yr horizon, 3% terminal growth)
-                            # 3. Market pricing beyond traditional DCF (e.g., Google AI optionality)
+                            # === EL MARTILLO DEL PEG: Veto power sobre DCF en Growth Stocks ===
+                            # Para empresas de crecimiento, PEG > DCF porque captura optionality
+                            # Si PEG < 1.5 y Growth > 10% → VERDE, sin importar DCF
 
                             growth_override_applied = False
                             growth_override_reason = None
 
-                            # Get PEG Ratio
+                            # Get PEG Ratio y Growth
                             peg_ratio = stock_data.get('peg_ratio', None)
 
-                            # Get Reverse DCF signal
+                            # Get revenue growth from intrinsic data or stock_data
+                            revenue_growth = None
+                            if 'growth_consistency' in intrinsic:
+                                revenue_growth = intrinsic['growth_consistency'].get('revenue_growth_5y_cagr', None)
+
+                            # Fallback: try to get from features
+                            if not revenue_growth:
+                                # Check if we have earnings growth used for PEG
+                                # If PEG exists and P/E exists, we can infer growth
+                                pe_ttm = stock_data.get('pe_ttm', None)
+                                if peg_ratio and pe_ttm and peg_ratio > 0:
+                                    # PEG = P/E / Growth → Growth = P/E / PEG
+                                    revenue_growth = (pe_ttm / peg_ratio) if peg_ratio > 0 else None
+
+                            # Determine if it's a growth stock
+                            is_growth_stock = False
+                            if revenue_growth and revenue_growth > 10:  # >10% growth
+                                is_growth_stock = True
+                            elif peg_ratio and peg_ratio < 2.0:  # PEG suggests growth
+                                is_growth_stock = True
+
+                            # Get Reverse DCF signal (optional, not required)
                             reverse_dcf_signal = None
                             if 'reverse_dcf' in intrinsic:
                                 interpretation = intrinsic['reverse_dcf'].get('interpretation', '')
                                 if 'UNDERVALUED' in interpretation.upper():
                                     reverse_dcf_signal = 'UNDERVALUED'
 
-                            # Apply growth override if:
-                            # 1. PEG < 1.5 (growth at reasonable price)
-                            # 2. Reverse DCF = UNDERVALUED (market pessimistic)
-                            # 3. Current assessment is NOT already "Undervalued"
-                            if (peg_ratio and peg_ratio < 1.5 and
-                                reverse_dcf_signal == 'UNDERVALUED' and
-                                assessment != 'Undervalued'):
+                            # === MARTILLO DEL PEG: Override Logic ===
+                            # Tier 1: PEG excelente (< 1.2) + Growth Stock → VERDE inmediato
+                            # Tier 2: PEG bueno (< 1.5) + Reverse DCF UNDERVALUED → VERDE
+                            # Tier 3: PEG razonable (< 2.0) + High Growth (>15%) → VERDE
 
+                            peg_hammer_triggered = False
+
+                            if peg_ratio:
+                                # Tier 1: PEG excelente (< 1.2) en growth stock
+                                if peg_ratio < 1.2 and is_growth_stock:
+                                    peg_hammer_triggered = True
+                                    growth_override_reason = f"""
+                                    **🔨 EL MARTILLO DEL PEG - Tier 1: Ganga Absoluta**
+                                    - PEG Ratio: {peg_ratio:.2f} (< 1.2 = Excelente)
+                                    - Growth Stock: Sí (crecimiento sostenible)
+                                    - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+
+                                    **Veredicto: COMPRA CLARA (PEG tiene veto sobre DCF)**
+
+                                    DCF undervalues growth porque:
+                                    • No captura AI/platform optionality
+                                    • Assumptions conservadoras (3% terminal growth)
+                                    • PEG < 1.2 = "Pagando menos de lo que el crecimiento vale"
+
+                                    **Empresas similares con PEG < 1.2:** Amazon 2015 (PEG 0.8), Google 2018 (PEG 1.0), Meta 2023 (PEG 0.9)
+                                    """
+
+                                # Tier 2: PEG bueno (< 1.5) + Reverse DCF confirma
+                                elif peg_ratio < 1.5 and reverse_dcf_signal == 'UNDERVALUED':
+                                    peg_hammer_triggered = True
+                                    growth_override_reason = f"""
+                                    **🔨 EL MARTILLO DEL PEG - Tier 2: Growth at Reasonable Price**
+                                    - PEG Ratio: {peg_ratio:.2f} (< 1.5 = GARP territory)
+                                    - Reverse DCF: UNDERVALUED (mercado pesimista sobre futuro)
+                                    - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+
+                                    **Veredicto: COMPRA (Doble confirmación PEG + Reverse DCF)**
+
+                                    2 señales independientes confirman undervaluation:
+                                    1. PEG < 1.5 → Crecimiento a precio razonable
+                                    2. Reverse DCF → Mercado espera menos crecimiento del real
+                                    """
+
+                                # Tier 3: PEG razonable (< 2.0) en high growth (>15%)
+                                elif peg_ratio < 2.0 and revenue_growth and revenue_growth > 15:
+                                    peg_hammer_triggered = True
+                                    growth_override_reason = f"""
+                                    **🔨 EL MARTILLO DEL PEG - Tier 3: High Growth Premium**
+                                    - PEG Ratio: {peg_ratio:.2f} (< 2.0 aceptable para growth >15%)
+                                    - Revenue Growth: {revenue_growth:.1f}% (High growth justifica premium)
+                                    - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+
+                                    **Veredicto: COMPRA (High growth justifica valuación)**
+
+                                    Para empresas con crecimiento >15%, PEG < 2.0 es razonable.
+                                    Regla: "Never short a dull market" → Never sell high growth at PEG < 2.0
+                                    """
+
+                            # Apply override if PEG Hammer triggered
+                            if peg_hammer_triggered and assessment != 'Undervalued':
                                 growth_override_applied = True
                                 original_assessment = assessment
-                                assessment = 'Growth Undervalued'  # Special label
+                                assessment = 'Growth Undervalued'  # Force GREEN
 
-                                growth_override_reason = f"""
-                                **🚀 Growth Override Applied:**
-                                - PEG Ratio: {peg_ratio:.2f} (Growth at reasonable price < 1.5)
-                                - Reverse DCF: UNDERVALUED (Market pessimistic about future growth)
-                                - Traditional DCF: {original_assessment} (Conservative for growth stocks)
-
-                                **Why Override DCF?**
-                                DCF undervalues growth companies because it can't capture:
-                                • Platform effects & network advantages
-                                • Optionality (AI, new products, market expansion)
-                                • Long-term moats (brand, ecosystem, data)
-
-                                PEG Ratio better captures growth-adjusted value for tech/innovation leaders.
-                                """
-
-                            # Color based on assessment (with growth override)
+                            # Color based on assessment (with PEG hammer override)
                             if assessment in ['Undervalued', 'Growth Undervalued']:
                                 color = 'green'
                                 emoji = '🟢'
@@ -1940,9 +1995,9 @@ with tab5:
                             st.caption(f"**Industry Profile:** {industry_profile} | **Primary Metric:** {primary_metric}")
                             st.caption(f"**Confidence:** {confidence}")
 
-                            # Show growth override explanation if applied
+                            # Show PEG Hammer explanation if applied
                             if growth_override_applied and growth_override_reason:
-                                st.info(growth_override_reason)
+                                st.success(growth_override_reason)  # Use success (green box) instead of info
 
                             # Explanation
                             with st.expander("📖 Research-Based Valuation Methodology"):
