@@ -2106,6 +2106,15 @@ with tab5:
                                 original_assessment = assessment
                                 assessment = 'Growth Undervalued'  # Force GREEN
 
+                                # Recalculate upside based on PEG intrinsic value (use Growth PEG 1.5)
+                                current_price = intrinsic.get('current_price', 0)
+                                if peg_ratio and current_price > 0:
+                                    fair_peg_growth = 1.5  # Growth premium
+                                    peg_intrinsic_growth = current_price * (fair_peg_growth / peg_ratio)
+                                    upside = ((peg_intrinsic_growth - current_price) / current_price) * 100
+                                    # Store for display
+                                    growth_override_applied = True
+
                             # Color based on assessment (with PEG hammer override)
                             if assessment in ['Undervalued', 'Growth Undervalued']:
                                 color = 'green'
@@ -2121,9 +2130,16 @@ with tab5:
                             industry_profile = intrinsic.get('industry_profile', 'unknown').replace('_', ' ').title()
                             primary_metric = intrinsic.get('primary_metric', 'EV/EBIT')
 
-                            # Display main status
-                            display_assessment = assessment.replace('Growth Undervalued', 'Undervalued (Growth Quality)')
-                            st.markdown(f"### {emoji} {display_assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
+                            # Display main status (with PEG-driven upside if applicable)
+                            display_assessment = assessment.replace('Growth Undervalued', 'Undervalued (PEG Driver)')
+
+                            # Show upside/downside text based on whether PEG Hammer is active
+                            if growth_override_applied and upside > 0:
+                                upside_text = "Upside Potential"
+                            else:
+                                upside_text = 'upside' if upside > 0 else 'downside'
+
+                            st.markdown(f"### {emoji} {display_assessment}: {upside:+.1f}% {upside_text}")
                             st.caption(f"**Industry Profile:** {industry_profile} | **Primary Metric:** {primary_metric}")
                             st.caption(f"**Confidence:** {confidence}")
 

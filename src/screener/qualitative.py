@@ -2154,13 +2154,18 @@ class QualitativeAnalyzer:
 
             # 1. DCF Valuation (with industry-specific WACC as base, but Net Cash Bonus can override)
             logger.info(f"Calculating DCF for {symbol}, type={company_type}, base_wacc={industry_wacc}")
+            actual_wacc_used = industry_wacc  # Default, will be updated if DCF succeeds
             try:
                 dcf_value = self._calculate_dcf(symbol, company_type, base_wacc=industry_wacc, notes_list=valuation['notes'])
                 if dcf_value and dcf_value > 0:
+                    # Get the actual WACC used (may differ from industry_wacc due to Net Cash Bonus)
+                    actual_wacc_used = getattr(self, '_last_dcf_wacc_used', industry_wacc)
+
                     valuation['dcf_value'] = dcf_value
+                    valuation['actual_wacc'] = actual_wacc_used  # Store for sensitivity analysis
                     valuation['confidence'] = 'Med'
-                    valuation['notes'].append(f"✓ DCF: ${dcf_value:.2f} (WACC: {industry_wacc:.1%})")
-                    logger.info(f"✓ DCF for {symbol}: ${dcf_value:.2f}")
+                    valuation['notes'].append(f"✓ DCF: ${dcf_value:.2f} (WACC: {actual_wacc_used:.1%})")
+                    logger.info(f"✓ DCF for {symbol}: ${dcf_value:.2f} (WACC: {actual_wacc_used:.1%})")
                 # Note: error messages already added by _calculate_dcf via notes_list
             except Exception as e:
                 valuation['notes'].append(f"✗ DCF EXCEPTION: {str(e)[:100]}")
@@ -2295,13 +2300,13 @@ class QualitativeAnalyzer:
                 if earnings_quality:
                     valuation['earnings_quality'] = earnings_quality
 
-                # 6. DCF Sensitivity Analysis
+                # 6. DCF Sensitivity Analysis (use ACTUAL WACC, not industry_wacc)
                 if dcf_value and dcf_value > 0:
                     dcf_sensitivity = self._calculate_dcf_sensitivity(
                         symbol,
                         company_type,
                         dcf_value,
-                        industry_wacc
+                        actual_wacc_used  # Use the actual WACC (e.g., 8.5% with Net Cash Bonus)
                     )
                     if dcf_sensitivity:
                         valuation['dcf_sensitivity'] = dcf_sensitivity
@@ -2727,11 +2732,14 @@ class QualitativeAnalyzer:
             # Per share
             value_per_share = equity_value / shares
 
-            logger.info(f"DCF: {symbol} ev={ev:,.0f}, net_debt={net_debt:,.0f}, equity_value={equity_value:,.0f}, shares={shares:,.0f}, value_per_share=${value_per_share:.2f}")
+            logger.info(f"DCF: {symbol} ev={ev:,.0f}, net_debt={net_debt:,.0f}, equity_value={equity_value:,.0f}, shares={shares:,.0f}, value_per_share=${value_per_share:.2f}, WACC_USED={wacc:.1%}")
+
+            # Store actual WACC used for sensitivity analysis
+            self._last_dcf_wacc_used = wacc
 
             result = value_per_share if value_per_share > 0 else None
             if result:
-                logger.info(f"DCF: ✓ Final result for {symbol}: ${result:.2f}")
+                logger.info(f"DCF: ✓ Final result for {symbol}: ${result:.2f} (WACC: {wacc:.1%})")
             else:
                 logger.warning(f"DCF: ✗ Final result for {symbol} is None or negative (value_per_share={value_per_share})")
             return result
