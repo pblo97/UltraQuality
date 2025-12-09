@@ -4794,7 +4794,7 @@ with tab8:
                                 # ========== MULTI-STRATEGY COMPARISON ==========
                                 if backtest_type.startswith("📊"):
                                     st.warning("🚀 ENTERING MULTI-STRATEGY BLOCK")
-                                    with st.spinner("Testing 3 simple strategies... This may take 30-60 seconds"):
+                                    with st.spinner("Testing 4 simple strategies... This may take 30-60 seconds"):
                                         try:
                                             from screener.technical.multi_strategy_tester import MultiStrategyTester
                                             st.success("✅ MultiStrategyTester imported successfully")
@@ -4817,11 +4817,11 @@ with tab8:
 
                                                 # Run walk-forward multi-strategy tester
                                                 tester = MultiStrategyTester(prices_df)
-                                                st.info("🔄 Running walk-forward validation (250 train / 60 test)...")
+                                                st.info("🔄 Running walk-forward validation (250 train / 120 test)...")
 
                                                 wf_results = tester.run_walk_forward_all_strategies(
                                                     train_days=250,
-                                                    test_days=60,
+                                                    test_days=120,  # Increased from 60 to 120 days (4 months) for better OOS sample size
                                                     step_days=30
                                                 )
 
@@ -4830,9 +4830,12 @@ with tab8:
                                                 st.markdown("### 📊 Walk-Forward Strategy Comparison (In-Sample vs Out-of-Sample)")
 
                                                 st.info("""
-                                                **3 SIMPLE strategies - No RSI, MACD, or Bollinger Bands**
+                                                **4 SIMPLE strategies - No RSI, MACD, or Bollinger Bands**
 
-                                                Based on academic research (Dec 2024):
+                                                Strategy 1: **Momentum 12M Academic** (NEW) - Ultra-robust, 100 years of evidence
+                                                Strategy 2-4: Price-Volume, Pullback, Momentum Puro
+
+                                                Based on academic research (Jegadeesh & Titman 1993-2001, Moskowitz 2012, Dec 2024):
                                                 - "Primary price-based features consistently outperformed technical indicators"
                                                 - "Simple strategies often outperform complex ones"
                                                 - Avoid overfitting by using minimal indicators

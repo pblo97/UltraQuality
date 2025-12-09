@@ -24,12 +24,13 @@ logger = logging.getLogger(__name__)
 
 class MultiStrategyTester:
     """
-    Tests 3 SIMPLE strategies on quality/value stocks.
+    Tests 4 SIMPLE strategies on quality/value stocks.
 
     Strategies:
-    1. Price-Volume Simple (PRIORITY) - Literature-backed best performer
-    2. Pullback Simple - Price action only
-    3. Momentum Puro - Baseline comparison
+    1. Momentum 12M Academic (NEW) - Ultra-robust, 100 years of evidence
+    2. Price-Volume Simple - Literature-backed best performer
+    3. Pullback Simple - Price action only
+    4. Momentum Puro - Baseline comparison
     """
 
     def __init__(self, prices_df: pd.DataFrame):
@@ -45,10 +46,20 @@ class MultiStrategyTester:
 
         # Strategy definitions
         self.strategies = {
+            'momentum_12m_academic': {
+                'name': 'Momentum 12M Academic',
+                'description': 'Solo Momentum 12m > 0% (Jegadeesh & Titman 1993-2001, Moskowitz 2012)',
+                'priority': 1,  # MÁXIMA PRIORIDAD - 100 años de evidencia
+                'params': {
+                    'trailing_stop_pct': 20,  # Más amplio para mejor generalización
+                    'momentum_12m_min': 0,  # Solo > 0%, sin otros filtros
+                    'momentum_exit': -10,  # Sale si cae -10%
+                }
+            },
             'price_volume_simple': {
                 'name': 'Price-Volume Simple',
                 'description': 'Precio > MA200 + Volumen alto + Momentum 3m positivo',
-                'priority': 1,  # MÁXIMA PRIORIDAD
+                'priority': 2,
                 'params': {
                     'trailing_stop_pct': 15,  # Dai et al. (2021)
                     'volume_multiplier': 1.5,  # Volumen > 1.5x promedio
@@ -60,7 +71,7 @@ class MultiStrategyTester:
             'pullback_simple': {
                 'name': 'Pullback Simple',
                 'description': 'Uptrend + Pullback a MA50 + Volumen',
-                'priority': 2,
+                'priority': 3,
                 'params': {
                     'trailing_stop_pct': 15,
                     'ma_long': 200,  # Define uptrend
@@ -72,7 +83,7 @@ class MultiStrategyTester:
             'momentum_puro': {
                 'name': 'Momentum Puro',
                 'description': 'Momentum 12m + MA200 (baseline)',
-                'priority': 3,
+                'priority': 4,
                 'params': {
                     'trailing_stop_pct': 15,
                     'momentum_12m_min': 5,  # >5% anual
@@ -101,7 +112,7 @@ class MultiStrategyTester:
             df['ma_50'] = df['close'].rolling(window=params['ma_short']).mean()
 
         # Momentum
-        if 'momentum_12m_min' in params or 'momentum_3m_min' in params:
+        if 'momentum_12m_min' in params or 'momentum_3m_min' in params or 'momentum_exit' in params:
             df['momentum_12m'] = df['close'].pct_change(252) * 100  # 252 trading days = 1 año
             df['momentum_3m'] = df['close'].pct_change(63) * 100   # 63 trading days = 3 meses
 
@@ -142,8 +153,18 @@ class MultiStrategyTester:
         strategy = self.strategies[strategy_name]
         params = strategy['params']
 
+        # Strategy 0: Momentum 12M Academic (ULTRA-ROBUST)
+        if strategy_name == 'momentum_12m_academic':
+            # Solo una condición: momentum_12m > 0%
+            # Sin MA200, sin volumen, sin otros filtros
+            # 100 años de evidencia académica (Jegadeesh & Titman 1993-2001, Moskowitz 2012)
+            if not pd.isna(row['momentum_12m']):
+                return row['momentum_12m'] > params['momentum_12m_min']
+            else:
+                return False  # Necesita momentum_12m
+
         # Strategy 1: Price-Volume Simple (PRIORITY)
-        if strategy_name == 'price_volume_simple':
+        elif strategy_name == 'price_volume_simple':
             # Todas las condiciones deben cumplirse
             conditions = []
 
@@ -235,8 +256,14 @@ class MultiStrategyTester:
 
         # Strategy-specific exits
 
+        # Strategy 0: Momentum 12M Academic
+        if strategy_name == 'momentum_12m_academic':
+            # Exit: Momentum 12m cae por debajo de -10%
+            if not pd.isna(row['momentum_12m']) and row['momentum_12m'] < params['momentum_exit']:
+                return True, "momentum_deterioration"
+
         # Strategy 1: Price-Volume Simple
-        if strategy_name == 'price_volume_simple':
+        elif strategy_name == 'price_volume_simple':
             # Exit: 3 días consecutivos debajo de MA200
             if 'days_below_ma200' in row and row['days_below_ma200'] >= params['ma200_exit_days']:
                 return True, "below_ma200_3days"
