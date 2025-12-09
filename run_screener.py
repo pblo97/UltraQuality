@@ -1872,8 +1872,55 @@ with tab5:
                             assessment = intrinsic.get('valuation_assessment', 'Unknown')
                             confidence = intrinsic.get('confidence', 'Low')
 
-                            # Color based on assessment
-                            if assessment == 'Undervalued':
+                            # === GROWTH OVERRIDE: Ignore DCF conservatism for quality growth stocks ===
+                            # If PEG < 1.5 AND Reverse DCF says "UNDERVALUED", trust growth metrics
+                            # DCF often undervalues tech/growth due to:
+                            # 1. Can't capture optionality (AI, new products, platform effects)
+                            # 2. Conservative assumptions (5-10yr horizon, 3% terminal growth)
+                            # 3. Market pricing beyond traditional DCF (e.g., Google AI optionality)
+
+                            growth_override_applied = False
+                            growth_override_reason = None
+
+                            # Get PEG Ratio
+                            peg_ratio = stock_data.get('peg_ratio', None)
+
+                            # Get Reverse DCF signal
+                            reverse_dcf_signal = None
+                            if 'reverse_dcf' in intrinsic:
+                                interpretation = intrinsic['reverse_dcf'].get('interpretation', '')
+                                if 'UNDERVALUED' in interpretation.upper():
+                                    reverse_dcf_signal = 'UNDERVALUED'
+
+                            # Apply growth override if:
+                            # 1. PEG < 1.5 (growth at reasonable price)
+                            # 2. Reverse DCF = UNDERVALUED (market pessimistic)
+                            # 3. Current assessment is NOT already "Undervalued"
+                            if (peg_ratio and peg_ratio < 1.5 and
+                                reverse_dcf_signal == 'UNDERVALUED' and
+                                assessment != 'Undervalued'):
+
+                                growth_override_applied = True
+                                original_assessment = assessment
+                                assessment = 'Growth Undervalued'  # Special label
+
+                                growth_override_reason = f"""
+                                **🚀 Growth Override Applied:**
+                                - PEG Ratio: {peg_ratio:.2f} (Growth at reasonable price < 1.5)
+                                - Reverse DCF: UNDERVALUED (Market pessimistic about future growth)
+                                - Traditional DCF: {original_assessment} (Conservative for growth stocks)
+
+                                **Why Override DCF?**
+                                DCF undervalues growth companies because it can't capture:
+                                • Platform effects & network advantages
+                                • Optionality (AI, new products, market expansion)
+                                • Long-term moats (brand, ecosystem, data)
+
+                                PEG Ratio better captures growth-adjusted value for tech/innovation leaders.
+                                """
+
+                            # Color based on assessment (with growth override)
+                            if assessment in ['Undervalued', 'Growth Undervalued']:
                                 color = 'green'
                                 emoji = '🟢'
                             elif assessment == 'Overvalued':
@@ -1887,9 +1934,15 @@ with tab5:
                             industry_profile = intrinsic.get('industry_profile', 'unknown').replace('_', ' ').title()
                             primary_metric = intrinsic.get('primary_metric', 'EV/EBIT')
 
-                            st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
+                            # Display main status
+                            display_assessment = assessment.replace('Growth Undervalued', 'Undervalued (Growth Quality)')
+                            st.markdown(f"### {emoji} {display_assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
                             st.caption(f"**Industry Profile:** {industry_profile} | **Primary Metric:** {primary_metric}")
                             st.caption(f"**Confidence:** {confidence}")
+
+                            # Show growth override explanation if applied
+                            if growth_override_applied and growth_override_reason:
+                                st.info(growth_override_reason)
 
                             # Explanation
                             with st.expander("📖 Research-Based Valuation Methodology"):
