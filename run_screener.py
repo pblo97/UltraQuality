@@ -6892,17 +6892,23 @@ with tab7:
                         # Step 2: Technical Timing Assessment (includes overextension)
                         st.markdown("**⏰ Technical Timing:**")
                         abs_distance = abs(distance_ma200)
+                        is_momentum_leader = tech_score > 80
 
-                        if abs_distance > 60:
-                            # Extreme overextension
+                        # CRITICAL FIX: Check if Momentum Leader FIRST (overextension is a FEATURE not a BUG)
+                        if is_momentum_leader and overextension_risk < 2:
+                            # Quality Momentum Leader with low overextension risk (despite high distance)
+                            st.success(f"✅ EXCELLENT TIMING ({tech_score}/100) - Quality Momentum Leader with {distance_ma200:+.1f}% from MA200")
+                            st.caption(f"💡 Low overextension risk ({overextension_risk}/7). Strong trend can persist. Use Trailing Stop (EMA 20) to protect gains.")
+                        elif abs_distance > 60 and not is_momentum_leader:
+                            # Extreme overextension (non-leaders only)
                             st.error(f"🔴 POOR TIMING - Extreme overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                             st.caption("⚠️ Expect 20-40% pullback. Wait for correction.")
-                        elif abs_distance > 50:
-                            # Severe overextension
+                        elif abs_distance > 50 and not is_momentum_leader:
+                            # Severe overextension (non-leaders only)
                             st.error(f"🔴 POOR TIMING - Severe overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                             st.caption("⚠️ Expect 15-30% correction. Scale-in recommended (majority capital on pullback).")
-                        elif abs_distance > 40:
-                            # Significant overextension
+                        elif abs_distance > 40 and overextension_risk >= 2:
+                            # Significant overextension with moderate risk
                             st.warning(f"🟡 CAUTIOUS TIMING - Significant overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                             st.caption("⚠️ Possible 10-20% pullback. Scale-in recommended.")
                         elif overextension_risk >= 3:
