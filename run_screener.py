@@ -1853,20 +1853,33 @@ with tab5:
                             else:
                                 st.metric("Fair Value", "N/A")
 
-                        # Second row: PEG Ratio (prominente y visible)
+                        # Second row: PEG Ratio + Intrinsic Value PEG-Forward
                         st.markdown("")  # Spacing
 
-                        # Get PEG from correct location
+                        # Get PEG and related data from correct location
                         peg_ratio = None
+                        pe_ratio = None
+                        eps_growth = None
                         if 'valuation_multiples' in intrinsic:
                             company_vals = intrinsic['valuation_multiples'].get('company', {})
                             peg_ratio = company_vals.get('peg', None)
+                            pe_ratio = company_vals.get('pe', None)
+                            eps_growth = company_vals.get('eps_growth_%', None)
 
                         if peg_ratio and peg_ratio > 0:
+                            # Calculate PEG-based Intrinsic Value
+                            # Formula: Fair Value = Current Price × (Fair PEG / Current PEG)
+                            # Fair PEG = 1.0 (conservative) or 1.5 (growth premium)
+                            fair_peg_conservative = 1.0
+                            fair_peg_growth = 1.5
+
+                            peg_intrinsic_conservative = current_price * (fair_peg_conservative / peg_ratio) if current_price > 0 else None
+                            peg_intrinsic_growth = current_price * (fair_peg_growth / peg_ratio) if current_price > 0 else None
+
                             # Color-coded PEG display
                             if peg_ratio < 1.0:
                                 peg_color = "🟢"
-                                peg_label = "Excelente (Ganga)"
+                                peg_label = "Excelente"
                             elif peg_ratio < 1.5:
                                 peg_color = "🟢"
                                 peg_label = "Bueno (GARP)"
@@ -1880,10 +1893,18 @@ with tab5:
                             col_peg1, col_peg2, col_peg3 = st.columns([1, 2, 2])
                             with col_peg1:
                                 st.metric("📊 PEG Ratio", f"{peg_ratio:.2f}")
+                                if eps_growth:
+                                    st.caption(f"EPS Growth: {eps_growth:.1f}%")
                             with col_peg2:
                                 st.markdown(f"### {peg_color} **{peg_label}**")
+                                if peg_intrinsic_conservative:
+                                    upside_conservative = ((peg_intrinsic_conservative - current_price) / current_price) * 100
+                                    st.caption(f"**Valor PEG (Fair=1.0):** ${peg_intrinsic_conservative:.2f} ({upside_conservative:+.1f}%)")
                             with col_peg3:
-                                st.caption("*PEG < 1.5 = Growth at reasonable price | PEG > 2.0 = Expensive*")
+                                if peg_intrinsic_growth:
+                                    upside_growth = ((peg_intrinsic_growth - current_price) / current_price) * 100
+                                    st.caption(f"**Valor PEG (Growth=1.5):** ${peg_intrinsic_growth:.2f} ({upside_growth:+.1f}%)")
+                                st.caption("*Fair PEG 1.0 = Conservative | 1.5 = Growth Premium*")
                         else:
                             st.info("📊 **PEG Ratio:** N/A (Data not available)")
 
