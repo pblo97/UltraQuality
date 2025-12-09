@@ -2602,9 +2602,14 @@ class QualitativeAnalyzer:
             # === WACC DINÁMICO (ajuste por Net Cash Position) ===
 
             # Calculate net debt FIRST to adjust WACC
+            # CRITICAL: Include Short Term Investments (Google, Apple, Microsoft have $100B+)
             total_debt = balance[0].get('totalDebt', 0)
             cash = balance[0].get('cashAndCashEquivalents', 0)
-            net_debt = total_debt - cash
+            short_term_investments = balance[0].get('shortTermInvestments', 0)
+            total_liquid_assets = cash + short_term_investments
+            net_debt = total_debt - total_liquid_assets
+
+            logger.info(f"DCF: {symbol} debt={total_debt:,.0f}, cash={cash:,.0f}, ST_investments={short_term_investments:,.0f}, net_debt={net_debt:,.0f}")
 
             if wacc_override:
                 wacc = wacc_override

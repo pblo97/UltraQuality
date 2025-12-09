@@ -109,8 +109,20 @@ class FeatureCalculator:
         ebit_ttm = self._sum_ttm(income, 'operatingIncome')
         ebitda_ttm = self._sum_ttm(income, 'ebitda')
         total_debt = bal.get('totalDebt', 0)
+
+        # CRITICAL FIX: Include Short Term Investments (Google, Apple, Microsoft)
+        # These are liquid assets that should reduce EV just like cash
         cash = bal.get('cashAndCashEquivalents', 0)
-        ev = market_cap + total_debt - cash if market_cap else None
+        short_term_investments = bal.get('shortTermInvestments', 0)
+        total_liquid_assets = cash + short_term_investments
+
+        # EV = Market Cap + Debt - Liquid Assets (Cash + ST Investments)
+        ev = market_cap + total_debt - total_liquid_assets if market_cap else None
+
+        # Store components for debugging
+        features['cash_and_equivalents'] = cash
+        features['short_term_investments'] = short_term_investments
+        features['total_liquid_assets'] = total_liquid_assets
 
         # Free Cash Flow & Operating Cash Flow (TTM)
         fcf_ttm = self._sum_ttm(cashflow, 'freeCashFlow')
