@@ -1820,7 +1820,7 @@ with tab5:
 
                     # Show section if we have intrinsic_value dict (even if current_price is missing)
                     if intrinsic and 'current_price' in intrinsic:
-                        col1, col2, col3, col4 = st.columns(4)
+                        col1, col2, col3, col4, col5 = st.columns(5)
 
                         current_price = intrinsic.get('current_price', 0)
 
@@ -1851,6 +1851,87 @@ with tab5:
                                 st.metric("Fair Value", f"${fair_val:.2f}")
                             else:
                                 st.metric("Fair Value", "N/A")
+
+                        with col5:
+                            # Get PEG from correct location
+                            peg_ratio = None
+                            if 'valuation_multiples' in intrinsic:
+                                company_vals = intrinsic['valuation_multiples'].get('company', {})
+                                peg_ratio = company_vals.get('peg', None)
+
+                            if peg_ratio and peg_ratio > 0:
+                                st.metric("PEG Ratio", f"{peg_ratio:.2f}")
+                            else:
+                                st.metric("PEG Ratio", "N/A")
+
+                        # === Valuation Method Recommendation ===
+                        # Determine which valuation method is most appropriate
+                        peg_ratio = None
+                        if 'valuation_multiples' in intrinsic:
+                            company_vals = intrinsic['valuation_multiples'].get('company', {})
+                            peg_ratio = company_vals.get('peg', None)
+
+                        revenue_growth = None
+                        if 'growth_consistency' in intrinsic:
+                            revenue_growth = intrinsic['growth_consistency'].get('revenue_growth_5y_cagr', None)
+
+                        # Determine predominant method
+                        if peg_ratio and peg_ratio < 1.5 and revenue_growth and revenue_growth > 10:
+                            # Growth company - PEG is king
+                            method_icon = "🚀"
+                            method_name = "PEG Ratio (Growth Valuation)"
+                            method_reason = f"""
+**Por qué PEG es mejor para esta empresa:**
+- PEG Ratio: {peg_ratio:.2f} (< 1.5 = Growth at reasonable price)
+- Revenue Growth: {revenue_growth:.1f}% (High growth sustained)
+- DCF subestima empresas de crecimiento porque:
+  - No captura AI/platform optionality
+  - Assumptions conservadoras (3% terminal growth típico)
+  - No valora network effects ni moats digitales
+- **PEG captura el valor del crecimiento futuro** (P/E ajustado por growth)
+- Empresas similares: Amazon, Google, Meta en fase de crecimiento alto
+"""
+                        elif peg_ratio and peg_ratio > 2.5 and revenue_growth and revenue_growth < 5:
+                            # Mature company - DCF is king
+                            method_icon = "🏛️"
+                            method_name = "DCF (Mature Company Valuation)"
+                            method_reason = f"""
+**Por qué DCF es mejor para esta empresa:**
+- PEG Ratio: {peg_ratio:.2f} (> 2.5 = Expensive for growth)
+- Revenue Growth: {revenue_growth:.1f}% (Mature/stable)
+- DCF es ideal para empresas maduras porque:
+  - Cash flows predecibles y estables
+  - Growth limitado → PEG pierde relevancia
+  - Mejor para dividendos y buybacks
+- **DCF captura el valor intrínseco de FCF estable**
+- Empresas similares: Johnson & Johnson, Procter & Gamble, Coca-Cola
+"""
+                        elif peg_ratio and revenue_growth and 1.5 <= peg_ratio <= 2.5 and 5 <= revenue_growth <= 10:
+                            # Balanced - use both methods
+                            method_icon = "⚖️"
+                            method_name = "Hybrid (DCF + PEG)"
+                            method_reason = f"""
+**Por qué usar ambos métodos:**
+- PEG Ratio: {peg_ratio:.2f} (1.5-2.5 = GARP territory)
+- Revenue Growth: {revenue_growth:.1f}% (Moderate growth)
+- Empresa en transición: ni puro growth ni pura mature
+- **DCF valora cash flows actuales** | **PEG valora potencial de crecimiento**
+- Fair Value (weighted average) combina ambas perspectivas
+- Empresas similares: Microsoft, Apple (madurez con crecimiento sostenible)
+"""
+                        else:
+                            # Insufficient data or unknown profile
+                            method_icon = "📊"
+                            method_name = "Multiple Methods (Insuficiente data)"
+                            method_reason = f"""
+**Recomendación:**
+- Se usan múltiples métodos (DCF, Forward Multiple, Fair Value)
+- PEG: {f'{peg_ratio:.2f}' if peg_ratio else 'N/A'}
+- Revenue Growth: {f'{revenue_growth:.1f}%' if revenue_growth else 'N/A'}
+- Se recomienda usar Fair Value (weighted average) como estimación conservadora
+"""
+
+                        st.info(f"{method_icon} **Método de Valoración Predominante:** {method_name}\n\n{method_reason}")
 
                         # Show debug notes if present (for troubleshooting)
                         notes = intrinsic.get('notes', [])
