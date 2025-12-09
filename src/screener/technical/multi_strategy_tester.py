@@ -470,22 +470,25 @@ class MultiStrategyTester:
         self,
         train_days: int = 250,
         test_days: int = 60,
-        step_days: int = 30
+        step_days: int = 30,
+        spy_data: pd.DataFrame = None
     ) -> List[Dict]:
         """
-        Run walk-forward backtesting for all 3 strategies.
-
-        This provides out-of-sample validation to detect overfitting.
+        Run walk-forward backtesting for academic momentum strategies.
 
         Args:
             train_days: Days for training window
             test_days: Days for testing window (out-of-sample)
             step_days: Days to step forward
+            spy_data: SPY data for market regime filter (REQUIRED)
 
         Returns:
             List of dictionaries with walk-forward results for each strategy
         """
-        logger.info("Starting walk-forward validation for all strategies")
+        logger.info("Starting walk-forward validation for academic momentum strategies")
+
+        if spy_data is None:
+            logger.warning("No SPY data provided - strategies will not use regime filter")
 
         # Generate walk-forward windows
         windows = self._generate_windows(train_days, test_days, step_days)
@@ -508,7 +511,8 @@ class MultiStrategyTester:
                     strategy_key,
                     start_date=train_start,
                     end_date=train_end,
-                    use_anchored=True  # Calculate indicators with data from beginning to train_end
+                    use_anchored=True,
+                    spy_data=spy_data  # Pass SPY data for regime filter
                 )
                 in_sample_trades.extend(train_result['trades'])
 
@@ -519,7 +523,8 @@ class MultiStrategyTester:
                     strategy_key,
                     start_date=test_start,
                     end_date=test_end,
-                    use_anchored=True  # Calculate indicators with data from beginning to test_end
+                    use_anchored=True,
+                    spy_data=spy_data  # Pass SPY data for regime filter
                 )
                 out_sample_trades.extend(test_result['trades'])
 
