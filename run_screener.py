@@ -4815,13 +4815,19 @@ with tab8:
                                                 elif len(prices_df) < 750:
                                                     st.info(f"ℹ️ {len(prices_df)} days available. Recommended: 750+")
 
-                                                # Run multi-strategy tester
+                                                # Run walk-forward multi-strategy tester
                                                 tester = MultiStrategyTester(prices_df)
-                                                strategy_results = tester.run_all_strategies()
+                                                st.info("🔄 Running walk-forward validation (250 train / 60 test)...")
+
+                                                wf_results = tester.run_walk_forward_all_strategies(
+                                                    train_days=250,
+                                                    test_days=60,
+                                                    step_days=30
+                                                )
 
                                                 # Display comparison table
                                                 st.markdown("---")
-                                                st.markdown("### 📊 Strategy Comparison Results")
+                                                st.markdown("### 📊 Walk-Forward Strategy Comparison (In-Sample vs Out-of-Sample)")
 
                                                 st.info("""
                                                 **3 SIMPLE strategies - No RSI, MACD, or Bollinger Bands**
@@ -4830,44 +4836,88 @@ with tab8:
                                                 - "Primary price-based features consistently outperformed technical indicators"
                                                 - "Simple strategies often outperform complex ones"
                                                 - Avoid overfitting by using minimal indicators
+
+                                                **IS** = In-Sample (training), **OOS** = Out-of-Sample (testing)
+                                                **Degradation** = OOS / IS ratio (closer to 1.0 = better generalization)
                                                 """)
 
-                                                comparison_df = tester.compare_strategies(strategy_results)
-                                                st.dataframe(comparison_df, use_container_width=True)
+                                                wf_comparison_df = tester.compare_walk_forward_results(wf_results)
+                                                st.dataframe(wf_comparison_df, use_container_width=True)
 
-                                                # Highlight best strategy
-                                                if strategy_results:
-                                                    best_strategy = max(strategy_results, key=lambda x: x['metrics']['sharpe_ratio'])
+                                                # Highlight best strategy (based on OOS Sharpe with positive degradation)
+                                                if wf_results:
+                                                    # Filter strategies with positive OOS Sharpe
+                                                    valid_strategies = [
+                                                        s for s in wf_results
+                                                        if s['out_sample_metrics']['sharpe_ratio'] > 0
+                                                    ]
 
-                                                    st.success(f"✅ **BEST STRATEGY:** {best_strategy['strategy_name']}")
-                                                    st.markdown(f"**{best_strategy['description']}**")
-
-                                                    # Show detailed metrics for best strategy
-                                                    col1, col2, col3, col4 = st.columns(4)
-                                                    with col1:
-                                                        st.metric("Win Rate", f"{best_strategy['metrics']['win_rate']:.1f}%")
-                                                    with col2:
-                                                        st.metric("Sharpe Ratio", f"{best_strategy['metrics']['sharpe_ratio']:.2f}")
-                                                    with col3:
-                                                        st.metric("Profit Factor", f"{best_strategy['metrics']['profit_factor']:.2f}")
-                                                    with col4:
-                                                        st.metric("Total Return", f"{best_strategy['metrics']['total_return']:.1f}%")
-
-                                                    # Show recent trades for best strategy
-                                                    if best_strategy['trades']:
-                                                        st.markdown("---")
-                                                        st.markdown(f"### 📋 Recent Trades - {best_strategy['strategy_name']}")
-
-                                                        recent_trades = best_strategy['trades'][-10:]  # Last 10 trades
-                                                        trades_df = pd.DataFrame(recent_trades)
-                                                        trades_df['entry_date'] = pd.to_datetime(trades_df['entry_date']).dt.date
-                                                        trades_df['exit_date'] = pd.to_datetime(trades_df['exit_date']).dt.date
-                                                        trades_df['return_pct'] = trades_df['return_pct'].apply(lambda x: f"{x:.2f}%")
-
-                                                        st.dataframe(
-                                                            trades_df[['entry_date', 'exit_date', 'return_pct', 'holding_days', 'exit_reason']],
-                                                            use_container_width=True
+                                                    if valid_strategies:
+                                                        # Best = highest OOS Sharpe with best degradation
+                                                        best_strategy = max(
+                                                            valid_strategies,
+                                                            key=lambda x: (
+                                                                x['out_sample_metrics']['sharpe_ratio'],
+                                                                x['degradation']['overall']
+                                                            )
                                                         )
+
+                                                        st.success(f"✅ **BEST STRATEGY (Out-of-Sample):** {best_strategy['strategy_name']}")
+                                                        st.markdown(f"**{best_strategy['description']}**")
+
+                                                        # Show detailed metrics for best strategy (OOS vs IS)
+                                                        st.markdown("#### 📊 Best Strategy Performance")
+
+                                                        col1, col2, col3 = st.columns(3)
+
+                                                        with col1:
+                                                            st.markdown("**In-Sample (Training)**")
+                                                            is_metrics = best_strategy['in_sample_metrics']
+                                                            st.metric("Win Rate", f"{is_metrics['win_rate']:.1f}%")
+                                                            st.metric("Sharpe Ratio", f"{is_metrics['sharpe_ratio']:.2f}")
+                                                            st.metric("Total Return", f"{is_metrics['total_return']:.1f}%")
+                                                            st.metric("Trades", f"{is_metrics['num_trades']}")
+
+                                                        with col2:
+                                                            st.markdown("**Out-of-Sample (Testing)**")
+                                                            oos_metrics = best_strategy['out_sample_metrics']
+                                                            st.metric("Win Rate", f"{oos_metrics['win_rate']:.1f}%")
+                                                            st.metric("Sharpe Ratio", f"{oos_metrics['sharpe_ratio']:.2f}")
+                                                            st.metric("Total Return", f"{oos_metrics['total_return']:.1f}%")
+                                                            st.metric("Trades", f"{oos_metrics['num_trades']}")
+
+                                                        with col3:
+                                                            st.markdown("**Degradation (OOS/IS)**")
+                                                            deg = best_strategy['degradation']
+                                                            st.metric("Win Rate", f"{deg['win_rate']:.2f}x")
+                                                            st.metric("Sharpe", f"{deg['sharpe_ratio']:.2f}x")
+                                                            st.metric("Overall", f"{deg['overall']:.2f}x")
+
+                                                            # Degradation assessment
+                                                            if deg['overall'] >= 0.85:
+                                                                st.success("✅ Excellent generalization")
+                                                            elif deg['overall'] >= 0.70:
+                                                                st.warning("⚠️ Moderate generalization")
+                                                            else:
+                                                                st.error("🔴 Poor generalization")
+
+                                                        # Show recent OOS trades for best strategy
+                                                        if best_strategy['out_sample_trades']:
+                                                            st.markdown("---")
+                                                            st.markdown(f"### 📋 Recent Out-of-Sample Trades - {best_strategy['strategy_name']}")
+
+                                                            recent_trades = best_strategy['out_sample_trades'][-10:]  # Last 10 OOS trades
+                                                            trades_df = pd.DataFrame(recent_trades)
+                                                            trades_df['entry_date'] = pd.to_datetime(trades_df['entry_date']).dt.date
+                                                            trades_df['exit_date'] = pd.to_datetime(trades_df['exit_date']).dt.date
+                                                            trades_df['return_pct'] = trades_df['return_pct'].apply(lambda x: f"{x:.2f}%")
+
+                                                            st.dataframe(
+                                                                trades_df[['entry_date', 'exit_date', 'return_pct', 'holding_days', 'exit_reason']],
+                                                                use_container_width=True
+                                                            )
+                                                    else:
+                                                        st.warning("⚠️ No strategies with positive out-of-sample Sharpe ratio")
                                                 else:
                                                     st.error("❌ No trades generated by any strategy")
 
