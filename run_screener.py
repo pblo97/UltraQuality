@@ -4902,16 +4902,16 @@ with tab8:
                                                     step_days=30
                                                 )
 
-                                            if backtest_results and backtest_results['windows']:
-                                                st.success("✅ Backtest complete!")
+                                                if backtest_results and backtest_results['windows']:
+                                                    st.success("✅ Backtest complete!")
 
-                                                # ========== DEBUG INFO ==========
-                                                with st.expander("🔍 Debug Info - Why no trades?"):
-                                                    st.markdown("**Data Summary:**")
-                                                    st.write(f"- Total data rows: {len(prices_df)}")
-                                                    st.write(f"- Date range: {prices_df.iloc[0]['date']} to {prices_df.iloc[-1]['date']}")
-                                                    st.write(f"- Total windows: {len(backtest_results['windows'])}")
-                                                    st.write(f"- Total trades (out-of-sample): {len(backtest_results['all_trades'])}")
+                                                    # ========== DEBUG INFO ==========
+                                                    with st.expander("🔍 Debug Info - Why no trades?"):
+                                                        st.markdown("**Data Summary:**")
+                                                        st.write(f"- Total data rows: {len(prices_df)}")
+                                                        st.write(f"- Date range: {prices_df.iloc[0]['date']} to {prices_df.iloc[-1]['date']}")
+                                                        st.write(f"- Total windows: {len(backtest_results['windows'])}")
+                                                        st.write(f"- Total trades (out-of-sample): {len(backtest_results['all_trades'])}")
 
                                                     # Check momentum availability
                                                     prices_df_check = backtester._calculate_indicators(prices_df.copy())
@@ -5176,17 +5176,17 @@ with tab8:
                                                     - CV > 0.5: Unstable (🔴 Parameter changes too much across windows)
                                                     """)
 
+                                                else:
+                                                    st.warning("⚠️ Not enough data for walk-forward analysis. Need at least 400 days of historical data.")
+
                                             else:
-                                                st.warning("⚠️ Not enough data for walk-forward analysis. Need at least 400 days of historical data.")
+                                                st.error("❌ Could not fetch historical data for backtesting")
 
-                                        else:
-                                            st.error("❌ Could not fetch historical data for backtesting")
-
-                                    except Exception as e:
-                                        st.error(f"❌ Backtesting error: {str(e)}")
-                                        import traceback
-                                        with st.expander("🔍 Debug Info"):
-                                            st.code(traceback.format_exc())
+                                        except Exception as e:
+                                            st.error(f"❌ Backtesting error: {str(e)}")
+                                            import traceback
+                                            with st.expander("🔍 Debug Info"):
+                                                st.code(traceback.format_exc())
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
