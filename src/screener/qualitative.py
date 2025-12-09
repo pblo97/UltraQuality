@@ -2236,12 +2236,20 @@ class QualitativeAnalyzer:
                         undervalued_threshold = 25
                         overvalued_threshold = -15
 
+                    # CRITICAL FIX: Incorporate PEG Ratio and Reverse DCF for growth companies
+                    # Traditional DCF can be too conservative for high-growth companies
+                    # PEG < 1.5 and Reverse DCF "UNDERVALUED" should override DCF conservatism
+
+                    # Base assessment from DCF
                     if upside > undervalued_threshold:
                         valuation['valuation_assessment'] = 'Undervalued'
                     elif upside < overvalued_threshold:
                         valuation['valuation_assessment'] = 'Overvalued'
                     else:
                         valuation['valuation_assessment'] = 'Fair Value'
+
+                    # Store initial assessment for debugging
+                    valuation['dcf_based_assessment'] = valuation['valuation_assessment']
 
                     # === PRICE PROJECTIONS ===
                     # Calculate price targets with different growth assumptions
@@ -2367,6 +2375,51 @@ class QualitativeAnalyzer:
                         logger.info(f"✓ Earnings Sentiment added to valuation dict")
                 else:
                     logger.warning(f"❌ Earnings Transcripts is DISABLED in config")
+
+                # === GROWTH-ADJUSTED VALUATION ASSESSMENT ===
+                # CRITICAL FIX: Override DCF conservatism for growth companies with strong signals
+                # If PEG < 1.5 AND Reverse DCF says "UNDERVALUED", trust growth metrics over DCF
+
+                if 'valuation_assessment' in valuation and current_price and current_price > 0:
+                    # Get PEG Ratio from features (calculated earlier)
+                    try:
+                        features = self.feature_calc.calculate(symbol)
+                        peg_ratio = features.get('peg_ratio', None)
+                    except:
+                        peg_ratio = None
+
+                    # Get Reverse DCF interpretation
+                    reverse_dcf_signal = None
+                    if 'reverse_dcf' in valuation:
+                        interpretation = valuation['reverse_dcf'].get('interpretation', '')
+                        if 'UNDERVALUED' in interpretation.upper():
+                            reverse_dcf_signal = 'UNDERVALUED'
+                        elif 'OVERVALUED' in interpretation.upper():
+                            reverse_dcf_signal = 'OVERVALUED'
+
+                    # Apply growth override logic
+                    growth_signals = []
+
+                    if peg_ratio and peg_ratio < 1.5:
+                        growth_signals.append(f"PEG={peg_ratio:.2f} (Growth at reasonable price)")
+
+                    if reverse_dcf_signal == 'UNDERVALUED':
+                        growth_signals.append("Reverse DCF=UNDERVALUED (Market pessimistic)")
+
+                    # Override if we have 2+ growth signals saying UNDERVALUED
+                    if len(growth_signals) >= 2 and valuation['valuation_assessment'] == 'Overvalued':
+                        logger.info(f"GROWTH OVERRIDE: {symbol} DCF says 'Overvalued' but growth signals say 'Undervalued': {growth_signals}")
+                        valuation['valuation_assessment'] = 'Fair Value'  # Upgrade from Overvalued
+                        valuation['growth_adjustment'] = {
+                            'original': 'Overvalued',
+                            'adjusted': 'Fair Value',
+                            'reason': 'Growth signals override DCF conservatism',
+                            'signals': growth_signals
+                        }
+                    elif len(growth_signals) >= 1 and valuation['valuation_assessment'] == 'Overvalued':
+                        # Single signal: log but don't override
+                        logger.info(f"GROWTH SIGNAL: {symbol} DCF says 'Overvalued' but has growth signal: {growth_signals}")
+                        valuation['growth_signals'] = growth_signals
 
                 # Add detailed notes
                 profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
@@ -2611,8 +2664,19 @@ class QualitativeAnalyzer:
 
             logger.info(f"DCF: {symbol} debt={total_debt:,.0f}, cash={cash:,.0f}, ST_investments={short_term_investments:,.0f}, net_debt={net_debt:,.0f}")
 
+            # CRITICAL FIX: If wacc_override provided, DON'T apply automatic adjustments
+            # This allows sensitivity analysis to work correctly (Bug fix)
             if wacc_override:
                 wacc = wacc_override
+                logger.info(f"DCF WACC: {symbol} using OVERRIDE {wacc:.1%} (sensitivity analysis)")
+            elif net_debt < 0 and company_type not in ['financial', 'reit', 'utility', 'asset_manager']:
+                # === Net Cash Bonus ===
+                # Empresas con caja neta (Net Debt < 0) son MENOS riesgosas
+                # Ejemplos: Apple, Google, Microsoft con $100B+ en caja neta
+                # Merecen WACC más bajo (8.5% vs 10-12%)
+                wacc = 0.085  # 8.5% para empresas Quality con caja neta
+                logger.info(f"DCF WACC Adjustment: {symbol} has NET CASH (debt={total_debt:,.0f}, cash={cash:,.0f}, net={net_debt:,.0f}). WACC: 10.0% → {wacc:.1%}")
+                add_note(f"💰 Net Cash Position detected (${abs(net_debt):,.0f}M) - WACC reduced to {wacc:.1%} (reflects lower risk)")
             elif company_type == 'asset_manager':
                 wacc = 0.09  # Lower than banks (asset-light, predictable fees)
                 # Asset managers have stable fee streams, lower leverage than banks
@@ -2623,21 +2687,9 @@ class QualitativeAnalyzer:
             elif company_type == 'utility':
                 wacc = 0.08  # Lowest for utilities (regulated, stable, low risk)
             else:
-                # STANDARD WACC - pero ajustado por calidad de balance
+                # STANDARD WACC
                 wacc = 0.10  # Base standard
-
-            # === CRITICAL ADJUSTMENT: Net Cash Bonus ===
-            # Empresas con caja neta (Net Debt < 0) son MENOS riesgosas
-            # Ejemplos: Apple, Google, Microsoft con $100B+ en caja neta
-            # Merecen WACC más bajo (8.5% vs 10-12%)
-            if net_debt < 0 and company_type not in ['financial', 'reit', 'utility']:
-                # Net cash position (más cash que deuda)
-                original_wacc = wacc
-                wacc = 0.085  # 8.5% para empresas Quality con caja neta
-                logger.info(f"DCF WACC Adjustment: {symbol} has NET CASH (debt={total_debt:,.0f}, cash={cash:,.0f}, net={net_debt:,.0f}). WACC: {original_wacc:.1%} → {wacc:.1%}")
-                add_note(f"💰 Net Cash Position detected (${abs(net_debt):,.0f}M) - WACC reduced to {wacc:.1%} (reflects lower risk)")
-            else:
-                logger.info(f"DCF WACC: {symbol} using {wacc:.1%} (net_debt={net_debt:,.0f})")
+                logger.info(f"DCF WACC: {symbol} using standard {wacc:.1%}")
 
             # === DCF calculation ===
 
