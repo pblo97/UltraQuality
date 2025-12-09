@@ -4733,6 +4733,9 @@ with tab8:
                             Based on: Han, Zhou & Zhu (2016), Dai (2021), Barroso & Santa-Clara (2015)
                             """)
 
+                            # VERSION MARKER - MULTI-STRATEGY v3.1
+                            st.caption("🔖 Code Version: MULTI-STRATEGY v3.1 (Dec 8, 2024)")
+
                             # Backtest type selector
                             backtest_col1, backtest_col2 = st.columns([2, 1])
 
@@ -4764,12 +4767,23 @@ with tab8:
 
                             if run_backtest:
                                 # Debug: Show which backtest type is selected
-                                st.info(f"ℹ️ Running: **{backtest_type}**")
+                                st.info(f"🔍 DEBUG: Running **{backtest_type}**")
+
+                                # Debug: Check if multi_strategy_tester exists
+                                import os
+                                mst_path = "src/screener/technical/multi_strategy_tester.py"
+                                if os.path.exists(mst_path):
+                                    st.success(f"✅ multi_strategy_tester.py exists ({os.path.getsize(mst_path)} bytes)")
+                                else:
+                                    st.error(f"❌ multi_strategy_tester.py NOT FOUND at {mst_path}")
+
                                 # ========== MULTI-STRATEGY COMPARISON ==========
                                 if backtest_type.startswith("📊"):
+                                    st.warning("🚀 ENTERING MULTI-STRATEGY BLOCK")
                                     with st.spinner("Testing 3 simple strategies... This may take 30-60 seconds"):
                                         try:
                                             from screener.technical.multi_strategy_tester import MultiStrategyTester
+                                            st.success("✅ MultiStrategyTester imported successfully")
 
                                             # Get extended historical data for backtesting
                                             from_date_backtest = (datetime.now() - timedelta(days=1500)).strftime('%Y-%m-%d')
@@ -4854,6 +4868,7 @@ with tab8:
 
                                 # ========== SINGLE STRATEGY (MOMENTUM) ==========
                                 else:
+                                    st.warning("🎯 ENTERING SINGLE STRATEGY (MOMENTUM) BLOCK")
                                     with st.spinner("Running walk-forward optimization... This may take 30-60 seconds"):
                                         try:
                                             from screener.technical import (
