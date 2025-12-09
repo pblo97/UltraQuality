@@ -307,6 +307,7 @@ class MultiStrategyTester:
         entry_price = 0
         entry_date = None
         max_price = 0
+        entry_atr_pct = 0  # Store ATR% at entry for position sizing
 
         for idx, row in data.iterrows():
             # Check entry
@@ -316,6 +317,8 @@ class MultiStrategyTester:
                     entry_price = row['close']
                     entry_date = row['date']
                     max_price = row['close']
+                    # Store ATR% for position sizing calculation
+                    entry_atr_pct = row.get('atr_pct', 0)
 
             # Check exit
             else:
@@ -328,6 +331,19 @@ class MultiStrategyTester:
                 )
 
                 if should_exit:
+                    # Calculate position size based on volatility targeting
+                    # Target: 15% portfolio volatility
+                    # Position Size % = Target Vol / Stock Vol
+                    target_vol = 0.15  # 15% target portfolio volatility
+                    if entry_atr_pct > 0:
+                        # ATR% is daily volatility, annualize it: daily * sqrt(252)
+                        annualized_vol = (entry_atr_pct / 100) * (252 ** 0.5)
+                        position_size_pct = (target_vol / annualized_vol) * 100 if annualized_vol > 0 else 100
+                        # Cap at 100% (full portfolio)
+                        position_size_pct = min(100, position_size_pct)
+                    else:
+                        position_size_pct = 100  # Default if no ATR data
+
                     trade = {
                         'entry_date': entry_date,
                         'exit_date': row['date'],
@@ -337,6 +353,8 @@ class MultiStrategyTester:
                         'holding_days': (row['date'] - entry_date).days,
                         'exit_reason': exit_reason,
                         'max_price': max_price,
+                        'atr_pct_at_entry': entry_atr_pct,
+                        'position_size_pct': position_size_pct,  # NEW: Volatility-based sizing
                     }
                     trades.append(trade)
 
@@ -344,6 +362,7 @@ class MultiStrategyTester:
                     entry_price = 0
                     entry_date = None
                     max_price = 0
+                    entry_atr_pct = 0
 
         # Calculate metrics
         metrics = self._calculate_metrics(trades)
