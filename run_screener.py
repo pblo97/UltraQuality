@@ -1820,7 +1820,8 @@ with tab5:
 
                     # Show section if we have intrinsic_value dict (even if current_price is missing)
                     if intrinsic and 'current_price' in intrinsic:
-                        col1, col2, col3, col4, col5 = st.columns(5)
+                        # First row: 4 main valuation metrics
+                        col1, col2, col3, col4 = st.columns(4)
 
                         current_price = intrinsic.get('current_price', 0)
 
@@ -1852,17 +1853,39 @@ with tab5:
                             else:
                                 st.metric("Fair Value", "N/A")
 
-                        with col5:
-                            # Get PEG from correct location
-                            peg_ratio = None
-                            if 'valuation_multiples' in intrinsic:
-                                company_vals = intrinsic['valuation_multiples'].get('company', {})
-                                peg_ratio = company_vals.get('peg', None)
+                        # Second row: PEG Ratio (prominente y visible)
+                        st.markdown("")  # Spacing
 
-                            if peg_ratio and peg_ratio > 0:
-                                st.metric("PEG Ratio", f"{peg_ratio:.2f}")
+                        # Get PEG from correct location
+                        peg_ratio = None
+                        if 'valuation_multiples' in intrinsic:
+                            company_vals = intrinsic['valuation_multiples'].get('company', {})
+                            peg_ratio = company_vals.get('peg', None)
+
+                        if peg_ratio and peg_ratio > 0:
+                            # Color-coded PEG display
+                            if peg_ratio < 1.0:
+                                peg_color = "🟢"
+                                peg_label = "Excelente (Ganga)"
+                            elif peg_ratio < 1.5:
+                                peg_color = "🟢"
+                                peg_label = "Bueno (GARP)"
+                            elif peg_ratio < 2.0:
+                                peg_color = "🟡"
+                                peg_label = "Aceptable"
                             else:
-                                st.metric("PEG Ratio", "N/A")
+                                peg_color = "🔴"
+                                peg_label = "Caro para Growth"
+
+                            col_peg1, col_peg2, col_peg3 = st.columns([1, 2, 2])
+                            with col_peg1:
+                                st.metric("📊 PEG Ratio", f"{peg_ratio:.2f}")
+                            with col_peg2:
+                                st.markdown(f"### {peg_color} **{peg_label}**")
+                            with col_peg3:
+                                st.caption("*PEG < 1.5 = Growth at reasonable price | PEG > 2.0 = Expensive*")
+                        else:
+                            st.info("📊 **PEG Ratio:** N/A (Data not available)")
 
                         # === Valuation Method Recommendation ===
                         # Determine which valuation method is most appropriate
