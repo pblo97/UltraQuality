@@ -667,6 +667,9 @@ class MultiStrategyTester:
             out_metrics = result['out_sample_metrics']
             deg = result['degradation']
 
+            # Calculate Risk/Reward ratio for OOS
+            oos_rr = abs(out_metrics['avg_win'] / out_metrics['avg_loss']) if out_metrics['avg_loss'] != 0 else 0
+
             comparison.append({
                 'Strategy': result['strategy_name'],
                 'Priority': result['priority'],
@@ -677,9 +680,13 @@ class MultiStrategyTester:
                 'IS Sharpe': f"{in_metrics['sharpe_ratio']:.2f}",
                 'IS Return': f"{in_metrics['total_return']:.1f}%",
 
-                # Out-of-Sample (Testing)
+                # Out-of-Sample (Testing) - METRICS FOR TIMING
                 'OOS Trades': out_metrics['num_trades'],
                 'OOS Win Rate': f"{out_metrics['win_rate']:.1f}%",
+                'OOS Avg Win': f"{out_metrics['avg_win']:.2f}%",
+                'OOS Avg Loss': f"{out_metrics['avg_loss']:.2f}%",
+                'OOS Profit Factor': f"{out_metrics['profit_factor']:.2f}",
+                'OOS R/R': f"{oos_rr:.2f}",
                 'OOS Sharpe': f"{out_metrics['sharpe_ratio']:.2f}",
                 'OOS Return': f"{out_metrics['total_return']:.1f}%",
 
