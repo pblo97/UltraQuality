@@ -49,13 +49,13 @@ class MultiStrategyTester:
         self.strategies = {
             'quality_value_entry': {
                 'name': 'Quality/Value Entry',
-                'description': 'MA200 + Momentum 12m + Near 52w High (Academic timing filters)',
+                'description': 'MA200 + Momentum 6m + Within 30% of 52w High (Relaxed filters)',
                 'priority': 1,  # MÁXIMA PRIORIDAD para Q/V timing
                 'params': {
                     'trailing_stop_pct': 20,  # Stop amplio para capturar tendencia
                     'ma_period': 200,  # Trend filter
-                    'momentum_12m_min': 0,  # Momentum positivo (top performers)
-                    'high_52w_threshold': 0.85,  # Dentro del 15% del máximo 52w
+                    'momentum_6m_min': 0,  # Momentum 6m positivo (más reactivo que 12m)
+                    'high_52w_threshold': 0.70,  # Dentro del 30% del máximo 52w
                     'ma200_exit_days': 1,  # Sale inmediatamente si rompe MA200
                 }
             },
@@ -125,9 +125,10 @@ class MultiStrategyTester:
             df['ma_50'] = df['close'].rolling(window=params['ma_short']).mean()
 
         # Momentum
-        if 'momentum_12m_min' in params or 'momentum_3m_min' in params or 'momentum_exit' in params:
+        if 'momentum_12m_min' in params or 'momentum_6m_min' in params or 'momentum_3m_min' in params or 'momentum_exit' in params:
             df['momentum_12m'] = df['close'].pct_change(252) * 100  # 252 trading days = 1 año
-            df['momentum_3m'] = df['close'].pct_change(63) * 100   # 63 trading days = 3 meses
+            df['momentum_6m'] = df['close'].pct_change(126) * 100   # 126 trading days = 6 meses
+            df['momentum_3m'] = df['close'].pct_change(63) * 100    # 63 trading days = 3 meses
 
         # 52-week high (para Quality/Value Entry)
         if 'high_52w_threshold' in params:
@@ -181,13 +182,13 @@ class MultiStrategyTester:
             else:
                 return False  # Necesita MA200
 
-            # 2. Momentum 12m > 0% (top performers)
-            if not pd.isna(row['momentum_12m']):
-                conditions.append(row['momentum_12m'] > params['momentum_12m_min'])
+            # 2. Momentum 6m > 0% (top performers, más reactivo que 12m)
+            if not pd.isna(row['momentum_6m']):
+                conditions.append(row['momentum_6m'] > params['momentum_6m_min'])
             else:
                 return False  # Necesita momentum
 
-            # 3. Cerca del máximo de 52 semanas (dentro del 15%)
+            # 3. Dentro del 30% del máximo de 52 semanas (relajado de 15% a 30%)
             if not pd.isna(row['distance_from_52w_high']):
                 conditions.append(row['distance_from_52w_high'] >= params['high_52w_threshold'])
             else:
