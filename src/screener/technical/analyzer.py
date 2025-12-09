@@ -308,10 +308,13 @@ class EnhancedTechnicalAnalyzer:
         - Momentum works +20% better in bull markets
         - In bear markets, momentum decays 60% (crowding)
 
-        Logic:
+        Logic (REAL-TIME):
         - BULL: SPY > MA200 AND VIX < 20
         - BEAR: SPY < MA200 AND VIX > 30
         - SIDEWAYS: Everything else
+
+        NOTE: Para BACKTESTING, usar evaluación MENSUAL (último día del mes)
+        para evitar whipsaws en cruces volátiles. Ver multi_strategy_tester.py.
 
         Returns:
             regime: 'BULL' | 'BEAR' | 'SIDEWAYS'
@@ -407,17 +410,20 @@ class EnhancedTechnicalAnalyzer:
                 return 0, {'error': f'Insufficient data ({len(prices)} < 250)', '12m': 0, '6m': 0, '3m': 0, '1m': 0, 'consistency': 'N/A', 'status': 'N/A'}
 
             # Get prices at specific dates
+            # NOTE: Para 6M y 12M, excluimos el último mes para evitar reversión (Jegadeesh & Titman)
             current_price = prices[-1]['close']
-            price_1m = prices[-22]['close'] if len(prices) >= 22 else current_price
+            price_1m_ago = prices[-22]['close'] if len(prices) >= 22 else current_price  # Hace 1 mes
             price_3m = prices[-66]['close'] if len(prices) >= 66 else current_price
             price_6m = prices[-132]['close'] if len(prices) >= 132 else current_price
             price_12m = prices[-250]['close'] if len(prices) >= 250 else current_price
 
             # Calculate returns
-            ret_1m = ((current_price - price_1m) / price_1m * 100) if price_1m > 0 else 0
-            ret_3m = ((current_price - price_3m) / price_3m * 100) if price_3m > 0 else 0
-            ret_6m = ((current_price - price_6m) / price_6m * 100) if price_6m > 0 else 0
-            ret_12m = ((current_price - price_12m) / price_12m * 100) if price_12m > 0 else 0
+            ret_1m = ((current_price - price_1m_ago) / price_1m_ago * 100) if price_1m_ago > 0 else 0  # 1 mes normal
+            ret_3m = ((current_price - price_3m) / price_3m * 100) if price_3m > 0 else 0  # 3 meses normal
+            # Momentum 6-1m: desde hace 6 meses hasta hace 1 mes (excluye mes actual)
+            ret_6m = ((price_1m_ago - price_6m) / price_6m * 100) if price_6m > 0 else 0
+            # Momentum 12-1m: desde hace 12 meses hasta hace 1 mes (excluye mes actual)
+            ret_12m = ((price_1m_ago - price_12m) / price_12m * 100) if price_12m > 0 else 0
 
             # Score each timeframe
             score_12m = self._score_return(ret_12m, max_return=60) * 10  # 0-10 pts

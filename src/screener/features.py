@@ -169,6 +169,69 @@ class FeatureCalculator:
         features['pe_ttm'] = met.get('peRatioTTM') or rat.get('priceEarningsRatioTTM')
         features['pb_ttm'] = met.get('pbRatioTTM') or rat.get('priceToBookRatioTTM')
 
+        # === NEW: PEG RATIO (Price/Earnings to Growth) ===
+        # Critical for Growth stocks - normalizes P/E by growth rate
+        # PEG < 1.0 = Ganga, < 1.5 = GARP, > 2.0 = Sobrevalorado
+        pe_ratio = features['pe_ttm']
+        if pe_ratio and pe_ratio > 0 and len(income) >= 8:
+            # Calculate earnings growth: Last 4Q vs Previous 4Q (YoY)
+            earnings_last_4q = self._sum_ttm(income[0:4], 'netIncome')
+            earnings_prev_4q = self._sum_ttm(income[4:8], 'netIncome')
+
+            if earnings_last_4q and earnings_prev_4q and earnings_prev_4q > 0:
+                earnings_growth = ((earnings_last_4q - earnings_prev_4q) / abs(earnings_prev_4q)) * 100
+                # PEG Ratio = P/E / Growth Rate
+                if earnings_growth > 0:  # Only calculate for positive growth
+                    features['peg_ratio'] = pe_ratio / earnings_growth
+                else:
+                    features['peg_ratio'] = None  # Negative growth = N/A
+            else:
+                features['peg_ratio'] = None
+        else:
+            features['peg_ratio'] = None
+
+        # === NEW: VALUATION SCORE COMBINADO (Academic Quant) ===
+        # Ponderado: 40% EV/EBIT + 30% PEG + 30% FCF Yield
+        # Para evitar falsos negativos en Growth stocks
+        valuation_components = []
+
+        # 1. EV/EBIT Score (Acquirer's Multiple)
+        # Target: EV/EBIT < 15x (Earnings Yield > 6.67%)
+        if features['earnings_yield'] and features['earnings_yield'] > 0:
+            # Convert yield to score: 0-100 (6.67% yield = 100 pts)
+            ev_ebit_score = min(100, (features['earnings_yield'] / 6.67) * 100)
+            valuation_components.append(('ev_ebit', ev_ebit_score, 0.40))
+
+        # 2. PEG Score (Growth-adjusted)
+        # Target: PEG < 1.5
+        if features['peg_ratio'] and features['peg_ratio'] > 0:
+            # Lower PEG = better score
+            if features['peg_ratio'] < 1.0:
+                peg_score = 100  # Ganga
+            elif features['peg_ratio'] < 1.5:
+                peg_score = 80  # GARP (Growth at Reasonable Price)
+            elif features['peg_ratio'] < 2.0:
+                peg_score = 50  # Fair
+            else:
+                peg_score = max(0, 50 - ((features['peg_ratio'] - 2.0) * 20))  # Penalty
+            valuation_components.append(('peg', peg_score, 0.30))
+
+        # 3. FCF Yield Score
+        # Target: FCF Yield > 5% (above risk-free rate ~4%)
+        if features['fcf_yield'] and features['fcf_yield'] > 0:
+            fcf_score = min(100, (features['fcf_yield'] / 5.0) * 100)
+            valuation_components.append(('fcf', fcf_score, 0.30))
+
+        # Calculate weighted valuation score
+        if valuation_components:
+            total_weight = sum(w for _, _, w in valuation_components)
+            weighted_score = sum(score * (weight / total_weight) for _, score, weight in valuation_components)
+            features['valuation_score'] = round(weighted_score, 1)
+            features['valuation_components'] = {name: round(score, 1) for name, score, _ in valuation_components}
+        else:
+            features['valuation_score'] = None
+            features['valuation_components'] = {}
+
         # NOTE: Quality-adjusted yields will be calculated later in scoring.py
         # after ROIC is computed, since ROIC depends on data not yet available here
 
@@ -530,6 +593,75 @@ class FeatureCalculator:
 
         # Net Share Issuance (calculated later in guardrails, placeholder here)
         features['netShareIssuance_%'] = None
+
+        # === NEW: VALUATION SCORE PARA FINANCIERAS ===
+        # Basado en P/TBV, ROE, Dividend Yield (academia bancaria)
+        # Ver: Fama-French banking factors, Credit Suisse Global Investment Returns Yearbook
+        financial_val_components = []
+
+        # 1. P/TBV Absoluto Score
+        # Target: P/TBV < 1.0 (trade below tangible book = ganga)
+        # P/TBV > 2.0 (premium quality o sobrevalorado)
+        if features['p_tangibleBook'] and features['p_tangibleBook'] > 0:
+            p_tbv = features['p_tangibleBook']
+            if p_tbv < 1.0:
+                p_tbv_score = 100  # Trade below book (distressed o value trap)
+            elif p_tbv < 1.5:
+                p_tbv_score = 80  # Fair value
+            elif p_tbv < 2.0:
+                p_tbv_score = 60  # Moderado
+            else:
+                # Penalty por cada 0.5x sobre 2.0
+                p_tbv_score = max(0, 60 - ((p_tbv - 2.0) / 0.5) * 20)
+            financial_val_components.append(('p_tbv', p_tbv_score, 0.40))
+
+        # 2. ROE Adjustment (CRITICAL for banks)
+        # No sirve P/TBV < 1.0 si ROE = 2% (value trap)
+        # ROE alto justifica P/TBV alto
+        # Regla: P/TBV Fair = ROE / 10 (e.g., ROE 15% → P/TBV 1.5x)
+        if features['p_tangibleBook'] and features['roe_%']:
+            p_tbv = features['p_tangibleBook']
+            roe = features['roe_%']
+            fair_p_tbv = roe / 10  # Fair value múltiple basado en ROE
+
+            # Calculate mispricing: actual vs fair
+            if fair_p_tbv > 0:
+                mispricing = ((fair_p_tbv - p_tbv) / fair_p_tbv) * 100
+                # Positive mispricing = undervalued (fair > actual)
+                # Target: 20%+ undervalued = 100 pts
+                if mispricing > 20:
+                    roe_adj_score = 100
+                elif mispricing > 10:
+                    roe_adj_score = 80
+                elif mispricing > 0:
+                    roe_adj_score = 60
+                elif mispricing > -10:
+                    roe_adj_score = 40
+                else:
+                    roe_adj_score = max(0, 40 + (mispricing + 10) * 2)  # Penalty
+                financial_val_components.append(('roe_adj', roe_adj_score, 0.40))
+
+        # 3. Dividend Yield Score
+        # Target: 5-7% sostenible (evidencia de cash generation real)
+        if features['dividendYield_%'] and features['dividendYield_%'] > 0:
+            div_yield = features['dividendYield_%']
+            if div_yield >= 5:
+                div_score = 100  # Excellent yield
+            elif div_yield >= 3:
+                div_score = 60 + ((div_yield - 3) / 2) * 40  # Linear 3-5%
+            else:
+                div_score = max(0, (div_yield / 3) * 60)  # Below 3%
+            financial_val_components.append(('dividend', div_score, 0.20))
+
+        # Calculate weighted valuation score for financials
+        if financial_val_components:
+            total_weight = sum(w for _, _, w in financial_val_components)
+            weighted_score = sum(score * (weight / total_weight) for _, score, weight in financial_val_components)
+            features['valuation_score'] = round(weighted_score, 1)
+            features['valuation_components'] = {name: round(score, 1) for name, score, _ in financial_val_components}
+        else:
+            features['valuation_score'] = None
+            features['valuation_components'] = {}
 
         # === QUALITY METRICS ===
 

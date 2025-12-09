@@ -704,6 +704,19 @@ class QualitativeAnalyzer:
             logger.warning(f"Failed to get ownership data for {symbol}: {e}")
 
         # === 2. INSIDER TRADING ACTIVITY with CLUSTER DETECTION ===
+        # IMPORTANT: Filtro de ruido para Mega-Caps (>$100B)
+        # En empresas masivas, ventas pequeñas (<50% tenencia) son ruido de 10b5-1 plans
+        profile = None
+        market_cap = 0
+        try:
+            profile = self.fmp.get_profile(symbol)
+            if profile:
+                market_cap = profile[0].get('mktCap', 0)
+        except:
+            pass
+
+        is_mega_cap = market_cap > 100_000_000_000  # >$100B
+
         try:
             # Get insider trading transactions (last 6 months)
             insider_trades = self.fmp.get_insider_trading(symbol, limit=100)
@@ -795,9 +808,16 @@ class QualitativeAnalyzer:
                     skin['sell_clusters'] = sell_clusters
                     skin['cluster_warning'] = f"⚠️  Insider selling cluster detected: {len(sell_clusters)} dates with 3+ executives selling"
 
-                # CEO selling >20% of holdings
-                if ceo_sell_pct > 20:
-                    skin['ceo_large_sale'] = f"⚠️  CEO sold {ceo_sell_pct:.1f}% of holdings in last 6 months"
+                # CEO selling threshold: Ajustado por tamaño de empresa
+                # Mega-caps (>$100B): Solo alertar si venta >50% (ventas menores = 10b5-1 rutinario)
+                # Empresas normales: Alertar si venta >20%
+                ceo_sell_threshold = 50 if is_mega_cap else 20
+
+                if ceo_sell_pct > ceo_sell_threshold:
+                    skin['ceo_large_sale'] = f"⚠️  CEO sold {ceo_sell_pct:.1f}% of holdings in last 6 months (threshold: {ceo_sell_threshold}%)"
+                elif is_mega_cap and ceo_sell_pct > 0:
+                    # Mega-cap con venta pequeña: Nota informativa, no warning
+                    skin['ceo_sale_note'] = f"ℹ️  CEO sold {ceo_sell_pct:.1f}% (likely routine 10b5-1 plan for mega-cap)"
 
         except Exception as e:
             logger.debug(f"Failed to get insider trading for {symbol}: {e}")
@@ -2579,7 +2599,12 @@ class QualitativeAnalyzer:
                 # Stage 2 (terminal): 3% perpetual
                 terminal_growth = 0.03
 
-            # === WACC (use industry-specific if provided) ===
+            # === WACC DINÁMICO (ajuste por Net Cash Position) ===
+
+            # Calculate net debt FIRST to adjust WACC
+            total_debt = balance[0].get('totalDebt', 0)
+            cash = balance[0].get('cashAndCashEquivalents', 0)
+            net_debt = total_debt - cash
 
             if wacc_override:
                 wacc = wacc_override
@@ -2593,7 +2618,21 @@ class QualitativeAnalyzer:
             elif company_type == 'utility':
                 wacc = 0.08  # Lowest for utilities (regulated, stable, low risk)
             else:
-                wacc = 0.10  # Standard
+                # STANDARD WACC - pero ajustado por calidad de balance
+                wacc = 0.10  # Base standard
+
+            # === CRITICAL ADJUSTMENT: Net Cash Bonus ===
+            # Empresas con caja neta (Net Debt < 0) son MENOS riesgosas
+            # Ejemplos: Apple, Google, Microsoft con $100B+ en caja neta
+            # Merecen WACC más bajo (8.5% vs 10-12%)
+            if net_debt < 0 and company_type not in ['financial', 'reit', 'utility']:
+                # Net cash position (más cash que deuda)
+                original_wacc = wacc
+                wacc = 0.085  # 8.5% para empresas Quality con caja neta
+                logger.info(f"DCF WACC Adjustment: {symbol} has NET CASH (debt={total_debt:,.0f}, cash={cash:,.0f}, net={net_debt:,.0f}). WACC: {original_wacc:.1%} → {wacc:.1%}")
+                add_note(f"💰 Net Cash Position detected (${abs(net_debt):,.0f}M) - WACC reduced to {wacc:.1%} (reflects lower risk)")
+            else:
+                logger.info(f"DCF WACC: {symbol} using {wacc:.1%} (net_debt={net_debt:,.0f})")
 
             # === DCF calculation ===
 
@@ -2613,11 +2652,7 @@ class QualitativeAnalyzer:
             # Enterprise value
             ev = fcf_pv + terminal_pv
 
-            # Convert to equity value
-            total_debt = balance[0].get('totalDebt', 0)
-            cash = balance[0].get('cashAndCashEquivalents', 0)
-            net_debt = total_debt - cash
-
+            # Convert to equity value (using net_debt calculated earlier for WACC)
             equity_value = ev - net_debt
 
             # Per share
@@ -4668,15 +4703,23 @@ class QualitativeAnalyzer:
             return {}
 
     def _interpret_reverse_dcf(self, implied_growth: float, actual_growth: float) -> str:
-        """Interpret what the implied growth means."""
+        """
+        Interpret what the implied growth means.
+
+        CRITICAL FIX: Lógica correcta de Reverse DCF
+        - Si Implied Growth < Actual Growth → UNDERVALUED (mercado espera menos)
+        - Si Implied Growth > Actual Growth → OVERVALUED (mercado espera más)
+        """
         if implied_growth > actual_growth * 1.5:
-            return "Market expects significant acceleration"
+            return "OVERVALUED: Market expects significant acceleration (+50%+ above actual)"
         elif implied_growth > actual_growth * 1.2:
-            return "Market pricing in growth above current trend"
+            return "OVERVALUED: Market pricing in growth above current trend (+20%)"
         elif implied_growth >= actual_growth * 0.8:
-            return "Market expects continuation of current trend"
+            return "FAIR VALUE: Market expects continuation of current trend (±20%)"
+        elif implied_growth >= actual_growth * 0.5:
+            return "UNDERVALUED: Market expects moderate slowdown (implied < actual)"
         else:
-            return "Market expects slowdown or challenges"
+            return "UNDERVALUED: Market is very pessimistic (implied << actual growth)"
 
     def _calculate_earnings_quality(self, symbol: str) -> Dict:
         """
