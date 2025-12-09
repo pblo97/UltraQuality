@@ -24,14 +24,11 @@ logger = logging.getLogger(__name__)
 
 class MultiStrategyTester:
     """
-    Tests 5 strategies for quality/value stocks timing.
+    Academic momentum strategies for quality/value stocks.
 
-    Strategies:
-    1. Quality/Value Entry (NEW) - Academic filters for Q/V timing
-    2. Momentum 12M Academic - Ultra-robust, 100 years of evidence
-    3. Price-Volume Simple - Literature-backed best performer
-    4. Pullback Simple - Price action only
-    5. Momentum Puro - Baseline comparison
+    Focus on robust, evidence-based strategies:
+    1. Momentum Academic Universal (MAIN) - Composite momentum with regime filter
+    2. Momentum 12M Academic - 100 years of evidence baseline
     """
 
     def __init__(self, prices_df: pd.DataFrame):
@@ -45,114 +42,92 @@ class MultiStrategyTester:
         self.prices['date'] = pd.to_datetime(self.prices['date'])
         self.prices = self.prices.sort_values('date').reset_index(drop=True)
 
-        # Strategy definitions
+        # Strategy definitions - Academic momentum only
         self.strategies = {
-            'quality_value_entry': {
-                'name': 'Quality/Value Entry',
-                'description': 'MA200 + Momentum 6m + Within 30% of 52w High (Relaxed filters)',
-                'priority': 1,  # MÁXIMA PRIORIDAD para Q/V timing
+            'momentum_academic_universal': {
+                'name': 'Momentum Academic Universal',
+                'description': 'Composite Momentum (12-1m + 6-1m) + Regime Filter + ATR Sizing',
+                'priority': 1,  # MAIN STRATEGY
                 'params': {
-                    'trailing_stop_pct': 20,  # Stop amplio para capturar tendencia
-                    'ma_period': 200,  # Trend filter
-                    'momentum_6m_min': 0,  # Momentum 6m positivo (más reactivo que 12m)
-                    'high_52w_threshold': 0.70,  # Dentro del 30% del máximo 52w
-                    'ma200_exit_days': 1,  # Sale inmediatamente si rompe MA200
+                    'composite_momentum_min': 0,  # Composite > 0%
+                    'ma_period': 200,  # Stock trend filter
+                    'spy_ma_period': 200,  # Market regime filter (SPY)
+                    'use_regime_filter': True,  # Require SPY > MA200
+                    'atr_period': 14,  # For position sizing
+                    'target_volatility': 0.15,  # 15% target risk
+                    'ma200_exit': True,  # Exit if stock < MA200
+                    'spy_exit': True,  # Exit if SPY < MA200 (bear market)
                 }
             },
             'momentum_12m_academic': {
                 'name': 'Momentum 12M Academic',
-                'description': 'Solo Momentum 12m > 0% (Jegadeesh & Titman 1993-2001, Moskowitz 2012)',
-                'priority': 2,
+                'description': 'Baseline: Momentum 12m > 0% (Jegadeesh & Titman 1993-2001)',
+                'priority': 2,  # BASELINE COMPARISON
                 'params': {
-                    'trailing_stop_pct': 20,  # Más amplio para mejor generalización
-                    'momentum_12m_min': 0,  # Solo > 0%, sin otros filtros
-                    'momentum_exit': -10,  # Sale si cae -10%
-                }
-            },
-            'price_volume_simple': {
-                'name': 'Price-Volume Simple',
-                'description': 'Precio > MA200 + Volumen alto + Momentum 3m positivo',
-                'priority': 3,
-                'params': {
-                    'trailing_stop_pct': 15,  # Dai et al. (2021)
-                    'volume_multiplier': 1.5,  # Volumen > 1.5x promedio
-                    'ma_period': 200,
-                    'momentum_3m_min': 0,  # Momentum 3 meses > 0%
-                    'ma200_exit_days': 3,  # 3 días consecutivos debajo
-                }
-            },
-            'pullback_simple': {
-                'name': 'Pullback Simple',
-                'description': 'Uptrend + Pullback a MA50 + Volumen',
-                'priority': 4,
-                'params': {
-                    'trailing_stop_pct': 15,
-                    'ma_long': 200,  # Define uptrend
-                    'ma_short': 50,  # Nivel de pullback
-                    'pullback_tolerance': 0.02,  # 2% de la MA50
-                    'volume_multiplier': 1.0,  # Volumen normal
-                }
-            },
-            'momentum_puro': {
-                'name': 'Momentum Puro',
-                'description': 'Momentum 12m + MA200 (baseline)',
-                'priority': 5,
-                'params': {
-                    'trailing_stop_pct': 15,
-                    'momentum_12m_min': 5,  # >5% anual
-                    'momentum_3m_exit': -5,  # Sale si momentum 3m < -5%
-                    'ma_period': 200,
+                    'momentum_12m_min': 0,  # Simple momentum > 0%
+                    'ma_period': 200,  # Trend filter
+                    'spy_ma_period': 200,  # Market regime
+                    'use_regime_filter': True,  # Require SPY > MA200
+                    'ma200_exit': True,  # Exit if stock < MA200
+                    'spy_exit': True,  # Exit if SPY < MA200
                 }
             }
         }
 
-    def _calculate_indicators(self, data: pd.DataFrame, strategy_name: str) -> pd.DataFrame:
+    def _calculate_indicators(self, data: pd.DataFrame, strategy_name: str, spy_data: pd.DataFrame = None) -> pd.DataFrame:
         """
-        Calculate ONLY the indicators needed for the specific strategy.
-        No RSI, no MACD, no BB - solo precio y volumen.
+        Calculate academic momentum indicators.
+
+        Args:
+            data: Stock price data
+            strategy_name: Strategy key
+            spy_data: SPY data for market regime (optional)
         """
         df = data.copy()
         strategy = self.strategies[strategy_name]
         params = strategy['params']
 
-        # Indicadores comunes (precio)
+        # Stock MA200 (trend filter)
         if 'ma_period' in params:
             df['ma_200'] = df['close'].rolling(window=params['ma_period']).mean()
 
-        if 'ma_long' in params:
-            df['ma_200'] = df['close'].rolling(window=params['ma_long']).mean()
-        if 'ma_short' in params:
-            df['ma_50'] = df['close'].rolling(window=params['ma_short']).mean()
+        # Momentum calculations
+        if 'momentum_12m_min' in params:
+            # Simple momentum 12m (exclude last month to avoid reversal)
+            df['momentum_12_1m'] = df['close'].pct_change(252 - 21) * 100  # 12-1 months
+            df['momentum_12m'] = df['momentum_12_1m']  # For compatibility
 
-        # Momentum
-        if 'momentum_12m_min' in params or 'momentum_6m_min' in params or 'momentum_3m_min' in params or 'momentum_exit' in params:
-            df['momentum_12m'] = df['close'].pct_change(252) * 100  # 252 trading days = 1 año
-            df['momentum_6m'] = df['close'].pct_change(126) * 100   # 126 trading days = 6 meses
-            df['momentum_3m'] = df['close'].pct_change(63) * 100    # 63 trading days = 3 meses
+        # Composite momentum (for universal strategy)
+        if 'composite_momentum_min' in params:
+            # Momentum 12-1 months
+            df['momentum_12_1m'] = df['close'].pct_change(252 - 21) * 100
+            # Momentum 6-1 months
+            df['momentum_6_1m'] = df['close'].pct_change(126 - 21) * 100
+            # Composite: 50% each
+            df['composite_momentum'] = (0.5 * df['momentum_12_1m']) + (0.5 * df['momentum_6_1m'])
 
-        # 52-week high (para Quality/Value Entry)
-        if 'high_52w_threshold' in params:
-            df['high_52w'] = df['high'].rolling(window=252).max()  # 252 trading days = 1 año
-            df['distance_from_52w_high'] = df['close'] / df['high_52w']  # Ratio (1.0 = en el máximo)
+        # ATR for position sizing (volatility targeting)
+        if 'atr_period' in params:
+            high_low = df['high'] - df['low']
+            high_close = np.abs(df['high'] - df['close'].shift())
+            low_close = np.abs(df['low'] - df['close'].shift())
 
-        # Volumen promedio
-        if 'volume_multiplier' in params:
-            df['avg_volume_20d'] = df['volume'].rolling(window=20).mean()
+            true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+            df['atr'] = true_range.rolling(window=params['atr_period']).mean()
+            df['atr_pct'] = (df['atr'] / df['close']) * 100  # ATR as % of price
 
-        # Tracking de días consecutivos debajo de MA200
-        if 'ma200_exit_days' in params:
-            df['below_ma200'] = df['close'] < df['ma_200']
-            df['days_below_ma200'] = 0
+        # SPY regime filter
+        if 'spy_ma_period' in params and spy_data is not None:
+            spy_df = spy_data.copy()
+            spy_df['spy_ma_200'] = spy_df['close'].rolling(window=params['spy_ma_period']).mean()
+            spy_df['spy_regime'] = spy_df['close'] > spy_df['spy_ma_200']  # True = Bull, False = Bear
 
-            consecutive_days = 0
-            days_below = []
-            for below in df['below_ma200']:
-                if below:
-                    consecutive_days += 1
-                else:
-                    consecutive_days = 0
-                days_below.append(consecutive_days)
-            df['days_below_ma200'] = days_below
+            # Merge SPY regime to stock data by date
+            df = df.merge(
+                spy_df[['date', 'spy_ma_200', 'spy_regime']],
+                on='date',
+                how='left'
+            )
 
         return df
 
@@ -163,8 +138,7 @@ class MultiStrategyTester:
         position_open: bool
     ) -> bool:
         """
-        Check entry signal for specific strategy.
-        Returns True if should enter position.
+        Check entry signal (academic momentum strategies).
         """
         if position_open:
             return False
@@ -172,105 +146,53 @@ class MultiStrategyTester:
         strategy = self.strategies[strategy_name]
         params = strategy['params']
 
-        # Strategy 0: Quality/Value Entry (ACADEMIC TIMING)
-        if strategy_name == 'quality_value_entry':
+        # Strategy 1: Momentum Academic Universal (MAIN)
+        if strategy_name == 'momentum_academic_universal':
             conditions = []
 
-            # 1. Precio > MA200 (uptrend confirmado)
-            if not pd.isna(row['ma_200']):
-                conditions.append(row['close'] > row['ma_200'])
-            else:
-                return False  # Necesita MA200
-
-            # 2. Momentum 6m > 0% (top performers, más reactivo que 12m)
-            if not pd.isna(row['momentum_6m']):
-                conditions.append(row['momentum_6m'] > params['momentum_6m_min'])
-            else:
-                return False  # Necesita momentum
-
-            # 3. Dentro del 30% del máximo de 52 semanas (relajado de 15% a 30%)
-            if not pd.isna(row['distance_from_52w_high']):
-                conditions.append(row['distance_from_52w_high'] >= params['high_52w_threshold'])
-            else:
-                return False  # Necesita 52w high
-
-            return all(conditions)
-
-        # Strategy 1: Momentum 12M Academic (ULTRA-ROBUST)
-        if strategy_name == 'momentum_12m_academic':
-            # Solo una condición: momentum_12m > 0%
-            # Sin MA200, sin volumen, sin otros filtros
-            # 100 años de evidencia académica (Jegadeesh & Titman 1993-2001, Moskowitz 2012)
-            if not pd.isna(row['momentum_12m']):
-                return row['momentum_12m'] > params['momentum_12m_min']
-            else:
-                return False  # Necesita momentum_12m
-
-        # Strategy 1: Price-Volume Simple (PRIORITY)
-        elif strategy_name == 'price_volume_simple':
-            # Todas las condiciones deben cumplirse
-            conditions = []
-
-            # 1. Precio > MA200
-            if not pd.isna(row['ma_200']):
-                conditions.append(row['close'] > row['ma_200'])
-            else:
-                return False  # Necesita MA200
-
-            # 2. Volumen > 1.5x promedio
-            if not pd.isna(row['avg_volume_20d']) and row['avg_volume_20d'] > 0:
-                conditions.append(row['volume'] > params['volume_multiplier'] * row['avg_volume_20d'])
-            else:
-                conditions.append(True)  # Si no hay datos de volumen, ignora esta condición
-
-            # 3. Momentum 3m > 0%
-            if not pd.isna(row['momentum_3m']):
-                conditions.append(row['momentum_3m'] > params['momentum_3m_min'])
-            else:
-                return False  # Necesita momentum
-
-            return all(conditions)
-
-        # Strategy 2: Pullback Simple
-        elif strategy_name == 'pullback_simple':
-            conditions = []
-
-            # 1. Uptrend: Precio > MA200
+            # 1. Stock > MA200 (individual trend filter)
             if not pd.isna(row['ma_200']):
                 conditions.append(row['close'] > row['ma_200'])
             else:
                 return False
 
-            # 2. Pullback a MA50: precio toca MA50 (±2%)
-            if not pd.isna(row['ma_50']):
-                distance_to_ma50 = abs(row['close'] - row['ma_50']) / row['ma_50']
-                conditions.append(distance_to_ma50 <= params['pullback_tolerance'])
+            # 2. Composite Momentum > 0%
+            if not pd.isna(row['composite_momentum']):
+                conditions.append(row['composite_momentum'] > params['composite_momentum_min'])
             else:
                 return False
 
-            # 3. Volumen normal o alto
-            if not pd.isna(row['avg_volume_20d']) and row['avg_volume_20d'] > 0:
-                conditions.append(row['volume'] >= params['volume_multiplier'] * row['avg_volume_20d'])
-            else:
-                conditions.append(True)
+            # 3. Market regime filter (SPY > MA200)
+            if params['use_regime_filter']:
+                if 'spy_regime' in row and not pd.isna(row['spy_regime']):
+                    conditions.append(row['spy_regime'] == True)  # Bull market required
+                else:
+                    return False  # No SPY data = no entry
 
             return all(conditions)
 
-        # Strategy 3: Momentum Puro (baseline)
-        elif strategy_name == 'momentum_puro':
+        # Strategy 2: Momentum 12M Academic (BASELINE)
+        elif strategy_name == 'momentum_12m_academic':
             conditions = []
 
-            # 1. Momentum 12m > 5%
+            # 1. Stock > MA200
+            if not pd.isna(row['ma_200']):
+                conditions.append(row['close'] > row['ma_200'])
+            else:
+                return False
+
+            # 2. Momentum 12m > 0%
             if not pd.isna(row['momentum_12m']):
                 conditions.append(row['momentum_12m'] > params['momentum_12m_min'])
             else:
                 return False
 
-            # 2. Precio > MA200
-            if not pd.isna(row['ma_200']):
-                conditions.append(row['close'] > row['ma_200'])
-            else:
-                return False
+            # 3. Market regime filter (SPY > MA200)
+            if params['use_regime_filter']:
+                if 'spy_regime' in row and not pd.isna(row['spy_regime']):
+                    conditions.append(row['spy_regime'] == True)
+                else:
+                    return False
 
             return all(conditions)
 
@@ -284,50 +206,21 @@ class MultiStrategyTester:
         strategy_name: str
     ) -> Tuple[bool, str]:
         """
-        Check exit signal for specific strategy.
-        Returns (should_exit, exit_reason).
+        Check exit signal (simple, robust rules).
         """
         strategy = self.strategies[strategy_name]
         params = strategy['params']
 
-        # Trailing stop (común a todas las estrategias)
-        trailing_stop_pct = params['trailing_stop_pct']
-        trailing_stop_price = max_price * (1 - trailing_stop_pct / 100)
-
-        if row['close'] <= trailing_stop_price:
-            return True, f"trailing_stop_{trailing_stop_pct}pct"
-
-        # Strategy-specific exits
-
-        # Strategy 0: Quality/Value Entry
-        if strategy_name == 'quality_value_entry':
-            # Exit: Cierra por debajo de MA200 (pierde tendencia)
-            if 'days_below_ma200' in row and row['days_below_ma200'] >= params['ma200_exit_days']:
-                return True, "break_ma200_trend"
-
-        # Strategy 1: Momentum 12M Academic
-        if strategy_name == 'momentum_12m_academic':
-            # Exit: Momentum 12m cae por debajo de -10%
-            if not pd.isna(row['momentum_12m']) and row['momentum_12m'] < params['momentum_exit']:
-                return True, "momentum_deterioration"
-
-        # Strategy 1: Price-Volume Simple
-        elif strategy_name == 'price_volume_simple':
-            # Exit: 3 días consecutivos debajo de MA200
-            if 'days_below_ma200' in row and row['days_below_ma200'] >= params['ma200_exit_days']:
-                return True, "below_ma200_3days"
-
-        # Strategy 2: Pullback Simple
-        elif strategy_name == 'pullback_simple':
-            # Exit: Precio rompe MA200 a la baja
+        # Exit 1: Stock breaks MA200 (loses trend)
+        if params.get('ma200_exit', False):
             if not pd.isna(row['ma_200']) and row['close'] < row['ma_200']:
-                return True, "break_ma200"
+                return True, "stock_below_ma200"
 
-        # Strategy 3: Momentum Puro
-        elif strategy_name == 'momentum_puro':
-            # Exit: Momentum 3m < -5%
-            if not pd.isna(row['momentum_3m']) and row['momentum_3m'] < params['momentum_3m_exit']:
-                return True, "momentum_deterioration"
+        # Exit 2: SPY breaks MA200 (bear market)
+        if params.get('spy_exit', False):
+            if 'spy_regime' in row and not pd.isna(row['spy_regime']):
+                if row['spy_regime'] == False:  # SPY < MA200
+                    return True, "bear_market_spy"
 
         return False, ""
 
@@ -336,7 +229,8 @@ class MultiStrategyTester:
         strategy_name: str,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        use_anchored: bool = False
+        use_anchored: bool = False,
+        spy_data: pd.DataFrame = None
     ) -> Dict:
         """
         Backtest a single strategy.
@@ -346,7 +240,7 @@ class MultiStrategyTester:
             start_date: Start date for trade simulation
             end_date: End date for trade simulation
             use_anchored: If True, calculate indicators with all data up to end_date
-                         (anchored walk-forward). If False, only use data in range.
+            spy_data: SPY data for market regime filter
 
         Returns:
             Dictionary with trades, metrics, and equity curve
@@ -358,7 +252,7 @@ class MultiStrategyTester:
         if use_anchored and end_date:
             # Calculate indicators with ALL historical data up to end_date
             data_for_indicators = self.prices[self.prices['date'] <= end_date].copy()
-            data = self._calculate_indicators(data_for_indicators, strategy_name)
+            data = self._calculate_indicators(data_for_indicators, strategy_name, spy_data)
 
             # Now filter to simulation range (for trade execution)
             if start_date:
@@ -372,7 +266,7 @@ class MultiStrategyTester:
                 data = data[data['date'] <= end_date]
 
             # Calculate indicators
-            data = self._calculate_indicators(data, strategy_name)
+            data = self._calculate_indicators(data, strategy_name, spy_data)
 
         # Simulate trades
         trades = []
