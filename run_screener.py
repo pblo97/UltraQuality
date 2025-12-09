@@ -4803,6 +4803,20 @@ with tab8:
                                             from_date_backtest = (datetime.now() - timedelta(days=1500)).strftime('%Y-%m-%d')
                                             hist_data_backtest = fmp.get_historical_prices(formatted_ticker, from_date=from_date_backtest)
 
+                                            # Fetch SPY data for market regime filter (REQUIRED for academic strategies)
+                                            st.info("📈 Fetching SPY data for market regime filter...")
+                                            spy_data_raw = fmp.get_historical_prices('SPY', from_date=from_date_backtest)
+                                            spy_df = None
+
+                                            if spy_data_raw and 'historical' in spy_data_raw:
+                                                spy_prices = spy_data_raw['historical'][::-1]  # Chronological order
+                                                spy_df = pd.DataFrame(spy_prices)
+                                                spy_df = spy_df[['date', 'close']].copy()  # Only need date and close for regime
+                                                spy_df['date'] = pd.to_datetime(spy_df['date'])
+                                                st.success(f"✅ SPY data loaded: {len(spy_df)} days")
+                                            else:
+                                                st.warning("⚠️ Could not fetch SPY data - strategies will run without regime filter")
+
                                             if hist_data_backtest and 'historical' in hist_data_backtest:
                                                 prices_backtest = hist_data_backtest['historical'][::-1]
                                                 prices_df = pd.DataFrame(prices_backtest)
@@ -4817,12 +4831,13 @@ with tab8:
 
                                                 # Run walk-forward multi-strategy tester
                                                 tester = MultiStrategyTester(prices_df)
-                                                st.info("🔄 Running walk-forward validation (250 train / 120 test)...")
+                                                st.info("🔄 Running walk-forward validation with SPY regime filter (250 train / 120 test)...")
 
                                                 wf_results = tester.run_walk_forward_all_strategies(
                                                     train_days=250,
                                                     test_days=120,  # Increased from 60 to 120 days (4 months) for better OOS sample size
-                                                    step_days=30
+                                                    step_days=30,
+                                                    spy_data=spy_df  # Pass SPY data for market regime filter
                                                 )
 
                                                 # Display comparison table
@@ -4830,15 +4845,16 @@ with tab8:
                                                 st.markdown("### 📊 Walk-Forward Strategy Comparison (In-Sample vs Out-of-Sample)")
 
                                                 st.info("""
-                                                **4 SIMPLE strategies - No RSI, MACD, or Bollinger Bands**
+                                                **2 Academic Momentum Strategies - Evidence-Based with SPY Regime Filter**
 
-                                                Strategy 1: **Momentum 12M Academic** (NEW) - Ultra-robust, 100 years of evidence
-                                                Strategy 2-4: Price-Volume, Pullback, Momentum Puro
+                                                Strategy 1: **Momentum Academic Universal** - Composite momentum (12-1m + 6-1m) + SPY regime + ATR sizing
+                                                Strategy 2: **Momentum 12M Academic** - Simple baseline with 100 years of evidence
 
-                                                Based on academic research (Jegadeesh & Titman 1993-2001, Moskowitz 2012, Dec 2024):
-                                                - "Primary price-based features consistently outperformed technical indicators"
-                                                - "Simple strategies often outperform complex ones"
-                                                - Avoid overfitting by using minimal indicators
+                                                Based on academic research (Jegadeesh & Titman 1993, Moskowitz 2012):
+                                                - Composite momentum excludes last month to avoid reversals
+                                                - SPY > MA200 filter: only trade in bull markets (avoid 50-70% drawdowns)
+                                                - Simple MA200 exits (no trailing stops that cut winners short)
+                                                - ATR-based position sizing for volatility targeting
 
                                                 **IS** = In-Sample (training), **OOS** = Out-of-Sample (testing)
                                                 **Degradation** = OOS / IS ratio (closer to 1.0 = better generalization)
