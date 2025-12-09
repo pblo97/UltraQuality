@@ -4733,6 +4733,26 @@ with tab8:
                             Based on: Han, Zhou & Zhu (2016), Dai (2021), Barroso & Santa-Clara (2015)
                             """)
 
+                            # Backtest type selector
+                            backtest_col1, backtest_col2 = st.columns([2, 1])
+
+                            with backtest_col1:
+                                backtest_type = st.radio(
+                                    "Select Backtest Type",
+                                    options=["📊 Multi-Strategy Comparison (RECOMMENDED)", "🎯 Single Strategy (Momentum)"],
+                                    index=0,
+                                    help="Multi-Strategy compares 3 SIMPLE price-based strategies. Academic research (2024) shows simple strategies outperform complex ones."
+                                )
+
+                            with backtest_col2:
+                                st.markdown("")
+                                st.markdown("")
+                                if backtest_type.startswith("📊"):
+                                    st.success("✅ Simple strategies")
+                                    st.caption("No RSI, MACD, or BB")
+                                else:
+                                    st.info("ℹ️ Momentum only")
+
                             # Checkbox to enable backtesting
                             run_backtest = st.checkbox(
                                 "🔬 Run Walk-Forward Backtest & Optimization",
@@ -4741,57 +4761,146 @@ with tab8:
                             )
 
                             if run_backtest:
-                                with st.spinner("Running walk-forward optimization... This may take 30-60 seconds"):
-                                    try:
-                                        from screener.technical import (
-                                            WalkForwardBacktester,
-                                            create_entry_exit_chart,
-                                            create_equity_curve_chart,
-                                            create_parameter_stability_chart,
-                                            create_trade_distribution_chart,
-                                            create_current_decision_panel
-                                        )
+                                # ========== MULTI-STRATEGY COMPARISON ==========
+                                if backtest_type.startswith("📊"):
+                                    with st.spinner("Testing 3 simple strategies... This may take 30-60 seconds"):
+                                        try:
+                                            from screener.technical.multi_strategy_tester import MultiStrategyTester
 
-                                        # Get extended historical data for backtesting
-                                        # Need ~4 years (1500 days) to have enough data after 252-day momentum warmup
-                                        from_date_backtest = (datetime.now() - timedelta(days=1500)).strftime('%Y-%m-%d')
-                                        hist_data_backtest = fmp.get_historical_prices(formatted_ticker, from_date=from_date_backtest)
+                                            # Get extended historical data for backtesting
+                                            from_date_backtest = (datetime.now() - timedelta(days=1500)).strftime('%Y-%m-%d')
+                                            hist_data_backtest = fmp.get_historical_prices(formatted_ticker, from_date=from_date_backtest)
 
-                                        if hist_data_backtest and 'historical' in hist_data_backtest:
-                                            prices_backtest = hist_data_backtest['historical'][::-1]  # Chronological order
+                                            if hist_data_backtest and 'historical' in hist_data_backtest:
+                                                prices_backtest = hist_data_backtest['historical'][::-1]
+                                                prices_df = pd.DataFrame(prices_backtest)
+                                                prices_df = prices_df[['date', 'open', 'high', 'low', 'close', 'volume']].copy()
+                                                prices_df['date'] = pd.to_datetime(prices_df['date'])
 
-                                            # Convert to DataFrame
-                                            prices_df = pd.DataFrame(prices_backtest)
-                                            prices_df = prices_df[['date', 'open', 'high', 'low', 'close', 'volume']].copy()
-                                            prices_df['date'] = pd.to_datetime(prices_df['date'])
+                                                # Check data availability
+                                                if len(prices_df) < 500:
+                                                    st.warning(f"⚠️ Only {len(prices_df)} days of data. Need 500+ for reliable results.")
+                                                elif len(prices_df) < 750:
+                                                    st.info(f"ℹ️ {len(prices_df)} days available. Recommended: 750+")
 
-                                            # Check if we have enough data
-                                            if len(prices_df) < 500:
-                                                st.warning(f"⚠️ Only {len(prices_df)} days of data available. Need at least 500 days for reliable walk-forward backtesting. Results may be unreliable.")
-                                            elif len(prices_df) < 750:
-                                                st.info(f"ℹ️ {len(prices_df)} days of data available. Recommended: 750+ days for more robust results.")
+                                                # Run multi-strategy tester
+                                                tester = MultiStrategyTester(prices_df)
+                                                strategy_results = tester.run_all_strategies()
 
-                                            # Use FIXED parameters based on academic literature
-                                            # Dai et al. (2021): 15-20% trailing stops optimal
-                                            # Momentum research (2020-2024): 12-month with >0% entry
-                                            # MA200: Industry standard with 3-5 day confirmation
-                                            # Grid with 1 combination = equivalent to fixed params (no overfitting)
-                                            parameter_grid = {
-                                                'trailing_stop_pct': [15],      # Mid-range of 15-20% optimal (Dai 2021)
-                                                'momentum_threshold': [-5],     # Momentum deterioration exit
-                                                'ma200_days_below': [5],        # 5 consecutive days below MA200
-                                                'momentum_entry_min': [3],      # >0% with 3% buffer for noise reduction
-                                            }
+                                                # Display comparison table
+                                                st.markdown("---")
+                                                st.markdown("### 📊 Strategy Comparison Results")
 
-                                            # Initialize and run backtester
-                                            backtester = WalkForwardBacktester(prices_df)
+                                                st.info("""
+                                                **3 SIMPLE strategies - No RSI, MACD, or Bollinger Bands**
 
-                                            backtest_results = backtester.run_walk_forward(
-                                                parameter_grid=parameter_grid,
-                                                train_days=250,
-                                                test_days=60,
-                                                step_days=30
+                                                Based on academic research (Dec 2024):
+                                                - "Primary price-based features consistently outperformed technical indicators"
+                                                - "Simple strategies often outperform complex ones"
+                                                - Avoid overfitting by using minimal indicators
+                                                """)
+
+                                                comparison_df = tester.compare_strategies(strategy_results)
+                                                st.dataframe(comparison_df, use_container_width=True)
+
+                                                # Highlight best strategy
+                                                if strategy_results:
+                                                    best_strategy = max(strategy_results, key=lambda x: x['metrics']['sharpe_ratio'])
+
+                                                    st.success(f"✅ **BEST STRATEGY:** {best_strategy['strategy_name']}")
+                                                    st.markdown(f"**{best_strategy['description']}**")
+
+                                                    # Show detailed metrics for best strategy
+                                                    col1, col2, col3, col4 = st.columns(4)
+                                                    with col1:
+                                                        st.metric("Win Rate", f"{best_strategy['metrics']['win_rate']:.1f}%")
+                                                    with col2:
+                                                        st.metric("Sharpe Ratio", f"{best_strategy['metrics']['sharpe_ratio']:.2f}")
+                                                    with col3:
+                                                        st.metric("Profit Factor", f"{best_strategy['metrics']['profit_factor']:.2f}")
+                                                    with col4:
+                                                        st.metric("Total Return", f"{best_strategy['metrics']['total_return']:.1f}%")
+
+                                                    # Show recent trades for best strategy
+                                                    if best_strategy['trades']:
+                                                        st.markdown("---")
+                                                        st.markdown(f"### 📋 Recent Trades - {best_strategy['strategy_name']}")
+
+                                                        recent_trades = best_strategy['trades'][-10:]  # Last 10 trades
+                                                        trades_df = pd.DataFrame(recent_trades)
+                                                        trades_df['entry_date'] = pd.to_datetime(trades_df['entry_date']).dt.date
+                                                        trades_df['exit_date'] = pd.to_datetime(trades_df['exit_date']).dt.date
+                                                        trades_df['return_pct'] = trades_df['return_pct'].apply(lambda x: f"{x:.2f}%")
+
+                                                        st.dataframe(
+                                                            trades_df[['entry_date', 'exit_date', 'return_pct', 'holding_days', 'exit_reason']],
+                                                            use_container_width=True
+                                                        )
+                                                else:
+                                                    st.error("❌ No trades generated by any strategy")
+
+                                            else:
+                                                st.error("❌ Could not fetch historical data")
+
+                                        except Exception as e:
+                                            st.error(f"❌ Multi-strategy backtest failed: {str(e)}")
+                                            import traceback
+                                            with st.expander("🔍 Error Details"):
+                                                st.code(traceback.format_exc())
+
+                                # ========== SINGLE STRATEGY (MOMENTUM) ==========
+                                else:
+                                    with st.spinner("Running walk-forward optimization... This may take 30-60 seconds"):
+                                        try:
+                                            from screener.technical import (
+                                                WalkForwardBacktester,
+                                                create_entry_exit_chart,
+                                                create_equity_curve_chart,
+                                                create_parameter_stability_chart,
+                                                create_trade_distribution_chart,
+                                                create_current_decision_panel
                                             )
+
+                                            # Get extended historical data for backtesting
+                                            # Need ~4 years (1500 days) to have enough data after 252-day momentum warmup
+                                            from_date_backtest = (datetime.now() - timedelta(days=1500)).strftime('%Y-%m-%d')
+                                            hist_data_backtest = fmp.get_historical_prices(formatted_ticker, from_date=from_date_backtest)
+
+                                            if hist_data_backtest and 'historical' in hist_data_backtest:
+                                                prices_backtest = hist_data_backtest['historical'][::-1]  # Chronological order
+
+                                                # Convert to DataFrame
+                                                prices_df = pd.DataFrame(prices_backtest)
+                                                prices_df = prices_df[['date', 'open', 'high', 'low', 'close', 'volume']].copy()
+                                                prices_df['date'] = pd.to_datetime(prices_df['date'])
+
+                                                # Check if we have enough data
+                                                if len(prices_df) < 500:
+                                                    st.warning(f"⚠️ Only {len(prices_df)} days of data available. Need at least 500 days for reliable walk-forward backtesting. Results may be unreliable.")
+                                                elif len(prices_df) < 750:
+                                                    st.info(f"ℹ️ {len(prices_df)} days of data available. Recommended: 750+ days for more robust results.")
+
+                                                # Use FIXED parameters based on academic literature
+                                                # Dai et al. (2021): 15-20% trailing stops optimal
+                                                # Momentum research (2020-2024): 12-month with >0% entry
+                                                # MA200: Industry standard with 3-5 day confirmation
+                                                # Grid with 1 combination = equivalent to fixed params (no overfitting)
+                                                parameter_grid = {
+                                                    'trailing_stop_pct': [15],      # Mid-range of 15-20% optimal (Dai 2021)
+                                                    'momentum_threshold': [-5],     # Momentum deterioration exit
+                                                    'ma200_days_below': [5],        # 5 consecutive days below MA200
+                                                    'momentum_entry_min': [3],      # >0% with 3% buffer for noise reduction
+                                                }
+
+                                                # Initialize and run backtester
+                                                backtester = WalkForwardBacktester(prices_df)
+
+                                                backtest_results = backtester.run_walk_forward(
+                                                    parameter_grid=parameter_grid,
+                                                    train_days=250,
+                                                    test_days=60,
+                                                    step_days=30
+                                                )
 
                                             if backtest_results and backtest_results['windows']:
                                                 st.success("✅ Backtest complete!")
