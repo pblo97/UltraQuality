@@ -2152,10 +2152,10 @@ class QualitativeAnalyzer:
             # Use industry-specific WACC
             industry_wacc = industry_profile.get('wacc', 0.10)
 
-            # 1. DCF Valuation (with industry-specific WACC)
-            logger.info(f"Calculating DCF for {symbol}, type={company_type}, wacc={industry_wacc}")
+            # 1. DCF Valuation (with industry-specific WACC as base, but Net Cash Bonus can override)
+            logger.info(f"Calculating DCF for {symbol}, type={company_type}, base_wacc={industry_wacc}")
             try:
-                dcf_value = self._calculate_dcf(symbol, company_type, wacc_override=industry_wacc, notes_list=valuation['notes'])
+                dcf_value = self._calculate_dcf(symbol, company_type, base_wacc=industry_wacc, notes_list=valuation['notes'])
                 if dcf_value and dcf_value > 0:
                     valuation['dcf_value'] = dcf_value
                     valuation['confidence'] = 'Med'
@@ -2437,13 +2437,17 @@ class QualitativeAnalyzer:
 
         return valuation
 
-    def _calculate_dcf(self, symbol: str, company_type: str, wacc_override: Optional[float] = None, notes_list: Optional[list] = None) -> Optional[float]:
+    def _calculate_dcf(self, symbol: str, company_type: str, wacc_override: Optional[float] = None, base_wacc: Optional[float] = None, notes_list: Optional[list] = None) -> Optional[float]:
         """
         Company-specific DCF valuation.
 
         Non-financial: FCF-based (adjusted for growth capex)
         Financial: Earnings-based
         REIT: FFO-based
+
+        Args:
+            wacc_override: Hard override for sensitivity analysis (skips all adjustments)
+            base_wacc: Industry-specific base WACC (still allows Net Cash Bonus)
 
         Key: Don't penalize growth capex - it's valuable investment
 
@@ -2664,19 +2668,27 @@ class QualitativeAnalyzer:
 
             logger.info(f"DCF: {symbol} debt={total_debt:,.0f}, cash={cash:,.0f}, ST_investments={short_term_investments:,.0f}, net_debt={net_debt:,.0f}")
 
-            # CRITICAL FIX: If wacc_override provided, DON'T apply automatic adjustments
-            # This allows sensitivity analysis to work correctly (Bug fix)
+            # === WACC Calculation Priority ===
+            # 1. wacc_override (sensitivity analysis) - skips ALL adjustments
+            # 2. Net Cash Bonus (8.5% for companies with net cash)
+            # 3. base_wacc (industry-specific) OR company_type defaults
+
             if wacc_override:
+                # HARD OVERRIDE for sensitivity analysis - no adjustments
                 wacc = wacc_override
-                logger.info(f"DCF WACC: {symbol} using OVERRIDE {wacc:.1%} (sensitivity analysis)")
+                logger.info(f"DCF WACC: {symbol} using HARD OVERRIDE {wacc:.1%} (sensitivity analysis)")
             elif net_debt < 0 and company_type not in ['financial', 'reit', 'utility', 'asset_manager']:
                 # === Net Cash Bonus ===
                 # Empresas con caja neta (Net Debt < 0) son MENOS riesgosas
                 # Ejemplos: Apple, Google, Microsoft con $100B+ en caja neta
                 # Merecen WACC más bajo (8.5% vs 10-12%)
                 wacc = 0.085  # 8.5% para empresas Quality con caja neta
-                logger.info(f"DCF WACC Adjustment: {symbol} has NET CASH (debt={total_debt:,.0f}, cash={cash:,.0f}, net={net_debt:,.0f}). WACC: 10.0% → {wacc:.1%}")
+                logger.info(f"DCF WACC Adjustment: {symbol} has NET CASH (debt={total_debt:,.0f}, cash={cash:,.0f}, net={net_debt:,.0f}). WACC → {wacc:.1%}")
                 add_note(f"💰 Net Cash Position detected (${abs(net_debt):,.0f}M) - WACC reduced to {wacc:.1%} (reflects lower risk)")
+            elif base_wacc:
+                # Use industry-specific base WACC (but Net Cash Bonus takes precedence)
+                wacc = base_wacc
+                logger.info(f"DCF WACC: {symbol} using industry-specific base {wacc:.1%}")
             elif company_type == 'asset_manager':
                 wacc = 0.09  # Lower than banks (asset-light, predictable fees)
                 # Asset managers have stable fee streams, lower leverage than banks
