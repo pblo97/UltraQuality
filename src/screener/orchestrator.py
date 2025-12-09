@@ -354,6 +354,15 @@ class ScreenerPipeline:
         if len(df) < 10:
             logger.warning(f"⚠️ Only {len(df)} stocks match your criteria. Consider lowering thresholds.")
 
+        # Enrich sector with fallback logic (BEFORE classification)
+        logger.info("Enriching sectors with fallback logic...")
+        df['sector'] = df.apply(self._enrich_sector, axis=1)
+        unknown_count = (df['sector'] == 'Unknown').sum()
+        if unknown_count > 0:
+            logger.warning(f"{unknown_count} stocks still have Unknown sector after enrichment")
+        else:
+            logger.info("✓ All stocks have valid sectors")
+
         # Classify companies
         df['is_financial'] = df.apply(self._classify_financial, axis=1)
         df['is_REIT'] = df.apply(self._classify_reit, axis=1)
@@ -389,6 +398,85 @@ class ScreenerPipeline:
         logger.info(f"  Non-financials: {(~self.df_universe['is_financial']).sum()}")
         logger.info(f"  Financials: {(self.df_universe['is_financial'] & ~self.df_universe['is_REIT']).sum()}")
         logger.info(f"  REITs: {self.df_universe['is_REIT'].sum()}")
+
+    def _enrich_sector(self, row) -> str:
+        """
+        Enrich sector with fallback logic for Unknown/empty sectors.
+
+        Fallback strategy:
+        1. Use API sector if available and valid
+        2. Infer from industry keywords
+        3. Return 'Unknown' as last resort
+
+        Examples:
+        - Amazon: Industry "Internet Retail" → Sector "Consumer Cyclical"
+        - Google: Industry "Internet Content" → Sector "Communication Services"
+        """
+        sector = (row.get('sector') or '').strip()
+        industry = (row.get('industry') or '').lower()
+
+        # If sector is valid (not empty, not 'Unknown'), use it
+        if sector and sector.lower() not in ['unknown', 'n/a', '']:
+            return sector
+
+        # FALLBACK: Infer sector from industry keywords
+        sector_mapping = {
+            'Technology': [
+                'software', 'internet', 'semiconductor', 'computer',
+                'electronics', 'it services', 'cloud', 'saas',
+                'cybersecurity', 'artificial intelligence', 'data'
+            ],
+            'Consumer Cyclical': [
+                'retail', 'e-commerce', 'automotive', 'apparel',
+                'leisure', 'hotels', 'restaurants', 'travel',
+                'homebuilding', 'luxury goods'
+            ],
+            'Consumer Defensive': [
+                'food', 'beverage', 'tobacco', 'household products',
+                'personal products', 'discount stores'
+            ],
+            'Healthcare': [
+                'pharmaceutical', 'biotechnology', 'medical',
+                'health care', 'diagnostics', 'hospital'
+            ],
+            'Financials': [
+                'bank', 'insurance', 'asset management', 'brokerage',
+                'credit services', 'capital markets', 'mortgage'
+            ],
+            'Communication Services': [
+                'telecommunication', 'media', 'entertainment',
+                'publishing', 'broadcasting', 'internet content'
+            ],
+            'Industrials': [
+                'aerospace', 'defense', 'construction', 'machinery',
+                'transportation', 'logistics', 'engineering'
+            ],
+            'Energy': [
+                'oil', 'gas', 'petroleum', 'energy', 'coal',
+                'renewable energy', 'utilities' #  Some energy utilities
+            ],
+            'Basic Materials': [
+                'chemicals', 'metals', 'mining', 'steel',
+                'paper', 'packaging', 'commodities'
+            ],
+            'Real Estate': [
+                'reit', 'real estate', 'property'
+            ],
+            'Utilities': [
+                'electric', 'water', 'utility', 'power generation'
+            ]
+        }
+
+        # Search for industry keywords in mapping
+        for sector_name, keywords in sector_mapping.items():
+            for keyword in keywords:
+                if keyword in industry:
+                    logger.debug(f"Sector inferred for {row.get('ticker')}: {sector_name} (from industry: {industry})")
+                    return sector_name
+
+        # Last resort: return Unknown
+        logger.warning(f"Could not infer sector for {row.get('ticker')} (industry: {industry})")
+        return 'Unknown'
 
     def _classify_financial(self, row) -> bool:
         """Classify if company is a financial."""
