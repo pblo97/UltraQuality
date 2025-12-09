@@ -4346,11 +4346,25 @@ with tab8:
     # Format ticker with market suffix (for session state key)
     formatted_ticker = format_ticker_for_market(quick_ticker, quick_country_code) if quick_ticker else None
 
+    # Persist analyze state in session
+    if analyze_button and quick_ticker:
+        st.session_state['show_analysis'] = True
+        st.session_state['current_ticker'] = formatted_ticker
+
+    # Check if we should show analysis (either just clicked or already showing)
+    show_analysis = st.session_state.get('show_analysis', False)
+    current_ticker = st.session_state.get('current_ticker', formatted_ticker)
+
+    # Reset if ticker changed
+    if formatted_ticker != current_ticker and formatted_ticker:
+        show_analysis = False
+        st.session_state['show_analysis'] = False
+
     # Check if we have cached analysis in session state
     session_key = f"quick_tech_{formatted_ticker}" if formatted_ticker else None
     has_cached_analysis = session_key and session_key in st.session_state
 
-    if analyze_button and quick_ticker:
+    if show_analysis and quick_ticker:
 
         with st.spinner(f"Analyzing {formatted_ticker}..."):
             try:
