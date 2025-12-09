@@ -443,3 +443,200 @@ class MultiStrategyTester:
             })
 
         return pd.DataFrame(comparison)
+
+    def _generate_windows(
+        self,
+        train_days: int,
+        test_days: int,
+        step_days: int
+    ) -> List[Tuple[datetime, datetime, datetime, datetime]]:
+        """
+        Generate walk-forward windows (anchored).
+
+        Returns:
+            List of tuples: (train_start, train_end, test_start, test_end)
+        """
+        windows = []
+        min_date = self.prices['date'].min()
+        max_date = self.prices['date'].max()
+
+        # Start from min_date + train_days
+        current_train_end_idx = train_days
+
+        while current_train_end_idx + test_days < len(self.prices):
+            train_start = min_date
+            train_end = self.prices.iloc[current_train_end_idx]['date']
+            test_start = self.prices.iloc[current_train_end_idx + 1]['date']
+            test_end_idx = min(current_train_end_idx + test_days, len(self.prices) - 1)
+            test_end = self.prices.iloc[test_end_idx]['date']
+
+            windows.append((train_start, train_end, test_start, test_end))
+
+            # Step forward
+            current_train_end_idx += step_days
+
+        return windows
+
+    def run_walk_forward_all_strategies(
+        self,
+        train_days: int = 250,
+        test_days: int = 60,
+        step_days: int = 30
+    ) -> List[Dict]:
+        """
+        Run walk-forward backtesting for all 3 strategies.
+
+        This provides out-of-sample validation to detect overfitting.
+
+        Args:
+            train_days: Days for training window
+            test_days: Days for testing window (out-of-sample)
+            step_days: Days to step forward
+
+        Returns:
+            List of dictionaries with walk-forward results for each strategy
+        """
+        logger.info("Starting walk-forward validation for all strategies")
+
+        # Generate walk-forward windows
+        windows = self._generate_windows(train_days, test_days, step_days)
+        logger.info(f"Generated {len(windows)} walk-forward windows")
+
+        results = []
+
+        for strategy_key in self.strategies.keys():
+            strategy = self.strategies[strategy_key]
+            logger.info(f"Testing strategy: {strategy['name']}")
+
+            # Collect all trades separated by in-sample and out-of-sample
+            in_sample_trades = []
+            out_sample_trades = []
+
+            for window_idx, (train_start, train_end, test_start, test_end) in enumerate(windows):
+                # Backtest on training window (in-sample)
+                train_result = self.backtest_strategy(
+                    strategy_key,
+                    start_date=train_start,
+                    end_date=train_end
+                )
+                in_sample_trades.extend(train_result['trades'])
+
+                # Backtest on test window (out-of-sample)
+                test_result = self.backtest_strategy(
+                    strategy_key,
+                    start_date=test_start,
+                    end_date=test_end
+                )
+                out_sample_trades.extend(test_result['trades'])
+
+            # Calculate metrics for in-sample and out-of-sample
+            in_sample_metrics = self._calculate_metrics(in_sample_trades)
+            out_sample_metrics = self._calculate_metrics(out_sample_trades)
+
+            # Calculate degradation ratio
+            degradation = self._calculate_degradation(in_sample_metrics, out_sample_metrics)
+
+            # Store results
+            results.append({
+                'strategy_name': strategy['name'],
+                'strategy_key': strategy_key,
+                'description': strategy['description'],
+                'priority': strategy['priority'],
+                'in_sample_metrics': in_sample_metrics,
+                'out_sample_metrics': out_sample_metrics,
+                'degradation': degradation,
+                'num_windows': len(windows),
+                'in_sample_trades': in_sample_trades,
+                'out_sample_trades': out_sample_trades,
+            })
+
+        # Sort by priority
+        results.sort(key=lambda x: x['priority'])
+
+        return results
+
+    def _calculate_degradation(self, in_sample: Dict, out_sample: Dict) -> Dict:
+        """
+        Calculate degradation ratio (out-of-sample / in-sample).
+
+        Lower degradation = better generalization.
+        """
+        degradation = {}
+
+        metrics_to_check = [
+            'sharpe_ratio',
+            'total_return',
+            'win_rate',
+            'profit_factor',
+            'max_drawdown',
+            'num_trades',
+            'avg_trade_duration'
+        ]
+
+        for metric in metrics_to_check:
+            in_val = in_sample.get(metric, 0)
+            out_val = out_sample.get(metric, 0)
+
+            # Handle special case: max_drawdown (more negative is worse)
+            if metric == 'max_drawdown':
+                if in_val < 0:
+                    degradation[metric] = out_val / in_val
+                else:
+                    degradation[metric] = 1.0
+            # Handle division by zero
+            elif in_val != 0:
+                degradation[metric] = out_val / in_val
+            else:
+                degradation[metric] = 0.0 if out_val == 0 else float('inf')
+
+        # Calculate overall degradation (average of key metrics)
+        key_metrics = ['sharpe_ratio', 'win_rate', 'profit_factor']
+        valid_degradations = [degradation[m] for m in key_metrics if degradation[m] not in [0, float('inf')]]
+
+        if valid_degradations:
+            degradation['overall'] = np.mean(valid_degradations)
+        else:
+            degradation['overall'] = 0.0
+
+        return degradation
+
+    def compare_walk_forward_results(self, results: List[Dict]) -> pd.DataFrame:
+        """
+        Create comparison table with walk-forward results.
+
+        Shows in-sample, out-of-sample, and degradation for each strategy.
+
+        Returns:
+            DataFrame with walk-forward metrics comparison
+        """
+        comparison = []
+
+        for result in results:
+            in_metrics = result['in_sample_metrics']
+            out_metrics = result['out_sample_metrics']
+            deg = result['degradation']
+
+            comparison.append({
+                'Strategy': result['strategy_name'],
+                'Priority': result['priority'],
+
+                # In-Sample (Training)
+                'IS Trades': in_metrics['num_trades'],
+                'IS Win Rate': f"{in_metrics['win_rate']:.1f}%",
+                'IS Sharpe': f"{in_metrics['sharpe_ratio']:.2f}",
+                'IS Return': f"{in_metrics['total_return']:.1f}%",
+
+                # Out-of-Sample (Testing)
+                'OOS Trades': out_metrics['num_trades'],
+                'OOS Win Rate': f"{out_metrics['win_rate']:.1f}%",
+                'OOS Sharpe': f"{out_metrics['sharpe_ratio']:.2f}",
+                'OOS Return': f"{out_metrics['total_return']:.1f}%",
+
+                # Degradation
+                'Win Rate Deg': f"{deg['win_rate']:.2f}x",
+                'Sharpe Deg': f"{deg['sharpe_ratio']:.2f}x",
+                'Overall Deg': f"{deg['overall']:.2f}x",
+            })
+
+        return pd.DataFrame(comparison)
+
