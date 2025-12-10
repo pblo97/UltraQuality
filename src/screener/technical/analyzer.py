@@ -1381,7 +1381,63 @@ class EnhancedTechnicalAnalyzer:
             return min(p['low'] for p in recent_prices)
 
         except Exception as e:
-            logger.warning(f"Error calculating swing low: {e}")
+            logger.warning(f"Error calculating swing low 10: {e}")
+            return 0
+
+    def _calculate_swing_low_20(self, prices: List[Dict]) -> float:
+        """
+        Calculate swing low (lowest low) in last 20 trading days.
+        More robust than 10-day for avoiding stop hunting.
+
+        Args:
+            prices: List of historical price dicts
+
+        Returns:
+            Lowest low price (float)
+        """
+        try:
+            if len(prices) < 20:
+                return prices[-1]['low'] if prices else 0
+
+            recent_prices = prices[-20:]
+            return min(p['low'] for p in recent_prices)
+
+        except Exception as e:
+            logger.warning(f"Error calculating swing low 20: {e}")
+            return 0
+
+    def _calculate_ema_10(self, prices: List[Dict]) -> float:
+        """
+        Calculate 10-day Exponential Moving Average.
+        Faster than EMA 20, used for climax stops.
+
+        EMA formula: EMA_today = Price_today * k + EMA_yesterday * (1-k)
+        where k = 2 / (N + 1)
+
+        Args:
+            prices: List of historical price dicts
+
+        Returns:
+            EMA 10 value (float)
+        """
+        try:
+            if len(prices) < 10:
+                return 0
+
+            period = 10
+            k = 2 / (period + 1)
+
+            # Start with SMA for first EMA value
+            ema = statistics.mean(p['close'] for p in prices[-20:-10]) if len(prices) >= 20 else prices[-10]['close']
+
+            # Calculate EMA for last 10 days
+            for i in range(-10, 0):
+                ema = prices[i]['close'] * k + ema * (1 - k)
+
+            return ema
+
+        except Exception as e:
+            logger.warning(f"Error calculating EMA 10: {e}")
             return 0
 
     def _calculate_ema_20(self, prices: List[Dict]) -> float:
@@ -1611,7 +1667,9 @@ class EnhancedTechnicalAnalyzer:
             atr_14 = self._calculate_atr_14(prices)
             highest_high_22 = self._calculate_highest_high_22(prices)
             swing_low_10 = self._calculate_swing_low_10(prices)
+            swing_low_20 = self._calculate_swing_low_20(prices)  # Option D: More robust
             ema_20 = self._calculate_ema_20(prices)
+            ema_10 = self._calculate_ema_10(prices)  # Option D: For climax stops
             is_ath = self._check_ath_proximity(current_price, week_52_high)
 
             # Fallback if ATR calculation failed (use volatility approximation)
@@ -1638,65 +1696,82 @@ class EnhancedTechnicalAnalyzer:
             else:
                 ath_note = ""
 
-            # ========== STEP 4: Determine Lifecycle Phase ==========
-            lifecycle_phase = "Entry (Risk On)"
+            # ========== STEP 4: Determine Lifecycle Phase (Option D) ==========
+            # Restructured to use phase-aware stops with buffer to prevent stop hunting
+            lifecycle_phase = "Entry (Risk On 🎯)"
             active_stop_price = 0
             active_stop_pct = 0
             lifecycle_note = ""
 
             if entry_price and entry_price > 0:
-                initial_risk_amt = entry_price * (hard_cap / 100)
-                breakeven_threshold = entry_price + (1.5 * initial_risk_amt)
+                current_gain_pct = ((current_price - entry_price) / entry_price * 100)
 
-                # Phase B: Breakeven (Free Ride)
-                if current_price >= breakeven_threshold:
+                # Phase D: Zombie Killer (check first - highest priority)
+                if days_in_position > 20 and abs(current_gain_pct) < 2:
+                    lifecycle_phase = "Zombie Killer (Time ⏱️)"
+                    # Exit dead money - stop at entry or swing low 10d
+                    active_stop_price = max(entry_price, swing_low_10)
+                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
+                    lifecycle_note = f"Dead money for {days_in_position} days. Free up capital. Stop at ${active_stop_price:.2f}"
+
+                # Phase C: Climax (profit protection)
+                elif current_gain_pct > 30 or (rsi and rsi > 75):
+                    lifecycle_phase = "Profit Locking (Clímax 💰)"
+                    # Use phase='climax' for tight EMA 10 stop with 0.75% buffer
+                    active_stop_price = self._calculate_tier_stop_smart(
+                        tier_num, current_price, atr_14, 1.5,
+                        ma_50, swing_low_20, ema_10, hard_cap,
+                        phase='climax'
+                    )
+                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
+                    lifecycle_note = f"Climax detected (Return: {current_gain_pct:+.1f}%, RSI: {rsi or 'N/A'}). Lock in gains with tight stop."
+
+                # Phase B: Breakeven (free ride - 1.5x initial risk)
+                elif current_gain_pct >= 10:  # ~10% = 1.5x typical initial risk
                     lifecycle_phase = "Breakeven (Free Ride 🛡️)"
                     active_stop_price = entry_price
                     active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
                     lifecycle_note = f"Risk eliminated! Stop moved to entry ${entry_price:.2f}. Playing with house money."
 
-                # Phase C: Profit Locking (Clímax)
-                elif current_return_pct > 30 or (rsi and rsi > 75):
-                    lifecycle_phase = "Profit Locking (Clímax 💰)"
-                    # Aggressive stop: MAX(EMA 20, Price - 1.5*ATR)
-                    stop_ema = ema_20 if ema_20 > 0 else current_price * 0.95
-                    stop_atr = current_price - (1.5 * atr_14)
-                    active_stop_price = max(stop_ema, stop_atr)
-                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
-                    lifecycle_note = f"Climax detected (Return: {current_return_pct:+.1f}%, RSI: {rsi or 'N/A'}). Lock in gains with tight stop."
-
-                # Phase D: Zombie Killer (Time Decay)
-                elif days_in_position > 20 and abs(current_return_pct) < 2:
-                    lifecycle_phase = "Zombie Killer (Time ⏱️)"
-                    # Move stop to entry or 10-day low, whichever is higher
-                    active_stop_price = max(entry_price, swing_low_10)
-                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
-                    lifecycle_note = f"Dead money for {days_in_position} days. Free up capital. Stop at ${active_stop_price:.2f}"
-
-                # Phase A: Entry (Risk On) - default
-                else:
-                    lifecycle_phase = "Entry (Risk On)"
-                    # Initial stop using tier formula
-                    active_stop_price = self._calculate_tier_stop(
-                        tier_num, current_price, atr_14, initial_mult,
-                        ma_50, swing_low_10, ema_20, hard_cap
+                # Phase A2: Trailing (trend following after initial period)
+                elif days_in_position > 5 and current_gain_pct > 2:
+                    lifecycle_phase = "Trailing (Trend Following 🏄)"
+                    # Use phase='trailing' for long anchors (20d) with 0.5% buffer
+                    active_stop_price = self._calculate_tier_stop_smart(
+                        tier_num, current_price, atr_14, trailing_mult,
+                        ma_50, swing_low_20, ema_10, hard_cap,
+                        phase='trailing'
                     )
                     active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
-                    lifecycle_note = f"Initial stop using {tier_name} parameters."
+                    lifecycle_note = f"Position maturing. Trailing stop using long-term anchors with anti-hunting buffer."
+
+                # Phase A1: Entry (initial protection)
+                else:
+                    lifecycle_phase = "Entry (Risk On 🎯)"
+                    # Use phase='entry' for ATR + Hard Cap only (no tight anchors)
+                    active_stop_price = self._calculate_tier_stop_smart(
+                        tier_num, current_price, atr_14, initial_mult,
+                        ma_50, swing_low_20, ema_10, hard_cap,
+                        phase='entry'
+                    )
+                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
+                    lifecycle_note = f"Initial stop using {tier_name} parameters. ATR-based for breathing room."
             else:
-                # No entry price - calculate recommended initial stop
-                active_stop_price = self._calculate_tier_stop(
+                # No entry price - recommend initial stop
+                lifecycle_phase = "Entry (Risk On 🎯)"
+                active_stop_price = self._calculate_tier_stop_smart(
                     tier_num, current_price, atr_14, initial_mult,
-                    ma_50, swing_low_10, ema_20, hard_cap
+                    ma_50, swing_low_20, ema_10, hard_cap,
+                    phase='entry'
                 )
                 active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
-                lifecycle_note = f"Recommended initial stop for {tier_name}."
+                lifecycle_note = f"Recommended initial stop for {tier_name}. ATR-based for breathing room."
 
             # ========== STEP 5: Calculate Alternative Stops ==========
-            # Calculate stops for all tiers for comparison
-            tier_1_stop = self._calculate_tier_stop(1, current_price, atr_14, 1.8, ma_50, swing_low_10, ema_20, 8.0)
-            tier_2_stop = self._calculate_tier_stop(2, current_price, atr_14, 2.5, ma_50, swing_low_10, ema_20, 15.0)
-            tier_3_stop = self._calculate_tier_stop(3, current_price, atr_14, 3.0, ma_50, swing_low_10, ema_20, 25.0)
+            # Calculate stops for all tiers for comparison (using 'entry' phase)
+            tier_1_stop = self._calculate_tier_stop_smart(1, current_price, atr_14, 1.8, ma_50, swing_low_20, ema_10, 8.0, phase='entry')
+            tier_2_stop = self._calculate_tier_stop_smart(2, current_price, atr_14, 2.5, ma_50, swing_low_20, ema_10, 15.0, phase='entry')
+            tier_3_stop = self._calculate_tier_stop_smart(3, current_price, atr_14, 3.0, ma_50, swing_low_20, ema_10, 25.0, phase='entry')
 
             # ========== STEP 6: Build Response ==========
             return {
@@ -1716,32 +1791,34 @@ class EnhancedTechnicalAnalyzer:
                     'rationale': lifecycle_note or f"Initial {tier_name} stop"
                 },
 
-                # Base Parameters
+                # Base Parameters (Option D includes new indicators)
                 'parameters': {
                     'atr_14': round(atr_14, 2),
                     'highest_high_22': round(highest_high_22, 2),
                     'swing_low_10': round(swing_low_10, 2),
+                    'swing_low_20': round(swing_low_20, 2),  # Option D: More robust
                     'ema_20': round(ema_20, 2) if ema_20 > 0 else 'N/A',
+                    'ema_10': round(ema_10, 2) if ema_10 > 0 else 'N/A',  # Option D: For climax
                     'is_ath_breakout': is_ath,
                     'ath_note': ath_note
                 },
 
-                # Tier-specific stops (for reference)
+                # Tier-specific stops (for reference - shows Entry phase behavior)
                 'tier_stops': {
                     'tier_1_defensive': {
                         'price': f'${tier_1_stop:.2f}',
                         'distance': f'{((tier_1_stop - current_price) / current_price * 100):.1f}%',
-                        'formula': 'MAX(Price - 1.8*ATR, Price*0.92, SMA_50)'
+                        'formula': 'Entry: MAX(Price - 1.8*ATR, Price*0.92) | Trailing: MAX(ATR, SMA_50 * 0.995)'
                     },
                     'tier_2_core_growth': {
                         'price': f'${tier_2_stop:.2f}',
                         'distance': f'{((tier_2_stop - current_price) / current_price * 100):.1f}%',
-                        'formula': 'MAX(Price - 2.5*ATR, Price*0.85, Swing_Low_10d)'
+                        'formula': 'Entry: MAX(Price - 2.5*ATR, Price*0.85) | Trailing: MAX(ATR, Swing_Low_20d * 0.995)'
                     },
                     'tier_3_speculative': {
                         'price': f'${tier_3_stop:.2f}',
                         'distance': f'{((tier_3_stop - current_price) / current_price * 100):.1f}%',
-                        'formula': 'MAX(Price - 3.0*ATR, Price*0.75, EMA_20)'
+                        'formula': 'Entry: MAX(Price - 3.0*ATR, Price*0.75) | Trailing: MAX(ATR, EMA_10 * 0.995)'
                     }
                 },
 
@@ -1757,6 +1834,8 @@ class EnhancedTechnicalAnalyzer:
                 'notes': [
                     f"Classified as {tier_name} based on volatility ({volatility:.1f}%) and beta ({beta or 'N/A'})",
                     f"Current lifecycle phase: {lifecycle_phase}",
+                    "Option D (Hybrid): Entry=ATR only | Trailing=Long anchors+0.5% buffer | Climax=EMA10+0.75% buffer",
+                    "Anti-hunting buffers prevent algorithmic stop hunting",
                     "Use trailing stops - move up as price rises, never down",
                     ath_note if ath_note else None
                 ]
@@ -1806,6 +1885,86 @@ class EnhancedTechnicalAnalyzer:
 
         # Return MAX of all three, but respect hard cap as minimum
         return max(hard_cap_stop, atr_stop, anchor_stop)
+
+    def _calculate_tier_stop_smart(
+        self,
+        tier: int,
+        price: float,
+        atr: float,
+        multiplier: float,
+        ma_50: float,
+        swing_low_20: float,
+        ema_10: float,
+        hard_cap_pct: float,
+        phase: str = 'entry'
+    ) -> float:
+        """
+        Smart stop loss with phase-aware anchor selection and buffer.
+
+        This method implements Option D (Hybrid Complete) from OPCIONES_BUFFER_STOPLOSS.md
+        to prevent stop hunting while maintaining appropriate protection.
+
+        Phase Logic:
+        - 'entry': ATR + Hard Cap only (no tight anchors, gives position breathing room)
+        - 'trailing': Long-term anchors (20d) with 0.5% buffer to avoid stop hunting
+        - 'climax': Tight EMA 10 with 0.75% buffer for profit protection
+
+        Args:
+            tier: Risk tier (1=Defensive, 2=Core Growth, 3=Speculative)
+            price: Current price
+            atr: 14-day ATR
+            multiplier: ATR multiplier for this tier
+            ma_50: 50-day SMA
+            swing_low_20: 20-day swing low (more robust than 10d)
+            ema_10: 10-day EMA (faster than 20d for climax)
+            hard_cap_pct: Maximum allowed stop loss %
+            phase: Lifecycle phase ('entry', 'trailing', 'climax')
+
+        Returns:
+            Stop loss price (float)
+        """
+        # Calculate ATR-based stop
+        atr_stop = price - (multiplier * atr)
+
+        # Calculate hard cap stop
+        hard_cap_stop = price * (1 - hard_cap_pct / 100)
+
+        # === PHASE-SPECIFIC LOGIC ===
+        if phase == 'entry':
+            # Entry Phase: ATR + Hard Cap only (no anchors)
+            # Give the position breathing room to avoid premature stop-outs
+            return max(hard_cap_stop, atr_stop)
+
+        elif phase == 'trailing':
+            # Trailing Phase: Long-term anchors with 0.5% buffer
+            # Buffer prevents algorithmic stop hunting
+            buffer = 0.995  # 0.5% buffer
+
+            if tier == 1:
+                # Tier 1 (Defensive): Use SMA 50
+                anchor = (ma_50 * buffer) if ma_50 > 0 else price * 0.92
+            elif tier == 2:
+                # Tier 2 (Core Growth): Use Swing Low 20d (more robust than 10d)
+                anchor = (swing_low_20 * buffer) if swing_low_20 > 0 else price * 0.85
+            else:  # tier == 3
+                # Tier 3 (Speculative): Use EMA 10 (faster response)
+                anchor = (ema_10 * buffer) if ema_10 > 0 else price * 0.75
+
+            return max(hard_cap_stop, atr_stop, anchor)
+
+        elif phase == 'climax':
+            # Climax Phase: Tight EMA 10 with 0.75% buffer
+            # Protect profits but allow for normal pullback
+            buffer = 0.9925  # 0.75% buffer
+            ema_stop = (ema_10 * buffer) if ema_10 > 0 else price * 0.95
+            tight_atr = price - (1.5 * atr)  # Tighter than normal
+
+            return max(tight_atr, ema_stop)
+
+        else:
+            # Breakeven/zombie phases handled in main method
+            # Fallback to simple calculation
+            return max(hard_cap_stop, atr_stop)
 
     def _generate_profit_targets(self, signal, distance_ma200, overextension_risk, ma_200, price):
         """Profit taking recommendations."""
