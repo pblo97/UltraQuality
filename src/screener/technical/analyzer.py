@@ -1648,6 +1648,7 @@ class EnhancedTechnicalAnalyzer:
             highest_high_20 = max(p['high'] for p in prices[-20:]) if len(prices) >= 20 else current_price
             adx = self._calculate_adx(prices)
             sma_slope = self._calculate_sma_slope(prices, 50)
+            ema_10 = self._calculate_ema_10(prices)
 
             # Distance to entry (if we have one)
             entry_distance_pct = 0
@@ -1694,7 +1695,29 @@ class EnhancedTechnicalAnalyzer:
                     f"Just entered {days_in_position}d ago. Fighting to break out ({entry_distance_pct:+.1f}% from entry). Max risk zone."
                 )
 
-            # STATE 2: PARABOLIC_CLIMAX (Vertical Euforia - Lock Profits) 🔥
+            # STATE 2A: MOMENTUM OVERRIDE - "Tortuga Parabólica" 🔥🐢
+            # CRITICAL: Detect when a Tier 1/2 (stable stock) starts behaving like Nvidia (vertical move)
+            # When a "boring" stock suddenly goes parabolic, it needs parabolic rules regardless of distance to MA50
+            #
+            # Criteria for "Turtle Going Parabolic":
+            # - Tier 1 or 2 (normally stable companies)
+            # - ADX > 30 (very strong trend for a defensive stock)
+            # - Price > EMA10 > EMA20 (perfect alignment = surfing the wave)
+            # - At or near ATH (breaking into new territory)
+            #
+            # Action: Use EMA 10 as trailing stop (ignore ATR which is too small for vertical moves)
+            if (tier <= 2 and  # Only applies to "stable" stocks
+                adx > 30 and  # Very strong trend (unusual for Tier 1/2)
+                ema_10 > 0 and ema_20 > 0 and
+                current_price > ema_10 and ema_10 > ema_20 and  # Perfect alignment
+                week_52_high > 0 and current_price >= 0.95 * week_52_high):  # Near/at ATH
+                return (
+                    "PARABOLIC_CLIMAX",
+                    "🔥",
+                    f"MOMENTUM OVERRIDE: Tier {tier} stock in vertical move (ADX={adx:.1f}). Price > EMA10 (${ema_10:.2f}) > EMA20. Surf the EMA10, exit if breaks."
+                )
+
+            # STATE 2B: PARABOLIC_CLIMAX (Standard Detection - Vertical Euforia) 🔥
             # Tier-specific thresholds for overextension
             climax_threshold = 20 if tier <= 2 else 30
             if (rsi and rsi > 75) or (ma_50 > 0 and sma50_distance_pct > climax_threshold):
@@ -1856,27 +1879,49 @@ class EnhancedTechnicalAnalyzer:
                 return (stop_price, rationale)
 
             elif state == "PARABOLIC_CLIMAX":
-                # Tight Trailing: EMA 10, yesterday's low, or tight ATR
-                yesterday_low = prices[-1]['low'] if prices else current_price * 0.97
-                tight_atr_stop = current_price - (1.5 * atr)
+                # 🔥 Parabolic moves require different strategies based on tier:
+                # - Tier 1/2 (Tortugas): Anchor to EMA 10 ONLY (ignore ATR/yesterday low)
+                #   → Reason: ATR is small on "boring" stocks. EMA 10 is the electric floor.
+                # - Tier 3 (Cohetes): Use tightest of EMA 10, yesterday low, or 1.5x ATR
+                #   → Reason: High volatility stocks can gap down. Need yesterday low protection.
 
-                # Use tighter of EMA 10, yesterday's low, or 1.5x ATR (all must be below price)
-                candidates = []
-                if ema_10 > 0 and ema_10 < current_price:
-                    candidates.append(ema_10)
-                if yesterday_low < current_price:
-                    candidates.append(yesterday_low)
-                candidates.append(tight_atr_stop)
+                if tier <= 2:
+                    # "TORTUGA PARABÓLICA" MODE: Surf the EMA 10
+                    # "Olvida el ATR. Olvida la SMA 50. Tu único Dios ahora es la EMA 10."
+                    if ema_10 > 0 and ema_10 < current_price:
+                        stop_price = ema_10 * 0.995  # Small 0.5% buffer below EMA 10
+                    else:
+                        # Fallback if EMA 10 not available
+                        stop_price = current_price - (1.5 * atr)
 
-                stop_price = max(candidates)  # Use highest (but still below current price)
+                    # Ensure stop is never above current price
+                    stop_price = min(stop_price, current_price * 0.98)
 
-                # Add small 0.3% buffer to avoid false triggers
-                stop_price = stop_price * 0.997
+                    distance_pct = ((current_price - stop_price) / current_price) * 100
+                    rationale = f"PARABOLIC Tier {tier}: Surfing EMA10 at ${stop_price:.2f} (-{distance_pct:.1f}%). Exit ONLY if breaks EMA10."
 
-                # Ensure stop is never above current price
-                stop_price = min(stop_price, current_price * 0.98)
+                else:
+                    # "COHETE PARABÓLICO" MODE: Use tightest stop (EMA 10, yesterday low, or 1.5x ATR)
+                    yesterday_low = prices[-1]['low'] if prices else current_price * 0.97
+                    tight_atr_stop = current_price - (1.5 * atr)
 
-                rationale = f"TIGHT stop at ${stop_price:.2f} (EMA10/yesterday low/1.5xATR). Lock profits NOW!"
+                    # Use tighter of EMA 10, yesterday's low, or 1.5x ATR (all must be below price)
+                    candidates = []
+                    if ema_10 > 0 and ema_10 < current_price:
+                        candidates.append(ema_10)
+                    if yesterday_low < current_price:
+                        candidates.append(yesterday_low)
+                    candidates.append(tight_atr_stop)
+
+                    stop_price = max(candidates)  # Use highest (but still below current price)
+
+                    # Add small 0.3% buffer to avoid false triggers
+                    stop_price = stop_price * 0.997
+
+                    # Ensure stop is never above current price
+                    stop_price = min(stop_price, current_price * 0.98)
+
+                    rationale = f"TIGHT stop at ${stop_price:.2f} (EMA10/yesterday low/1.5xATR). Lock profits NOW!"
 
                 return (stop_price, rationale)
 
