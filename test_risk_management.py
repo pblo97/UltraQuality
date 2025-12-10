@@ -98,15 +98,65 @@ def main():
             print(f"   Tranche 3: {entry['tranche_3']}")
         print(f"   Rationale: {entry.get('rationale', 'N/A')}")
 
-        # 3. Stop Loss
-        print("\n3️⃣  STOP LOSS:")
+        # 3. Stop Loss (SmartDynamicStopLoss)
+        print("\n3️⃣  STOP LOSS (SmartDynamicStopLoss):")
         stop_loss = risk_mgmt.get('stop_loss', {})
-        print(f"   Recommended: {stop_loss.get('recommended', 'N/A').upper()}")
-        stops = stop_loss.get('stops', {})
-        for stop_type in ['aggressive', 'moderate', 'conservative']:
-            if stop_type in stops:
-                s = stops[stop_type]
-                print(f"   {stop_type.upper()}: {s.get('level', 'N/A')} ({s.get('distance', 'N/A')})")
+
+        # Check if it's the new SmartDynamicStopLoss format
+        if 'tier' in stop_loss:
+            # New SmartDynamicStopLoss format
+            print(f"\n   🎯 CLASSIFICATION:")
+            print(f"      Tier: {stop_loss.get('tier', 'N/A')} - {stop_loss.get('tier_name', 'N/A')}")
+            print(f"      Description: {stop_loss.get('tier_description', 'N/A')}")
+
+            print(f"\n   ⚙️  LIFECYCLE PHASE:")
+            print(f"      Phase: {stop_loss.get('lifecycle_phase', 'N/A')}")
+            print(f"      Note: {stop_loss.get('lifecycle_note', 'N/A')}")
+
+            print(f"\n   🛑 ACTIVE STOP (Use this one!):")
+            active = stop_loss.get('active_stop', {})
+            print(f"      Price: {active.get('price', 'N/A')}")
+            print(f"      Distance: {active.get('distance', 'N/A')}")
+            print(f"      Rationale: {active.get('rationale', 'N/A')}")
+
+            print(f"\n   📊 BASE PARAMETERS:")
+            params = stop_loss.get('parameters', {})
+            print(f"      ATR (14d): {params.get('atr_14', 'N/A')}")
+            print(f"      Highest High (22d): {params.get('highest_high_22', 'N/A')}")
+            print(f"      Swing Low (10d): {params.get('swing_low_10', 'N/A')}")
+            print(f"      EMA (20d): {params.get('ema_20', 'N/A')}")
+            print(f"      ATH Breakout: {params.get('is_ath_breakout', False)}")
+            if params.get('ath_note'):
+                print(f"      {params['ath_note']}")
+
+            print(f"\n   📈 TIER-SPECIFIC STOPS (for comparison):")
+            tier_stops = stop_loss.get('tier_stops', {})
+            for tier_name, tier_data in tier_stops.items():
+                print(f"      {tier_name.upper()}:")
+                print(f"         Price: {tier_data.get('price', 'N/A')} ({tier_data.get('distance', 'N/A')})")
+                print(f"         Formula: {tier_data.get('formula', 'N/A')}")
+
+            print(f"\n   🔧 CONFIGURATION:")
+            config = stop_loss.get('config', {})
+            print(f"      Initial Multiplier: {config.get('initial_multiplier', 'N/A')}x")
+            print(f"      Trailing Multiplier: {config.get('trailing_multiplier', 'N/A')}x")
+            print(f"      Hard Cap: {config.get('hard_cap_pct', 'N/A')}%")
+            print(f"      Technical Anchor: {config.get('anchor', 'N/A')}")
+
+            notes = stop_loss.get('notes', [])
+            if notes:
+                print(f"\n   📝 NOTES:")
+                for note in notes:
+                    if note:
+                        print(f"      • {note}")
+        else:
+            # Legacy format
+            print(f"   Recommended: {stop_loss.get('recommended', 'N/A').upper()}")
+            stops = stop_loss.get('stops', {})
+            for stop_type in ['aggressive', 'moderate', 'conservative']:
+                if stop_type in stops:
+                    s = stops[stop_type]
+                    print(f"   {stop_type.upper()}: {s.get('level', 'N/A')} ({s.get('distance', 'N/A')})")
 
         # 4. Profit Taking
         print("\n4️⃣  PROFIT TAKING:")
