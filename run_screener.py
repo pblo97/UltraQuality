@@ -4969,19 +4969,53 @@ with tab8:
                                     distance_ma200 = trend_data.get('distance_ma200', 0)
                                     volatility = risk_data.get('volatility', 20)  # Annualized volatility %
                                     rsi = momentum_data.get('rsi', 50)
+                                    return_12m = momentum_data.get('return_12m', 0)  # For growth proxy
 
                                     # Get Beta (market sensitivity) - default to 1.0 if not available
                                     beta = risk_data.get('beta', None)
                                     if beta is None or beta == 0:
-                                        # Heuristic: Infer beta from volatility and sector
-                                        # Low vol stocks tend to be defensive (Beta < 1)
-                                        # High vol stocks tend to be aggressive (Beta > 1)
-                                        if volatility <= 25:
-                                            beta = 0.85  # Defensive (aligns with Tier 1 boundary)
-                                        elif volatility <= 40:
-                                            beta = 1.0   # Market-like
+                                        # Advanced Heuristic: Infer beta from SECTOR + VOLATILITY + MOMENTUM
+                                        # This ensures JNJ, CSCO, and GOOGL get different treatments
+
+                                        # Step 1: Base Beta by Sector
+                                        sector_lower = sector.lower()
+                                        if 'health' in sector_lower or 'pharmaceutical' in sector_lower:
+                                            base_beta = 0.65  # Healthcare: Very defensive (JNJ)
+                                        elif 'consumer staples' in sector_lower or 'utilities' in sector_lower:
+                                            base_beta = 0.70  # Defensive staples
+                                        elif 'industrial' in sector_lower or 'materials' in sector_lower:
+                                            base_beta = 0.85  # Industrials: Cyclical but stable
+                                        elif 'technology' in sector_lower or 'communication' in sector_lower:
+                                            # Tech is tricky: can be defensive (CSCO) or aggressive (GOOGL)
+                                            # Use momentum to differentiate
+                                            if return_12m > 30:  # High growth (GOOGL-like)
+                                                base_beta = 1.20
+                                            elif return_12m > 15:  # Moderate growth
+                                                base_beta = 1.05
+                                            else:  # Stable/dividend tech (CSCO-like)
+                                                base_beta = 0.90
+                                        elif 'consumer discretionary' in sector_lower or 'consumer cyclical' in sector_lower:
+                                            base_beta = 1.05  # Cyclical growth
+                                        elif 'financial' in sector_lower or 'energy' in sector_lower or 'real estate' in sector_lower:
+                                            base_beta = 1.10  # Cyclical/Levered
                                         else:
-                                            beta = 1.2   # Aggressive
+                                            # Fallback: use volatility
+                                            if volatility <= 25:
+                                                base_beta = 0.85
+                                            elif volatility <= 40:
+                                                base_beta = 1.0
+                                            else:
+                                                base_beta = 1.2
+
+                                        # Step 2: Adjust by volatility (high vol → higher beta)
+                                        if volatility > 35:
+                                            base_beta += 0.15
+                                        elif volatility > 25:
+                                            base_beta += 0.05
+                                        elif volatility < 15:
+                                            base_beta -= 0.05
+
+                                        beta = round(base_beta, 2)
 
                                     # === TIER CLASSIFICATION BY BETA + VOLATILITY MATRIX ===
                                     # Use 2D classification: Beta (market sensitivity) + Volatility (noise)
@@ -6039,6 +6073,7 @@ with tab8:
                 distance_ma200 = trend_data.get('distance_ma200', 0) if trend_data else 0
                 volatility = risk_data.get('volatility', 20) if risk_data else 20  # Annualized volatility %
                 rsi = momentum_data.get('rsi', 50) if momentum_data else 50
+                return_12m = momentum_data.get('return_12m', 0) if momentum_data else 0  # For growth proxy
 
                 # Get current price (need to access it from somewhere)
                 current_price = price  # Using the price from cached data
@@ -6046,15 +6081,48 @@ with tab8:
                 # Get Beta (market sensitivity) - default to 1.0 if not available
                 beta = risk_data.get('beta', None)
                 if beta is None or beta == 0:
-                    # Heuristic: Infer beta from volatility and sector
-                    # Low vol stocks tend to be defensive (Beta < 1)
-                    # High vol stocks tend to be aggressive (Beta > 1)
-                    if volatility <= 25:
-                        beta = 0.85  # Defensive (aligns with Tier 1 boundary)
-                    elif volatility <= 40:
-                        beta = 1.0   # Market-like
+                    # Advanced Heuristic: Infer beta from SECTOR + VOLATILITY + MOMENTUM
+                    # This ensures JNJ, CSCO, and GOOGL get different treatments
+
+                    # Step 1: Base Beta by Sector
+                    sector_lower = sector.lower()
+                    if 'health' in sector_lower or 'pharmaceutical' in sector_lower:
+                        base_beta = 0.65  # Healthcare: Very defensive (JNJ)
+                    elif 'consumer staples' in sector_lower or 'utilities' in sector_lower:
+                        base_beta = 0.70  # Defensive staples
+                    elif 'industrial' in sector_lower or 'materials' in sector_lower:
+                        base_beta = 0.85  # Industrials: Cyclical but stable
+                    elif 'technology' in sector_lower or 'communication' in sector_lower:
+                        # Tech is tricky: can be defensive (CSCO) or aggressive (GOOGL)
+                        # Use momentum to differentiate
+                        if return_12m > 30:  # High growth (GOOGL-like)
+                            base_beta = 1.20
+                        elif return_12m > 15:  # Moderate growth
+                            base_beta = 1.05
+                        else:  # Stable/dividend tech (CSCO-like)
+                            base_beta = 0.90
+                    elif 'consumer discretionary' in sector_lower or 'consumer cyclical' in sector_lower:
+                        base_beta = 1.05  # Cyclical growth
+                    elif 'financial' in sector_lower or 'energy' in sector_lower or 'real estate' in sector_lower:
+                        base_beta = 1.10  # Cyclical/Levered
                     else:
-                        beta = 1.2   # Aggressive
+                        # Fallback: use volatility
+                        if volatility <= 25:
+                            base_beta = 0.85
+                        elif volatility <= 40:
+                            base_beta = 1.0
+                        else:
+                            base_beta = 1.2
+
+                    # Step 2: Adjust by volatility (high vol → higher beta)
+                    if volatility > 35:
+                        base_beta += 0.15
+                    elif volatility > 25:
+                        base_beta += 0.05
+                    elif volatility < 15:
+                        base_beta -= 0.05
+
+                    beta = round(base_beta, 2)
 
                 # === TIER CLASSIFICATION BY BETA + VOLATILITY MATRIX ===
                 # Use 2D classification: Beta (market sensitivity) + Volatility (noise)
@@ -7510,6 +7578,7 @@ with tab7:
                                 distance_ma200 = trend_data.get('distance_ma200', 0) if trend_data else 0
                                 volatility = risk_data.get('volatility', 20) if risk_data else 20  # Annualized volatility %
                                 rsi = momentum_data.get('rsi', 50) if momentum_data else 50
+                                return_12m = momentum_data.get('return_12m', 0) if momentum_data else 0  # For growth proxy
 
                                 # Get current price (try multiple sources)
                                 current_price = full_analysis.get('current_price', 0)
@@ -7523,6 +7592,9 @@ with tab7:
                                     except:
                                         pass
 
+                                # Get sector from stock_data
+                                stock_sector = stock_data.get('sector', 'Unknown')
+
                                 # Final check - if still 0, show warning and skip stop loss calculation
                                 if current_price == 0 or current_price is None:
                                     st.warning("⚠️ Precio actual no disponible. No se pueden calcular los stop loss basados en ATR.")
@@ -7531,15 +7603,48 @@ with tab7:
                                     # Get Beta (market sensitivity) - default to 1.0 if not available
                                     beta = risk_data.get('beta', None)
                                     if beta is None or beta == 0:
-                                        # Heuristic: Infer beta from volatility and sector
-                                        # Low vol stocks tend to be defensive (Beta < 1)
-                                        # High vol stocks tend to be aggressive (Beta > 1)
-                                        if volatility <= 25:
-                                            beta = 0.85  # Defensive (aligns with Tier 1 boundary)
-                                        elif volatility <= 40:
-                                            beta = 1.0   # Market-like
+                                        # Advanced Heuristic: Infer beta from SECTOR + VOLATILITY + MOMENTUM
+                                        # This ensures JNJ, CSCO, and GOOGL get different treatments
+
+                                        # Step 1: Base Beta by Sector
+                                        sector_lower = stock_sector.lower()
+                                        if 'health' in sector_lower or 'pharmaceutical' in sector_lower:
+                                            base_beta = 0.65  # Healthcare: Very defensive (JNJ)
+                                        elif 'consumer staples' in sector_lower or 'utilities' in sector_lower:
+                                            base_beta = 0.70  # Defensive staples
+                                        elif 'industrial' in sector_lower or 'materials' in sector_lower:
+                                            base_beta = 0.85  # Industrials: Cyclical but stable
+                                        elif 'technology' in sector_lower or 'communication' in sector_lower:
+                                            # Tech is tricky: can be defensive (CSCO) or aggressive (GOOGL)
+                                            # Use momentum to differentiate
+                                            if return_12m > 30:  # High growth (GOOGL-like)
+                                                base_beta = 1.20
+                                            elif return_12m > 15:  # Moderate growth
+                                                base_beta = 1.05
+                                            else:  # Stable/dividend tech (CSCO-like)
+                                                base_beta = 0.90
+                                        elif 'consumer discretionary' in sector_lower or 'consumer cyclical' in sector_lower:
+                                            base_beta = 1.05  # Cyclical growth
+                                        elif 'financial' in sector_lower or 'energy' in sector_lower or 'real estate' in sector_lower:
+                                            base_beta = 1.10  # Cyclical/Levered
                                         else:
-                                            beta = 1.2   # Aggressive
+                                            # Fallback: use volatility
+                                            if volatility <= 25:
+                                                base_beta = 0.85
+                                            elif volatility <= 40:
+                                                base_beta = 1.0
+                                            else:
+                                                base_beta = 1.2
+
+                                        # Step 2: Adjust by volatility (high vol → higher beta)
+                                        if volatility > 35:
+                                            base_beta += 0.15
+                                        elif volatility > 25:
+                                            base_beta += 0.05
+                                        elif volatility < 15:
+                                            base_beta -= 0.05
+
+                                        beta = round(base_beta, 2)
 
                                     # === TIER CLASSIFICATION BY BETA + VOLATILITY MATRIX ===
                                     # Use 2D classification: Beta (market sensitivity) + Volatility (noise)
