@@ -5945,14 +5945,20 @@ with tab8:
                 st.markdown("### 🛡️ Sistema de Stop Loss de 3 Niveles (ATR-Based)")
                 st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) y volatilidad adaptativa")
 
-                # Get technical data
+                # Get technical data with defensive checks
                 trend_data = full_analysis.get('trend', {})
+                if not isinstance(trend_data, dict):
+                    trend_data = {}
                 risk_data = full_analysis.get('risk', {})
+                if not isinstance(risk_data, dict):
+                    risk_data = {}
                 momentum_data = full_analysis.get('momentum', {})
+                if not isinstance(momentum_data, dict):
+                    momentum_data = {}
 
-                distance_ma200 = trend_data.get('distance_ma200', 0)
-                volatility = risk_data.get('volatility', 20)  # Default 20% if not available
-                rsi = momentum_data.get('rsi', 50)  # Default 50 if not available
+                distance_ma200 = trend_data.get('distance_ma200', 0) if trend_data else 0
+                volatility = risk_data.get('volatility', 20) if risk_data else 20  # Default 20% if not available
+                rsi = momentum_data.get('rsi', 50) if momentum_data else 50  # Default 50 if not available
 
                 # Get current price (need to access it from somewhere)
                 current_price = price  # Using the price from cached data
@@ -7322,14 +7328,20 @@ with tab7:
                                 st.markdown("### 🛡️ Sistema de Stop Loss de 3 Niveles (ATR-Based)")
                                 st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) y volatilidad adaptativa")
 
-                                # Get technical data
+                                # Get technical data with defensive checks
                                 trend_data = full_analysis.get('trend', {})
+                                if not isinstance(trend_data, dict):
+                                    trend_data = {}
                                 risk_data = full_analysis.get('risk', {})
+                                if not isinstance(risk_data, dict):
+                                    risk_data = {}
                                 momentum_data = full_analysis.get('momentum', {})
+                                if not isinstance(momentum_data, dict):
+                                    momentum_data = {}
 
-                                distance_ma200 = trend_data.get('distance_ma200', 0)
-                                volatility = risk_data.get('volatility', 20)  # Default 20% if not available
-                                rsi = momentum_data.get('rsi', 50)  # Default 50 if not available
+                                distance_ma200 = trend_data.get('distance_ma200', 0) if trend_data else 0
+                                volatility = risk_data.get('volatility', 20) if risk_data else 20  # Default 20% if not available
+                                rsi = momentum_data.get('rsi', 50) if momentum_data else 50  # Default 50 if not available
 
                                 # Get current price (try multiple sources)
                                 current_price = full_analysis.get('current_price', 0)
