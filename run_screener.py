@@ -6043,45 +6043,70 @@ with tab8:
                 # Get current price (need to access it from somewhere)
                 current_price = price  # Using the price from cached data
 
-                # === TIER CLASSIFICATION BY VOLATILITY ===
-                # Determine volatility tier and ATR multipliers
-                if volatility < 20:
+                # Get Beta (market sensitivity) - default to 1.0 if not available
+                beta = risk_data.get('beta', None)
+                if beta is None or beta == 0:
+                    # Heuristic: Infer beta from volatility and sector
+                    # Low vol stocks tend to be defensive (Beta < 1)
+                    # High vol stocks tend to be aggressive (Beta > 1)
+                    if volatility < 20:
+                        beta = 0.85  # Defensive
+                    elif volatility < 35:
+                        beta = 1.0   # Market-like
+                    else:
+                        beta = 1.2   # Aggressive
+
+                # === TIER CLASSIFICATION BY BETA + VOLATILITY MATRIX ===
+                # Use 2D classification: Beta (market sensitivity) + Volatility (noise)
+
+                # Tier 1: Defensive (Low Beta AND Low Vol)
+                if beta < 0.95 and volatility < 25:
                     tier = "TIER 1: Defensivo 🐢"
                     tier_emoji = "🐢"
-                    tier_description = f"Baja Volatilidad ({volatility:.1f}%)"
+                    tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
                     initial_multiplier = 1.5
                     trailing_multiplier = 2.0
                     climax_multiplier = 1.0
-                    tier_rationale = "Acción estable (dividendos/value). Stops ajustados para evitar sacudidas innecesarias."
-                elif volatility < 40:
-                    tier = "TIER 2: Core Growth 🏃"
-                    tier_emoji = "🏃"
-                    tier_description = f"Volatilidad Moderada ({volatility:.1f}%)"
-                    initial_multiplier = 2.5
-                    trailing_multiplier = 3.0
-                    climax_multiplier = 1.5
-                    tier_rationale = "Acción de crecimiento balanceado. Stops estándar con espacio para respirar."
-                else:
+                    tier_rationale = f"Acción defensiva (Beta {beta:.2f} < 1.0). Se mueve MENOS que el mercado. Stop corto para proteger capital."
+                    max_stop_pct = 8.0  # Hard cap: never more than -8%
+
+                # Tier 3: High Momentum (High Beta OR High Vol)
+                elif beta > 1.15 or volatility > 45:
                     tier = "TIER 3: High Momentum 🚀"
                     tier_emoji = "🚀"
-                    tier_description = f"Alta Volatilidad ({volatility:.1f}%)"
+                    tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
                     initial_multiplier = 3.5
                     trailing_multiplier = 4.0
                     climax_multiplier = 2.0
-                    tier_rationale = "Acción de alto momentum/especulativa. Stops amplios para aguantar volatilidad."
+                    tier_rationale = f"Acción agresiva (Beta {beta:.2f} > 1.15). Se mueve MÁS que el mercado. Stop amplio para aguantar volatilidad."
+                    max_stop_pct = 25.0  # Hard cap: never more than -25%
+
+                # Tier 2: Core Growth (Balanced)
+                else:
+                    tier = "TIER 2: Core Growth 🏃"
+                    tier_emoji = "🏃"
+                    tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
+                    initial_multiplier = 2.5
+                    trailing_multiplier = 3.0
+                    climax_multiplier = 1.5
+                    tier_rationale = f"Acción balanceada (Beta {beta:.2f} ≈ 1.0). Se mueve CON el mercado. Stop estándar con espacio para respirar."
+                    max_stop_pct = 18.0  # Hard cap: never more than -18%
 
                 # Display Tier Classification
                 st.info(f"""
 **{tier}** {tier_emoji}
 
+**Beta (Sensibilidad al Mercado):** {beta:.2f}
 **Volatilidad Anualizada:** {volatility:.1f}%
 
 **Estrategia:** {tier_rationale}
 
 **Multiplicadores ATR:**
-- Stop Inicial: {initial_multiplier}x ATR
+- Stop Inicial: {initial_multiplier}x ATR (máx {max_stop_pct:.0f}%)
 - Trailing Stop: {trailing_multiplier}x ATR
 - Stop Clímax: {climax_multiplier}x ATR
+
+**Clasificación:** {'Beta < 1 = Defensivo' if beta < 1 else 'Beta > 1 = Agresivo' if beta > 1.15 else 'Beta ≈ 1 = Balanceado'}
 """)
 
                 # Calculate ATR approximation from volatility
@@ -7503,45 +7528,70 @@ with tab7:
                                     st.warning("⚠️ Precio actual no disponible. No se pueden calcular los stop loss basados en ATR.")
                                     st.caption("💡 El sistema de stop loss requiere el precio actual del activo para calcular los niveles de ATR.")
                                 else:
-                                    # === TIER CLASSIFICATION BY VOLATILITY ===
-                                    # Determine volatility tier and ATR multipliers
-                                    if volatility < 25:
+                                    # Get Beta (market sensitivity) - default to 1.0 if not available
+                                    beta = risk_data.get('beta', None)
+                                    if beta is None or beta == 0:
+                                        # Heuristic: Infer beta from volatility and sector
+                                        # Low vol stocks tend to be defensive (Beta < 1)
+                                        # High vol stocks tend to be aggressive (Beta > 1)
+                                        if volatility < 20:
+                                            beta = 0.85  # Defensive
+                                        elif volatility < 35:
+                                            beta = 1.0   # Market-like
+                                        else:
+                                            beta = 1.2   # Aggressive
+
+                                    # === TIER CLASSIFICATION BY BETA + VOLATILITY MATRIX ===
+                                    # Use 2D classification: Beta (market sensitivity) + Volatility (noise)
+
+                                    # Tier 1: Defensive (Low Beta AND Low Vol)
+                                    if beta < 0.95 and volatility < 25:
                                         tier = "TIER 1: Defensivo 🐢"
                                         tier_emoji = "🐢"
-                                        tier_description = f"Baja Volatilidad ({volatility:.1f}%)"
+                                        tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
                                         initial_multiplier = 1.5
                                         trailing_multiplier = 2.0
                                         climax_multiplier = 1.0
-                                        tier_rationale = "Acción estable (dividendos/value). Stops ajustados para evitar sacudidas innecesarias."
-                                    elif volatility < 45:
-                                        tier = "TIER 2: Core Growth 🏃"
-                                        tier_emoji = "🏃"
-                                        tier_description = f"Volatilidad Moderada ({volatility:.1f}%)"
-                                        initial_multiplier = 2.5
-                                        trailing_multiplier = 3.0
-                                        climax_multiplier = 1.5
-                                        tier_rationale = "Acción de crecimiento balanceado. Stops estándar con espacio para respirar."
-                                    else:
+                                        tier_rationale = f"Acción defensiva (Beta {beta:.2f} < 1.0). Se mueve MENOS que el mercado. Stop corto para proteger capital."
+                                        max_stop_pct = 8.0  # Hard cap: never more than -8%
+
+                                    # Tier 3: High Momentum (High Beta OR High Vol)
+                                    elif beta > 1.15 or volatility > 45:
                                         tier = "TIER 3: High Momentum 🚀"
                                         tier_emoji = "🚀"
-                                        tier_description = f"Alta Volatilidad ({volatility:.1f}%)"
+                                        tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
                                         initial_multiplier = 3.5
                                         trailing_multiplier = 4.0
                                         climax_multiplier = 2.0
-                                        tier_rationale = "Acción de alto momentum/especulativa. Stops amplios para aguantar volatilidad."
+                                        tier_rationale = f"Acción agresiva (Beta {beta:.2f} > 1.15). Se mueve MÁS que el mercado. Stop amplio para aguantar volatilidad."
+                                        max_stop_pct = 25.0  # Hard cap: never more than -25%
+
+                                    # Tier 2: Core Growth (Balanced)
+                                    else:
+                                        tier = "TIER 2: Core Growth 🏃"
+                                        tier_emoji = "🏃"
+                                        tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
+                                        initial_multiplier = 2.5
+                                        trailing_multiplier = 3.0
+                                        climax_multiplier = 1.5
+                                        tier_rationale = f"Acción balanceada (Beta {beta:.2f} ≈ 1.0). Se mueve CON el mercado. Stop estándar con espacio para respirar."
+                                        max_stop_pct = 18.0  # Hard cap: never more than -18%
 
                                     # Display Tier Classification
                                     st.info(f"""
 **{tier}** {tier_emoji}
 
+**Beta (Sensibilidad al Mercado):** {beta:.2f}
 **Volatilidad Anualizada:** {volatility:.1f}%
 
 **Estrategia:** {tier_rationale}
 
 **Multiplicadores ATR:**
-- Stop Inicial: {initial_multiplier}x ATR
+- Stop Inicial: {initial_multiplier}x ATR (máx {max_stop_pct:.0f}%)
 - Trailing Stop: {trailing_multiplier}x ATR
 - Stop Clímax: {climax_multiplier}x ATR
+
+**Clasificación:** {'Beta < 1 = Defensivo' if beta < 1 else 'Beta > 1 = Agresivo' if beta > 1.15 else 'Beta ≈ 1 = Balanceado'}
 """)
 
                                     # Calculate ATR approximation from volatility
