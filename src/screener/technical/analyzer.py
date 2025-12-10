@@ -1881,14 +1881,35 @@ class EnhancedTechnicalAnalyzer:
                 return (stop_price, rationale)
 
             elif state == "BLUE_SKY_ATH":
-                # Breakout Pivot: Use old ATH as support
-                # If we're at ATH, the old high becomes new support
+                # 🌌 At All-Time High: CRITICAL - Breakouts almost ALWAYS retest
+                # NEVER put stop at exact breakout level. Use volatility buffer.
+
+                # Old ATH becomes support REFERENCE (not the stop itself)
                 ath_support = week_52_high * 0.98 if week_52_high > 0 else current_price * 0.95
 
-                # Don't let it go below 5% though
-                stop_price = max(ath_support, current_price * 0.95)
+                # Buffer for retest: Subtract 1 ATR minimum (more for high-vol stocks)
+                # Tier 1: 1.0x ATR | Tier 2: 1.25x ATR | Tier 3: 1.5x ATR
+                # Rule: "In Tier 3, never < 1 ATR distance unless emergency exit"
+                atr_buffers = {1: 1.0, 2: 1.25, 3: 1.5}
+                atr_buffer_multiplier = atr_buffers.get(tier, 1.0)
 
-                rationale = f"ATH Breakout stop at ${stop_price:.2f} (old resistance = new support)"
+                ath_with_buffer = ath_support - (atr_buffer_multiplier * atr)
+
+                # Alternative: EMA 10 (key trend anchor for ATH breakouts)
+                ema_10_stop = ema_10 * 0.995 if ema_10 > 0 and ema_10 < current_price else current_price * 0.90
+
+                # Use whichever is CLOSER to current price (more conservative)
+                # This allows EMA 10 to override if it's tighter but still reasonable
+                stop_price = max(ath_with_buffer, ema_10_stop)
+
+                # Ensure never above price (safety check)
+                if stop_price >= current_price:
+                    stop_price = current_price * 0.95  # Fallback to -5% if calculation error
+
+                # Distance for reporting
+                distance_pct = ((current_price - stop_price) / current_price) * 100
+
+                rationale = f"ATH breakout w/ retest buffer at ${stop_price:.2f} (-{distance_pct:.1f}%). Using EMA10 or ATH-{atr_buffer_multiplier}xATR. Allow natural pullback."
 
                 return (stop_price, rationale)
 
