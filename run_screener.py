@@ -6912,6 +6912,7 @@ with tab7:
                                 'ticker': symbol,
                                 'name': row.get('name', ''),
                                 'sector': sector,
+                                'price': row.get('price', 0),  # Add price from fundamental data
                                 'fundamental_decision': row['decision'],
                                 'fundamental_score': row['composite_0_100'],
                                 'technical_score': tech_result['score'],
@@ -6936,6 +6937,7 @@ with tab7:
                                 'ticker': symbol,
                                 'name': row.get('name', ''),
                                 'sector': sector,
+                                'price': row.get('price', 0),  # Add price from fundamental data
                                 'fundamental_decision': row['decision'],
                                 'fundamental_score': row['composite_0_100'],
                                 'technical_score': 50,
