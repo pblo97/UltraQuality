@@ -1619,8 +1619,9 @@ class EnhancedTechnicalAnalyzer:
         This is the brain of the stop loss system. Instead of applying the same
         rule always, this detects the current "battle phase" and adapts the strategy.
 
-        6 CRITICAL STATES (checked in priority order):
+        7 CRITICAL STATES (checked in priority order):
 
+        0. DOWNTREND - Broken structure, avoid or exit
         1. ENTRY_BREAKOUT - Just bought, fighting to break out
         2. PARABOLIC_CLIMAX - Vertical move, unsustainable
         3. BLUE_SKY_ATH - All-time high, no resistance above
@@ -1657,6 +1658,29 @@ class EnhancedTechnicalAnalyzer:
             sma50_distance_pct = 0
             if ma_50 > 0:
                 sma50_distance_pct = ((current_price - ma_50) / ma_50 * 100)
+
+            # STATE 0: DOWNTREND (Radioactive - Avoid or Exit) 💀
+            # CRITICAL: Check FIRST if stock is in confirmed downtrend
+            # Price < EMA20 < MA50 = broken structure
+            if (ema_20 > 0 and
+                ma_50 > 0 and
+                current_price < ema_20 and
+                ema_20 < ma_50):
+                return (
+                    "DOWNTREND",
+                    "💀",
+                    f"Broken structure: Price (${current_price:.2f}) < EMA20 (${ema_20:.2f}) < MA50 (${ma_50:.2f}). AVOID or EXIT."
+                )
+
+            # Alternative downtrend detection: Price well below both MAs
+            if (ma_50 > 0 and
+                current_price < ma_50 * 0.97 and  # More than 3% below MA50
+                sma_slope < -0.05):  # AND MA50 is falling
+                return (
+                    "DOWNTREND",
+                    "💀",
+                    f"Downtrend confirmed: Price {sma50_distance_pct:.1f}% below MA50, MA50 falling. Do NOT enter."
+                )
 
             # STATE 1: ENTRY_BREAKOUT (Highest Risk - Initial Fight) 🎯
             # Only trigger if we have a position AND price is actually trying to break out (positive momentum)
@@ -1775,6 +1799,10 @@ class EnhancedTechnicalAnalyzer:
             Tier 1: 2.0x ATR | Tier 2: 3.0x ATR | Tier 3: 3.5x ATR
             Logic: Let winners run. Wide stop to avoid whipsaws.
 
+        STATE 0 - DOWNTREND 💀:
+            Exit Stop = Entry price (if in position) OR don't enter
+            Logic: Broken technical structure. Exit ASAP if holding. Avoid if not.
+
         STATE 5 - PULLBACK_FLAG 🚩:
             Structure Hold = MAX(SMA 50, Swing Low 20d)
             Logic: Don't exit on noise. Respect structural support.
@@ -1799,7 +1827,23 @@ class EnhancedTechnicalAnalyzer:
             (stop_price, stop_rationale)
         """
         try:
-            if state == "ENTRY_BREAKOUT":
+            if state == "DOWNTREND":
+                # Downtrend: Exit if holding, avoid if not
+                if entry_price and entry_price > 0:
+                    # If in position: Exit at entry price (breakeven) or current - 2% (take the loss)
+                    breakeven_stop = entry_price
+                    loss_stop = current_price * 0.98
+                    stop_price = max(breakeven_stop, loss_stop)  # Try for breakeven, accept 2% loss if needed
+
+                    rationale = f"DOWNTREND detected. Exit at ${stop_price:.2f} (breakeven or -2%). Structure broken, cut losses."
+                else:
+                    # Not in position: Discourage entry, but if forced, tight 1x ATR stop
+                    stop_price = current_price - (1.0 * atr)
+                    rationale = f"DOWNTREND: Do NOT enter. If forced, TIGHT stop at ${stop_price:.2f} (1x ATR only). High risk."
+
+                return (stop_price, rationale)
+
+            elif state == "ENTRY_BREAKOUT":
                 # Hard Stop: Use 3x ATR or breakout candle low
                 atr_stop = current_price - (3.0 * atr)
 
