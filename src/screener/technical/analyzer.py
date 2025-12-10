@@ -1659,7 +1659,11 @@ class EnhancedTechnicalAnalyzer:
                 sma50_distance_pct = ((current_price - ma_50) / ma_50 * 100)
 
             # STATE 1: ENTRY_BREAKOUT (Highest Risk - Initial Fight) 🎯
-            if entry_price and days_in_position < 10 and abs(entry_distance_pct) < 5:
+            # Only trigger if we have a position AND price is actually trying to break out (positive momentum)
+            if (entry_price and
+                days_in_position < 10 and
+                abs(entry_distance_pct) < 5 and
+                entry_distance_pct >= 0):  # Must be at or above entry (not falling)
                 return (
                     "ENTRY_BREAKOUT",
                     "🎯",
@@ -1716,12 +1720,21 @@ class EnhancedTechnicalAnalyzer:
                     f"Sideways grind (ADX={adx:.1f}, Slope={sma_slope:.2f}%). Dead money. Exit if > 20 days here."
                 )
 
-            # DEFAULT: ENTRY_BREAKOUT (if no state detected)
-            return (
-                "ENTRY_BREAKOUT",
-                "🎯",
-                "Default state. Using conservative entry parameters."
-            )
+            # DEFAULT: Analyze technical structure for non-positioned stocks
+            # If price is above MA50, it's a pullback candidate
+            if current_price > ma_50 > 0:
+                return (
+                    "PULLBACK_FLAG",
+                    "🚩",
+                    f"Price above MA50 ({sma50_distance_pct:+.1f}%) but no strong trend signal. Monitor for entry."
+                )
+            # If below MA50 or flat, it's choppy/weak
+            else:
+                return (
+                    "CHOPPY_SIDEWAYS",
+                    "💤",
+                    f"Weak structure (ADX={adx:.1f}, below MA50). Monitor or avoid. Use tight stops if entering."
+                )
 
         except Exception as e:
             logger.error(f"Error detecting market state: {e}")
@@ -1948,7 +1961,7 @@ class EnhancedTechnicalAnalyzer:
         # Classification logic
         if beta is not None:
             # Use Beta + Volatility Matrix (preferred)
-            if beta < 0.95 and volatility < 25:
+            if beta < 0.95 and volatility < 20:  # STRICTER: was 25, now 20
                 return 1, TIER_1_CONFIG['name'], TIER_1_CONFIG
             elif beta > 1.15 or volatility > 45:
                 return 3, TIER_3_CONFIG['name'], TIER_3_CONFIG
@@ -1956,7 +1969,7 @@ class EnhancedTechnicalAnalyzer:
                 return 2, TIER_2_CONFIG['name'], TIER_2_CONFIG
         else:
             # Fallback: Use Volatility only
-            if volatility < 25:
+            if volatility < 20:  # STRICTER: was 25, now 20
                 tier = 1
                 config = TIER_1_CONFIG
             elif volatility > 45:
@@ -1967,12 +1980,22 @@ class EnhancedTechnicalAnalyzer:
                 config = TIER_2_CONFIG
 
             # Sector adjustments (heuristic)
-            defensive_sectors = ['Utilities', 'Consumer Defensive', 'Consumer Staples']
+            defensive_sectors = ['Utilities', 'Consumer Defensive', 'Consumer Staples', 'Healthcare']
             speculative_sectors = ['Technology', 'Communication Services', 'Energy']
+            big_tech_sectors = ['Technology', 'Communication Services']  # Big Tech is ALWAYS Tier 2
 
-            if sector in defensive_sectors and tier > 1:
+            # PRIORITY 1: Big Tech override (MSFT, GOOGL, AAPL, etc.)
+            # Big Tech should NEVER be Tier 1, even with low volatility
+            if sector in big_tech_sectors and tier == 1 and volatility >= 20:
+                tier = 2
+                config = TIER_2_CONFIG
+
+            # PRIORITY 2: Force defensive sectors to Tier 1
+            if sector in defensive_sectors and tier > 1 and volatility < 20:
                 tier = 1
                 config = TIER_1_CONFIG
+
+            # PRIORITY 3: Force speculative sectors to Tier 3 if high volatility
             elif sector in speculative_sectors and tier < 3 and volatility > 35:
                 tier = 3
                 config = TIER_3_CONFIG
