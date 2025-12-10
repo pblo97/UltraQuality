@@ -1489,6 +1489,408 @@ class EnhancedTechnicalAnalyzer:
             return False
         return current_price >= 0.98 * week_52_high
 
+    def _calculate_adx(self, prices: List[Dict], period: int = 14) -> float:
+        """
+        Calculate Average Directional Index (ADX) - Trend Strength Indicator.
+
+        ADX > 25: Strong trend (use trailing stops, let it run)
+        ADX < 20: Weak trend / choppy (tighten stops, exit soon)
+
+        ADX measures trend strength regardless of direction.
+
+        Args:
+            prices: Historical price data
+            period: Lookback period (default 14)
+
+        Returns:
+            ADX value (0-100)
+        """
+        try:
+            if len(prices) < period * 2:
+                return 0
+
+            # Calculate +DM and -DM (Directional Movement)
+            plus_dm = []
+            minus_dm = []
+            tr_list = []
+
+            for i in range(1, min(len(prices), period * 2)):
+                high = prices[-i]['high']
+                low = prices[-i]['low']
+                close = prices[-i]['close']
+                prev_high = prices[-(i+1)]['high']
+                prev_low = prices[-(i+1)]['low']
+                prev_close = prices[-(i+1)]['close']
+
+                # True Range
+                tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+                tr_list.append(tr)
+
+                # Directional Movement
+                up_move = high - prev_high
+                down_move = prev_low - low
+
+                if up_move > down_move and up_move > 0:
+                    plus_dm.append(up_move)
+                    minus_dm.append(0)
+                elif down_move > up_move and down_move > 0:
+                    minus_dm.append(down_move)
+                    plus_dm.append(0)
+                else:
+                    plus_dm.append(0)
+                    minus_dm.append(0)
+
+            if not tr_list or sum(tr_list[:period]) == 0:
+                return 0
+
+            # Smooth using Wilder's smoothing (EMA-like)
+            smoothed_tr = sum(tr_list[:period])
+            smoothed_plus_dm = sum(plus_dm[:period])
+            smoothed_minus_dm = sum(minus_dm[:period])
+
+            # Calculate +DI and -DI
+            plus_di = (smoothed_plus_dm / smoothed_tr) * 100 if smoothed_tr > 0 else 0
+            minus_di = (smoothed_minus_dm / smoothed_tr) * 100 if smoothed_tr > 0 else 0
+
+            # Calculate DX
+            di_sum = plus_di + minus_di
+            di_diff = abs(plus_di - minus_di)
+            dx = (di_diff / di_sum) * 100 if di_sum > 0 else 0
+
+            # ADX is smoothed average of DX (simplified - using single DX value)
+            return round(dx, 1)
+
+        except Exception as e:
+            logger.warning(f"Error calculating ADX: {e}")
+            return 0
+
+    def _calculate_sma_slope(self, prices: List[Dict], period: int = 50) -> float:
+        """
+        Calculate the slope of SMA (angle of trend).
+
+        Positive slope: Uptrend
+        Near zero: Sideways/flat
+        Negative slope: Downtrend
+
+        Args:
+            prices: Historical price data
+            period: SMA period (default 50)
+
+        Returns:
+            Slope as percentage change per day
+        """
+        try:
+            if len(prices) < period + 10:
+                return 0
+
+            # Calculate current SMA
+            current_sma = statistics.mean(p['close'] for p in prices[-period:])
+
+            # Calculate SMA from 10 days ago
+            past_sma = statistics.mean(p['close'] for p in prices[-(period+10):-10])
+
+            if past_sma == 0:
+                return 0
+
+            # Slope = (current - past) / past / days
+            slope = ((current_sma - past_sma) / past_sma / 10) * 100
+
+            return round(slope, 3)
+
+        except Exception as e:
+            logger.warning(f"Error calculating SMA slope: {e}")
+            return 0
+
+    def _detect_market_state(
+        self,
+        prices: List[Dict],
+        current_price: float,
+        entry_price: float = None,
+        days_in_position: int = 0,
+        ma_50: float = 0,
+        ema_20: float = 0,
+        rsi: float = None,
+        week_52_high: float = 0,
+        tier: int = 2
+    ) -> Tuple[str, str]:
+        """
+        🧠 STATE MACHINE - Detect current market state for the stock.
+
+        This is the brain of the stop loss system. Instead of applying the same
+        rule always, this detects the current "battle phase" and adapts the strategy.
+
+        6 CRITICAL STATES (checked in priority order):
+
+        1. ENTRY_BREAKOUT - Just bought, fighting to break out
+        2. PARABOLIC_CLIMAX - Vertical move, unsustainable
+        3. BLUE_SKY_ATH - All-time high, no resistance above
+        4. POWER_TREND - Strong trending move (let it run)
+        5. PULLBACK_FLAG - Healthy pullback in uptrend
+        6. CHOPPY_SIDEWAYS - Going nowhere (exit soon)
+
+        Args:
+            prices: Historical price data
+            current_price: Current price
+            entry_price: Entry price (if in position)
+            days_in_position: Days holding (if in position)
+            ma_50: 50-day SMA
+            ema_20: 20-day EMA
+            rsi: RSI indicator
+            week_52_high: 52-week high
+            tier: Risk tier (1=Defensive, 2=Core, 3=Speculative)
+
+        Returns:
+            (state_name, state_emoji, rationale)
+        """
+        try:
+            # Calculate needed indicators
+            highest_high_20 = max(p['high'] for p in prices[-20:]) if len(prices) >= 20 else current_price
+            adx = self._calculate_adx(prices)
+            sma_slope = self._calculate_sma_slope(prices, 50)
+
+            # Distance to entry (if we have one)
+            entry_distance_pct = 0
+            if entry_price and entry_price > 0:
+                entry_distance_pct = ((current_price - entry_price) / entry_price * 100)
+
+            # Distance to SMA 50
+            sma50_distance_pct = 0
+            if ma_50 > 0:
+                sma50_distance_pct = ((current_price - ma_50) / ma_50 * 100)
+
+            # STATE 1: ENTRY_BREAKOUT (Highest Risk - Initial Fight) 🎯
+            if entry_price and days_in_position < 10 and abs(entry_distance_pct) < 5:
+                return (
+                    "ENTRY_BREAKOUT",
+                    "🎯",
+                    f"Just entered {days_in_position}d ago. Fighting to break out ({entry_distance_pct:+.1f}% from entry). Max risk zone."
+                )
+
+            # STATE 2: PARABOLIC_CLIMAX (Vertical Euforia - Lock Profits) 🔥
+            # Tier-specific thresholds for overextension
+            climax_threshold = 20 if tier <= 2 else 30
+            if (rsi and rsi > 75) or (ma_50 > 0 and sma50_distance_pct > climax_threshold):
+                return (
+                    "PARABOLIC_CLIMAX",
+                    "🔥",
+                    f"Vertical move! RSI={rsi or 'N/A'}, {sma50_distance_pct:+.1f}% above MA50. Unsustainable. Lock profits NOW."
+                )
+
+            # STATE 3: BLUE_SKY_ATH (All-Time High - No Resistance) 🌌
+            if week_52_high > 0 and current_price >= 0.98 * week_52_high:
+                return (
+                    "BLUE_SKY_ATH",
+                    "🌌",
+                    f"At ATH (${week_52_high:.2f}). No resistance above. Price discovery mode. Use breakout pivot stop."
+                )
+
+            # STATE 4: POWER_TREND (Strong Trend - Let It Run) 🚀
+            # Price > EMA20 > SMA50 AND strong ADX
+            if (current_price > ema_20 > 0 and
+                ema_20 > ma_50 > 0 and
+                adx > 25):
+                return (
+                    "POWER_TREND",
+                    "🚀",
+                    f"Strong uptrend (ADX={adx:.1f}). Price > EMA20 > MA50. Let winners run with wide stop."
+                )
+
+            # STATE 5: PULLBACK_FLAG (Healthy Rest - Give It Air) 🚩
+            # Price pulled back but still above MA50, volume declining
+            if (current_price < highest_high_20 and
+                current_price > ma_50 > 0 and
+                ma_50 > 0 and
+                sma50_distance_pct > 0):
+                return (
+                    "PULLBACK_FLAG",
+                    "🚩",
+                    f"Healthy pullback. Price < 20d high but > MA50 ({sma50_distance_pct:+.1f}%). Not noise - give it air."
+                )
+
+            # STATE 6: CHOPPY_SIDEWAYS (Dead Money - Exit Soon) 💤
+            # Flat SMA50 slope AND low ADX
+            if abs(sma_slope) < 0.1 and adx < 20:
+                return (
+                    "CHOPPY_SIDEWAYS",
+                    "💤",
+                    f"Sideways grind (ADX={adx:.1f}, Slope={sma_slope:.2f}%). Dead money. Exit if > 20 days here."
+                )
+
+            # DEFAULT: ENTRY_BREAKOUT (if no state detected)
+            return (
+                "ENTRY_BREAKOUT",
+                "🎯",
+                "Default state. Using conservative entry parameters."
+            )
+
+        except Exception as e:
+            logger.error(f"Error detecting market state: {e}")
+            return ("ENTRY_BREAKOUT", "🎯", "Error in state detection, using conservative default.")
+
+    def _calculate_state_aware_stop(
+        self,
+        state: str,
+        tier: int,
+        current_price: float,
+        atr: float,
+        prices: List[Dict],
+        ma_50: float = 0,
+        ema_10: float = 0,
+        swing_low_20: float = 0,
+        entry_price: float = None,
+        week_52_high: float = 0
+    ) -> Tuple[float, str]:
+        """
+        Calculate stop loss based on detected market state.
+
+        Each state has its own optimal stop strategy:
+
+        STATE 1 - ENTRY_BREAKOUT 🎯:
+            Hard Stop = MAX(3x ATR, Breakout Candle Low)
+            Logic: If it falls back into base, the breakout failed. Exit immediately.
+
+        STATE 2 - PARABOLIC_CLIMAX 🔥:
+            Tight Trailing = MIN(EMA 10, Yesterday's Low)
+            Logic: Lock in gains ASAP. This won't last. Ignore tiers.
+
+        STATE 3 - BLUE_SKY_ATH 🌌:
+            Breakout Pivot = Old Resistance (which is now support)
+            Logic: Use the breakout level as support. If it breaks, rally failed.
+
+        STATE 4 - POWER_TREND 🚀:
+            Chandelier Exit = Price - (Multiplier * ATR)
+            Tier 1: 2.0x ATR | Tier 2: 3.0x ATR | Tier 3: 3.5x ATR
+            Logic: Let winners run. Wide stop to avoid whipsaws.
+
+        STATE 5 - PULLBACK_FLAG 🚩:
+            Structure Hold = MAX(SMA 50, Swing Low 20d)
+            Logic: Don't exit on noise. Respect structural support.
+
+        STATE 6 - CHOPPY_SIDEWAYS 💤:
+            Range Break = Lowest Low of Range (Swing Low 20d)
+            Logic: If range breaks down, exit. Otherwise wait for time-based exit.
+
+        Args:
+            state: Market state ('ENTRY_BREAKOUT', 'POWER_TREND', etc.)
+            tier: Risk tier (1=Defensive, 2=Core, 3=Speculative)
+            current_price: Current price
+            atr: 14-day ATR
+            prices: Historical price data
+            ma_50: 50-day SMA
+            ema_10: 10-day EMA
+            swing_low_20: 20-day swing low
+            entry_price: Entry price (if in position)
+            week_52_high: 52-week high
+
+        Returns:
+            (stop_price, stop_rationale)
+        """
+        try:
+            if state == "ENTRY_BREAKOUT":
+                # Hard Stop: Use 3x ATR or breakout candle low
+                atr_stop = current_price - (3.0 * atr)
+
+                # Breakout candle low (assuming last significant low)
+                breakout_low = swing_low_20 if swing_low_20 > 0 else atr_stop
+
+                stop_price = max(atr_stop, breakout_low)
+                rationale = f"Hard stop at ${stop_price:.2f} (3x ATR or breakout low). If it fails, exit fast."
+
+                return (stop_price, rationale)
+
+            elif state == "PARABOLIC_CLIMAX":
+                # Tight Trailing: EMA 10, yesterday's low, or tight ATR
+                yesterday_low = prices[-1]['low'] if prices else current_price * 0.97
+                tight_atr_stop = current_price - (1.5 * atr)
+
+                # Use tighter of EMA 10, yesterday's low, or 1.5x ATR (all must be below price)
+                candidates = []
+                if ema_10 > 0 and ema_10 < current_price:
+                    candidates.append(ema_10)
+                if yesterday_low < current_price:
+                    candidates.append(yesterday_low)
+                candidates.append(tight_atr_stop)
+
+                stop_price = max(candidates)  # Use highest (but still below current price)
+
+                # Add small 0.3% buffer to avoid false triggers
+                stop_price = stop_price * 0.997
+
+                # Ensure stop is never above current price
+                stop_price = min(stop_price, current_price * 0.98)
+
+                rationale = f"TIGHT stop at ${stop_price:.2f} (EMA10/yesterday low/1.5xATR). Lock profits NOW!"
+
+                return (stop_price, rationale)
+
+            elif state == "BLUE_SKY_ATH":
+                # Breakout Pivot: Use old ATH as support
+                # If we're at ATH, the old high becomes new support
+                ath_support = week_52_high * 0.98 if week_52_high > 0 else current_price * 0.95
+
+                # Don't let it go below 5% though
+                stop_price = max(ath_support, current_price * 0.95)
+
+                rationale = f"ATH Breakout stop at ${stop_price:.2f} (old resistance = new support)"
+
+                return (stop_price, rationale)
+
+            elif state == "POWER_TREND":
+                # Chandelier Exit: Tier-specific wide stops
+                # Tier 1: 2.0x | Tier 2: 3.0x | Tier 3: 3.5x
+                multipliers = {1: 2.0, 2: 3.0, 3: 3.5}
+                multiplier = multipliers.get(tier, 3.0)
+
+                stop_price = current_price - (multiplier * atr)
+
+                rationale = f"Chandelier stop at ${stop_price:.2f} ({multiplier}x ATR). Let the trend run!"
+
+                return (stop_price, rationale)
+
+            elif state == "PULLBACK_FLAG":
+                # Structure Hold: SMA 50 or Swing Low 20d
+                # Give it air - don't exit on healthy pullbacks
+                if ma_50 > 0 and swing_low_20 > 0:
+                    # Use whichever is lower (more conservative)
+                    structure_support = min(ma_50, swing_low_20)
+                elif ma_50 > 0:
+                    structure_support = ma_50
+                elif swing_low_20 > 0:
+                    structure_support = swing_low_20
+                else:
+                    # Fallback to 2.5x ATR
+                    structure_support = current_price - (2.5 * atr)
+
+                # Add 0.5% buffer
+                stop_price = structure_support * 0.995
+
+                rationale = f"Structure hold at ${stop_price:.2f} (MA50/SwingLow20). Give pullback air to breathe."
+
+                return (stop_price, rationale)
+
+            elif state == "CHOPPY_SIDEWAYS":
+                # Range Break: Swing Low 20d (exit if range breaks)
+                if swing_low_20 > 0:
+                    stop_price = swing_low_20 * 0.995  # 0.5% buffer
+                else:
+                    # Fallback to tight 2x ATR
+                    stop_price = current_price - (2.0 * atr)
+
+                rationale = f"Range break stop at ${stop_price:.2f}. Exit if breaks range OR after 20 days sideways."
+
+                return (stop_price, rationale)
+
+            else:
+                # Default fallback (shouldn't happen)
+                stop_price = current_price - (2.5 * atr)
+                rationale = f"Default stop at ${stop_price:.2f}"
+                return (stop_price, rationale)
+
+        except Exception as e:
+            logger.error(f"Error calculating state-aware stop: {e}")
+            # Safe fallback
+            return (current_price - (2.5 * atr), "Error - using 2.5x ATR fallback")
+
     def _classify_risk_tier(
         self,
         volatility: float,
@@ -1696,76 +2098,47 @@ class EnhancedTechnicalAnalyzer:
             else:
                 ath_note = ""
 
-            # ========== STEP 4: Determine Lifecycle Phase (Option D) ==========
-            # Restructured to use phase-aware stops with buffer to prevent stop hunting
-            lifecycle_phase = "Entry (Risk On 🎯)"
-            active_stop_price = 0
-            active_stop_pct = 0
-            lifecycle_note = ""
+            # ========== STEP 4: STATE MACHINE - Detect Market State & Calculate Stop ==========
+            # 🧠 This is the brain: detect what the stock is doing NOW and adapt strategy
 
-            if entry_price and entry_price > 0:
+            # Special check: Zombie Killer (dead money override - highest priority)
+            if entry_price and entry_price > 0 and days_in_position > 20:
                 current_gain_pct = ((current_price - entry_price) / entry_price * 100)
-
-                # Phase D: Zombie Killer (check first - highest priority)
-                if days_in_position > 20 and abs(current_gain_pct) < 2:
-                    lifecycle_phase = "Zombie Killer (Time ⏱️)"
-                    # Exit dead money - stop at entry or swing low 10d
-                    active_stop_price = max(entry_price, swing_low_10)
+                if abs(current_gain_pct) < 2:
+                    # Override everything - this is dead money
+                    market_state = "CHOPPY_SIDEWAYS"
+                    state_emoji = "💤"
+                    active_stop_price = max(entry_price, swing_low_20 if swing_low_20 > 0 else swing_low_10)
                     active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
-                    lifecycle_note = f"Dead money for {days_in_position} days. Free up capital. Stop at ${active_stop_price:.2f}"
-
-                # Phase C: Climax (profit protection)
-                elif current_gain_pct > 30 or (rsi and rsi > 75):
-                    lifecycle_phase = "Profit Locking (Clímax 💰)"
-                    # Use phase='climax' for tight EMA 10 stop with 0.75% buffer
-                    active_stop_price = self._calculate_tier_stop_smart(
-                        tier_num, current_price, atr_14, 1.5,
-                        ma_50, swing_low_20, ema_10, hard_cap,
-                        phase='climax'
-                    )
-                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
-                    lifecycle_note = f"Climax detected (Return: {current_gain_pct:+.1f}%, RSI: {rsi or 'N/A'}). Lock in gains with tight stop."
-
-                # Phase B: Breakeven (free ride - 1.5x initial risk)
-                elif current_gain_pct >= 10:  # ~10% = 1.5x typical initial risk
-                    lifecycle_phase = "Breakeven (Free Ride 🛡️)"
-                    active_stop_price = entry_price
-                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
-                    lifecycle_note = f"Risk eliminated! Stop moved to entry ${entry_price:.2f}. Playing with house money."
-
-                # Phase A2: Trailing (trend following after initial period)
-                elif days_in_position > 5 and current_gain_pct > 2:
-                    lifecycle_phase = "Trailing (Trend Following 🏄)"
-                    # Use phase='trailing' for long anchors (20d) with 0.5% buffer
-                    active_stop_price = self._calculate_tier_stop_smart(
-                        tier_num, current_price, atr_14, trailing_mult,
-                        ma_50, swing_low_20, ema_10, hard_cap,
-                        phase='trailing'
-                    )
-                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
-                    lifecycle_note = f"Position maturing. Trailing stop using long-term anchors with anti-hunting buffer."
-
-                # Phase A1: Entry (initial protection)
+                    state_rationale = f"ZOMBIE KILLER: Dead money for {days_in_position} days. Exit at ${active_stop_price:.2f} or NOW."
                 else:
-                    lifecycle_phase = "Entry (Risk On 🎯)"
-                    # Use phase='entry' for ATR + Hard Cap only (no tight anchors)
-                    active_stop_price = self._calculate_tier_stop_smart(
-                        tier_num, current_price, atr_14, initial_mult,
-                        ma_50, swing_low_20, ema_10, hard_cap,
-                        phase='entry'
+                    # Not zombie - detect normal state
+                    market_state, state_emoji, state_rationale = self._detect_market_state(
+                        prices, current_price, entry_price, days_in_position,
+                        ma_50, ema_20, rsi, week_52_high, tier_num
+                    )
+
+                    # Calculate stop based on detected state
+                    active_stop_price, stop_rationale = self._calculate_state_aware_stop(
+                        market_state, tier_num, current_price, atr_14, prices,
+                        ma_50, ema_10, swing_low_20, entry_price, week_52_high
                     )
                     active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
-                    lifecycle_note = f"Initial stop using {tier_name} parameters. ATR-based for breathing room."
+                    state_rationale = f"{state_rationale} | {stop_rationale}"
             else:
-                # No entry price - recommend initial stop
-                lifecycle_phase = "Entry (Risk On 🎯)"
-                active_stop_price = self._calculate_tier_stop_smart(
-                    tier_num, current_price, atr_14, initial_mult,
-                    ma_50, swing_low_20, ema_10, hard_cap,
-                    phase='entry'
+                # No entry price or recent entry - detect state
+                market_state, state_emoji, state_rationale = self._detect_market_state(
+                    prices, current_price, entry_price, days_in_position,
+                    ma_50, ema_20, rsi, week_52_high, tier_num
+                )
+
+                # Calculate stop based on detected state
+                active_stop_price, stop_rationale = self._calculate_state_aware_stop(
+                    market_state, tier_num, current_price, atr_14, prices,
+                    ma_50, ema_10, swing_low_20, entry_price, week_52_high
                 )
                 active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
-                lifecycle_note = f"Recommended initial stop for {tier_name}. ATR-based for breathing room."
+                state_rationale = f"{state_rationale} | {stop_rationale}"
 
             # ========== STEP 5: Calculate Alternative Stops ==========
             # Calculate stops for all tiers for comparison (using 'entry' phase)
@@ -1780,25 +2153,32 @@ class EnhancedTechnicalAnalyzer:
                 'tier_name': tier_name,
                 'tier_description': tier_config['description'],
 
-                # Lifecycle
-                'lifecycle_phase': lifecycle_phase,
-                'lifecycle_note': lifecycle_note,
+                # Market State (State Machine)
+                'market_state': market_state,
+                'state_emoji': state_emoji,
+                'state_rationale': state_rationale,
+
+                # Backward compatibility
+                'lifecycle_phase': f"{market_state} {state_emoji}",
+                'lifecycle_note': state_rationale,
 
                 # Active Stop (The one to use NOW)
                 'active_stop': {
                     'price': f'${active_stop_price:.2f}',
                     'distance': f'{active_stop_pct:.1f}%',
-                    'rationale': lifecycle_note or f"Initial {tier_name} stop"
+                    'rationale': state_rationale
                 },
 
-                # Base Parameters (Option D includes new indicators)
+                # Base Parameters (State Machine uses additional indicators)
                 'parameters': {
                     'atr_14': round(atr_14, 2),
                     'highest_high_22': round(highest_high_22, 2),
                     'swing_low_10': round(swing_low_10, 2),
-                    'swing_low_20': round(swing_low_20, 2),  # Option D: More robust
+                    'swing_low_20': round(swing_low_20, 2),  # More robust
                     'ema_20': round(ema_20, 2) if ema_20 > 0 else 'N/A',
-                    'ema_10': round(ema_10, 2) if ema_10 > 0 else 'N/A',  # Option D: For climax
+                    'ema_10': round(ema_10, 2) if ema_10 > 0 else 'N/A',  # For climax stops
+                    'adx': round(self._calculate_adx(prices), 1),  # Trend strength
+                    'sma_slope': round(self._calculate_sma_slope(prices, 50), 3),  # Trend direction
                     'is_ath_breakout': is_ath,
                     'ath_note': ath_note
                 },
@@ -1833,9 +2213,10 @@ class EnhancedTechnicalAnalyzer:
                 # Notes
                 'notes': [
                     f"Classified as {tier_name} based on volatility ({volatility:.1f}%) and beta ({beta or 'N/A'})",
-                    f"Current lifecycle phase: {lifecycle_phase}",
-                    "Option D (Hybrid): Entry=ATR only | Trailing=Long anchors+0.5% buffer | Climax=EMA10+0.75% buffer",
-                    "Anti-hunting buffers prevent algorithmic stop hunting",
+                    f"🧠 State Machine: {market_state} {state_emoji}",
+                    state_rationale,
+                    "Context-aware stops: 6 states (ENTRY_BREAKOUT, POWER_TREND, PARABOLIC_CLIMAX, BLUE_SKY_ATH, PULLBACK_FLAG, CHOPPY_SIDEWAYS)",
+                    "Each state uses optimal stop strategy for current market conditions",
                     "Use trailing stops - move up as price rises, never down",
                     ath_note if ath_note else None
                 ]
