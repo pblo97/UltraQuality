@@ -215,6 +215,10 @@ class EnhancedTechnicalAnalyzer:
             signal = self._generate_signal(total_score, trend_data, market_regime)
 
             # 15. Generate risk management recommendations (NEW)
+            # Get additional data for SmartDynamicStopLoss
+            week_52_high = q.get('yearHigh', 0)
+            beta = q.get('beta', None)
+
             risk_mgmt_recs = self._generate_risk_management_recommendations(
                 symbol=symbol,
                 price=price,
@@ -227,7 +231,12 @@ class EnhancedTechnicalAnalyzer:
                 volatility=risk_data.get('volatility', 0),
                 sharpe=risk_data.get('sharpe', 0),
                 volume_profile=volume_data.get('profile', 'UNKNOWN'),
-                market_regime=market_regime
+                market_regime=market_regime,
+                # SmartDynamicStopLoss parameters
+                prices=prices,
+                week_52_high=week_52_high,
+                beta=beta,
+                sector=sector
             )
 
             return {
@@ -1127,7 +1136,12 @@ class EnhancedTechnicalAnalyzer:
         volatility: float,
         sharpe: float,
         volume_profile: str,
-        market_regime: str
+        market_regime: str,
+        # SmartDynamicStopLoss parameters
+        prices: List[Dict] = None,
+        week_52_high: float = 0,
+        beta: float = None,
+        sector: str = None
     ) -> Dict:
         """
         Generate comprehensive risk management and options strategies recommendations.
@@ -1159,10 +1173,29 @@ class EnhancedTechnicalAnalyzer:
             signal, overextension_risk, distance_ma200, price, ma_50, ma_200
         )
 
-        # ========== 3. STOP LOSS ==========
-        recommendations['stop_loss'] = self._generate_stop_loss(
-            price, ma_50, ma_200, volatility, distance_ma200
-        )
+        # ========== 3. STOP LOSS (SmartDynamicStopLoss) ==========
+        if prices and len(prices) > 0:
+            # Use SmartDynamicStopLoss (advanced adaptive system)
+            recommendations['stop_loss'] = self._generate_smart_stop_loss(
+                prices=prices,
+                current_price=price,
+                ma_50=ma_50,
+                ma_200=ma_200,
+                volatility=volatility,
+                week_52_high=week_52_high,
+                beta=beta,
+                sector=sector,
+                # Lifecycle parameters (not available in initial analysis, set to None)
+                entry_price=None,
+                days_in_position=0,
+                current_return_pct=0,
+                rsi=None
+            )
+        else:
+            # Fallback to legacy method if no price data
+            recommendations['stop_loss'] = self._generate_stop_loss(
+                price, ma_50, ma_200, volatility, distance_ma200
+            )
 
         # ========== 4. PROFIT TAKING ==========
         recommendations['profit_taking'] = self._generate_profit_targets(
@@ -1268,8 +1301,233 @@ class EnhancedTechnicalAnalyzer:
                 'rationale': f'Low overextension risk ({overextension_risk}/7). Technical setup favorable for immediate entry.'
             }
 
+    # ============================================================================
+    # SMART DYNAMIC STOP LOSS - Parameter Calculation Methods
+    # ============================================================================
+
+    def _calculate_atr_14(self, prices: List[Dict]) -> float:
+        """
+        Calculate 14-day Average True Range (ATR).
+
+        ATR = Average of True Range over 14 periods
+        True Range = max(High - Low, |High - Previous Close|, |Low - Previous Close|)
+
+        Args:
+            prices: List of historical price dicts with 'high', 'low', 'close'
+
+        Returns:
+            ATR value (float)
+        """
+        try:
+            if len(prices) < 15:
+                # Fallback: approximate ATR from volatility
+                return 0
+
+            true_ranges = []
+            for i in range(1, min(15, len(prices))):
+                high = prices[-i]['high']
+                low = prices[-i]['low']
+                prev_close = prices[-(i+1)]['close']
+
+                tr = max(
+                    high - low,
+                    abs(high - prev_close),
+                    abs(low - prev_close)
+                )
+                true_ranges.append(tr)
+
+            return statistics.mean(true_ranges) if true_ranges else 0
+
+        except Exception as e:
+            logger.warning(f"Error calculating ATR: {e}")
+            return 0
+
+    def _calculate_highest_high_22(self, prices: List[Dict]) -> float:
+        """
+        Calculate highest high in last 22 trading days (approximately 1 month).
+
+        Args:
+            prices: List of historical price dicts
+
+        Returns:
+            Highest high price (float)
+        """
+        try:
+            if len(prices) < 22:
+                return prices[-1]['high'] if prices else 0
+
+            recent_prices = prices[-22:]
+            return max(p['high'] for p in recent_prices)
+
+        except Exception as e:
+            logger.warning(f"Error calculating highest high: {e}")
+            return 0
+
+    def _calculate_swing_low_10(self, prices: List[Dict]) -> float:
+        """
+        Calculate swing low (lowest low) in last 10 trading days.
+
+        Args:
+            prices: List of historical price dicts
+
+        Returns:
+            Lowest low price (float)
+        """
+        try:
+            if len(prices) < 10:
+                return prices[-1]['low'] if prices else 0
+
+            recent_prices = prices[-10:]
+            return min(p['low'] for p in recent_prices)
+
+        except Exception as e:
+            logger.warning(f"Error calculating swing low: {e}")
+            return 0
+
+    def _calculate_ema_20(self, prices: List[Dict]) -> float:
+        """
+        Calculate 20-day Exponential Moving Average.
+
+        EMA formula: EMA_today = Price_today * k + EMA_yesterday * (1-k)
+        where k = 2 / (N + 1)
+
+        Args:
+            prices: List of historical price dicts
+
+        Returns:
+            EMA 20 value (float)
+        """
+        try:
+            if len(prices) < 20:
+                return 0
+
+            # Get last 20+ prices for accurate calculation
+            period = 20
+            k = 2 / (period + 1)
+
+            # Start with SMA for first EMA value
+            ema = statistics.mean(p['close'] for p in prices[-40:-20]) if len(prices) >= 40 else prices[-20]['close']
+
+            # Calculate EMA for last 20 days
+            for i in range(-20, 0):
+                ema = prices[i]['close'] * k + ema * (1 - k)
+
+            return ema
+
+        except Exception as e:
+            logger.warning(f"Error calculating EMA 20: {e}")
+            return 0
+
+    def _check_ath_proximity(self, current_price: float, week_52_high: float) -> bool:
+        """
+        Check if current price is within 2% of All-Time High (52-week high).
+
+        Args:
+            current_price: Current stock price
+            week_52_high: 52-week high price
+
+        Returns:
+            True if price >= 0.98 * 52_week_high
+        """
+        if week_52_high == 0:
+            return False
+        return current_price >= 0.98 * week_52_high
+
+    def _classify_risk_tier(
+        self,
+        volatility: float,
+        beta: float = None,
+        sector: str = None
+    ) -> Tuple[int, str, Dict]:
+        """
+        Classify asset into Risk Tier based on behavioral characteristics.
+
+        Tiers:
+        - Tier 1 (Defensivo 🐢): Low volatility, stable companies (e.g., Cisco, utilities)
+        - Tier 2 (Core Growth 🏃): Moderate volatility, balanced growth (e.g., Google, Apple)
+        - Tier 3 (Especulativo 🚀): High volatility, high beta (e.g., Nvidia, crypto)
+
+        Classification Logic (Priority Order):
+        1. If Beta available: Use Beta + Volatility Matrix
+        2. Else: Use Volatility + Sector heuristics
+
+        Args:
+            volatility: Annualized volatility (%)
+            beta: Stock beta (optional, preferred)
+            sector: Stock sector (fallback)
+
+        Returns:
+            (tier_number, tier_name, tier_config)
+        """
+        # Tier configurations
+        TIER_1_CONFIG = {
+            'name': 'Tier 1: Defensivo 🐢',
+            'initial_multiplier': 1.8,
+            'trailing_multiplier': 2.0,
+            'hard_cap_pct': 8.0,
+            'anchor': 'SMA 50',
+            'description': 'Low volatility, stable companies'
+        }
+
+        TIER_2_CONFIG = {
+            'name': 'Tier 2: Core Growth 🏃',
+            'initial_multiplier': 2.5,
+            'trailing_multiplier': 3.0,
+            'hard_cap_pct': 15.0,
+            'anchor': 'Swing Low 10d',
+            'description': 'Moderate volatility, balanced growth'
+        }
+
+        TIER_3_CONFIG = {
+            'name': 'Tier 3: Especulativo 🚀',
+            'initial_multiplier': 3.0,
+            'trailing_multiplier': 3.5,
+            'hard_cap_pct': 25.0,
+            'anchor': 'EMA 20',
+            'description': 'High volatility, high momentum'
+        }
+
+        # Classification logic
+        if beta is not None:
+            # Use Beta + Volatility Matrix (preferred)
+            if beta < 0.95 and volatility < 25:
+                return 1, TIER_1_CONFIG['name'], TIER_1_CONFIG
+            elif beta > 1.15 or volatility > 45:
+                return 3, TIER_3_CONFIG['name'], TIER_3_CONFIG
+            else:
+                return 2, TIER_2_CONFIG['name'], TIER_2_CONFIG
+        else:
+            # Fallback: Use Volatility only
+            if volatility < 25:
+                tier = 1
+                config = TIER_1_CONFIG
+            elif volatility > 45:
+                tier = 3
+                config = TIER_3_CONFIG
+            else:
+                tier = 2
+                config = TIER_2_CONFIG
+
+            # Sector adjustments (heuristic)
+            defensive_sectors = ['Utilities', 'Consumer Defensive', 'Consumer Staples']
+            speculative_sectors = ['Technology', 'Communication Services', 'Energy']
+
+            if sector in defensive_sectors and tier > 1:
+                tier = 1
+                config = TIER_1_CONFIG
+            elif sector in speculative_sectors and tier < 3 and volatility > 35:
+                tier = 3
+                config = TIER_3_CONFIG
+
+            return tier, config['name'], config
+
     def _generate_stop_loss(self, price, ma_50, ma_200, volatility, distance_ma200):
-        """Stop loss recommendations."""
+        """
+        LEGACY stop loss method - kept for backward compatibility.
+
+        NEW: Use _generate_smart_stop_loss for SmartDynamicStopLoss implementation.
+        This method provides simple 3-tier stops based on volatility and MAs.
+        """
         # Dynamic stop based on volatility (Wilder's ATR concept)
         # Rule of thumb: 2x volatility for stop distance
         volatility_stop_pct = min(volatility / 252**0.5 * 2, 15)  # Max 15%
@@ -1305,6 +1563,249 @@ class EnhancedTechnicalAnalyzer:
             'stops': stops,
             'note': 'Use trailing stops - adjust as price moves in your favor. Never move stop against you.'
         }
+
+    def _generate_smart_stop_loss(
+        self,
+        prices: List[Dict],
+        current_price: float,
+        ma_50: float,
+        ma_200: float,
+        volatility: float,
+        week_52_high: float,
+        beta: float = None,
+        sector: str = None,
+        # Lifecycle parameters (optional - for position management)
+        entry_price: float = None,
+        days_in_position: int = 0,
+        current_return_pct: float = 0,
+        rsi: float = None
+    ) -> Dict:
+        """
+        SmartDynamicStopLoss - Advanced adaptive stop loss system.
+
+        Features:
+        1. Risk Tier Classification (Defensivo, Core Growth, Especulativo)
+        2. ATR-based dynamic stops with tier-specific multipliers
+        3. Lifecycle management (Entry, Breakeven, Profit Locking, Zombie Killer)
+        4. Technical anchors (SMA 50, Swing Low, EMA 20)
+
+        Args:
+            prices: Historical price data
+            current_price: Current stock price
+            ma_50: 50-day moving average
+            ma_200: 200-day moving average
+            volatility: Annualized volatility (%)
+            week_52_high: 52-week high for ATH check
+            beta: Stock beta (optional but recommended)
+            sector: Stock sector (for tier classification)
+            entry_price: Entry price (for lifecycle management)
+            days_in_position: Days holding position
+            current_return_pct: Current return %
+            rsi: RSI indicator (for profit locking phase)
+
+        Returns:
+            Dict with stop loss recommendations and lifecycle phase
+        """
+        try:
+            # ========== STEP 1: Calculate Base Parameters ==========
+            atr_14 = self._calculate_atr_14(prices)
+            highest_high_22 = self._calculate_highest_high_22(prices)
+            swing_low_10 = self._calculate_swing_low_10(prices)
+            ema_20 = self._calculate_ema_20(prices)
+            is_ath = self._check_ath_proximity(current_price, week_52_high)
+
+            # Fallback if ATR calculation failed (use volatility approximation)
+            if atr_14 == 0 and current_price > 0 and volatility > 0:
+                atr_14 = current_price * (volatility / 100) * 0.3
+            elif atr_14 == 0:
+                atr_14 = current_price * 0.05  # 5% fallback
+
+            # ========== STEP 2: Classify Risk Tier ==========
+            tier_num, tier_name, tier_config = self._classify_risk_tier(
+                volatility, beta, sector
+            )
+
+            initial_mult = tier_config['initial_multiplier']
+            trailing_mult = tier_config['trailing_multiplier']
+            hard_cap = tier_config['hard_cap_pct']
+
+            # ========== STEP 3: ATH Adjustment (Reduce multiplier at breakout) ==========
+            if is_ath:
+                # At ATH breakout, reduce multiplier by 0.5 for tighter exit
+                initial_mult = max(1.0, initial_mult - 0.5)
+                trailing_mult = max(1.5, trailing_mult - 0.5)
+                ath_note = "⚠️ ATH Breakout: Tighter stop (multiplier reduced 0.5x)"
+            else:
+                ath_note = ""
+
+            # ========== STEP 4: Determine Lifecycle Phase ==========
+            lifecycle_phase = "Entry (Risk On)"
+            active_stop_price = 0
+            active_stop_pct = 0
+            lifecycle_note = ""
+
+            if entry_price and entry_price > 0:
+                initial_risk_amt = entry_price * (hard_cap / 100)
+                breakeven_threshold = entry_price + (1.5 * initial_risk_amt)
+
+                # Phase B: Breakeven (Free Ride)
+                if current_price >= breakeven_threshold:
+                    lifecycle_phase = "Breakeven (Free Ride 🛡️)"
+                    active_stop_price = entry_price
+                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
+                    lifecycle_note = f"Risk eliminated! Stop moved to entry ${entry_price:.2f}. Playing with house money."
+
+                # Phase C: Profit Locking (Clímax)
+                elif current_return_pct > 30 or (rsi and rsi > 75):
+                    lifecycle_phase = "Profit Locking (Clímax 💰)"
+                    # Aggressive stop: MAX(EMA 20, Price - 1.5*ATR)
+                    stop_ema = ema_20 if ema_20 > 0 else current_price * 0.95
+                    stop_atr = current_price - (1.5 * atr_14)
+                    active_stop_price = max(stop_ema, stop_atr)
+                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
+                    lifecycle_note = f"Climax detected (Return: {current_return_pct:+.1f}%, RSI: {rsi or 'N/A'}). Lock in gains with tight stop."
+
+                # Phase D: Zombie Killer (Time Decay)
+                elif days_in_position > 20 and abs(current_return_pct) < 2:
+                    lifecycle_phase = "Zombie Killer (Time ⏱️)"
+                    # Move stop to entry or 10-day low, whichever is higher
+                    active_stop_price = max(entry_price, swing_low_10)
+                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
+                    lifecycle_note = f"Dead money for {days_in_position} days. Free up capital. Stop at ${active_stop_price:.2f}"
+
+                # Phase A: Entry (Risk On) - default
+                else:
+                    lifecycle_phase = "Entry (Risk On)"
+                    # Initial stop using tier formula
+                    active_stop_price = self._calculate_tier_stop(
+                        tier_num, current_price, atr_14, initial_mult,
+                        ma_50, swing_low_10, ema_20, hard_cap
+                    )
+                    active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
+                    lifecycle_note = f"Initial stop using {tier_name} parameters."
+            else:
+                # No entry price - calculate recommended initial stop
+                active_stop_price = self._calculate_tier_stop(
+                    tier_num, current_price, atr_14, initial_mult,
+                    ma_50, swing_low_10, ema_20, hard_cap
+                )
+                active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
+                lifecycle_note = f"Recommended initial stop for {tier_name}."
+
+            # ========== STEP 5: Calculate Alternative Stops ==========
+            # Calculate stops for all tiers for comparison
+            tier_1_stop = self._calculate_tier_stop(1, current_price, atr_14, 1.8, ma_50, swing_low_10, ema_20, 8.0)
+            tier_2_stop = self._calculate_tier_stop(2, current_price, atr_14, 2.5, ma_50, swing_low_10, ema_20, 15.0)
+            tier_3_stop = self._calculate_tier_stop(3, current_price, atr_14, 3.0, ma_50, swing_low_10, ema_20, 25.0)
+
+            # ========== STEP 6: Build Response ==========
+            return {
+                # Classification
+                'tier': tier_num,
+                'tier_name': tier_name,
+                'tier_description': tier_config['description'],
+
+                # Lifecycle
+                'lifecycle_phase': lifecycle_phase,
+                'lifecycle_note': lifecycle_note,
+
+                # Active Stop (The one to use NOW)
+                'active_stop': {
+                    'price': f'${active_stop_price:.2f}',
+                    'distance': f'{active_stop_pct:.1f}%',
+                    'rationale': lifecycle_note or f"Initial {tier_name} stop"
+                },
+
+                # Base Parameters
+                'parameters': {
+                    'atr_14': round(atr_14, 2),
+                    'highest_high_22': round(highest_high_22, 2),
+                    'swing_low_10': round(swing_low_10, 2),
+                    'ema_20': round(ema_20, 2) if ema_20 > 0 else 'N/A',
+                    'is_ath_breakout': is_ath,
+                    'ath_note': ath_note
+                },
+
+                # Tier-specific stops (for reference)
+                'tier_stops': {
+                    'tier_1_defensive': {
+                        'price': f'${tier_1_stop:.2f}',
+                        'distance': f'{((tier_1_stop - current_price) / current_price * 100):.1f}%',
+                        'formula': 'MAX(Price - 1.8*ATR, Price*0.92, SMA_50)'
+                    },
+                    'tier_2_core_growth': {
+                        'price': f'${tier_2_stop:.2f}',
+                        'distance': f'{((tier_2_stop - current_price) / current_price * 100):.1f}%',
+                        'formula': 'MAX(Price - 2.5*ATR, Price*0.85, Swing_Low_10d)'
+                    },
+                    'tier_3_speculative': {
+                        'price': f'${tier_3_stop:.2f}',
+                        'distance': f'{((tier_3_stop - current_price) / current_price * 100):.1f}%',
+                        'formula': 'MAX(Price - 3.0*ATR, Price*0.75, EMA_20)'
+                    }
+                },
+
+                # Configuration
+                'config': {
+                    'initial_multiplier': initial_mult,
+                    'trailing_multiplier': trailing_mult,
+                    'hard_cap_pct': hard_cap,
+                    'anchor': tier_config['anchor']
+                },
+
+                # Notes
+                'notes': [
+                    f"Classified as {tier_name} based on volatility ({volatility:.1f}%) and beta ({beta or 'N/A'})",
+                    f"Current lifecycle phase: {lifecycle_phase}",
+                    "Use trailing stops - move up as price rises, never down",
+                    ath_note if ath_note else None
+                ]
+            }
+
+        except Exception as e:
+            logger.error(f"Error generating smart stop loss: {e}", exc_info=True)
+            # Fallback to legacy method
+            return self._generate_stop_loss(current_price, ma_50, ma_200, volatility,
+                                           ((current_price - ma_200) / ma_200 * 100) if ma_200 > 0 else 0)
+
+    def _calculate_tier_stop(
+        self,
+        tier: int,
+        price: float,
+        atr: float,
+        multiplier: float,
+        ma_50: float,
+        swing_low: float,
+        ema_20: float,
+        hard_cap_pct: float
+    ) -> float:
+        """
+        Calculate stop loss for a specific tier using tier-specific formula.
+
+        Formulas:
+        - Tier 1: MAX(Price - 1.8*ATR, Price*0.92, SMA_50)
+        - Tier 2: MAX(Price - 2.5*ATR, Price*0.85, Swing_Low_10d)
+        - Tier 3: MAX(Price - 3.0*ATR, Price*0.75, EMA_20)
+
+        Returns:
+            Stop loss price (float)
+        """
+        # Calculate ATR-based stop
+        atr_stop = price - (multiplier * atr)
+
+        # Calculate hard cap stop
+        hard_cap_stop = price * (1 - hard_cap_pct / 100)
+
+        # Calculate anchor stop (tier-specific)
+        if tier == 1:
+            anchor_stop = ma_50 if ma_50 > 0 else price * 0.92
+        elif tier == 2:
+            anchor_stop = swing_low if swing_low > 0 else price * 0.85
+        else:  # tier == 3
+            anchor_stop = ema_20 if ema_20 > 0 else price * 0.75
+
+        # Return MAX of all three, but respect hard cap as minimum
+        return max(hard_cap_stop, atr_stop, anchor_stop)
 
     def _generate_profit_targets(self, signal, distance_ma200, overextension_risk, ma_200, price):
         """Profit taking recommendations."""
