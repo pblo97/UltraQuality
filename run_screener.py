@@ -4958,8 +4958,8 @@ with tab8:
                                         st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
 
                                 with rm_tab3:
-                                    st.markdown("### 🛡️ Sistema de Stop Loss de 3 Niveles (ATR-Based)")
-                                    st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) y volatilidad adaptativa")
+                                    st.markdown("### 🛡️ Sistema de Stop Loss Adaptativo (ATR + Perfil de Volatilidad)")
+                                    st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) con multiplicadores ajustados por volatilidad")
 
                                     # Get technical data
                                     trend_data = full_analysis.get('trend', {})
@@ -4967,8 +4967,49 @@ with tab8:
                                     momentum_data = full_analysis.get('momentum', {})
 
                                     distance_ma200 = trend_data.get('distance_ma200', 0)
-                                    volatility = risk_data.get('volatility', 20)  # Default 20% if not available
-                                    rsi = momentum_data.get('rsi', 50)  # Default 50 if not available
+                                    volatility = risk_data.get('volatility', 20)  # Annualized volatility %
+                                    rsi = momentum_data.get('rsi', 50)
+
+                                    # === TIER CLASSIFICATION BY VOLATILITY ===
+                                    # Determine volatility tier and ATR multipliers
+                                    if volatility < 20:
+                                        tier = "TIER 1: Defensivo 🐢"
+                                        tier_emoji = "🐢"
+                                        tier_description = f"Baja Volatilidad ({volatility:.1f}%)"
+                                        initial_multiplier = 1.5
+                                        trailing_multiplier = 2.0
+                                        climax_multiplier = 1.0
+                                        tier_rationale = "Acción estable (dividendos/value). Stops ajustados para evitar sacudidas innecesarias."
+                                    elif volatility < 40:
+                                        tier = "TIER 2: Core Growth 🏃"
+                                        tier_emoji = "🏃"
+                                        tier_description = f"Volatilidad Moderada ({volatility:.1f}%)"
+                                        initial_multiplier = 2.5
+                                        trailing_multiplier = 3.0
+                                        climax_multiplier = 1.5
+                                        tier_rationale = "Acción de crecimiento balanceado. Stops estándar con espacio para respirar."
+                                    else:
+                                        tier = "TIER 3: High Momentum 🚀"
+                                        tier_emoji = "🚀"
+                                        tier_description = f"Alta Volatilidad ({volatility:.1f}%)"
+                                        initial_multiplier = 3.5
+                                        trailing_multiplier = 4.0
+                                        climax_multiplier = 2.0
+                                        tier_rationale = "Acción de alto momentum/especulativa. Stops amplios para aguantar volatilidad."
+
+                                    # Display Tier Classification
+                                    st.info(f"""
+**{tier}** {tier_emoji}
+
+**Volatilidad Anualizada:** {volatility:.1f}%
+
+**Estrategia:** {tier_rationale}
+
+**Multiplicadores ATR:**
+- Stop Inicial: {initial_multiplier}x ATR
+- Trailing Stop: {trailing_multiplier}x ATR
+- Stop Clímax: {climax_multiplier}x ATR
+""")
 
                                     # Calculate ATR approximation from volatility
                                     # ATR ≈ (Volatility/100) * Price / sqrt(252/14)
@@ -4989,18 +5030,19 @@ with tab8:
                                         tech_overext_level = "MEDIUM"
 
                                     # === NIVEL 1: Stop Inicial (Hard Stop) ===
+                                    st.markdown("---")
                                     st.markdown("#### 🛑 Nivel 1: Stop Inicial (Hard Stop)")
-                                    initial_stop = current_price - (3 * atr)
+                                    initial_stop = current_price - (initial_multiplier * atr)
                                     initial_stop_pct = ((initial_stop - current_price) / current_price) * 100
 
                                     st.metric("Stop Inicial", f"${initial_stop:.2f}", delta=f"{initial_stop_pct:.1f}%")
-                                    st.caption(f"📏 3x ATR (${atr:.2f}) por debajo del precio de entrada")
-                                    st.info("""
+                                    st.caption(f"📏 {initial_multiplier}x ATR (${atr:.2f}) → Stop a {initial_stop_pct:.1f}% del precio")
+                                    st.info(f"""
 **Objetivo:** Protección si la tesis es falsa desde el primer día.
 
-**Regla:** Colocar stop a **3x ATR** por debajo del precio de entrada.
+**Regla:** Stop a **{initial_multiplier}x ATR** por debajo del precio de entrada (ajustado por {tier_description}).
 
-**Por qué:** El ruido normal del mercado rara vez excede 3 ATRs. Si toca este nivel, la tesis de momentum era incorrecta.
+**Por qué:** El ruido normal para este perfil rara vez excede {initial_multiplier}x ATR. Si toca este nivel, la tesis de momentum era incorrecta.
 
 **Acción:** Si se activa → **VENDER INMEDIATAMENTE**
 """)
@@ -5010,17 +5052,17 @@ with tab8:
                                     st.markdown("#### 🏄‍♂️ Nivel 2: Trailing Stop de Tendencia")
 
                                     if tech_overext_level in ["LOW", "MEDIUM"]:
-                                        # Use Chandelier Exit (3x ATR from highest high)
+                                        # Use Chandelier Exit (adaptive multiplier based on volatility tier)
                                         # Approximation: Use current price as recent high
-                                        trailing_stop = current_price - (3 * atr)
+                                        trailing_stop = current_price - (trailing_multiplier * atr)
                                         trailing_stop_pct = ((trailing_stop - current_price) / current_price) * 100
 
                                         st.metric("Trailing Stop", f"${trailing_stop:.2f}", delta=f"{trailing_stop_pct:.1f}%")
-                                        st.caption(f"📏 3x ATR (${atr:.2f}) desde máximo reciente")
-                                        st.success("""
+                                        st.caption(f"📏 {trailing_multiplier}x ATR (${atr:.2f}) → Stop a {trailing_stop_pct:.1f}% del precio")
+                                        st.success(f"""
 **Objetivo:** Dejar correr las ganancias durante meses.
 
-**Regla:** Subir el stop siguiendo **3x ATR** desde el máximo histórico reciente (Chandelier Exit).
+**Regla:** Subir el stop siguiendo **{trailing_multiplier}x ATR** desde el máximo histórico reciente (Chandelier Exit adaptado a {tier_description}).
 
 **Alternativa:** Usar **SMA 50** como piso móvil.
 
@@ -5036,12 +5078,12 @@ with tab8:
                                     st.markdown("#### 💰 Nivel 3: Stop de Clímax (Profit Locking)")
 
                                     if tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75:
-                                        # Use tighter stop: 1.5x ATR or EMA 10
-                                        climax_stop = current_price - (1.5 * atr)
+                                        # Use tighter stop: adaptive multiplier based on volatility tier
+                                        climax_stop = current_price - (climax_multiplier * atr)
                                         climax_stop_pct = ((climax_stop - current_price) / current_price) * 100
 
                                         st.metric("Stop de Clímax", f"${climax_stop:.2f}", delta=f"{climax_stop_pct:.1f}%")
-                                        st.caption(f"📏 1.5x ATR (${atr:.2f}) - Stop ajustado para movimiento parabólico")
+                                        st.caption(f"📏 {climax_multiplier}x ATR (${atr:.2f}) → Stop a {climax_stop_pct:.1f}% del precio")
                                         st.error(f"""
 **Objetivo:** Asegurar ganancias cuando la acción se vuelve parabólica.
 
@@ -5049,7 +5091,7 @@ with tab8:
 - Distance from MA200: {distance_ma200:+.1f}% ({'EXTREME' if abs(distance_ma200) > 50 else 'HIGH'})
 - RSI: {rsi:.0f} {'(> 75 = Sobrecomprado)' if rsi > 75 else ''}
 
-**Regla:** Ajustar stop a **1.5x ATR** o usar **EMA 10**.
+**Regla:** Ajustar stop a **{climax_multiplier}x ATR** (adaptado a {tier_description}) o usar **EMA 10**.
 
 **Por qué:** Las subidas verticales suelen colapsar rápido. No dar espacio - salir cerca del techo.
 
@@ -5080,9 +5122,9 @@ with tab8:
                                             f"{trailing_stop_pct:.1f}%" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
                                             f"{climax_stop_pct:.1f}%" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
                                         ],
-                                        "Distancia ATR": ["3x ATR", "3x ATR", "1.5x ATR"],
+                                        "Multiplicador ATR": [f"{initial_multiplier}x", f"{trailing_multiplier}x", f"{climax_multiplier}x"],
                                         "Uso": [
-                                            "Siempre (Hard Stop)",
+                                            f"Siempre ({tier_emoji})",
                                             "Overext BAJO/MEDIO" if tech_overext_level in ["LOW", "MEDIUM"] else "No aplicable",
                                             "Overext ALTO/RSI>75" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "No aplicable"
                                         ]
@@ -5942,8 +5984,8 @@ with tab8:
                     st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
 
             with rm_tab3:
-                st.markdown("### 🛡️ Sistema de Stop Loss de 3 Niveles (ATR-Based)")
-                st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) y volatilidad adaptativa")
+                st.markdown("### 🛡️ Sistema de Stop Loss Adaptativo (ATR + Perfil de Volatilidad)")
+                st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) con multiplicadores ajustados por volatilidad")
 
                 # Get technical data with defensive checks
                 trend_data = full_analysis.get('trend', {})
@@ -5957,11 +5999,52 @@ with tab8:
                     momentum_data = {}
 
                 distance_ma200 = trend_data.get('distance_ma200', 0) if trend_data else 0
-                volatility = risk_data.get('volatility', 20) if risk_data else 20  # Default 20% if not available
-                rsi = momentum_data.get('rsi', 50) if momentum_data else 50  # Default 50 if not available
+                volatility = risk_data.get('volatility', 20) if risk_data else 20  # Annualized volatility %
+                rsi = momentum_data.get('rsi', 50) if momentum_data else 50
 
                 # Get current price (need to access it from somewhere)
                 current_price = price  # Using the price from cached data
+
+                # === TIER CLASSIFICATION BY VOLATILITY ===
+                # Determine volatility tier and ATR multipliers
+                if volatility < 20:
+                    tier = "TIER 1: Defensivo 🐢"
+                    tier_emoji = "🐢"
+                    tier_description = f"Baja Volatilidad ({volatility:.1f}%)"
+                    initial_multiplier = 1.5
+                    trailing_multiplier = 2.0
+                    climax_multiplier = 1.0
+                    tier_rationale = "Acción estable (dividendos/value). Stops ajustados para evitar sacudidas innecesarias."
+                elif volatility < 40:
+                    tier = "TIER 2: Core Growth 🏃"
+                    tier_emoji = "🏃"
+                    tier_description = f"Volatilidad Moderada ({volatility:.1f}%)"
+                    initial_multiplier = 2.5
+                    trailing_multiplier = 3.0
+                    climax_multiplier = 1.5
+                    tier_rationale = "Acción de crecimiento balanceado. Stops estándar con espacio para respirar."
+                else:
+                    tier = "TIER 3: High Momentum 🚀"
+                    tier_emoji = "🚀"
+                    tier_description = f"Alta Volatilidad ({volatility:.1f}%)"
+                    initial_multiplier = 3.5
+                    trailing_multiplier = 4.0
+                    climax_multiplier = 2.0
+                    tier_rationale = "Acción de alto momentum/especulativa. Stops amplios para aguantar volatilidad."
+
+                # Display Tier Classification
+                st.info(f"""
+**{tier}** {tier_emoji}
+
+**Volatilidad Anualizada:** {volatility:.1f}%
+
+**Estrategia:** {tier_rationale}
+
+**Multiplicadores ATR:**
+- Stop Inicial: {initial_multiplier}x ATR
+- Trailing Stop: {trailing_multiplier}x ATR
+- Stop Clímax: {climax_multiplier}x ATR
+""")
 
                 # Calculate ATR approximation from volatility
                 # ATR ≈ (Volatility/100) * Price / sqrt(252/14)
@@ -5982,18 +6065,19 @@ with tab8:
                     tech_overext_level = "MEDIUM"
 
                 # === NIVEL 1: Stop Inicial (Hard Stop) ===
+                st.markdown("---")
                 st.markdown("#### 🛑 Nivel 1: Stop Inicial (Hard Stop)")
-                initial_stop = current_price - (3 * atr)
+                initial_stop = current_price - (initial_multiplier * atr)
                 initial_stop_pct = ((initial_stop - current_price) / current_price) * 100
 
                 st.metric("Stop Inicial", f"${initial_stop:.2f}", delta=f"{initial_stop_pct:.1f}%")
-                st.caption(f"📏 3x ATR (${atr:.2f}) por debajo del precio de entrada")
-                st.info("""
+                st.caption(f"📏 {initial_multiplier}x ATR (${atr:.2f}) → Stop a {initial_stop_pct:.1f}% del precio")
+                st.info(f"""
 **Objetivo:** Protección si la tesis es falsa desde el primer día.
 
-**Regla:** Colocar stop a **3x ATR** por debajo del precio de entrada.
+**Regla:** Stop a **{initial_multiplier}x ATR** por debajo del precio de entrada (ajustado por {tier_description}).
 
-**Por qué:** El ruido normal del mercado rara vez excede 3 ATRs. Si toca este nivel, la tesis de momentum era incorrecta.
+**Por qué:** El ruido normal para este perfil rara vez excede {initial_multiplier}x ATR. Si toca este nivel, la tesis de momentum era incorrecta.
 
 **Acción:** Si se activa → **VENDER INMEDIATAMENTE**
 """)
@@ -7346,8 +7430,8 @@ with tab7:
                                     st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
 
                             with rm_tab3:
-                                st.markdown("### 🛡️ Sistema de Stop Loss de 3 Niveles (ATR-Based)")
-                                st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) y volatilidad adaptativa")
+                                st.markdown("### 🛡️ Sistema de Stop Loss Adaptativo (ATR + Perfil de Volatilidad)")
+                                st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) con multiplicadores ajustados por volatilidad")
 
                                 # Get technical data with defensive checks
                                 trend_data = full_analysis.get('trend', {})
@@ -7361,8 +7445,8 @@ with tab7:
                                     momentum_data = {}
 
                                 distance_ma200 = trend_data.get('distance_ma200', 0) if trend_data else 0
-                                volatility = risk_data.get('volatility', 20) if risk_data else 20  # Default 20% if not available
-                                rsi = momentum_data.get('rsi', 50) if momentum_data else 50  # Default 50 if not available
+                                volatility = risk_data.get('volatility', 20) if risk_data else 20  # Annualized volatility %
+                                rsi = momentum_data.get('rsi', 50) if momentum_data else 50
 
                                 # Get current price (try multiple sources)
                                 current_price = full_analysis.get('current_price', 0)
@@ -7381,6 +7465,47 @@ with tab7:
                                     st.warning("⚠️ Precio actual no disponible. No se pueden calcular los stop loss basados en ATR.")
                                     st.caption("💡 El sistema de stop loss requiere el precio actual del activo para calcular los niveles de ATR.")
                                 else:
+                                    # === TIER CLASSIFICATION BY VOLATILITY ===
+                                    # Determine volatility tier and ATR multipliers
+                                    if volatility < 20:
+                                        tier = "TIER 1: Defensivo 🐢"
+                                        tier_emoji = "🐢"
+                                        tier_description = f"Baja Volatilidad ({volatility:.1f}%)"
+                                        initial_multiplier = 1.5
+                                        trailing_multiplier = 2.0
+                                        climax_multiplier = 1.0
+                                        tier_rationale = "Acción estable (dividendos/value). Stops ajustados para evitar sacudidas innecesarias."
+                                    elif volatility < 40:
+                                        tier = "TIER 2: Core Growth 🏃"
+                                        tier_emoji = "🏃"
+                                        tier_description = f"Volatilidad Moderada ({volatility:.1f}%)"
+                                        initial_multiplier = 2.5
+                                        trailing_multiplier = 3.0
+                                        climax_multiplier = 1.5
+                                        tier_rationale = "Acción de crecimiento balanceado. Stops estándar con espacio para respirar."
+                                    else:
+                                        tier = "TIER 3: High Momentum 🚀"
+                                        tier_emoji = "🚀"
+                                        tier_description = f"Alta Volatilidad ({volatility:.1f}%)"
+                                        initial_multiplier = 3.5
+                                        trailing_multiplier = 4.0
+                                        climax_multiplier = 2.0
+                                        tier_rationale = "Acción de alto momentum/especulativa. Stops amplios para aguantar volatilidad."
+
+                                    # Display Tier Classification
+                                    st.info(f"""
+**{tier}** {tier_emoji}
+
+**Volatilidad Anualizada:** {volatility:.1f}%
+
+**Estrategia:** {tier_rationale}
+
+**Multiplicadores ATR:**
+- Stop Inicial: {initial_multiplier}x ATR
+- Trailing Stop: {trailing_multiplier}x ATR
+- Stop Clímax: {climax_multiplier}x ATR
+""")
+
                                     # Calculate ATR approximation from volatility
                                     # ATR ≈ (Volatility/100) * Price / sqrt(252/14)
                                     # Simplified: ATR ≈ Price * (Volatility/100) * 0.3
@@ -7400,18 +7525,19 @@ with tab7:
                                         tech_overext_level = "MEDIUM"
 
                                     # === NIVEL 1: Stop Inicial (Hard Stop) ===
+                                    st.markdown("---")
                                     st.markdown("#### 🛑 Nivel 1: Stop Inicial (Hard Stop)")
-                                    initial_stop = current_price - (3 * atr)
+                                    initial_stop = current_price - (initial_multiplier * atr)
                                     initial_stop_pct = ((initial_stop - current_price) / current_price) * 100
 
                                     st.metric("Stop Inicial", f"${initial_stop:.2f}", delta=f"{initial_stop_pct:.1f}%")
-                                    st.caption(f"📏 3x ATR (${atr:.2f}) por debajo del precio de entrada")
-                                    st.info("""
+                                    st.caption(f"📏 {initial_multiplier}x ATR (${atr:.2f}) → Stop a {initial_stop_pct:.1f}% del precio")
+                                    st.info(f"""
 **Objetivo:** Protección si la tesis es falsa desde el primer día.
 
-**Regla:** Colocar stop a **3x ATR** por debajo del precio de entrada.
+**Regla:** Stop a **{initial_multiplier}x ATR** por debajo del precio de entrada (ajustado por {tier_description}).
 
-**Por qué:** El ruido normal del mercado rara vez excede 3 ATRs. Si toca este nivel, la tesis de momentum era incorrecta.
+**Por qué:** El ruido normal para este perfil rara vez excede {initial_multiplier}x ATR. Si toca este nivel, la tesis de momentum era incorrecta.
 
 **Acción:** Si se activa → **VENDER INMEDIATAMENTE**
 """)
@@ -7421,17 +7547,17 @@ with tab7:
                                     st.markdown("#### 🏄‍♂️ Nivel 2: Trailing Stop de Tendencia")
 
                                     if tech_overext_level in ["LOW", "MEDIUM"]:
-                                        # Use Chandelier Exit (3x ATR from highest high)
+                                        # Use Chandelier Exit (adaptive multiplier based on volatility tier)
                                         # Approximation: Use current price as recent high
-                                        trailing_stop = current_price - (3 * atr)
+                                        trailing_stop = current_price - (trailing_multiplier * atr)
                                         trailing_stop_pct = ((trailing_stop - current_price) / current_price) * 100
 
                                         st.metric("Trailing Stop", f"${trailing_stop:.2f}", delta=f"{trailing_stop_pct:.1f}%")
-                                        st.caption(f"📏 3x ATR (${atr:.2f}) desde máximo reciente")
-                                        st.success("""
+                                        st.caption(f"📏 {trailing_multiplier}x ATR (${atr:.2f}) → Stop a {trailing_stop_pct:.1f}% del precio")
+                                        st.success(f"""
 **Objetivo:** Dejar correr las ganancias durante meses.
 
-**Regla:** Subir el stop siguiendo **3x ATR** desde el máximo histórico reciente (Chandelier Exit).
+**Regla:** Subir el stop siguiendo **{trailing_multiplier}x ATR** desde el máximo histórico reciente (Chandelier Exit adaptado a {tier_description}).
 
 **Alternativa:** Usar **SMA 50** como piso móvil.
 
@@ -7447,12 +7573,12 @@ with tab7:
                                     st.markdown("#### 💰 Nivel 3: Stop de Clímax (Profit Locking)")
 
                                     if tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75:
-                                        # Use tighter stop: 1.5x ATR or EMA 10
-                                        climax_stop = current_price - (1.5 * atr)
+                                        # Use tighter stop: adaptive multiplier based on volatility tier
+                                        climax_stop = current_price - (climax_multiplier * atr)
                                         climax_stop_pct = ((climax_stop - current_price) / current_price) * 100
 
                                         st.metric("Stop de Clímax", f"${climax_stop:.2f}", delta=f"{climax_stop_pct:.1f}%")
-                                        st.caption(f"📏 1.5x ATR (${atr:.2f}) - Stop ajustado para movimiento parabólico")
+                                        st.caption(f"📏 {climax_multiplier}x ATR (${atr:.2f}) → Stop a {climax_stop_pct:.1f}% del precio")
                                         st.error(f"""
 **Objetivo:** Asegurar ganancias cuando la acción se vuelve parabólica.
 
@@ -7460,7 +7586,7 @@ with tab7:
 - Distance from MA200: {distance_ma200:+.1f}% ({'EXTREME' if abs(distance_ma200) > 50 else 'HIGH'})
 - RSI: {rsi:.0f} {'(> 75 = Sobrecomprado)' if rsi > 75 else ''}
 
-**Regla:** Ajustar stop a **1.5x ATR** o usar **EMA 10**.
+**Regla:** Ajustar stop a **{climax_multiplier}x ATR** (adaptado a {tier_description}) o usar **EMA 10**.
 
 **Por qué:** Las subidas verticales suelen colapsar rápido. No dar espacio - salir cerca del techo.
 
@@ -7491,9 +7617,9 @@ with tab7:
                                             f"{trailing_stop_pct:.1f}%" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
                                             f"{climax_stop_pct:.1f}%" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
                                         ],
-                                        "Distancia ATR": ["3x ATR", "3x ATR", "1.5x ATR"],
+                                        "Multiplicador ATR": [f"{initial_multiplier}x", f"{trailing_multiplier}x", f"{climax_multiplier}x"],
                                         "Uso": [
-                                            "Siempre (Hard Stop)",
+                                            f"Siempre ({tier_emoji})",
                                             "Overext BAJO/MEDIO" if tech_overext_level in ["LOW", "MEDIUM"] else "No aplicable",
                                             "Overext ALTO/RSI>75" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "No aplicable"
                                         ]
