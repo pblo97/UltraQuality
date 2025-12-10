@@ -7353,34 +7353,39 @@ with tab7:
                                     try:
                                         current_price = stock_data.get('price', 0)
                                     except:
-                                        current_price = 100  # Fallback
+                                        pass
 
-                                # Calculate ATR approximation from volatility
-                                # ATR ≈ (Volatility/100) * Price / sqrt(252/14)
-                                # Simplified: ATR ≈ Price * (Volatility/100) * 0.3
-                                if current_price > 0 and volatility > 0:
-                                    atr = current_price * (volatility / 100) * 0.3
+                                # Final check - if still 0, show warning and skip stop loss calculation
+                                if current_price == 0 or current_price is None:
+                                    st.warning("⚠️ Precio actual no disponible. No se pueden calcular los stop loss basados en ATR.")
+                                    st.caption("💡 El sistema de stop loss requiere el precio actual del activo para calcular los niveles de ATR.")
                                 else:
-                                    atr = current_price * 0.05  # Default 5% if data missing
+                                    # Calculate ATR approximation from volatility
+                                    # ATR ≈ (Volatility/100) * Price / sqrt(252/14)
+                                    # Simplified: ATR ≈ Price * (Volatility/100) * 0.3
+                                    if current_price > 0 and volatility > 0:
+                                        atr = current_price * (volatility / 100) * 0.3
+                                    else:
+                                        atr = current_price * 0.05  # Default 5% if data missing
 
-                                # Determine technical overextension (for stop logic)
-                                # Note: Different from valuation overextension
-                                tech_overext_level = "LOW"
-                                if abs(distance_ma200) > 50:
-                                    tech_overext_level = "EXTREME"
-                                elif abs(distance_ma200) > 40:
-                                    tech_overext_level = "HIGH"
-                                elif abs(distance_ma200) > 30:
-                                    tech_overext_level = "MEDIUM"
+                                    # Determine technical overextension (for stop logic)
+                                    # Note: Different from valuation overextension
+                                    tech_overext_level = "LOW"
+                                    if abs(distance_ma200) > 50:
+                                        tech_overext_level = "EXTREME"
+                                    elif abs(distance_ma200) > 40:
+                                        tech_overext_level = "HIGH"
+                                    elif abs(distance_ma200) > 30:
+                                        tech_overext_level = "MEDIUM"
 
-                                # === NIVEL 1: Stop Inicial (Hard Stop) ===
-                                st.markdown("#### 🛑 Nivel 1: Stop Inicial (Hard Stop)")
-                                initial_stop = current_price - (3 * atr)
-                                initial_stop_pct = ((initial_stop - current_price) / current_price) * 100
+                                    # === NIVEL 1: Stop Inicial (Hard Stop) ===
+                                    st.markdown("#### 🛑 Nivel 1: Stop Inicial (Hard Stop)")
+                                    initial_stop = current_price - (3 * atr)
+                                    initial_stop_pct = ((initial_stop - current_price) / current_price) * 100
 
-                                st.metric("Stop Inicial", f"${initial_stop:.2f}", delta=f"{initial_stop_pct:.1f}%")
-                                st.caption(f"📏 3x ATR (${atr:.2f}) por debajo del precio de entrada")
-                                st.info("""
+                                    st.metric("Stop Inicial", f"${initial_stop:.2f}", delta=f"{initial_stop_pct:.1f}%")
+                                    st.caption(f"📏 3x ATR (${atr:.2f}) por debajo del precio de entrada")
+                                    st.info("""
 **Objetivo:** Protección si la tesis es falsa desde el primer día.
 
 **Regla:** Colocar stop a **3x ATR** por debajo del precio de entrada.
@@ -7390,19 +7395,19 @@ with tab7:
 **Acción:** Si se activa → **VENDER INMEDIATAMENTE**
 """)
 
-                                # === NIVEL 2: Trailing Stop de Tendencia ===
-                                st.markdown("---")
-                                st.markdown("#### 🏄‍♂️ Nivel 2: Trailing Stop de Tendencia")
+                                    # === NIVEL 2: Trailing Stop de Tendencia ===
+                                    st.markdown("---")
+                                    st.markdown("#### 🏄‍♂️ Nivel 2: Trailing Stop de Tendencia")
 
-                                if tech_overext_level in ["LOW", "MEDIUM"]:
-                                    # Use Chandelier Exit (3x ATR from highest high)
-                                    # Approximation: Use current price as recent high
-                                    trailing_stop = current_price - (3 * atr)
-                                    trailing_stop_pct = ((trailing_stop - current_price) / current_price) * 100
+                                    if tech_overext_level in ["LOW", "MEDIUM"]:
+                                        # Use Chandelier Exit (3x ATR from highest high)
+                                        # Approximation: Use current price as recent high
+                                        trailing_stop = current_price - (3 * atr)
+                                        trailing_stop_pct = ((trailing_stop - current_price) / current_price) * 100
 
-                                    st.metric("Trailing Stop", f"${trailing_stop:.2f}", delta=f"{trailing_stop_pct:.1f}%")
-                                    st.caption(f"📏 3x ATR (${atr:.2f}) desde máximo reciente")
-                                    st.success("""
+                                        st.metric("Trailing Stop", f"${trailing_stop:.2f}", delta=f"{trailing_stop_pct:.1f}%")
+                                        st.caption(f"📏 3x ATR (${atr:.2f}) desde máximo reciente")
+                                        st.success("""
 **Objetivo:** Dejar correr las ganancias durante meses.
 
 **Regla:** Subir el stop siguiendo **3x ATR** desde el máximo histórico reciente (Chandelier Exit).
@@ -7413,21 +7418,21 @@ with tab7:
 
 **Acción:** Mantener posición y subir stop conforme sube el precio.
 """)
-                                else:
-                                    st.warning("⚠️ Overextension ALTO - Pasar a Nivel 3 (Profit Locking)")
+                                    else:
+                                        st.warning("⚠️ Overextension ALTO - Pasar a Nivel 3 (Profit Locking)")
 
-                                # === NIVEL 3: Stop de Clímax (Profit Locking) ===
-                                st.markdown("---")
-                                st.markdown("#### 💰 Nivel 3: Stop de Clímax (Profit Locking)")
+                                    # === NIVEL 3: Stop de Clímax (Profit Locking) ===
+                                    st.markdown("---")
+                                    st.markdown("#### 💰 Nivel 3: Stop de Clímax (Profit Locking)")
 
-                                if tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75:
-                                    # Use tighter stop: 1.5x ATR or EMA 10
-                                    climax_stop = current_price - (1.5 * atr)
-                                    climax_stop_pct = ((climax_stop - current_price) / current_price) * 100
+                                    if tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75:
+                                        # Use tighter stop: 1.5x ATR or EMA 10
+                                        climax_stop = current_price - (1.5 * atr)
+                                        climax_stop_pct = ((climax_stop - current_price) / current_price) * 100
 
-                                    st.metric("Stop de Clímax", f"${climax_stop:.2f}", delta=f"{climax_stop_pct:.1f}%")
-                                    st.caption(f"📏 1.5x ATR (${atr:.2f}) - Stop ajustado para movimiento parabólico")
-                                    st.error(f"""
+                                        st.metric("Stop de Clímax", f"${climax_stop:.2f}", delta=f"{climax_stop_pct:.1f}%")
+                                        st.caption(f"📏 1.5x ATR (${atr:.2f}) - Stop ajustado para movimiento parabólico")
+                                        st.error(f"""
 **Objetivo:** Asegurar ganancias cuando la acción se vuelve parabólica.
 
 **Condiciones detectadas:**
@@ -7440,8 +7445,8 @@ with tab7:
 
 **Acción:** Considerar tomar ganancias parciales (50-75%) y dejar el resto con trailing stop ajustado.
 """)
-                                else:
-                                    st.info("""
+                                    else:
+                                        st.info("""
 **Condiciones NO cumplidas para Nivel 3:**
 - Overextension < 50% vs MA200
 - RSI < 75
@@ -7449,35 +7454,35 @@ with tab7:
 **Estado:** Usar Nivel 2 (Trailing Stop de Tendencia)
 """)
 
-                                # Summary table
-                                st.markdown("---")
-                                st.markdown("#### 📊 Resumen de Stops")
+                                    # Summary table
+                                    st.markdown("---")
+                                    st.markdown("#### 📊 Resumen de Stops")
 
-                                stops_summary = {
-                                    "Nivel": ["1️⃣ Inicial", "2️⃣ Trailing", "3️⃣ Clímax"],
-                                    "Precio Stop": [
-                                        f"${initial_stop:.2f}",
-                                        f"${trailing_stop:.2f}" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
-                                        f"${climax_stop:.2f}" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
-                                    ],
-                                    "% vs Actual": [
-                                        f"{initial_stop_pct:.1f}%",
-                                        f"{trailing_stop_pct:.1f}%" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
-                                        f"{climax_stop_pct:.1f}%" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
-                                    ],
-                                    "Distancia ATR": ["3x ATR", "3x ATR", "1.5x ATR"],
-                                    "Uso": [
-                                        "Siempre (Hard Stop)",
-                                        "Overext BAJO/MEDIO" if tech_overext_level in ["LOW", "MEDIUM"] else "No aplicable",
-                                        "Overext ALTO/RSI>75" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "No aplicable"
-                                    ]
-                                }
+                                    stops_summary = {
+                                        "Nivel": ["1️⃣ Inicial", "2️⃣ Trailing", "3️⃣ Clímax"],
+                                        "Precio Stop": [
+                                            f"${initial_stop:.2f}",
+                                            f"${trailing_stop:.2f}" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
+                                            f"${climax_stop:.2f}" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
+                                        ],
+                                        "% vs Actual": [
+                                            f"{initial_stop_pct:.1f}%",
+                                            f"{trailing_stop_pct:.1f}%" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
+                                            f"{climax_stop_pct:.1f}%" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
+                                        ],
+                                        "Distancia ATR": ["3x ATR", "3x ATR", "1.5x ATR"],
+                                        "Uso": [
+                                            "Siempre (Hard Stop)",
+                                            "Overext BAJO/MEDIO" if tech_overext_level in ["LOW", "MEDIUM"] else "No aplicable",
+                                            "Overext ALTO/RSI>75" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "No aplicable"
+                                        ]
+                                    }
 
-                                import pandas as pd
-                                st.dataframe(pd.DataFrame(stops_summary), use_container_width=True)
+                                    import pandas as pd
+                                    st.dataframe(pd.DataFrame(stops_summary), use_container_width=True)
 
-                                st.caption(f"💡 ATR Actual: ${atr:.2f} ({(atr/current_price)*100:.1f}% del precio)")
-                                st.caption(f"📊 Volatilidad: {volatility:.1f}% | Distance MA200: {distance_ma200:+.1f}% | RSI: {rsi:.0f}")
+                                    st.caption(f"💡 ATR Actual: ${atr:.2f} ({(atr/current_price)*100:.1f}% del precio)")
+                                    st.caption(f"📊 Volatilidad: {volatility:.1f}% | Distance MA200: {distance_ma200:+.1f}% | RSI: {rsi:.0f}")
 
                             with rm_tab4:
                                 profit_taking = risk_mgmt.get('profit_taking', {})
