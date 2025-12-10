@@ -1619,8 +1619,9 @@ class EnhancedTechnicalAnalyzer:
         This is the brain of the stop loss system. Instead of applying the same
         rule always, this detects the current "battle phase" and adapts the strategy.
 
-        6 CRITICAL STATES (checked in priority order):
+        7 CRITICAL STATES (checked in priority order):
 
+        0. DOWNTREND - Broken structure, avoid or exit
         1. ENTRY_BREAKOUT - Just bought, fighting to break out
         2. PARABOLIC_CLIMAX - Vertical move, unsustainable
         3. BLUE_SKY_ATH - All-time high, no resistance above
@@ -1658,8 +1659,35 @@ class EnhancedTechnicalAnalyzer:
             if ma_50 > 0:
                 sma50_distance_pct = ((current_price - ma_50) / ma_50 * 100)
 
+            # STATE 0: DOWNTREND (Radioactive - Avoid or Exit) 💀
+            # CRITICAL: Check FIRST if stock is in confirmed downtrend
+            # Price < EMA20 < MA50 = broken structure
+            if (ema_20 > 0 and
+                ma_50 > 0 and
+                current_price < ema_20 and
+                ema_20 < ma_50):
+                return (
+                    "DOWNTREND",
+                    "💀",
+                    f"Broken structure: Price (${current_price:.2f}) < EMA20 (${ema_20:.2f}) < MA50 (${ma_50:.2f}). AVOID or EXIT."
+                )
+
+            # Alternative downtrend detection: Price well below both MAs
+            if (ma_50 > 0 and
+                current_price < ma_50 * 0.97 and  # More than 3% below MA50
+                sma_slope < -0.05):  # AND MA50 is falling
+                return (
+                    "DOWNTREND",
+                    "💀",
+                    f"Downtrend confirmed: Price {sma50_distance_pct:.1f}% below MA50, MA50 falling. Do NOT enter."
+                )
+
             # STATE 1: ENTRY_BREAKOUT (Highest Risk - Initial Fight) 🎯
-            if entry_price and days_in_position < 10 and abs(entry_distance_pct) < 5:
+            # Only trigger if we have a position AND price is actually trying to break out (positive momentum)
+            if (entry_price and
+                days_in_position < 10 and
+                abs(entry_distance_pct) < 5 and
+                entry_distance_pct >= 0):  # Must be at or above entry (not falling)
                 return (
                     "ENTRY_BREAKOUT",
                     "🎯",
@@ -1716,12 +1744,21 @@ class EnhancedTechnicalAnalyzer:
                     f"Sideways grind (ADX={adx:.1f}, Slope={sma_slope:.2f}%). Dead money. Exit if > 20 days here."
                 )
 
-            # DEFAULT: ENTRY_BREAKOUT (if no state detected)
-            return (
-                "ENTRY_BREAKOUT",
-                "🎯",
-                "Default state. Using conservative entry parameters."
-            )
+            # DEFAULT: Analyze technical structure for non-positioned stocks
+            # If price is above MA50, it's a pullback candidate
+            if current_price > ma_50 > 0:
+                return (
+                    "PULLBACK_FLAG",
+                    "🚩",
+                    f"Price above MA50 ({sma50_distance_pct:+.1f}%) but no strong trend signal. Monitor for entry."
+                )
+            # If below MA50 or flat, it's choppy/weak
+            else:
+                return (
+                    "CHOPPY_SIDEWAYS",
+                    "💤",
+                    f"Weak structure (ADX={adx:.1f}, below MA50). Monitor or avoid. Use tight stops if entering."
+                )
 
         except Exception as e:
             logger.error(f"Error detecting market state: {e}")
@@ -1762,6 +1799,10 @@ class EnhancedTechnicalAnalyzer:
             Tier 1: 2.0x ATR | Tier 2: 3.0x ATR | Tier 3: 3.5x ATR
             Logic: Let winners run. Wide stop to avoid whipsaws.
 
+        STATE 0 - DOWNTREND 💀:
+            Exit Stop = Entry price (if in position) OR don't enter
+            Logic: Broken technical structure. Exit ASAP if holding. Avoid if not.
+
         STATE 5 - PULLBACK_FLAG 🚩:
             Structure Hold = MAX(SMA 50, Swing Low 20d)
             Logic: Don't exit on noise. Respect structural support.
@@ -1786,7 +1827,23 @@ class EnhancedTechnicalAnalyzer:
             (stop_price, stop_rationale)
         """
         try:
-            if state == "ENTRY_BREAKOUT":
+            if state == "DOWNTREND":
+                # Downtrend: Exit if holding, avoid if not
+                if entry_price and entry_price > 0:
+                    # If in position: Exit at entry price (breakeven) or current - 2% (take the loss)
+                    breakeven_stop = entry_price
+                    loss_stop = current_price * 0.98
+                    stop_price = max(breakeven_stop, loss_stop)  # Try for breakeven, accept 2% loss if needed
+
+                    rationale = f"DOWNTREND detected. Exit at ${stop_price:.2f} (breakeven or -2%). Structure broken, cut losses."
+                else:
+                    # Not in position: Discourage entry, but if forced, tight 1x ATR stop
+                    stop_price = current_price - (1.0 * atr)
+                    rationale = f"DOWNTREND: Do NOT enter. If forced, TIGHT stop at ${stop_price:.2f} (1x ATR only). High risk."
+
+                return (stop_price, rationale)
+
+            elif state == "ENTRY_BREAKOUT":
                 # Hard Stop: Use 3x ATR or breakout candle low
                 atr_stop = current_price - (3.0 * atr)
 
@@ -1948,7 +2005,7 @@ class EnhancedTechnicalAnalyzer:
         # Classification logic
         if beta is not None:
             # Use Beta + Volatility Matrix (preferred)
-            if beta < 0.95 and volatility < 25:
+            if beta < 0.95 and volatility < 20:  # STRICTER: was 25, now 20
                 return 1, TIER_1_CONFIG['name'], TIER_1_CONFIG
             elif beta > 1.15 or volatility > 45:
                 return 3, TIER_3_CONFIG['name'], TIER_3_CONFIG
@@ -1956,7 +2013,7 @@ class EnhancedTechnicalAnalyzer:
                 return 2, TIER_2_CONFIG['name'], TIER_2_CONFIG
         else:
             # Fallback: Use Volatility only
-            if volatility < 25:
+            if volatility < 20:  # STRICTER: was 25, now 20
                 tier = 1
                 config = TIER_1_CONFIG
             elif volatility > 45:
@@ -1967,12 +2024,22 @@ class EnhancedTechnicalAnalyzer:
                 config = TIER_2_CONFIG
 
             # Sector adjustments (heuristic)
-            defensive_sectors = ['Utilities', 'Consumer Defensive', 'Consumer Staples']
+            defensive_sectors = ['Utilities', 'Consumer Defensive', 'Consumer Staples', 'Healthcare']
             speculative_sectors = ['Technology', 'Communication Services', 'Energy']
+            big_tech_sectors = ['Technology', 'Communication Services']  # Big Tech is ALWAYS Tier 2
 
-            if sector in defensive_sectors and tier > 1:
+            # PRIORITY 1: Big Tech override (MSFT, GOOGL, AAPL, etc.)
+            # Big Tech should NEVER be Tier 1, even with low volatility
+            if sector in big_tech_sectors and tier == 1 and volatility >= 20:
+                tier = 2
+                config = TIER_2_CONFIG
+
+            # PRIORITY 2: Force defensive sectors to Tier 1
+            if sector in defensive_sectors and tier > 1 and volatility < 20:
                 tier = 1
                 config = TIER_1_CONFIG
+
+            # PRIORITY 3: Force speculative sectors to Tier 3 if high volatility
             elif sector in speculative_sectors and tier < 3 and volatility > 35:
                 tier = 3
                 config = TIER_3_CONFIG
