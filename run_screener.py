@@ -6907,12 +6907,21 @@ with tab7:
                             # Analyze
                             tech_result = tech_analyzer.analyze(symbol, sector=sector)
 
+                            # Fetch current price from FMP
+                            current_price = 0
+                            try:
+                                quote = fmp.get_quote(symbol)
+                                if quote and len(quote) > 0:
+                                    current_price = quote[0].get('price', 0)
+                            except:
+                                pass  # Use 0 if price fetch fails
+
                             # Add to results (using NEW enhanced analyzer fields)
                             technical_results.append({
                                 'ticker': symbol,
                                 'name': row.get('name', ''),
                                 'sector': sector,
-                                'price': row.get('price', 0),  # Add price from fundamental data
+                                'price': current_price,  # Use current price from FMP
                                 'fundamental_decision': row['decision'],
                                 'fundamental_score': row['composite_0_100'],
                                 'technical_score': tech_result['score'],
@@ -6932,12 +6941,22 @@ with tab7:
                             })
                         except Exception as e:
                             logger.error(f"Error analyzing {symbol}: {e}")
+
+                            # Fetch current price from FMP (even on error)
+                            current_price = 0
+                            try:
+                                quote = fmp.get_quote(symbol)
+                                if quote and len(quote) > 0:
+                                    current_price = quote[0].get('price', 0)
+                            except:
+                                pass  # Use 0 if price fetch fails
+
                             # Add with error
                             technical_results.append({
                                 'ticker': symbol,
                                 'name': row.get('name', ''),
                                 'sector': sector,
-                                'price': row.get('price', 0),  # Add price from fundamental data
+                                'price': current_price,  # Use current price from FMP
                                 'fundamental_decision': row['decision'],
                                 'fundamental_score': row['composite_0_100'],
                                 'technical_score': 50,
