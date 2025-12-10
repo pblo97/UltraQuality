@@ -678,12 +678,46 @@ def display_smart_stop_loss(stop_loss_data, current_price):
 
         tier_emoji = "🐢" if tier == 1 else "🏃" if tier == 2 else "🚀"
 
-        st.info(f"""
+        # === TIER CLASSIFICATION BOX ===
+        col_tier, col_state = st.columns([1, 1])
+
+        with col_tier:
+            st.info(f"""
 **{tier_name}** {tier_emoji}
 
-**Descripción:** {tier_description}
+{tier_description}
+""")
 
-**Lifecycle Phase:** {stop_loss_data.get('lifecycle_phase', 'N/A')}
+        # === MARKET STATE BOX (NEW - More Visual) ===
+        with col_state:
+            market_state = stop_loss_data.get('market_state', 'N/A')
+            state_emoji = stop_loss_data.get('state_emoji', '')
+
+            # Color-coded based on state
+            if market_state == 'DOWNTREND':
+                st.error(f"""
+### {state_emoji} {market_state}
+**ACCIÓN:** EVITAR o SALIR
+""")
+            elif market_state == 'PARABOLIC_CLIMAX':
+                st.warning(f"""
+### {state_emoji} {market_state}
+**ACCIÓN:** Bloquear Ganancias
+""")
+            elif market_state in ['POWER_TREND', 'BLUE_SKY_ATH']:
+                st.success(f"""
+### {state_emoji} {market_state}
+**ACCIÓN:** Dejar Correr
+""")
+            elif market_state == 'PULLBACK_FLAG':
+                st.info(f"""
+### {state_emoji} {market_state}
+**ACCIÓN:** Dar Aire / Monitor
+""")
+            else:
+                st.info(f"""
+### {state_emoji} {market_state}
+**ACCIÓN:** Usar Stop Conservador
 """)
 
         # === ACTIVE STOP (Main recommendation) ===
@@ -692,29 +726,78 @@ def display_smart_stop_loss(stop_loss_data, current_price):
 
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Precio Stop", active_stop.get('price', 'N/A'))
+            st.metric("💵 Precio Stop", active_stop.get('price', 'N/A'),
+                     help="Precio al que debe colocarse el stop loss")
         with col2:
-            st.metric("Distancia", active_stop.get('distance', 'N/A'))
+            distance_str = active_stop.get('distance', 'N/A')
+            # Parse distance to show delta color
+            try:
+                distance_val = float(distance_str.replace('%', ''))
+                st.metric("📏 Distancia", distance_str,
+                         delta=f"{abs(distance_val):.1f}% riesgo",
+                         delta_color="inverse",
+                         help="Distancia porcentual desde precio actual")
+            except:
+                st.metric("📏 Distancia", distance_str)
         with col3:
             lifecycle_phase = stop_loss_data.get('lifecycle_phase', 'N/A')
-            phase_emoji = "🎯" if "Entry" in lifecycle_phase else "🛡️" if "Breakeven" in lifecycle_phase else "💰" if "Climax" in lifecycle_phase else "⏱️"
-            st.metric("Fase", f"{phase_emoji} {lifecycle_phase.split('(')[0].strip()}")
+            st.metric("⚡ Estado", f"{state_emoji} {market_state.replace('_', ' ').title()}")
 
-        st.success(f"**Rationale:** {active_stop.get('rationale', 'N/A')}")
+        # === SMART RATIONALE (Bullet Points) ===
+        state_rationale = stop_loss_data.get('state_rationale', '')
+        if state_rationale:
+            # Split rationale by " | " if present
+            rationale_parts = state_rationale.split(' | ')
+
+            if market_state == 'DOWNTREND':
+                st.error("**🚨 ALERTA DE RIESGO:**")
+            elif market_state == 'PARABOLIC_CLIMAX':
+                st.warning("**⚠️ ZONA DE CLIMAX:**")
+            elif market_state == 'POWER_TREND':
+                st.success("**✅ TENDENCIA FUERTE:**")
+            else:
+                st.info("**📊 ANÁLISIS:**")
+
+            # Display rationale parts as bullet points
+            for part in rationale_parts[:2]:  # Only show first 2 parts to keep it clean
+                if part.strip():
+                    st.markdown(f"• {part.strip()}")
+
 
         # === BASE PARAMETERS ===
-        with st.expander("📊 Parámetros Base del Cálculo"):
+        with st.expander("📊 Indicadores Técnicos del Cálculo"):
             params = stop_loss_data.get('parameters', {})
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
+
             with col1:
-                st.write(f"**ATR (14d):** ${params.get('atr_14', 'N/A')}")
-                st.write(f"**Highest High (22d):** ${params.get('highest_high_22', 'N/A')}")
+                st.metric("ATR (14d)", f"${params.get('atr_14', 'N/A')}",
+                         help="Average True Range - Volatilidad diaria")
+                st.write(f"**Swing Low 20d:** ${params.get('swing_low_20', 'N/A')}")
+
             with col2:
-                st.write(f"**Swing Low (10d):** ${params.get('swing_low_10', 'N/A')}")
+                adx_val = params.get('adx', 'N/A')
+                if adx_val != 'N/A':
+                    adx_strength = "Fuerte" if float(adx_val) > 25 else "Débil"
+                    st.metric("ADX", adx_val,
+                             delta=adx_strength,
+                             help="Fuerza de tendencia (>25 = fuerte)")
+                else:
+                    st.metric("ADX", "N/A")
+                st.write(f"**EMA 10:** ${params.get('ema_10', 'N/A')}")
+
+            with col3:
+                slope_val = params.get('sma_slope', 'N/A')
+                if slope_val != 'N/A':
+                    slope_dir = "↗️ Alcista" if float(slope_val) > 0.05 else "↘️ Bajista" if float(slope_val) < -0.05 else "➡️ Lateral"
+                    st.metric("SMA Slope", f"{slope_val}%",
+                             delta=slope_dir,
+                             help="Dirección de MA50")
+                else:
+                    st.metric("SMA Slope", "N/A")
                 st.write(f"**EMA 20:** ${params.get('ema_20', 'N/A')}")
 
             if params.get('is_ath_breakout'):
-                st.warning(f"⚠️ {params.get('ath_note', 'ATH Breakout detected')}")
+                st.warning(f"🎯 {params.get('ath_note', 'ATH Breakout detected')}")
 
         # === CONFIGURATION ===
         with st.expander("🔧 Configuración del Tier"):
@@ -745,15 +828,10 @@ def display_smart_stop_loss(stop_loss_data, current_price):
         # === NOTES ===
         notes = stop_loss_data.get('notes', [])
         if notes:
-            with st.expander("📝 Notas Adicionales"):
+            with st.expander("📝 Notas del Sistema (Avanzado)"):
                 for note in notes:
                     if note:
-                        st.write(f"• {note}")
-
-        # === LIFECYCLE NOTE ===
-        lifecycle_note = stop_loss_data.get('lifecycle_note', '')
-        if lifecycle_note:
-            st.info(f"**Nota de Lifecycle:** {lifecycle_note}")
+                        st.caption(f"• {note}")
 
     else:
         # === LEGACY FORMAT ===
