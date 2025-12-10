@@ -2314,7 +2314,9 @@ class EnhancedTechnicalAnalyzer:
         if phase == 'entry':
             # Entry Phase: ATR + Hard Cap only (no anchors)
             # Give the position breathing room to avoid premature stop-outs
-            return max(hard_cap_stop, atr_stop)
+            stop = max(hard_cap_stop, atr_stop)
+            # CRITICAL: Stop loss MUST be below current price
+            return min(stop, price * 0.99)
 
         elif phase == 'trailing':
             # Trailing Phase: Long-term anchors with 0.5% buffer
@@ -2323,29 +2325,35 @@ class EnhancedTechnicalAnalyzer:
 
             if tier == 1:
                 # Tier 1 (Defensive): Use SMA 50
-                anchor = (ma_50 * buffer) if ma_50 > 0 else price * 0.92
+                anchor = (ma_50 * buffer) if ma_50 > 0 and ma_50 < price else price * 0.92
             elif tier == 2:
                 # Tier 2 (Core Growth): Use Swing Low 20d (more robust than 10d)
-                anchor = (swing_low_20 * buffer) if swing_low_20 > 0 else price * 0.85
+                anchor = (swing_low_20 * buffer) if swing_low_20 > 0 and swing_low_20 < price else price * 0.85
             else:  # tier == 3
                 # Tier 3 (Speculative): Use EMA 10 (faster response)
-                anchor = (ema_10 * buffer) if ema_10 > 0 else price * 0.75
+                anchor = (ema_10 * buffer) if ema_10 > 0 and ema_10 < price else price * 0.75
 
-            return max(hard_cap_stop, atr_stop, anchor)
+            stop = max(hard_cap_stop, atr_stop, anchor)
+            # CRITICAL: Stop loss MUST be below current price
+            return min(stop, price * 0.99)
 
         elif phase == 'climax':
             # Climax Phase: Tight EMA 10 with 0.75% buffer
             # Protect profits but allow for normal pullback
             buffer = 0.9925  # 0.75% buffer
-            ema_stop = (ema_10 * buffer) if ema_10 > 0 else price * 0.95
+            ema_stop = (ema_10 * buffer) if ema_10 > 0 and ema_10 < price else price * 0.95
             tight_atr = price - (1.5 * atr)  # Tighter than normal
 
-            return max(tight_atr, ema_stop)
+            stop = max(tight_atr, ema_stop)
+            # CRITICAL: Stop loss MUST be below current price
+            return min(stop, price * 0.98)
 
         else:
             # Breakeven/zombie phases handled in main method
             # Fallback to simple calculation
-            return max(hard_cap_stop, atr_stop)
+            stop = max(hard_cap_stop, atr_stop)
+            # CRITICAL: Stop loss MUST be below current price
+            return min(stop, price * 0.99)
 
     def _generate_profit_targets(self, signal, distance_ma200, overextension_risk, ma_200, price):
         """Profit taking recommendations."""
