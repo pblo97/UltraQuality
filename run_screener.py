@@ -4972,7 +4972,7 @@ with tab8:
 
                                     # === TIER CLASSIFICATION BY VOLATILITY ===
                                     # Determine volatility tier and ATR multipliers
-                                    if volatility < 20:
+                                    if volatility < 25:
                                         tier = "TIER 1: Defensivo 🐢"
                                         tier_emoji = "🐢"
                                         tier_description = f"Baja Volatilidad ({volatility:.1f}%)"
@@ -4980,7 +4980,7 @@ with tab8:
                                         trailing_multiplier = 2.0
                                         climax_multiplier = 1.0
                                         tier_rationale = "Acción estable (dividendos/value). Stops ajustados para evitar sacudidas innecesarias."
-                                    elif volatility < 40:
+                                    elif volatility < 45:
                                         tier = "TIER 2: Core Growth 🏃"
                                         tier_emoji = "🏃"
                                         tier_description = f"Volatilidad Moderada ({volatility:.1f}%)"
@@ -7467,7 +7467,7 @@ with tab7:
                                 else:
                                     # === TIER CLASSIFICATION BY VOLATILITY ===
                                     # Determine volatility tier and ATR multipliers
-                                    if volatility < 20:
+                                    if volatility < 25:
                                         tier = "TIER 1: Defensivo 🐢"
                                         tier_emoji = "🐢"
                                         tier_description = f"Baja Volatilidad ({volatility:.1f}%)"
@@ -7475,7 +7475,7 @@ with tab7:
                                         trailing_multiplier = 2.0
                                         climax_multiplier = 1.0
                                         tier_rationale = "Acción estable (dividendos/value). Stops ajustados para evitar sacudidas innecesarias."
-                                    elif volatility < 40:
+                                    elif volatility < 45:
                                         tier = "TIER 2: Core Growth 🏃"
                                         tier_emoji = "🏃"
                                         tier_description = f"Volatilidad Moderada ({volatility:.1f}%)"
