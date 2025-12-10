@@ -656,6 +656,127 @@ def get_results_with_current_params():
     # Recalculate with current parameters
     return recalculate_scores(df, w_quality, w_value, t_buy, t_monitor, t_quality_exc, excl_reds)
 
+
+def display_smart_stop_loss(stop_loss_data, current_price):
+    """
+    Display SmartDynamicStopLoss data in Streamlit.
+
+    Args:
+        stop_loss_data: Stop loss dict from risk_management
+        current_price: Current stock price
+    """
+    # Check if it's the new SmartDynamicStopLoss format
+    if 'tier' in stop_loss_data:
+        # === NEW FORMAT: SmartDynamicStopLoss ===
+        st.markdown("### 🛡️ SmartDynamicStopLoss - Sistema Adaptativo por Tiers")
+        st.caption("📚 Basado en ATR (14d) + Clasificación de Riesgo + Lifecycle Management")
+
+        # === TIER CLASSIFICATION ===
+        tier = stop_loss_data.get('tier', 0)
+        tier_name = stop_loss_data.get('tier_name', 'N/A')
+        tier_description = stop_loss_data.get('tier_description', '')
+
+        tier_emoji = "🐢" if tier == 1 else "🏃" if tier == 2 else "🚀"
+
+        st.info(f"""
+**{tier_name}** {tier_emoji}
+
+**Descripción:** {tier_description}
+
+**Lifecycle Phase:** {stop_loss_data.get('lifecycle_phase', 'N/A')}
+""")
+
+        # === ACTIVE STOP (Main recommendation) ===
+        st.markdown("#### 🛑 Stop Loss Activo (Usar este)")
+        active_stop = stop_loss_data.get('active_stop', {})
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Precio Stop", active_stop.get('price', 'N/A'))
+        with col2:
+            st.metric("Distancia", active_stop.get('distance', 'N/A'))
+        with col3:
+            lifecycle_phase = stop_loss_data.get('lifecycle_phase', 'N/A')
+            phase_emoji = "🎯" if "Entry" in lifecycle_phase else "🛡️" if "Breakeven" in lifecycle_phase else "💰" if "Climax" in lifecycle_phase else "⏱️"
+            st.metric("Fase", f"{phase_emoji} {lifecycle_phase.split('(')[0].strip()}")
+
+        st.success(f"**Rationale:** {active_stop.get('rationale', 'N/A')}")
+
+        # === BASE PARAMETERS ===
+        with st.expander("📊 Parámetros Base del Cálculo"):
+            params = stop_loss_data.get('parameters', {})
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**ATR (14d):** ${params.get('atr_14', 'N/A')}")
+                st.write(f"**Highest High (22d):** ${params.get('highest_high_22', 'N/A')}")
+            with col2:
+                st.write(f"**Swing Low (10d):** ${params.get('swing_low_10', 'N/A')}")
+                st.write(f"**EMA 20:** ${params.get('ema_20', 'N/A')}")
+
+            if params.get('is_ath_breakout'):
+                st.warning(f"⚠️ {params.get('ath_note', 'ATH Breakout detected')}")
+
+        # === CONFIGURATION ===
+        with st.expander("🔧 Configuración del Tier"):
+            config = stop_loss_data.get('config', {})
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write(f"**Multiplicador Inicial:** {config.get('initial_multiplier', 'N/A')}x ATR")
+                st.write(f"**Multiplicador Trailing:** {config.get('trailing_multiplier', 'N/A')}x ATR")
+            with col2:
+                st.write(f"**Hard Cap:** {config.get('hard_cap_pct', 'N/A')}%")
+                st.write(f"**Ancla Técnica:** {config.get('anchor', 'N/A')}")
+
+        # === TIER COMPARISON ===
+        with st.expander("📈 Comparación de Stops por Tier (referencia)"):
+            tier_stops = stop_loss_data.get('tier_stops', {})
+
+            for tier_key, tier_data in tier_stops.items():
+                tier_label = tier_key.replace('_', ' ').title()
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.write(f"**{tier_label}**")
+                with col2:
+                    st.write(tier_data.get('price', 'N/A'))
+                with col3:
+                    st.write(tier_data.get('distance', 'N/A'))
+                st.caption(f"Formula: {tier_data.get('formula', 'N/A')}")
+
+        # === NOTES ===
+        notes = stop_loss_data.get('notes', [])
+        if notes:
+            with st.expander("📝 Notas Adicionales"):
+                for note in notes:
+                    if note:
+                        st.write(f"• {note}")
+
+        # === LIFECYCLE NOTE ===
+        lifecycle_note = stop_loss_data.get('lifecycle_note', '')
+        if lifecycle_note:
+            st.info(f"**Nota de Lifecycle:** {lifecycle_note}")
+
+    else:
+        # === LEGACY FORMAT ===
+        st.markdown("### 🛡️ Stop Loss Recommendations")
+        st.caption("Legacy format")
+
+        recommended = stop_loss_data.get('recommended', 'N/A')
+        stops = stop_loss_data.get('stops', {})
+
+        st.write(f"**Recomendado:** {recommended.upper()}")
+
+        for stop_type in ['aggressive', 'moderate', 'conservative']:
+            if stop_type in stops:
+                s = stops[stop_type]
+                with st.expander(f"{stop_type.upper()} Stop"):
+                    st.metric("Level", s.get('level', 'N/A'), delta=s.get('distance', 'N/A'))
+                    st.caption(s.get('rationale', 'N/A'))
+
+        note = stop_loss_data.get('note', '')
+        if note:
+            st.info(note)
+
+
 st.set_page_config(
     page_title="UltraQuality Screener",
     page_icon="📊",
@@ -4958,258 +5079,11 @@ with tab8:
                                         st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
 
                                 with rm_tab3:
-                                    st.markdown("### 🛡️ Sistema de Stop Loss Adaptativo (ATR + Perfil de Volatilidad)")
-                                    st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) con multiplicadores ajustados por volatilidad")
-
-                                    # Get technical data
-                                    trend_data = full_analysis.get('trend', {})
-                                    risk_data = full_analysis.get('risk', {})
-                                    momentum_data = full_analysis.get('momentum', {})
-
-                                    distance_ma200 = trend_data.get('distance_ma200', 0)
-                                    volatility = risk_data.get('volatility', 20)  # Annualized volatility %
-                                    rsi = momentum_data.get('rsi', 50)
-                                    return_12m = momentum_data.get('return_12m', 0)  # For growth proxy
-
-                                    # Get Beta (market sensitivity) - ALWAYS use intelligent heuristic
-                                    # API Beta is often unreliable or outdated, so we calculate based on SECTOR + MOMENTUM
-                                    beta_api = risk_data.get('beta', None)
-
-                                    # ALWAYS calculate Beta using sector + momentum heuristic (ignore API)
-                                    # Advanced Heuristic: Infer beta from SECTOR + VOLATILITY + MOMENTUM
-                                    # This ensures JNJ, CSCO, and GOOGL get different treatments
-
-                                    # Step 1: Base Beta by Sector
-                                    sector_lower = sector.lower()
-                                    if 'health' in sector_lower or 'pharmaceutical' in sector_lower:
-                                        base_beta = 0.65  # Healthcare: Very defensive (JNJ)
-                                    elif 'consumer staples' in sector_lower or 'utilities' in sector_lower:
-                                        base_beta = 0.70  # Defensive staples
-                                    elif 'industrial' in sector_lower or 'materials' in sector_lower:
-                                        base_beta = 0.85  # Industrials: Cyclical but stable
-                                    elif 'technology' in sector_lower or 'communication' in sector_lower:
-                                        # Tech is tricky: can be defensive (CSCO) or aggressive (GOOGL)
-                                        # Use momentum to differentiate
-                                        if return_12m > 30:  # High growth (GOOGL-like)
-                                            base_beta = 1.20
-                                        elif return_12m > 15:  # Moderate growth
-                                            base_beta = 1.05
-                                        else:  # Stable/dividend tech (CSCO-like)
-                                            base_beta = 0.90
-                                    elif 'consumer discretionary' in sector_lower or 'consumer cyclical' in sector_lower:
-                                        base_beta = 1.05  # Cyclical growth
-                                    elif 'financial' in sector_lower or 'energy' in sector_lower or 'real estate' in sector_lower:
-                                        base_beta = 1.10  # Cyclical/Levered
+                                    stop_loss = risk_mgmt.get('stop_loss', {})
+                                    if stop_loss:
+                                        display_smart_stop_loss(stop_loss, current_price)
                                     else:
-                                        # Fallback: use volatility
-                                        if volatility <= 25:
-                                            base_beta = 0.85
-                                        elif volatility <= 40:
-                                            base_beta = 1.0
-                                        else:
-                                            base_beta = 1.2
-
-                                    # Step 2: Adjust by volatility (high vol → higher beta)
-                                    if volatility > 35:
-                                        base_beta += 0.15
-                                    elif volatility > 25:
-                                        base_beta += 0.05
-                                    elif volatility < 15:
-                                        base_beta -= 0.05
-
-                                    beta = round(base_beta, 2)
-
-                                    # === TIER CLASSIFICATION BY BETA + VOLATILITY MATRIX ===
-                                    # Use 2D classification: Beta (market sensitivity) + Volatility (noise)
-
-                                    # Tier 1: Defensive (Low Beta AND Low Vol)
-                                    if beta < 0.95 and volatility < 25:
-                                        tier = "TIER 1: Defensivo 🐢"
-                                        tier_emoji = "🐢"
-                                        tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
-                                        initial_multiplier = 1.5
-                                        trailing_multiplier = 2.0
-                                        climax_multiplier = 1.0
-                                        tier_rationale = f"Acción defensiva (Beta {beta:.2f} < 1.0). Se mueve MENOS que el mercado. Stop corto para proteger capital."
-                                        max_stop_pct = 8.0  # Hard cap: never more than -8%
-
-                                    # Tier 3: High Momentum (High Beta OR High Vol)
-                                    elif beta > 1.15 or volatility > 45:
-                                        tier = "TIER 3: High Momentum 🚀"
-                                        tier_emoji = "🚀"
-                                        tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
-                                        initial_multiplier = 3.5
-                                        trailing_multiplier = 4.0
-                                        climax_multiplier = 2.0
-                                        tier_rationale = f"Acción agresiva (Beta {beta:.2f} > 1.15). Se mueve MÁS que el mercado. Stop amplio para aguantar volatilidad."
-                                        max_stop_pct = 25.0  # Hard cap: never more than -25%
-
-                                    # Tier 2: Core Growth (Balanced)
-                                    else:
-                                        tier = "TIER 2: Core Growth 🏃"
-                                        tier_emoji = "🏃"
-                                        tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
-                                        initial_multiplier = 2.5
-                                        trailing_multiplier = 3.0
-                                        climax_multiplier = 1.5
-                                        tier_rationale = f"Acción balanceada (Beta {beta:.2f} ≈ 1.0). Se mueve CON el mercado. Stop estándar con espacio para respirar."
-                                        max_stop_pct = 18.0  # Hard cap: never more than -18%
-
-                                    # Display Tier Classification
-                                    st.info(f"""
-**{tier}** {tier_emoji}
-
-**Beta (Sensibilidad al Mercado):** {beta:.2f}
-**Volatilidad Anualizada:** {volatility:.1f}%
-
-**Estrategia:** {tier_rationale}
-
-**Multiplicadores ATR:**
-- Stop Inicial: {initial_multiplier}x ATR (máx {max_stop_pct:.0f}%)
-- Trailing Stop: {trailing_multiplier}x ATR
-- Stop Clímax: {climax_multiplier}x ATR
-
-**Clasificación:** {'Beta < 1 = Defensivo' if beta < 1 else 'Beta > 1 = Agresivo' if beta > 1.15 else 'Beta ≈ 1 = Balanceado'}
-""")
-
-                                    # Calculate ATR approximation from volatility
-                                    # ATR ≈ (Volatility/100) * Price / sqrt(252/14)
-                                    # Simplified: ATR ≈ Price * (Volatility/100) * 0.3
-                                    if current_price > 0 and volatility > 0:
-                                        atr = current_price * (volatility / 100) * 0.3
-                                    else:
-                                        atr = current_price * 0.05  # Default 5% if data missing
-
-                                    # Determine technical overextension (for stop logic)
-                                    # Note: Different from valuation overextension
-                                    tech_overext_level = "LOW"
-                                    if abs(distance_ma200) > 50:
-                                        tech_overext_level = "EXTREME"
-                                    elif abs(distance_ma200) > 40:
-                                        tech_overext_level = "HIGH"
-                                    elif abs(distance_ma200) > 30:
-                                        tech_overext_level = "MEDIUM"
-
-                                    # === NIVEL 1: Stop Inicial (Hard Stop) ===
-                                    st.markdown("---")
-                                    st.markdown("#### 🛑 Nivel 1: Stop Inicial (Hard Stop)")
-                                    initial_stop = current_price - (initial_multiplier * atr)
-                                    initial_stop_pct = ((initial_stop - current_price) / current_price) * 100
-
-                                    # Apply Hard Cap: Never exceed max stop %
-                                    if abs(initial_stop_pct) > max_stop_pct:
-                                        initial_stop_pct = -max_stop_pct
-                                        initial_stop = current_price * (1 + initial_stop_pct / 100)
-                                        hard_cap_applied = True
-                                    else:
-                                        hard_cap_applied = False
-
-                                    st.metric("Stop Inicial", f"${initial_stop:.2f}", delta=f"{initial_stop_pct:.1f}%")
-                                    if hard_cap_applied:
-                                        st.caption(f"⚠️ {initial_multiplier}x ATR (${atr:.2f}) → LIMITADO a {max_stop_pct:.0f}% (Hard Cap)")
-                                    else:
-                                        st.caption(f"📏 {initial_multiplier}x ATR (${atr:.2f}) → Stop a {initial_stop_pct:.1f}% del precio")
-                                    st.info(f"""
-**Objetivo:** Protección si la tesis es falsa desde el primer día.
-
-**Regla:** Stop a **{initial_multiplier}x ATR** por debajo del precio de entrada (ajustado por {tier_description}).
-
-**Hard Cap:** {tier_emoji} Máximo permitido: **{max_stop_pct:.0f}%** para este perfil.
-
-**Por qué:** El ruido normal para este perfil rara vez excede {initial_multiplier}x ATR. Si toca este nivel, la tesis de momentum era incorrecta.
-
-**Acción:** Si se activa → **VENDER INMEDIATAMENTE**
-""")
-
-                                    # === NIVEL 2: Trailing Stop de Tendencia ===
-                                    st.markdown("---")
-                                    st.markdown("#### 🏄‍♂️ Nivel 2: Trailing Stop de Tendencia")
-
-                                    if tech_overext_level in ["LOW", "MEDIUM"]:
-                                        # Use Chandelier Exit (adaptive multiplier based on volatility tier)
-                                        # Approximation: Use current price as recent high
-                                        trailing_stop = current_price - (trailing_multiplier * atr)
-                                        trailing_stop_pct = ((trailing_stop - current_price) / current_price) * 100
-
-                                        st.metric("Trailing Stop", f"${trailing_stop:.2f}", delta=f"{trailing_stop_pct:.1f}%")
-                                        st.caption(f"📏 {trailing_multiplier}x ATR (${atr:.2f}) → Stop a {trailing_stop_pct:.1f}% del precio")
-                                        st.success(f"""
-**Objetivo:** Dejar correr las ganancias durante meses.
-
-**Regla:** Subir el stop siguiendo **{trailing_multiplier}x ATR** desde el máximo histórico reciente (Chandelier Exit adaptado a {tier_description}).
-
-**Alternativa:** Usar **SMA 50** como piso móvil.
-
-**Estado actual:** ✅ Overextension Risk BAJO/MEDIO - Trailing stop activo.
-
-**Acción:** Mantener posición y subir stop conforme sube el precio.
-""")
-                                    else:
-                                        st.warning("⚠️ Overextension ALTO - Pasar a Nivel 3 (Profit Locking)")
-
-                                    # === NIVEL 3: Stop de Clímax (Profit Locking) ===
-                                    st.markdown("---")
-                                    st.markdown("#### 💰 Nivel 3: Stop de Clímax (Profit Locking)")
-
-                                    if tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75:
-                                        # Use tighter stop: adaptive multiplier based on volatility tier
-                                        climax_stop = current_price - (climax_multiplier * atr)
-                                        climax_stop_pct = ((climax_stop - current_price) / current_price) * 100
-
-                                        st.metric("Stop de Clímax", f"${climax_stop:.2f}", delta=f"{climax_stop_pct:.1f}%")
-                                        st.caption(f"📏 {climax_multiplier}x ATR (${atr:.2f}) → Stop a {climax_stop_pct:.1f}% del precio")
-                                        st.error(f"""
-**Objetivo:** Asegurar ganancias cuando la acción se vuelve parabólica.
-
-**Condiciones detectadas:**
-- Distance from MA200: {distance_ma200:+.1f}% ({'EXTREME' if abs(distance_ma200) > 50 else 'HIGH'})
-- RSI: {rsi:.0f} {'(> 75 = Sobrecomprado)' if rsi > 75 else ''}
-
-**Regla:** Ajustar stop a **{climax_multiplier}x ATR** (adaptado a {tier_description}) o usar **EMA 10**.
-
-**Por qué:** Las subidas verticales suelen colapsar rápido. No dar espacio - salir cerca del techo.
-
-**Acción:** Considerar tomar ganancias parciales (50-75%) y dejar el resto con trailing stop ajustado.
-""")
-                                    else:
-                                        st.info("""
-**Condiciones NO cumplidas para Nivel 3:**
-- Overextension < 50% vs MA200
-- RSI < 75
-
-**Estado:** Usar Nivel 2 (Trailing Stop de Tendencia)
-""")
-
-                                    # Summary table
-                                    st.markdown("---")
-                                    st.markdown("#### 📊 Resumen de Stops")
-
-                                    stops_summary = {
-                                        "Nivel": ["1️⃣ Inicial", "2️⃣ Trailing", "3️⃣ Clímax"],
-                                        "Precio Stop": [
-                                            f"${initial_stop:.2f}",
-                                            f"${trailing_stop:.2f}" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
-                                            f"${climax_stop:.2f}" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
-                                        ],
-                                        "% vs Actual": [
-                                            f"{initial_stop_pct:.1f}%",
-                                            f"{trailing_stop_pct:.1f}%" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
-                                            f"{climax_stop_pct:.1f}%" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
-                                        ],
-                                        "Multiplicador ATR": [f"{initial_multiplier}x", f"{trailing_multiplier}x", f"{climax_multiplier}x"],
-                                        "Uso": [
-                                            f"Siempre ({tier_emoji})",
-                                            "Overext BAJO/MEDIO" if tech_overext_level in ["LOW", "MEDIUM"] else "No aplicable",
-                                            "Overext ALTO/RSI>75" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "No aplicable"
-                                        ]
-                                    }
-
-                                    import pandas as pd
-                                    st.dataframe(pd.DataFrame(stops_summary), use_container_width=True)
-
-                                    st.caption(f"💡 ATR Actual: ${atr:.2f} ({(atr/current_price)*100:.1f}% del precio)")
-                                    st.caption(f"📊 Volatilidad: {volatility:.1f}% | Distance MA200: {distance_ma200:+.1f}% | RSI: {rsi:.0f}")
-
+                                        st.warning("No stop loss data available")
 
                                 with rm_tab4:
                                     profit_taking = risk_mgmt.get('profit_taking', {})
@@ -6058,253 +5932,11 @@ with tab8:
                     st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
 
             with rm_tab3:
-                st.markdown("### 🛡️ Sistema de Stop Loss Adaptativo (ATR + Perfil de Volatilidad)")
-                st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) con multiplicadores ajustados por volatilidad")
-
-                # Get technical data with defensive checks
-                trend_data = full_analysis.get('trend', {})
-                if not isinstance(trend_data, dict):
-                    trend_data = {}
-                risk_data = full_analysis.get('risk', {})
-                if not isinstance(risk_data, dict):
-                    risk_data = {}
-                momentum_data = full_analysis.get('momentum', {})
-                if not isinstance(momentum_data, dict):
-                    momentum_data = {}
-
-                distance_ma200 = trend_data.get('distance_ma200', 0) if trend_data else 0
-                volatility = risk_data.get('volatility', 20) if risk_data else 20  # Annualized volatility %
-                rsi = momentum_data.get('rsi', 50) if momentum_data else 50
-                return_12m = momentum_data.get('return_12m', 0) if momentum_data else 0  # For growth proxy
-
-                # Get current price (need to access it from somewhere)
-                current_price = price  # Using the price from cached data
-
-                # Get Beta (market sensitivity) - ALWAYS use intelligent heuristic
-                # API Beta is often unreliable or outdated, so we calculate based on SECTOR + MOMENTUM
-                beta_api = risk_data.get('beta', None)
-
-                # ALWAYS calculate Beta using sector + momentum heuristic (ignore API)
-                # Advanced Heuristic: Infer beta from SECTOR + VOLATILITY + MOMENTUM
-                # This ensures JNJ, CSCO, and GOOGL get different treatments
-
-                # Step 1: Base Beta by Sector
-                sector_lower = sector.lower()
-                if 'health' in sector_lower or 'pharmaceutical' in sector_lower:
-                    base_beta = 0.65  # Healthcare: Very defensive (JNJ)
-                elif 'consumer staples' in sector_lower or 'utilities' in sector_lower:
-                    base_beta = 0.70  # Defensive staples
-                elif 'industrial' in sector_lower or 'materials' in sector_lower:
-                    base_beta = 0.85  # Industrials: Cyclical but stable
-                elif 'technology' in sector_lower or 'communication' in sector_lower:
-                    # Tech is tricky: can be defensive (CSCO) or aggressive (GOOGL)
-                    # Use momentum to differentiate
-                    if return_12m > 30:  # High growth (GOOGL-like)
-                        base_beta = 1.20
-                    elif return_12m > 15:  # Moderate growth
-                        base_beta = 1.05
-                    else:  # Stable/dividend tech (CSCO-like)
-                        base_beta = 0.90
-                elif 'consumer discretionary' in sector_lower or 'consumer cyclical' in sector_lower:
-                    base_beta = 1.05  # Cyclical growth
-                elif 'financial' in sector_lower or 'energy' in sector_lower or 'real estate' in sector_lower:
-                    base_beta = 1.10  # Cyclical/Levered
+                stop_loss = risk_mgmt.get('stop_loss', {})
+                if stop_loss:
+                    display_smart_stop_loss(stop_loss, current_price)
                 else:
-                    # Fallback: use volatility
-                    if volatility <= 25:
-                        base_beta = 0.85
-                    elif volatility <= 40:
-                        base_beta = 1.0
-                    else:
-                        base_beta = 1.2
-
-                # Step 2: Adjust by volatility (high vol → higher beta)
-                if volatility > 35:
-                    base_beta += 0.15
-                elif volatility > 25:
-                    base_beta += 0.05
-                elif volatility < 15:
-                    base_beta -= 0.05
-
-                beta = round(base_beta, 2)
-
-                # === TIER CLASSIFICATION BY BETA + VOLATILITY MATRIX ===
-                # Use 2D classification: Beta (market sensitivity) + Volatility (noise)
-
-                # Tier 1: Defensive (Low Beta AND Low Vol)
-                if beta < 0.95 and volatility < 25:
-                    tier = "TIER 1: Defensivo 🐢"
-                    tier_emoji = "🐢"
-                    tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
-                    initial_multiplier = 1.5
-                    trailing_multiplier = 2.0
-                    climax_multiplier = 1.0
-                    tier_rationale = f"Acción defensiva (Beta {beta:.2f} < 1.0). Se mueve MENOS que el mercado. Stop corto para proteger capital."
-                    max_stop_pct = 8.0  # Hard cap: never more than -8%
-
-                # Tier 3: High Momentum (High Beta OR High Vol)
-                elif beta > 1.15 or volatility > 45:
-                    tier = "TIER 3: High Momentum 🚀"
-                    tier_emoji = "🚀"
-                    tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
-                    initial_multiplier = 3.5
-                    trailing_multiplier = 4.0
-                    climax_multiplier = 2.0
-                    tier_rationale = f"Acción agresiva (Beta {beta:.2f} > 1.15). Se mueve MÁS que el mercado. Stop amplio para aguantar volatilidad."
-                    max_stop_pct = 25.0  # Hard cap: never more than -25%
-
-                # Tier 2: Core Growth (Balanced)
-                else:
-                    tier = "TIER 2: Core Growth 🏃"
-                    tier_emoji = "🏃"
-                    tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
-                    initial_multiplier = 2.5
-                    trailing_multiplier = 3.0
-                    climax_multiplier = 1.5
-                    tier_rationale = f"Acción balanceada (Beta {beta:.2f} ≈ 1.0). Se mueve CON el mercado. Stop estándar con espacio para respirar."
-                    max_stop_pct = 18.0  # Hard cap: never more than -18%
-
-                # Display Tier Classification
-                st.info(f"""
-**{tier}** {tier_emoji}
-
-**Beta (Sensibilidad al Mercado):** {beta:.2f}
-**Volatilidad Anualizada:** {volatility:.1f}%
-
-**Estrategia:** {tier_rationale}
-
-**Multiplicadores ATR:**
-- Stop Inicial: {initial_multiplier}x ATR (máx {max_stop_pct:.0f}%)
-- Trailing Stop: {trailing_multiplier}x ATR
-- Stop Clímax: {climax_multiplier}x ATR
-
-**Clasificación:** {'Beta < 1 = Defensivo' if beta < 1 else 'Beta > 1 = Agresivo' if beta > 1.15 else 'Beta ≈ 1 = Balanceado'}
-""")
-
-                # Calculate ATR approximation from volatility
-                # ATR ≈ (Volatility/100) * Price / sqrt(252/14)
-                # Simplified: ATR ≈ Price * (Volatility/100) * 0.3
-                if current_price > 0 and volatility > 0:
-                    atr = current_price * (volatility / 100) * 0.3
-                else:
-                    atr = current_price * 0.05  # Default 5% if data missing
-
-                # Determine technical overextension (for stop logic)
-                # Note: Different from valuation overextension
-                tech_overext_level = "LOW"
-                if abs(distance_ma200) > 50:
-                    tech_overext_level = "EXTREME"
-                elif abs(distance_ma200) > 40:
-                    tech_overext_level = "HIGH"
-                elif abs(distance_ma200) > 30:
-                    tech_overext_level = "MEDIUM"
-
-                # === NIVEL 1: Stop Inicial (Hard Stop) ===
-                st.markdown("---")
-                st.markdown("#### 🛑 Nivel 1: Stop Inicial (Hard Stop)")
-                initial_stop = current_price - (initial_multiplier * atr)
-                initial_stop_pct = ((initial_stop - current_price) / current_price) * 100
-
-                st.metric("Stop Inicial", f"${initial_stop:.2f}", delta=f"{initial_stop_pct:.1f}%")
-                st.caption(f"📏 {initial_multiplier}x ATR (${atr:.2f}) → Stop a {initial_stop_pct:.1f}% del precio")
-                st.info(f"""
-**Objetivo:** Protección si la tesis es falsa desde el primer día.
-
-**Regla:** Stop a **{initial_multiplier}x ATR** por debajo del precio de entrada (ajustado por {tier_description}).
-
-**Por qué:** El ruido normal para este perfil rara vez excede {initial_multiplier}x ATR. Si toca este nivel, la tesis de momentum era incorrecta.
-
-**Acción:** Si se activa → **VENDER INMEDIATAMENTE**
-""")
-
-                # === NIVEL 2: Trailing Stop de Tendencia ===
-                st.markdown("---")
-                st.markdown("#### 🏄‍♂️ Nivel 2: Trailing Stop de Tendencia")
-
-                if tech_overext_level in ["LOW", "MEDIUM"]:
-                    # Use Chandelier Exit (3x ATR from highest high)
-                    # Approximation: Use current price as recent high
-                    trailing_stop = current_price - (3 * atr)
-                    trailing_stop_pct = ((trailing_stop - current_price) / current_price) * 100
-
-                    st.metric("Trailing Stop", f"${trailing_stop:.2f}", delta=f"{trailing_stop_pct:.1f}%")
-                    st.caption(f"📏 3x ATR (${atr:.2f}) desde máximo reciente")
-                    st.success("""
-**Objetivo:** Dejar correr las ganancias durante meses.
-
-**Regla:** Subir el stop siguiendo **3x ATR** desde el máximo histórico reciente (Chandelier Exit).
-
-**Alternativa:** Usar **SMA 50** como piso móvil.
-
-**Estado actual:** ✅ Overextension Risk BAJO/MEDIO - Trailing stop activo.
-
-**Acción:** Mantener posición y subir stop conforme sube el precio.
-""")
-                else:
-                    st.warning("⚠️ Overextension ALTO - Pasar a Nivel 3 (Profit Locking)")
-
-                # === NIVEL 3: Stop de Clímax (Profit Locking) ===
-                st.markdown("---")
-                st.markdown("#### 💰 Nivel 3: Stop de Clímax (Profit Locking)")
-
-                if tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75:
-                    # Use tighter stop: 1.5x ATR or EMA 10
-                    climax_stop = current_price - (1.5 * atr)
-                    climax_stop_pct = ((climax_stop - current_price) / current_price) * 100
-
-                    st.metric("Stop de Clímax", f"${climax_stop:.2f}", delta=f"{climax_stop_pct:.1f}%")
-                    st.caption(f"📏 1.5x ATR (${atr:.2f}) - Stop ajustado para movimiento parabólico")
-                    st.error(f"""
-**Objetivo:** Asegurar ganancias cuando la acción se vuelve parabólica.
-
-**Condiciones detectadas:**
-- Distance from MA200: {distance_ma200:+.1f}% ({'EXTREME' if abs(distance_ma200) > 50 else 'HIGH'})
-- RSI: {rsi:.0f} {'(> 75 = Sobrecomprado)' if rsi > 75 else ''}
-
-**Regla:** Ajustar stop a **1.5x ATR** o usar **EMA 10**.
-
-**Por qué:** Las subidas verticales suelen colapsar rápido. No dar espacio - salir cerca del techo.
-
-**Acción:** Considerar tomar ganancias parciales (50-75%) y dejar el resto con trailing stop ajustado.
-""")
-                else:
-                    st.info("""
-**Condiciones NO cumplidas para Nivel 3:**
-- Overextension < 50% vs MA200
-- RSI < 75
-
-**Estado:** Usar Nivel 2 (Trailing Stop de Tendencia)
-""")
-
-                # Summary table
-                st.markdown("---")
-                st.markdown("#### 📊 Resumen de Stops")
-
-                stops_summary = {
-                    "Nivel": ["1️⃣ Inicial", "2️⃣ Trailing", "3️⃣ Clímax"],
-                    "Precio Stop": [
-                        f"${initial_stop:.2f}",
-                        f"${trailing_stop:.2f}" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
-                        f"${climax_stop:.2f}" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
-                    ],
-                    "% vs Actual": [
-                        f"{initial_stop_pct:.1f}%",
-                        f"{trailing_stop_pct:.1f}%" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
-                        f"{climax_stop_pct:.1f}%" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
-                    ],
-                    "Distancia ATR": ["3x ATR", "3x ATR", "1.5x ATR"],
-                    "Uso": [
-                        "Siempre (Hard Stop)",
-                        "Overext BAJO/MEDIO" if tech_overext_level in ["LOW", "MEDIUM"] else "No aplicable",
-                        "Overext ALTO/RSI>75" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "No aplicable"
-                    ]
-                }
-
-                import pandas as pd
-                st.dataframe(pd.DataFrame(stops_summary), use_container_width=True)
-
-                st.caption(f"💡 ATR Actual: ${atr:.2f} ({(atr/current_price)*100:.1f}% del precio)")
-                st.caption(f"📊 Volatilidad: {volatility:.1f}% | Distance MA200: {distance_ma200:+.1f}% | RSI: {rsi:.0f}")
+                    st.warning("No stop loss data available")
 
             with rm_tab4:
                 profit_taking = risk_mgmt.get('profit_taking', {})
@@ -7565,283 +7197,11 @@ with tab7:
                                     st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
 
                             with rm_tab3:
-                                st.markdown("### 🛡️ Sistema de Stop Loss Adaptativo (ATR + Perfil de Volatilidad)")
-                                st.caption("📚 Basado en Chandelier Exit (Chuck LeBeau) con multiplicadores ajustados por volatilidad")
-
-                                # Get technical data with defensive checks
-                                trend_data = full_analysis.get('trend', {})
-                                if not isinstance(trend_data, dict):
-                                    trend_data = {}
-                                risk_data = full_analysis.get('risk', {})
-                                if not isinstance(risk_data, dict):
-                                    risk_data = {}
-                                momentum_data = full_analysis.get('momentum', {})
-                                if not isinstance(momentum_data, dict):
-                                    momentum_data = {}
-
-                                distance_ma200 = trend_data.get('distance_ma200', 0) if trend_data else 0
-                                volatility = risk_data.get('volatility', 20) if risk_data else 20  # Annualized volatility %
-                                rsi = momentum_data.get('rsi', 50) if momentum_data else 50
-                                return_12m = momentum_data.get('return_12m', 0) if momentum_data else 0  # For growth proxy
-
-                                # Get current price (try multiple sources)
-                                current_price = full_analysis.get('current_price', 0)
-                                if current_price == 0:
-                                    # Try to get from trend/risk data
-                                    current_price = trend_data.get('current_price', 0)
-                                if current_price == 0:
-                                    # Try from stock_data if available
-                                    try:
-                                        current_price = stock_data.get('price', 0)
-                                    except:
-                                        pass
-
-                                # Get sector from stock_data
-                                stock_sector = stock_data.get('sector', 'Unknown')
-
-                                # Final check - if still 0, show warning and skip stop loss calculation
-                                if current_price == 0 or current_price is None:
-                                    st.warning("⚠️ Precio actual no disponible. No se pueden calcular los stop loss basados en ATR.")
-                                    st.caption("💡 El sistema de stop loss requiere el precio actual del activo para calcular los niveles de ATR.")
+                                stop_loss = risk_mgmt.get('stop_loss', {})
+                                if stop_loss:
+                                    display_smart_stop_loss(stop_loss, current_price)
                                 else:
-                                    # Get Beta (market sensitivity) - ALWAYS use intelligent heuristic
-                                    # API Beta is often unreliable or outdated, so we calculate based on SECTOR + MOMENTUM
-                                    beta_api = risk_data.get('beta', None)
-
-                                    # ALWAYS calculate Beta using sector + momentum heuristic (ignore API)
-                                    # Advanced Heuristic: Infer beta from SECTOR + VOLATILITY + MOMENTUM
-                                    # This ensures JNJ, CSCO, and GOOGL get different treatments
-
-                                    # Step 1: Base Beta by Sector
-                                    sector_lower = stock_sector.lower()
-                                    if 'health' in sector_lower or 'pharmaceutical' in sector_lower:
-                                        base_beta = 0.65  # Healthcare: Very defensive (JNJ)
-                                    elif 'consumer staples' in sector_lower or 'utilities' in sector_lower:
-                                        base_beta = 0.70  # Defensive staples
-                                    elif 'industrial' in sector_lower or 'materials' in sector_lower:
-                                        base_beta = 0.85  # Industrials: Cyclical but stable
-                                    elif 'technology' in sector_lower or 'communication' in sector_lower:
-                                        # Tech is tricky: can be defensive (CSCO) or aggressive (GOOGL)
-                                        # Use momentum to differentiate
-                                        if return_12m > 30:  # High growth (GOOGL-like)
-                                            base_beta = 1.20
-                                        elif return_12m > 15:  # Moderate growth
-                                            base_beta = 1.05
-                                        else:  # Stable/dividend tech (CSCO-like)
-                                            base_beta = 0.90
-                                    elif 'consumer discretionary' in sector_lower or 'consumer cyclical' in sector_lower:
-                                        base_beta = 1.05  # Cyclical growth
-                                    elif 'financial' in sector_lower or 'energy' in sector_lower or 'real estate' in sector_lower:
-                                        base_beta = 1.10  # Cyclical/Levered
-                                    else:
-                                        # Fallback: use volatility
-                                        if volatility <= 25:
-                                            base_beta = 0.85
-                                        elif volatility <= 40:
-                                            base_beta = 1.0
-                                        else:
-                                            base_beta = 1.2
-
-                                    # Step 2: Adjust by volatility (high vol → higher beta)
-                                    if volatility > 35:
-                                        base_beta += 0.15
-                                    elif volatility > 25:
-                                        base_beta += 0.05
-                                    elif volatility < 15:
-                                        base_beta -= 0.05
-
-                                    beta = round(base_beta, 2)
-
-                                    # === TIER CLASSIFICATION BY BETA + VOLATILITY MATRIX ===
-                                    # Use 2D classification: Beta (market sensitivity) + Volatility (noise)
-
-                                    # Tier 1: Defensive (Low Beta AND Low Vol)
-                                    if beta < 0.95 and volatility < 25:
-                                        tier = "TIER 1: Defensivo 🐢"
-                                        tier_emoji = "🐢"
-                                        tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
-                                        initial_multiplier = 1.5
-                                        trailing_multiplier = 2.0
-                                        climax_multiplier = 1.0
-                                        tier_rationale = f"Acción defensiva (Beta {beta:.2f} < 1.0). Se mueve MENOS que el mercado. Stop corto para proteger capital."
-                                        max_stop_pct = 8.0  # Hard cap: never more than -8%
-
-                                    # Tier 3: High Momentum (High Beta OR High Vol)
-                                    elif beta > 1.15 or volatility > 45:
-                                        tier = "TIER 3: High Momentum 🚀"
-                                        tier_emoji = "🚀"
-                                        tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
-                                        initial_multiplier = 3.5
-                                        trailing_multiplier = 4.0
-                                        climax_multiplier = 2.0
-                                        tier_rationale = f"Acción agresiva (Beta {beta:.2f} > 1.15). Se mueve MÁS que el mercado. Stop amplio para aguantar volatilidad."
-                                        max_stop_pct = 25.0  # Hard cap: never more than -25%
-
-                                    # Tier 2: Core Growth (Balanced)
-                                    else:
-                                        tier = "TIER 2: Core Growth 🏃"
-                                        tier_emoji = "🏃"
-                                        tier_description = f"Beta {beta:.2f} | Vol {volatility:.1f}%"
-                                        initial_multiplier = 2.5
-                                        trailing_multiplier = 3.0
-                                        climax_multiplier = 1.5
-                                        tier_rationale = f"Acción balanceada (Beta {beta:.2f} ≈ 1.0). Se mueve CON el mercado. Stop estándar con espacio para respirar."
-                                        max_stop_pct = 18.0  # Hard cap: never more than -18%
-
-                                    # Display Tier Classification
-                                    st.info(f"""
-**{tier}** {tier_emoji}
-
-**Beta (Sensibilidad al Mercado):** {beta:.2f}
-**Volatilidad Anualizada:** {volatility:.1f}%
-
-**Estrategia:** {tier_rationale}
-
-**Multiplicadores ATR:**
-- Stop Inicial: {initial_multiplier}x ATR (máx {max_stop_pct:.0f}%)
-- Trailing Stop: {trailing_multiplier}x ATR
-- Stop Clímax: {climax_multiplier}x ATR
-
-**Clasificación:** {'Beta < 1 = Defensivo' if beta < 1 else 'Beta > 1 = Agresivo' if beta > 1.15 else 'Beta ≈ 1 = Balanceado'}
-""")
-
-                                    # Calculate ATR approximation from volatility
-                                    # ATR ≈ (Volatility/100) * Price / sqrt(252/14)
-                                    # Simplified: ATR ≈ Price * (Volatility/100) * 0.3
-                                    if current_price > 0 and volatility > 0:
-                                        atr = current_price * (volatility / 100) * 0.3
-                                    else:
-                                        atr = current_price * 0.05  # Default 5% if data missing
-
-                                    # Determine technical overextension (for stop logic)
-                                    # Note: Different from valuation overextension
-                                    tech_overext_level = "LOW"
-                                    if abs(distance_ma200) > 50:
-                                        tech_overext_level = "EXTREME"
-                                    elif abs(distance_ma200) > 40:
-                                        tech_overext_level = "HIGH"
-                                    elif abs(distance_ma200) > 30:
-                                        tech_overext_level = "MEDIUM"
-
-                                    # === NIVEL 1: Stop Inicial (Hard Stop) ===
-                                    st.markdown("---")
-                                    st.markdown("#### 🛑 Nivel 1: Stop Inicial (Hard Stop)")
-                                    initial_stop = current_price - (initial_multiplier * atr)
-                                    initial_stop_pct = ((initial_stop - current_price) / current_price) * 100
-
-                                    # Apply Hard Cap: Never exceed max stop %
-                                    if abs(initial_stop_pct) > max_stop_pct:
-                                        initial_stop_pct = -max_stop_pct
-                                        initial_stop = current_price * (1 + initial_stop_pct / 100)
-                                        hard_cap_applied = True
-                                    else:
-                                        hard_cap_applied = False
-
-                                    st.metric("Stop Inicial", f"${initial_stop:.2f}", delta=f"{initial_stop_pct:.1f}%")
-                                    if hard_cap_applied:
-                                        st.caption(f"⚠️ {initial_multiplier}x ATR (${atr:.2f}) → LIMITADO a {max_stop_pct:.0f}% (Hard Cap)")
-                                    else:
-                                        st.caption(f"📏 {initial_multiplier}x ATR (${atr:.2f}) → Stop a {initial_stop_pct:.1f}% del precio")
-                                    st.info(f"""
-**Objetivo:** Protección si la tesis es falsa desde el primer día.
-
-**Regla:** Stop a **{initial_multiplier}x ATR** por debajo del precio de entrada (ajustado por {tier_description}).
-
-**Hard Cap:** {tier_emoji} Máximo permitido: **{max_stop_pct:.0f}%** para este perfil.
-
-**Por qué:** El ruido normal para este perfil rara vez excede {initial_multiplier}x ATR. Si toca este nivel, la tesis de momentum era incorrecta.
-
-**Acción:** Si se activa → **VENDER INMEDIATAMENTE**
-""")
-
-                                    # === NIVEL 2: Trailing Stop de Tendencia ===
-                                    st.markdown("---")
-                                    st.markdown("#### 🏄‍♂️ Nivel 2: Trailing Stop de Tendencia")
-
-                                    if tech_overext_level in ["LOW", "MEDIUM"]:
-                                        # Use Chandelier Exit (adaptive multiplier based on volatility tier)
-                                        # Approximation: Use current price as recent high
-                                        trailing_stop = current_price - (trailing_multiplier * atr)
-                                        trailing_stop_pct = ((trailing_stop - current_price) / current_price) * 100
-
-                                        st.metric("Trailing Stop", f"${trailing_stop:.2f}", delta=f"{trailing_stop_pct:.1f}%")
-                                        st.caption(f"📏 {trailing_multiplier}x ATR (${atr:.2f}) → Stop a {trailing_stop_pct:.1f}% del precio")
-                                        st.success(f"""
-**Objetivo:** Dejar correr las ganancias durante meses.
-
-**Regla:** Subir el stop siguiendo **{trailing_multiplier}x ATR** desde el máximo histórico reciente (Chandelier Exit adaptado a {tier_description}).
-
-**Alternativa:** Usar **SMA 50** como piso móvil.
-
-**Estado actual:** ✅ Overextension Risk BAJO/MEDIO - Trailing stop activo.
-
-**Acción:** Mantener posición y subir stop conforme sube el precio.
-""")
-                                    else:
-                                        st.warning("⚠️ Overextension ALTO - Pasar a Nivel 3 (Profit Locking)")
-
-                                    # === NIVEL 3: Stop de Clímax (Profit Locking) ===
-                                    st.markdown("---")
-                                    st.markdown("#### 💰 Nivel 3: Stop de Clímax (Profit Locking)")
-
-                                    if tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75:
-                                        # Use tighter stop: adaptive multiplier based on volatility tier
-                                        climax_stop = current_price - (climax_multiplier * atr)
-                                        climax_stop_pct = ((climax_stop - current_price) / current_price) * 100
-
-                                        st.metric("Stop de Clímax", f"${climax_stop:.2f}", delta=f"{climax_stop_pct:.1f}%")
-                                        st.caption(f"📏 {climax_multiplier}x ATR (${atr:.2f}) → Stop a {climax_stop_pct:.1f}% del precio")
-                                        st.error(f"""
-**Objetivo:** Asegurar ganancias cuando la acción se vuelve parabólica.
-
-**Condiciones detectadas:**
-- Distance from MA200: {distance_ma200:+.1f}% ({'EXTREME' if abs(distance_ma200) > 50 else 'HIGH'})
-- RSI: {rsi:.0f} {'(> 75 = Sobrecomprado)' if rsi > 75 else ''}
-
-**Regla:** Ajustar stop a **{climax_multiplier}x ATR** (adaptado a {tier_description}) o usar **EMA 10**.
-
-**Por qué:** Las subidas verticales suelen colapsar rápido. No dar espacio - salir cerca del techo.
-
-**Acción:** Considerar tomar ganancias parciales (50-75%) y dejar el resto con trailing stop ajustado.
-""")
-                                    else:
-                                        st.info("""
-**Condiciones NO cumplidas para Nivel 3:**
-- Overextension < 50% vs MA200
-- RSI < 75
-
-**Estado:** Usar Nivel 2 (Trailing Stop de Tendencia)
-""")
-
-                                    # Summary table
-                                    st.markdown("---")
-                                    st.markdown("#### 📊 Resumen de Stops")
-
-                                    stops_summary = {
-                                        "Nivel": ["1️⃣ Inicial", "2️⃣ Trailing", "3️⃣ Clímax"],
-                                        "Precio Stop": [
-                                            f"${initial_stop:.2f}",
-                                            f"${trailing_stop:.2f}" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
-                                            f"${climax_stop:.2f}" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
-                                        ],
-                                        "% vs Actual": [
-                                            f"{initial_stop_pct:.1f}%",
-                                            f"{trailing_stop_pct:.1f}%" if tech_overext_level in ["LOW", "MEDIUM"] else "N/A",
-                                            f"{climax_stop_pct:.1f}%" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "N/A"
-                                        ],
-                                        "Multiplicador ATR": [f"{initial_multiplier}x", f"{trailing_multiplier}x", f"{climax_multiplier}x"],
-                                        "Uso": [
-                                            f"Siempre ({tier_emoji})",
-                                            "Overext BAJO/MEDIO" if tech_overext_level in ["LOW", "MEDIUM"] else "No aplicable",
-                                            "Overext ALTO/RSI>75" if (tech_overext_level in ["HIGH", "EXTREME"] or rsi > 75) else "No aplicable"
-                                        ]
-                                    }
-
-                                    import pandas as pd
-                                    st.dataframe(pd.DataFrame(stops_summary), use_container_width=True)
-
-                                    st.caption(f"💡 ATR Actual: ${atr:.2f} ({(atr/current_price)*100:.1f}% del precio)")
-                                    st.caption(f"📊 Volatilidad: {volatility:.1f}% | Distance MA200: {distance_ma200:+.1f}% | RSI: {rsi:.0f}")
+                                    st.warning("No stop loss data available")
 
                             with rm_tab4:
                                 profit_taking = risk_mgmt.get('profit_taking', {})
