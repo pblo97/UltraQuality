@@ -4976,9 +4976,9 @@ with tab8:
                                         # Heuristic: Infer beta from volatility and sector
                                         # Low vol stocks tend to be defensive (Beta < 1)
                                         # High vol stocks tend to be aggressive (Beta > 1)
-                                        if volatility < 20:
-                                            beta = 0.85  # Defensive
-                                        elif volatility < 35:
+                                        if volatility <= 25:
+                                            beta = 0.85  # Defensive (aligns with Tier 1 boundary)
+                                        elif volatility <= 40:
                                             beta = 1.0   # Market-like
                                         else:
                                             beta = 1.2   # Aggressive
@@ -6049,9 +6049,9 @@ with tab8:
                     # Heuristic: Infer beta from volatility and sector
                     # Low vol stocks tend to be defensive (Beta < 1)
                     # High vol stocks tend to be aggressive (Beta > 1)
-                    if volatility < 20:
-                        beta = 0.85  # Defensive
-                    elif volatility < 35:
+                    if volatility <= 25:
+                        beta = 0.85  # Defensive (aligns with Tier 1 boundary)
+                    elif volatility <= 40:
                         beta = 1.0   # Market-like
                     else:
                         beta = 1.2   # Aggressive
@@ -7534,9 +7534,9 @@ with tab7:
                                         # Heuristic: Infer beta from volatility and sector
                                         # Low vol stocks tend to be defensive (Beta < 1)
                                         # High vol stocks tend to be aggressive (Beta > 1)
-                                        if volatility < 20:
-                                            beta = 0.85  # Defensive
-                                        elif volatility < 35:
+                                        if volatility <= 25:
+                                            beta = 0.85  # Defensive (aligns with Tier 1 boundary)
+                                        elif volatility <= 40:
                                             beta = 1.0   # Market-like
                                         else:
                                             beta = 1.2   # Aggressive
