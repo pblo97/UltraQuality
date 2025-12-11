@@ -7465,6 +7465,57 @@ with tab7:
                                 else:
                                     st.info("No specific options strategies recommended for this setup.")
 
+                        # ========== QUALITATIVE ANALYSIS (NEW) ==========
+                        # Try to get qualitative analysis if available
+                        st.markdown("---")
+                        st.markdown("---")
+                        st.header("💰 Fundamental Valuation (from Screener)")
+                        st.caption("Quick fundamental context for this technical signal")
+
+                        # Check if ticker exists in qualitative results from tab5
+                        qual_data = None
+                        if 'results' in st.session_state:
+                            df_results = st.session_state['results']
+                            if selected_ticker in df_results['ticker'].values:
+                                ticker_row = df_results[df_results['ticker'] == selected_ticker].iloc[0]
+                                # Try to get cached qualitative data
+                                qual_key = f'qual_{selected_ticker}'
+                                if qual_key in st.session_state:
+                                    qual_data = st.session_state[qual_key]
+
+                        if qual_data and 'intrinsic_value' in qual_data:
+                            intrinsic = qual_data['intrinsic_value']
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                current_p = intrinsic.get('current_price', 0)
+                                if current_p > 0:
+                                    st.metric("Current Price", f"${current_p:.2f}")
+
+                            with col2:
+                                fair = intrinsic.get('weighted_value', 0)
+                                if fair > 0:
+                                    st.metric("Fair Value", f"${fair:.2f}")
+
+                            with col3:
+                                upside = intrinsic.get('upside_downside_%', 0)
+                                if upside:
+                                    st.metric("Upside/Downside", f"{upside:+.1f}%")
+
+                            with col4:
+                                assessment = intrinsic.get('valuation_assessment', 'Unknown')
+                                if assessment == 'Undervalued':
+                                    st.success(f"🟢 {assessment}")
+                                elif assessment == 'Overvalued':
+                                    st.error(f"🔴 {assessment}")
+                                else:
+                                    st.warning(f"🟡 {assessment}")
+
+                            st.caption("💡 For full fundamental analysis, check the **🔍 Qualitative** tab")
+                        else:
+                            st.info("💡 Fundamental valuation data not available. Run full analysis in **🔍 Qualitative** or **🎯 Custom Analysis** tabs.")
+
                         # Warnings & Diagnostics
                         st.markdown("---")
                         st.markdown("#### ⚠️ Warnings & Diagnostics")
