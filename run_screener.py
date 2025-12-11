@@ -3677,28 +3677,36 @@ with tab6:
                 # Import dependencies
                 from screener.orchestrator import ScreenerPipeline
                 from screener.qualitative import QualitativeAnalyzer
+                from screener.technical.analyzer import EnhancedTechnicalAnalyzer
                 import yaml
 
                 # Initialize pipeline (this loads settings.yaml and sets up FMP client)
                 pipeline = ScreenerPipeline('settings.yaml')
 
-                # Initialize qualitative analyzer
+                # Initialize analyzers
                 qual_analyzer = QualitativeAnalyzer(pipeline.fmp, pipeline.config)
+                tech_analyzer = EnhancedTechnicalAnalyzer(pipeline.fmp)
 
-                # Run full analysis (without needing screener results)
-                # company_type will be auto-detected if set to 'unknown'
-                # Note: Market selector is informative only - analysis works for all markets
-                # Some data (insider trading, PRs) may not be available outside USA
-                analysis = qual_analyzer.analyze_symbol(
+                # Get company info first for sector
+                profile = pipeline.fmp.get_quote(formatted_custom_ticker)
+                sector = profile[0].get('sector', 'Unknown') if profile and len(profile) > 0 else 'Unknown'
+
+                # Run QUALITATIVE analysis
+                qual_analysis = qual_analyzer.analyze_symbol(
                     formatted_custom_ticker,
                     company_type='unknown',  # Auto-detect
                     peers_df=None  # No peer comparison in custom analysis
                 )
 
-                if analysis and 'error' not in analysis:
-                    st.session_state[f'custom_{formatted_custom_ticker}'] = analysis
+                # Run TECHNICAL analysis (same as Quick Technical tab)
+                tech_analysis = tech_analyzer.analyze(formatted_custom_ticker, sector=sector, country=custom_country_code)
+
+                if qual_analysis and 'error' not in qual_analysis:
+                    st.session_state[f'custom_{formatted_custom_ticker}'] = qual_analysis
+                    st.session_state[f'custom_{formatted_custom_ticker}_tech'] = tech_analysis
                     st.session_state[f'custom_{formatted_custom_ticker}_market'] = custom_country_code
-                    st.success(f"✅ Analysis for {formatted_custom_ticker} complete! (Market: {custom_market})")
+                    st.session_state[f'custom_{formatted_custom_ticker}_sector'] = sector
+                    st.success(f"✅ Qualitative + Technical analysis for {formatted_custom_ticker} complete! (Market: {custom_market})")
 
                     # Show market-specific data availability note
                     if custom_country_code != "US":
@@ -3713,7 +3721,7 @@ with tab6:
 
                     st.rerun()
                 else:
-                    error_msg = analysis.get('error', 'Unknown error') if analysis else 'Failed to retrieve data'
+                    error_msg = qual_analysis.get('error', 'Unknown error') if qual_analysis else 'Failed to retrieve data'
                     st.error(f"❌ Analysis failed: {error_msg}")
                     st.info(f"💡 Troubleshooting tips:\n- Ticker: {formatted_custom_ticker}\n- Market suffix has been added automatically\n- Some tickers may have limited data availability\n- Try selecting a different market if the ticker is listed on multiple exchanges")
 
@@ -4686,6 +4694,87 @@ with tab6:
                     else:
                         st.error(f"📉 {interpretation}")
 
+            # ========== TECHNICAL ANALYSIS SECTION (NEW) ==========
+            # Check if technical analysis is available
+            tech_key = f'custom_{formatted_custom_ticker}_tech'
+            if tech_key in st.session_state:
+                tech_analysis = st.session_state[tech_key]
+
+                if tech_analysis and 'error' not in tech_analysis:
+                    st.markdown("---")
+                    st.markdown("---")
+                    st.header("📈 Technical Analysis")
+                    st.caption("Full technical setup including SmartDynamicStopLoss with State Machine")
+
+                    # Get price from analysis
+                    current_price = tech_analysis.get('current_price', 0)
+
+                    #Header
+                    col1, col2, col3 = st.columns([2, 1, 1])
+
+                    with col1:
+                        sector_name = st.session_state.get(f'custom_{formatted_custom_ticker}_sector', 'Unknown')
+                        st.markdown(f"**Sector:** {sector_name} | **Price:** ${current_price:.2f}")
+
+                    with col2:
+                        tech_score = tech_analysis.get('score', 0)
+                        signal = tech_analysis.get('signal', 'HOLD')
+
+                        if signal == 'BUY':
+                            st.success(f"**🟢 {signal}**")
+                        elif signal == 'HOLD':
+                            st.info(f"**🟡 {signal}**")
+                        else:
+                            st.error(f"**🔴 {signal}**")
+
+                        st.metric("Technical Score", f"{tech_score:.0f}/100")
+
+                    with col3:
+                        market_regime = tech_analysis.get('market_regime', 'UNKNOWN')
+                        regime_emoji = '🟢' if market_regime == 'BULL' else '🔴' if market_regime == 'BEAR' else '🟡'
+                        st.metric("Market Regime", f"{regime_emoji} {market_regime}")
+                        st.caption(f"Confidence: {tech_analysis.get('regime_confidence', 'unknown')}")
+
+                    st.markdown("---")
+
+                    # Component scores
+                    st.markdown("#### 📊 Technical Components (NEW Scoring)")
+
+                    components = tech_analysis.get('component_scores', {})
+
+                    col1, col2, col3, col4, col5 = st.columns(5)
+
+                    with col1:
+                        st.metric("Multi-TF Momentum", f"{components.get('momentum', 0):.0f}/25")
+                        st.caption(f"{tech_analysis.get('momentum_consistency', 'N/A')}")
+
+                    with col2:
+                        st.metric("Risk-Adjusted", f"{components.get('risk_adjusted', 0):.0f}/15")
+                        st.caption(f"Sharpe: {tech_analysis.get('sharpe_12m', 0):.2f}")
+
+                    with col3:
+                        st.metric("Sector Relative", f"{components.get('sector_relative', 0):.0f}/15")
+                        st.caption(tech_analysis.get('sector_status', 'N/A'))
+
+                    with col4:
+                        st.metric("Market Relative", f"{components.get('market_relative', 0):.0f}/10")
+                        st.caption(tech_analysis.get('market_status', 'N/A'))
+
+                    with col5:
+                        st.metric("Volume Profile", f"{components.get('volume', 0):.0f}/10")
+                        st.caption(tech_analysis.get('volume_profile', 'N/A'))
+
+                    # Regime Adjustment
+                    regime_adj = components.get('regime_adjustment', 0)
+                    if regime_adj != 0:
+                        st.info(f"⚖️ Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
+
+                    # SmartDynamicStopLoss section
+                    st.markdown("---")
+                    stop_loss = tech_analysis.get('smart_stop_loss')
+                    if stop_loss:
+                        display_smart_stop_loss(stop_loss, current_price)
+
             # Export to Excel
             st.markdown("---")
             st.markdown("### 📥 Export Analysis")
@@ -4836,199 +4925,179 @@ with tab8:
 
         with st.spinner(f"Analyzing {formatted_ticker}..."):
             try:
-                # Initialize FMP client
-                from screener.ingest import FMPClient
+                # Initialize pipeline and analyzers (unified approach)
+                from screener.orchestrator import ScreenerPipeline
+                from screener.qualitative import QualitativeAnalyzer
                 from screener.technical.analyzer import EnhancedTechnicalAnalyzer
                 import yaml
 
-                # Get API key (priority: secrets > config with env expansion)
-                api_key = st.secrets.get('fmp_api_key')
-                if not api_key:
-                    # Fallback to settings.yaml with env variable expansion
-                    try:
-                        with open('settings.yaml') as f:
-                            config = yaml.safe_load(f)
-                        api_key = expand_env_vars(config['fmp'].get('api_key'))
-                    except Exception as e:
-                        st.error(f"❌ Could not load API key from settings.yaml: {e}")
-                        api_key = None
+                # Show formatted ticker if different from input
+                if formatted_ticker != quick_ticker:
+                    st.info(f"📍 Using ticker: **{formatted_ticker}** (added {quick_country} market suffix)")
 
-                # Validate API key
-                if not api_key or api_key.startswith('${') or api_key == 'your_api_key_here':
-                    st.error("❌ FMP API Key not configured!")
-                    st.markdown("""
-                    Please configure your Financial Modeling Prep API key:
+                # Initialize pipeline (this loads settings.yaml and sets up FMP client)
+                pipeline = ScreenerPipeline('settings.yaml')
 
-                    **Option 1: Streamlit Secrets** (recommended for Streamlit Cloud)
-                    1. Create `.streamlit/secrets.toml`
-                    2. Add: `fmp_api_key = "your_actual_api_key"`
-
-                    **Option 2: Environment Variable** (for local development)
-                    1. Create `.env` file in project root
-                    2. Add: `FMP_API_KEY=your_actual_api_key`
-                    3. Update `settings.yaml` to reference it: `api_key: ${FMP_API_KEY}`
-                    4. Restart the app
-
-                    Get your API key at: https://financialmodelingprep.com
-                    """)
+                # Get company profile first
+                profile = pipeline.fmp.get_quote(formatted_ticker)
+                if not profile or len(profile) == 0:
+                    st.error(f"❌ Ticker '{formatted_ticker}' not found. Please verify the symbol is correct.")
                 else:
-                    fmp = FMPClient(api_key, {})
+                    company_info = profile[0]
+                    company_name = company_info.get('name', formatted_ticker)
+                    sector = company_info.get('sector', 'Unknown')
+                    exchange = company_info.get('exchange', 'Unknown')
+                    price = company_info.get('price', 0)
 
-                    # Show formatted ticker if different from input
-                    if formatted_ticker != quick_ticker:
-                        st.info(f"📍 Using ticker: **{formatted_ticker}** (added {quick_country} market suffix)")
+                    # Run TECHNICAL analysis
+                    tech_analyzer = EnhancedTechnicalAnalyzer(pipeline.fmp)
+                    full_analysis = tech_analyzer.analyze(formatted_ticker, sector=sector, country=quick_country_code)
 
-                    # Get company profile first
-                    profile = fmp.get_quote(formatted_ticker)
-                    if not profile or len(profile) == 0:
-                        st.error(f"❌ Ticker '{formatted_ticker}' not found. Please verify the symbol is correct.")
+                    # Run QUALITATIVE analysis (NEW)
+                    qual_analyzer = QualitativeAnalyzer(pipeline.fmp, pipeline.config)
+                    qual_analysis = qual_analyzer.analyze_symbol(
+                        formatted_ticker,
+                        company_type='unknown',  # Auto-detect
+                        peers_df=None  # No peer comparison
+                    )
+
+                    if 'error' in full_analysis:
+                        st.error(f"❌ Analysis failed: {full_analysis['error']}")
                     else:
-                        company_info = profile[0]
-                        company_name = company_info.get('name', formatted_ticker)
-                        sector = company_info.get('sector', 'Unknown')
-                        exchange = company_info.get('exchange', 'Unknown')
-                        price = company_info.get('price', 0)
+                        # Save to session state for persistence
+                        st.session_state[session_key] = {
+                            'full_analysis': full_analysis,
+                            'qual_analysis': qual_analysis,  # NEW
+                            'company_info': company_info,
+                            'formatted_ticker': formatted_ticker,
+                            'company_name': company_name,
+                            'sector': sector,
+                            'exchange': exchange,
+                            'price': price,
+                            'fmp': pipeline.fmp  # Save FMP client for backtesting
+                        }
 
-                        # Run technical analysis
-                        analyzer = EnhancedTechnicalAnalyzer(fmp)
-                        full_analysis = analyzer.analyze(formatted_ticker, sector=sector, country=quick_country_code)
+                        # ========== HEADER ==========
+                        st.success(f"✅ Technical + Qualitative analysis complete for **{formatted_ticker}** - {company_name}")
 
-                        if 'error' in full_analysis:
-                            st.error(f"❌ Analysis failed: {full_analysis['error']}")
-                        else:
-                            # Save to session state for persistence
-                            st.session_state[session_key] = {
-                                'full_analysis': full_analysis,
-                                'company_info': company_info,
-                                'formatted_ticker': formatted_ticker,
-                                'company_name': company_name,
-                                'sector': sector,
-                                'exchange': exchange,
-                                'price': price,
-                                'fmp': fmp  # Save FMP client for backtesting
-                            }
+                        col1, col2, col3 = st.columns([2, 1, 1])
 
-                            # ========== HEADER ==========
-                            st.success(f"✅ Analysis complete for **{formatted_ticker}** - {company_name}")
+                        with col1:
+                            st.markdown(f"### {formatted_ticker} - {company_name}")
+                            st.caption(f"**Sector:** {sector} | **Exchange:** {exchange} | **Price:** ${price:.2f}")
 
-                            col1, col2, col3 = st.columns([2, 1, 1])
+                        with col2:
+                            tech_score = full_analysis.get('score', 0)
+                            signal = full_analysis.get('signal', 'HOLD')
 
-                            with col1:
-                                st.markdown(f"### {formatted_ticker} - {company_name}")
-                                st.caption(f"**Sector:** {sector} | **Exchange:** {exchange} | **Price:** ${price:.2f}")
+                            if signal == 'BUY':
+                                st.success(f"**🟢 {signal}**")
+                            elif signal == 'HOLD':
+                                st.info(f"**🟡 {signal}**")
+                            else:
+                                st.error(f"**🔴 {signal}**")
 
-                            with col2:
-                                tech_score = full_analysis.get('score', 0)
-                                signal = full_analysis.get('signal', 'HOLD')
+                            st.metric("Technical Score", f"{tech_score:.0f}/100")
 
-                                if signal == 'BUY':
-                                    st.success(f"**🟢 {signal}**")
-                                elif signal == 'HOLD':
-                                    st.info(f"**🟡 {signal}**")
-                                else:
-                                    st.error(f"**🔴 {signal}**")
+                        with col3:
+                            market_regime = full_analysis.get('market_regime', 'UNKNOWN')
+                            regime_emoji = '🟢' if market_regime == 'BULL' else '🔴' if market_regime == 'BEAR' else '🟡'
+                            st.metric("Market Regime", f"{regime_emoji} {market_regime}")
+                            st.caption(f"Confidence: {full_analysis.get('regime_confidence', 'unknown')}")
 
-                                st.metric("Technical Score", f"{tech_score:.0f}/100")
+                        st.markdown("---")
 
-                            with col3:
-                                market_regime = full_analysis.get('market_regime', 'UNKNOWN')
-                                regime_emoji = '🟢' if market_regime == 'BULL' else '🔴' if market_regime == 'BEAR' else '🟡'
-                                st.metric("Market Regime", f"{regime_emoji} {market_regime}")
-                                st.caption(f"Confidence: {full_analysis.get('regime_confidence', 'unknown')}")
+                        # ========== COMPONENT SCORES ==========
+                        st.markdown("#### 📊 Technical Components")
 
-                            st.markdown("---")
+                        components = full_analysis.get('component_scores', {})
 
-                            # ========== COMPONENT SCORES ==========
-                            st.markdown("#### 📊 Technical Components")
+                        col1, col2, col3, col4, col5 = st.columns(5)
 
-                            components = full_analysis.get('component_scores', {})
+                        with col1:
+                            st.metric("Multi-TF Momentum", f"{components.get('momentum', 0):.0f}/25")
+                            st.caption(f"{full_analysis.get('momentum_consistency', 'N/A')}")
 
-                            col1, col2, col3, col4, col5 = st.columns(5)
+                        with col2:
+                            st.metric("Risk-Adjusted", f"{components.get('risk_adjusted', 0):.0f}/15")
+                            st.caption(f"Sharpe: {full_analysis.get('sharpe_12m', 0):.2f}")
 
-                            with col1:
-                                st.metric("Multi-TF Momentum", f"{components.get('momentum', 0):.0f}/25")
-                                st.caption(f"{full_analysis.get('momentum_consistency', 'N/A')}")
+                        with col3:
+                            st.metric("Sector Relative", f"{components.get('sector_relative', 0):.0f}/15")
+                            st.caption(full_analysis.get('sector_status', 'N/A'))
 
-                            with col2:
-                                st.metric("Risk-Adjusted", f"{components.get('risk_adjusted', 0):.0f}/15")
-                                st.caption(f"Sharpe: {full_analysis.get('sharpe_12m', 0):.2f}")
+                        with col4:
+                            st.metric("Market Relative", f"{components.get('market_relative', 0):.0f}/10")
+                            st.caption(full_analysis.get('market_status', 'N/A'))
 
-                            with col3:
-                                st.metric("Sector Relative", f"{components.get('sector_relative', 0):.0f}/15")
-                                st.caption(full_analysis.get('sector_status', 'N/A'))
+                        with col5:
+                            st.metric("Volume Profile", f"{components.get('volume', 0):.0f}/10")
+                            st.caption(full_analysis.get('volume_profile', 'N/A'))
 
-                            with col4:
-                                st.metric("Market Relative", f"{components.get('market_relative', 0):.0f}/10")
-                                st.caption(full_analysis.get('market_status', 'N/A'))
+                        # Regime Adjustment
+                        regime_adj = components.get('regime_adjustment', 0)
+                        if regime_adj != 0:
+                            st.info(f"⚖️ Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
 
-                            with col5:
-                                st.metric("Volume Profile", f"{components.get('volume', 0):.0f}/10")
-                                st.caption(full_analysis.get('volume_profile', 'N/A'))
+                        # ========== DETAILED METRICS ==========
+                        st.markdown("#### 📈 Detailed Metrics")
 
-                            # Regime Adjustment
-                            regime_adj = components.get('regime_adjustment', 0)
-                            if regime_adj != 0:
-                                st.info(f"⚖️ Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
+                        detail_tab1, detail_tab2, detail_tab3, detail_tab4 = st.tabs([
+                            "Momentum", "Risk & Relative Strength", "Trend & Volume", "Market Context"
+                        ])
 
-                            # ========== DETAILED METRICS ==========
-                            st.markdown("#### 📈 Detailed Metrics")
+                        with detail_tab1:
+                            st.markdown("**Multi-Timeframe Momentum:**")
+                            mom_col1, mom_col2, mom_col3, mom_col4 = st.columns(4)
+                            with mom_col1:
+                                st.metric("12M Return", f"{full_analysis.get('momentum_12m', 0):+.1f}%")
+                            with mom_col2:
+                                st.metric("6M Return", f"{full_analysis.get('momentum_6m', 0):+.1f}%")
+                            with mom_col3:
+                                st.metric("3M Return", f"{full_analysis.get('momentum_3m', 0):+.1f}%")
+                            with mom_col4:
+                                st.metric("1M Return", f"{full_analysis.get('momentum_1m', 0):+.1f}%")
 
-                            detail_tab1, detail_tab2, detail_tab3, detail_tab4 = st.tabs([
-                                "Momentum", "Risk & Relative Strength", "Trend & Volume", "Market Context"
-                            ])
+                            st.write(f"**Consistency:** {full_analysis.get('momentum_consistency', 'N/A')}")
+                            st.write(f"**Status:** {full_analysis.get('momentum_status', 'N/A')}")
 
-                            with detail_tab1:
-                                st.markdown("**Multi-Timeframe Momentum:**")
-                                mom_col1, mom_col2, mom_col3, mom_col4 = st.columns(4)
-                                with mom_col1:
-                                    st.metric("12M Return", f"{full_analysis.get('momentum_12m', 0):+.1f}%")
-                                with mom_col2:
-                                    st.metric("6M Return", f"{full_analysis.get('momentum_6m', 0):+.1f}%")
-                                with mom_col3:
-                                    st.metric("3M Return", f"{full_analysis.get('momentum_3m', 0):+.1f}%")
-                                with mom_col4:
-                                    st.metric("1M Return", f"{full_analysis.get('momentum_1m', 0):+.1f}%")
+                        with detail_tab2:
+                            risk_col1, risk_col2 = st.columns(2)
 
-                                st.write(f"**Consistency:** {full_analysis.get('momentum_consistency', 'N/A')}")
-                                st.write(f"**Status:** {full_analysis.get('momentum_status', 'N/A')}")
+                            with risk_col1:
+                                st.markdown("**Risk Metrics:**")
+                                st.write(f"- Sharpe Ratio (12M): {full_analysis.get('sharpe_12m', 0):.2f}")
+                                st.write(f"- Volatility (12M): {full_analysis.get('volatility_12m', 0):.1f}%")
+                                st.write(f"- Risk Status: {full_analysis.get('risk_adjusted_status', 'N/A')}")
 
-                            with detail_tab2:
-                                risk_col1, risk_col2 = st.columns(2)
+                            with risk_col2:
+                                st.markdown("**Relative Strength:**")
+                                st.write(f"- vs Sector: {full_analysis.get('sector_relative', 0):+.1f}%")
+                                st.write(f"- vs Market (SPY): {full_analysis.get('market_relative', 0):+.1f}%")
+                                st.write(f"- Sector Status: {full_analysis.get('sector_status', 'N/A')}")
+                                st.write(f"- Market Status: {full_analysis.get('market_status', 'N/A')}")
 
-                                with risk_col1:
-                                    st.markdown("**Risk Metrics:**")
-                                    st.write(f"- Sharpe Ratio (12M): {full_analysis.get('sharpe_12m', 0):.2f}")
-                                    st.write(f"- Volatility (12M): {full_analysis.get('volatility_12m', 0):.1f}%")
-                                    st.write(f"- Risk Status: {full_analysis.get('risk_adjusted_status', 'N/A')}")
+                        with detail_tab3:
+                            trend_col1, trend_col2 = st.columns(2)
 
-                                with risk_col2:
-                                    st.markdown("**Relative Strength:**")
-                                    st.write(f"- vs Sector: {full_analysis.get('sector_relative', 0):+.1f}%")
-                                    st.write(f"- vs Market (SPY): {full_analysis.get('market_relative', 0):+.1f}%")
-                                    st.write(f"- Sector Status: {full_analysis.get('sector_status', 'N/A')}")
-                                    st.write(f"- Market Status: {full_analysis.get('market_status', 'N/A')}")
+                            with trend_col1:
+                                st.markdown("**Trend Analysis:**")
+                                st.write(f"- Trend: {full_analysis.get('trend', 'N/A')}")
+                                st.write(f"- Distance from MA200: {full_analysis.get('distance_from_ma200', 0):+.1f}%")
+                                st.write(f"- Golden Cross: {'✅' if full_analysis.get('golden_cross') else '❌'}")
 
-                            with detail_tab3:
-                                trend_col1, trend_col2 = st.columns(2)
+                            with trend_col2:
+                                st.markdown("**Volume Analysis:**")
+                                st.write(f"- Profile: {full_analysis.get('volume_profile', 'N/A')}")
+                                st.write(f"- Trend: {full_analysis.get('volume_trend', 'N/A')}")
+                                st.write(f"- Accumulation Ratio: {full_analysis.get('accumulation_ratio', 0):.2f}")
 
-                                with trend_col1:
-                                    st.markdown("**Trend Analysis:**")
-                                    st.write(f"- Trend: {full_analysis.get('trend', 'N/A')}")
-                                    st.write(f"- Distance from MA200: {full_analysis.get('distance_from_ma200', 0):+.1f}%")
-                                    st.write(f"- Golden Cross: {'✅' if full_analysis.get('golden_cross') else '❌'}")
+                        with detail_tab4:
+                            st.markdown("**Market Environment:**")
+                            st.write(f"- Regime: **{market_regime}** ({full_analysis.get('regime_confidence', 'unknown')} confidence)")
 
-                                with trend_col2:
-                                    st.markdown("**Volume Analysis:**")
-                                    st.write(f"- Profile: {full_analysis.get('volume_profile', 'N/A')}")
-                                    st.write(f"- Trend: {full_analysis.get('volume_trend', 'N/A')}")
-                                    st.write(f"- Accumulation Ratio: {full_analysis.get('accumulation_ratio', 0):.2f}")
-
-                            with detail_tab4:
-                                st.markdown("**Market Environment:**")
-                                st.write(f"- Regime: **{market_regime}** ({full_analysis.get('regime_confidence', 'unknown')} confidence)")
-
-                                st.info("""
-                                **Market regime affects momentum effectiveness:**
+                            st.info("""
+                            **Market regime affects momentum effectiveness:**
                                 - 🟢 **BULL**: Momentum +20% more effective
                                 - 🔴 **BEAR**: Momentum -60% effectiveness (crowding)
                                 - 🟡 **SIDEWAYS**: Normal momentum behavior
@@ -6082,6 +6151,59 @@ with tab8:
                                 st.info(f"💡 {strategy['note']}")
                 else:
                     st.info("No specific options strategies recommended for this setup.")
+
+        # ========== QUALITATIVE ANALYSIS (NEW) ==========
+        qual_analysis = cached_data.get('qual_analysis')
+        if qual_analysis and 'error' not in qual_analysis:
+            st.markdown("---")
+            st.markdown("---")
+            st.header("💰 Qualitative & Valuation Analysis")
+            st.caption("Fundamental analysis to complement technical signals")
+
+            # Show key intrinsic value metrics
+            intrinsic = qual_analysis.get('intrinsic_value', {})
+            if intrinsic and 'current_price' in intrinsic:
+                col1, col2, col3, col4 = st.columns(4)
+
+                current_price_fund = intrinsic.get('current_price', 0)
+
+                with col1:
+                    if current_price_fund and current_price_fund > 0:
+                        st.metric("Current Price", f"${current_price_fund:.2f}")
+                    else:
+                        st.metric("Current Price", "N/A")
+
+                with col2:
+                    dcf_val = intrinsic.get('dcf_value')
+                    if dcf_val and dcf_val > 0:
+                        st.metric("DCF Value", f"${dcf_val:.2f}")
+                    else:
+                        st.metric("DCF Value", "N/A")
+
+                with col3:
+                    fair_val = intrinsic.get('weighted_value')
+                    if fair_val and fair_val > 0:
+                        st.metric("Fair Value", f"${fair_val:.2f}")
+                    else:
+                        st.metric("Fair Value", "N/A")
+
+                with col4:
+                    if intrinsic.get('upside_downside_%') is not None:
+                        upside = intrinsic.get('upside_downside_%', 0)
+                        assessment = intrinsic.get('valuation_assessment', 'Unknown')
+
+                        if assessment == 'Undervalued':
+                            color = 'green'
+                            emoji = '🟢'
+                        elif assessment == 'Overvalued':
+                            color = 'red'
+                            emoji = '🔴'
+                        else:
+                            color = 'orange'
+                            emoji = '🟡'
+
+                        st.metric("Upside/Downside", f"{upside:+.1f}%")
+                        st.caption(f"{emoji} {assessment}")
 
         # ========== WARNINGS ==========
         st.markdown("---")
