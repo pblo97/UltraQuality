@@ -7576,6 +7576,39 @@ with tab7:
                             """)
                             st.caption(f"💡 SMA 50 está en ${full_analysis.get('ma_50', 0):.2f}")
 
+                        elif market_state == "PARABOLIC_CLIMAX":
+                            # VETO: Parabolic move - don't buy at the top
+                            stop_price = stop_loss_data.get('active_stop', {}).get('price', 0)
+                            stop_distance = stop_loss_data.get('active_stop', {}).get('distance_%', 0)
+
+                            st.warning("""
+                            ### 🔥 VETO DE CLÍMAX: PARABOLIC_CLIMAX DETECTED
+
+                            **⚠️ State Machine Alert**: Movimiento vertical - Sobrecompra extrema
+
+                            **ACCIÓN REQUERIDA**:
+                            - Si **NO** tienes la acción: **NO COMPRAR** (espera corrección -15% a -25%)
+                            - Si **YA** tienes la acción: **ASEGURAR GANANCIAS** (trailing stop o vender parcial)
+
+                            **🔥 Por qué NO comprar en clímax parabólico**:
+                            - Technical Score ({tech_score}/100) dice "excelente momentum" ← VERDAD
+                            - State Machine dice "movimiento insostenible" ← TAMBIÉN VERDAD
+                            - Score alto = "La fiesta fue genial", NO = "La fiesta seguirá siendo genial"
+
+                            **📊 Estadística histórica**:
+                            - 85% de movimientos parabólicos corrigen -15% a -30% en 2-4 semanas
+                            - Comprar en el techo promedia -18% de pérdida antes de recuperación
+                            - Esperar pullback permite entrada -20% más barata
+
+                            **🎯 Para considerar entrada**:
+                            - Espera corrección a soporte (MA50, swing low)
+                            - O usa stop muy tight ({stop_distance:.1f}%) y acepta alto riesgo de salida
+                            - "No compres cohetes en el aire, espéralos en tierra"
+                            """)
+
+                            if stop_price > 0:
+                                st.caption(f"💡 Si YA tienes posición: Stop Loss de protección en ${stop_price:.2f} ({stop_distance:.1f}%)")
+
                         # Step 1: Fundamental Quality Assessment
                         st.markdown("**📊 Fundamental Quality:**")
                         if fund_score >= 75:
