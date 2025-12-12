@@ -7265,8 +7265,9 @@ with tab7:
 
                         # Market Context
                         market_regime = full_analysis.get('market_regime', 'UNKNOWN')
+                        regime_display = get_market_regime_display(market_regime)
 
-                        st.markdown(f"#### {regime_emoji} Market Context: {market_regime}")
+                        st.markdown(f"#### Market Context: {regime_display}")
                         st.caption(f"Confidence: {full_analysis.get('regime_confidence', 'unknown')}")
 
                         # Component scores (NEW scoring system)
