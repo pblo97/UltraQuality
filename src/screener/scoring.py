@@ -188,8 +188,20 @@ class ScoringEngine:
         all_value_cols = [f"{m}_zscore" for m in value_metrics_adj]
         all_quality_cols = [f"{m}_zscore" for m in quality_metrics + quality_lower_better]
 
-        df['value_score_0_100'] = df[all_value_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
-        df['quality_score_0_100'] = df[all_quality_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
+        # Filter to only columns that actually exist (some markets may be missing certain metrics)
+        available_value_cols = [col for col in all_value_cols if col in df.columns]
+        available_quality_cols = [col for col in all_quality_cols if col in df.columns]
+
+        # Calculate scores using only available columns
+        if available_value_cols:
+            df['value_score_0_100'] = df[available_value_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
+        else:
+            df['value_score_0_100'] = 50.0  # Neutral score if no value metrics available
+
+        if available_quality_cols:
+            df['quality_score_0_100'] = df[available_quality_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
+        else:
+            df['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
 
         # Composite
         df['composite_0_100'] = (
@@ -234,8 +246,20 @@ class ScoringEngine:
             all_value_cols = [f"{m}_zscore" for m in value_metrics + value_higher_better]
             all_quality_cols = [f"{m}_zscore" for m in quality_metrics + quality_lower_better]
 
-            df_fin_only['value_score_0_100'] = df_fin_only[all_value_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
-            df_fin_only['quality_score_0_100'] = df_fin_only[all_quality_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
+            # Filter to only columns that actually exist (some markets may be missing certain metrics)
+            available_value_cols = [col for col in all_value_cols if col in df_fin_only.columns]
+            available_quality_cols = [col for col in all_quality_cols if col in df_fin_only.columns]
+
+            # Calculate scores using only available columns
+            if available_value_cols:
+                df_fin_only['value_score_0_100'] = df_fin_only[available_value_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
+            else:
+                df_fin_only['value_score_0_100'] = 50.0  # Neutral score if no value metrics available
+
+            if available_quality_cols:
+                df_fin_only['quality_score_0_100'] = df_fin_only[available_quality_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
+            else:
+                df_fin_only['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
 
             df_fin_only['composite_0_100'] = (
                 self.w_value * df_fin_only['value_score_0_100'] +
@@ -292,8 +316,20 @@ class ScoringEngine:
         all_value_cols = [f"{m}_zscore" for m in value_metrics + value_higher_better]
         all_quality_cols = [f"{m}_zscore" for m in quality_metrics + quality_lower_better]
 
-        df['value_score_0_100'] = df[all_value_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
-        df['quality_score_0_100'] = df[all_quality_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
+        # Filter to only columns that actually exist (some markets may be missing certain metrics)
+        available_value_cols = [col for col in all_value_cols if col in df.columns]
+        available_quality_cols = [col for col in all_quality_cols if col in df.columns]
+
+        # Calculate scores using only available columns
+        if available_value_cols:
+            df['value_score_0_100'] = df[available_value_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
+        else:
+            df['value_score_0_100'] = 50.0  # Neutral score if no value metrics available
+
+        if available_quality_cols:
+            df['quality_score_0_100'] = df[available_quality_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
+        else:
+            df['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
 
         df['composite_0_100'] = (
             self.w_value * df['value_score_0_100'] +
