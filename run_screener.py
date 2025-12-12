@@ -15,6 +15,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 from io import BytesIO
 import os
+import traceback
+import yaml
 
 # Load environment variables from .env file (if exists)
 from dotenv import load_dotenv
@@ -1173,6 +1175,31 @@ try:
 except:
     st.sidebar.warning("⚠️ Secrets not accessible")
 
+
+# ========== HELPER FUNCTIONS ==========
+
+def get_market_regime_display(regime: str) -> str:
+    """
+    Get emoji and formatted display for market regime.
+
+    Args:
+        regime: Market regime ('BULL', 'BEAR', 'SIDEWAYS', etc.)
+
+    Returns:
+        Formatted string with emoji and regime name
+    """
+    regime_emojis = {
+        'BULL': '🟢',
+        'BEAR': '🔴',
+        'SIDEWAYS': '🟡',
+        'UNKNOWN': '⚪'
+    }
+    emoji = regime_emojis.get(regime, '🟡')
+    return f"{emoji} {regime}"
+
+
+# ========== MAIN CONTENT ==========
+
 # Main content
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["🏠 Home", "📊 Results", "📈 Analytics", "🔎 Calibration", "🔍 Qualitative", "🎯 Custom Analysis", "📈 Technical", "🔬 Quick Technical", "ℹ️ About"])
 
@@ -1806,7 +1833,6 @@ with tab5:
                 # Run qualitative analysis button
                 if st.button(f"🔍 Run Deep Analysis for {selected_ticker}", type="primary", use_container_width=True):
                     # Force reload modules to get latest code
-                    import sys
                     modules_to_reload = [
                         'screener.ingest',
                         'screener.qualitative'
@@ -1817,8 +1843,6 @@ with tab5:
 
                     with st.spinner(f"Analyzing {selected_ticker}... This may take 30-60 seconds"):
                         try:
-                            import yaml
-                            import os
                             from screener.qualitative import QualitativeAnalyzer
                             from screener.ingest import FMPClient
 
@@ -1871,7 +1895,6 @@ with tab5:
 
                         except Exception as e:
                             st.error(f"❌ Error: {str(e)}")
-                            import traceback
                             st.code(traceback.format_exc())
 
             with col_btn2:
@@ -1881,7 +1904,6 @@ with tab5:
                         del st.session_state[f'qual_{selected_ticker}']
 
                     # Force reload Python modules
-                    import sys
                     modules_to_reload = [
                         'screener.ingest',
                         'screener.qualitative',
@@ -3433,7 +3455,6 @@ with tab5:
                         st.code(f"Config file: {config_file if 'config_file' in locals() else 'settings.yaml'}")
 
                         # Show premium config
-                        import yaml
                         import os as os_module
                         try:
                             config_to_check = 'settings_premium.yaml' if os_module.path.exists('settings_premium.yaml') else 'settings.yaml'
@@ -3678,7 +3699,6 @@ with tab6:
                 from screener.orchestrator import ScreenerPipeline
                 from screener.qualitative import QualitativeAnalyzer
                 from screener.technical.analyzer import EnhancedTechnicalAnalyzer
-                import yaml
 
                 # Initialize pipeline (this loads settings.yaml and sets up FMP client)
                 pipeline = ScreenerPipeline('settings.yaml')
@@ -4731,8 +4751,7 @@ with tab6:
 
                     with col3:
                         market_regime = tech_analysis.get('market_regime', 'UNKNOWN')
-                        regime_emoji = '🟢' if market_regime == 'BULL' else '🔴' if market_regime == 'BEAR' else '🟡'
-                        st.metric("Market Regime", f"{regime_emoji} {market_regime}")
+                        st.metric("Market Regime", get_market_regime_display(market_regime))
                         st.caption(f"Confidence: {tech_analysis.get('regime_confidence', 'unknown')}")
 
                     st.markdown("---")
@@ -4929,7 +4948,6 @@ with tab8:
                 from screener.orchestrator import ScreenerPipeline
                 from screener.qualitative import QualitativeAnalyzer
                 from screener.technical.analyzer import EnhancedTechnicalAnalyzer
-                import yaml
 
                 # Show formatted ticker if different from input
                 if formatted_ticker != quick_ticker:
@@ -5001,8 +5019,7 @@ with tab8:
 
                         with col3:
                             market_regime = full_analysis.get('market_regime', 'UNKNOWN')
-                            regime_emoji = '🟢' if market_regime == 'BULL' else '🔴' if market_regime == 'BEAR' else '🟡'
-                            st.metric("Market Regime", f"{regime_emoji} {market_regime}")
+                            st.metric("Market Regime", get_market_regime_display(market_regime))
                             st.caption(f"Confidence: {full_analysis.get('regime_confidence', 'unknown')}")
 
                         st.markdown("---")
@@ -5368,7 +5385,6 @@ with tab8:
                                 st.info(f"🔍 DEBUG: Running **{backtest_type}**")
 
                                 # Debug: Check if multi_strategy_tester exists
-                                import os
                                 mst_path = "src/screener/technical/multi_strategy_tester.py"
                                 if os.path.exists(mst_path):
                                     st.success(f"✅ multi_strategy_tester.py exists ({os.path.getsize(mst_path)} bytes)")
@@ -5529,7 +5545,6 @@ with tab8:
 
                                         except Exception as e:
                                             st.error(f"❌ Multi-strategy backtest failed: {str(e)}")
-                                            import traceback
                                             with st.expander("🔍 Error Details"):
                                                 st.code(traceback.format_exc())
 
@@ -5870,13 +5885,11 @@ with tab8:
 
                                         except Exception as e:
                                             st.error(f"❌ Backtesting error: {str(e)}")
-                                            import traceback
                                             with st.expander("🔍 Debug Info"):
                                                 st.code(traceback.format_exc())
 
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
-                import traceback
                 with st.expander("🔍 Debug Info"):
                     st.code(traceback.format_exc())
 
@@ -5920,8 +5933,7 @@ with tab8:
 
         with col3:
             market_regime = full_analysis.get('market_regime', 'UNKNOWN')
-            regime_emoji = '🟢' if market_regime == 'BULL' else '🔴' if market_regime == 'BEAR' else '🟡'
-            st.metric("Market Regime", f"{regime_emoji} {market_regime}")
+            st.metric("Market Regime", get_market_regime_display(market_regime))
             st.caption(f"Confidence: {full_analysis.get('regime_confidence', 'unknown')}")
 
         st.markdown("---")
@@ -6580,7 +6592,6 @@ with tab8:
 
                 except Exception as e:
                     st.error(f"❌ Backtesting error: {str(e)}")
-                    import traceback
                     with st.expander("🔍 Debug Info"):
                         st.code(traceback.format_exc())
 
@@ -6910,7 +6921,6 @@ with tab7:
                     from screener.technical import TechnicalAnalyzer
                     from screener.cache import CachedFMPClient
                     from screener.ingest import FMPClient
-                    import yaml
 
                     # Setup FMP client
                     with open('settings.yaml') as f:
@@ -7243,7 +7253,6 @@ with tab7:
 
                         # Market Context
                         market_regime = full_analysis.get('market_regime', 'UNKNOWN')
-                        regime_emoji = '🟢' if market_regime == 'BULL' else '🔴' if market_regime == 'BEAR' else '🟡'
 
                         st.markdown(f"#### {regime_emoji} Market Context: {market_regime}")
                         st.caption(f"Confidence: {full_analysis.get('regime_confidence', 'unknown')}")
@@ -7941,7 +7950,6 @@ with tab7:
                         """)
                     except Exception as e:
                         st.error(f"Error loading Advanced Tools: {e}")
-                        import traceback
                         st.code(traceback.format_exc())
 
                 # Download
