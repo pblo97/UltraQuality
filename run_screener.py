@@ -7549,6 +7549,33 @@ with tab7:
                         overextension_risk = full_analysis.get('overextension_risk', 0)
                         distance_ma200 = full_analysis.get('distance_from_ma200', 0)
 
+                        # ========== KILL SWITCH: STATE MACHINE VETO ==========
+                        # CRITICAL: If State Machine detects DOWNTREND, override all recommendations
+                        stop_loss_data = full_analysis.get('smart_stop_loss', {})
+                        market_state = stop_loss_data.get('market_state', 'UNKNOWN')
+
+                        if market_state == "DOWNTREND":
+                            # VETO: Structure is broken - show critical warning FIRST
+                            st.error("""
+                            ### 🛑 KILL SWITCH: DOWNTREND DETECTED
+
+                            **⛔ State Machine Alert**: Precio < SMA 50 - Estructura rota
+
+                            **ACCIÓN REQUERIDA**:
+                            - Si **NO** tienes la acción: **NO COMPRAR** (espera recuperación)
+                            - Si **YA** tienes la acción: **SALIR** en próximo rebote
+
+                            **📉 Por qué esto anula los scores históricos**:
+                            - Technical Score ({tech_score}/100) mira 12 meses atrás ← PASADO
+                            - State Machine mira estructura actual ← PRESENTE
+                            - "Una tortuga corriendo cuesta abajo sigue siendo rápida... hasta que se estrella"
+
+                            **🔄 Para re-considerar compra**:
+                            - Precio debe recuperar y cerrar arriba de SMA 50
+                            - O esperar nuevo breakout confirmado con volumen
+                            """)
+                            st.caption(f"💡 SMA 50 está en ${full_analysis.get('ma_50', 0):.2f}")
+
                         # Step 1: Fundamental Quality Assessment
                         st.markdown("**📊 Fundamental Quality:**")
                         if fund_score >= 75:
