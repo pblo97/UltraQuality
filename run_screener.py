@@ -712,9 +712,9 @@ def display_smart_stop_loss(stop_loss_data, current_price):
 
 **⛔ NO ENTRAR AHORA:**
 - Movimiento vertical insostenible
-- 85% probabilidad de corrección -15% a -30%
-- Comprar el techo = -18% pérdida promedio
-- **Espera el pullback** para entrada -20% más barata
+- **Alta probabilidad** de corrección significativa -15% a -30%
+- Momentum crashes research (Daniel & Moskowitz 2016)
+- **Espera el pullback** a niveles de soporte
 
 **Regla:** "No compres cohetes en el aire"
 """)
@@ -7617,10 +7617,10 @@ with tab7:
                             - State Machine dice "movimiento insostenible" ← TAMBIÉN VERDAD
                             - Score alto = "La fiesta fue genial", NO = "La fiesta seguirá siendo genial"
 
-                            **📊 Estadística histórica**:
-                            - 85% de movimientos parabólicos corrigen -15% a -30% en 2-4 semanas
-                            - Comprar en el techo promedia -18% de pérdida antes de recuperación
-                            - Esperar pullback permite entrada -20% más barata
+                            **📊 Evidencia empírica**:
+                            - Movimientos parabólicos tienen alta probabilidad de corrección significativa
+                            - Momentum crashes research: Daniel & Moskowitz (2016)
+                            - Esperar pullback a soportes técnicos mejora punto de entrada
 
                             **🎯 Para considerar entrada**:
                             - Espera corrección a soporte (MA50, swing low)

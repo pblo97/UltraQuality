@@ -1163,17 +1163,8 @@ class EnhancedTechnicalAnalyzer:
         """
         recommendations = {}
 
-        # ========== 1. POSITION SIZING ==========
-        recommendations['position_sizing'] = self._generate_position_sizing(
-            signal, overextension_risk, sharpe, volatility, market_regime
-        )
-
-        # ========== 2. ENTRY STRATEGY ==========
-        recommendations['entry_strategy'] = self._generate_entry_strategy(
-            signal, overextension_risk, distance_ma200, price, ma_50, ma_200
-        )
-
-        # ========== 3. STOP LOSS (SmartDynamicStopLoss) ==========
+        # ========== 1. STOP LOSS (SmartDynamicStopLoss) - CALCULATE FIRST ==========
+        # This is the SOURCE OF TRUTH for market state detection
         if prices and len(prices) > 0:
             # Use SmartDynamicStopLoss (advanced adaptive system)
             recommendations['stop_loss'] = self._generate_smart_stop_loss(
@@ -1197,6 +1188,27 @@ class EnhancedTechnicalAnalyzer:
                 price, ma_50, ma_200, volatility, distance_ma200
             )
 
+        # Extract market state for veto checking
+        market_state = recommendations['stop_loss'].get('market_state', 'UNKNOWN')
+
+        # Define veto states (absolute no-entry conditions)
+        VETO_STATES = ['DOWNTREND', 'PARABOLIC_CLIMAX']
+        is_veto = market_state in VETO_STATES
+
+        # ========== 2. POSITION SIZING (with veto awareness) ==========
+        recommendations['position_sizing'] = self._generate_position_sizing(
+            signal, overextension_risk, sharpe, volatility, market_regime,
+            market_state=market_state,
+            is_veto=is_veto
+        )
+
+        # ========== 3. ENTRY STRATEGY (with veto awareness) ==========
+        recommendations['entry_strategy'] = self._generate_entry_strategy(
+            signal, overextension_risk, distance_ma200, price, ma_50, ma_200,
+            market_state=market_state,
+            is_veto=is_veto
+        )
+
         # ========== 4. PROFIT TAKING ==========
         recommendations['profit_taking'] = self._generate_profit_targets(
             signal, distance_ma200, overextension_risk, ma_200, price
@@ -1210,8 +1222,29 @@ class EnhancedTechnicalAnalyzer:
 
         return recommendations
 
-    def _generate_position_sizing(self, signal, overextension_risk, sharpe, volatility, market_regime):
-        """Position sizing based on risk and quality."""
+    def _generate_position_sizing(self, signal, overextension_risk, sharpe, volatility, market_regime,
+                                   market_state=None, is_veto=False):
+        """
+        Position sizing based on risk and quality.
+
+        Args:
+            market_state: Current market state from SmartDynamicStopLoss
+            is_veto: True if market state is in VETO_STATES (DOWNTREND, PARABOLIC_CLIMAX)
+        """
+        # VETO CHECK: If dangerous market state detected, NO POSITION
+        if is_veto:
+            veto_messages = {
+                'DOWNTREND': 'Price < SMA 50 - Broken structure. Wait for recovery above SMA 50.',
+                'PARABOLIC_CLIMAX': 'Vertical move unsustainable. High probability of significant correction. Wait for pullback to support.'
+            }
+            return {
+                'recommended_size': '0%',
+                'max_portfolio_weight': '0%',
+                'rationale': f'VETO: {market_state} - {veto_messages.get(market_state, "Dangerous market state detected")}',
+                'veto_active': True
+            }
+
+        # NORMAL LOGIC: No veto active
         if signal == 'BUY' and overextension_risk <= 1 and sharpe > 1.5:
             return {
                 'recommended_size': '100%',
@@ -1243,8 +1276,29 @@ class EnhancedTechnicalAnalyzer:
                 'max_portfolio_weight': '0%'
             }
 
-    def _generate_entry_strategy(self, signal, overextension_risk, distance_ma200, price, ma_50, ma_200):
-        """Entry strategy recommendations."""
+    def _generate_entry_strategy(self, signal, overextension_risk, distance_ma200, price, ma_50, ma_200,
+                                  market_state=None, is_veto=False):
+        """
+        Entry strategy recommendations.
+
+        Args:
+            market_state: Current market state from SmartDynamicStopLoss
+            is_veto: True if market state is in VETO_STATES (DOWNTREND, PARABOLIC_CLIMAX)
+        """
+        # VETO CHECK: If dangerous market state detected, NO ENTRY
+        if is_veto:
+            veto_messages = {
+                'DOWNTREND': 'Price < SMA 50 - Broken structure. Wait for recovery above SMA 50.',
+                'PARABOLIC_CLIMAX': 'Vertical move unsustainable (momentum crashes research: Daniel & Moskowitz 2016). Wait for pullback to support levels (MA50, swing low).'
+            }
+            return {
+                'strategy': 'NO ENTRY - STATE MACHINE VETO',
+                'rationale': veto_messages.get(market_state, 'Dangerous market state detected'),
+                'market_state': market_state,
+                'veto_active': True
+            }
+
+        # NORMAL LOGIC: No veto active
         if signal == 'SELL':
             return {
                 'strategy': 'NO ENTRY',
