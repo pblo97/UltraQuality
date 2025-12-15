@@ -5121,6 +5121,70 @@ with tab6:
                     if regime_adj != 0:
                         st.info(f"⚖️ Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
 
+                    # Detailed Metrics
+                    st.markdown("---")
+                    st.markdown("#### 📈 Detailed Metrics")
+
+                    tab1, tab2, tab3, tab4 = st.tabs(["Momentum", "Risk & Relative Strength", "Trend & Volume", "Market Context"])
+
+                    with tab1:
+                        st.markdown("**Multi-Timeframe Momentum:**")
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("12M Return", f"{tech_analysis.get('momentum_12m', 0):+.1f}%")
+                        with col2:
+                            st.metric("6M Return", f"{tech_analysis.get('momentum_6m', 0):+.1f}%")
+                        with col3:
+                            st.metric("3M Return", f"{tech_analysis.get('momentum_3m', 0):+.1f}%")
+                        with col4:
+                            st.metric("1M Return", f"{tech_analysis.get('momentum_1m', 0):+.1f}%")
+
+                        st.write(f"**Consistency:** {tech_analysis.get('momentum_consistency', 'N/A')}")
+                        st.write(f"**Status:** {tech_analysis.get('momentum_status', 'N/A')}")
+
+                    with tab2:
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.markdown("**Risk Metrics:**")
+                            st.write(f"- Sharpe Ratio (12M): {tech_analysis.get('sharpe_12m', 0):.2f}")
+                            st.write(f"- Volatility (12M): {tech_analysis.get('volatility_12m', 0):.1f}%")
+                            st.write(f"- Risk Status: {tech_analysis.get('risk_adjusted_status', 'N/A')}")
+
+                        with col2:
+                            st.markdown("**Relative Strength:**")
+                            st.write(f"- vs Sector: {tech_analysis.get('sector_relative', 0):+.1f}%")
+                            st.write(f"- vs Market (SPY): {tech_analysis.get('market_relative', 0):+.1f}%")
+                            st.write(f"- Sector Status: {tech_analysis.get('sector_status', 'N/A')}")
+                            st.write(f"- Market Status: {tech_analysis.get('market_status', 'N/A')}")
+
+                    with tab3:
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.markdown("**Trend Analysis:**")
+                            st.write(f"- Trend: {tech_analysis.get('trend', 'N/A')}")
+                            st.write(f"- Distance from MA200: {tech_analysis.get('distance_from_ma200', 0):+.1f}%")
+                            st.write(f"- Golden Cross: {'✅' if tech_analysis.get('golden_cross') else '❌'}")
+
+                        with col2:
+                            st.markdown("**Volume Analysis:**")
+                            st.write(f"- Profile: {tech_analysis.get('volume_profile', 'N/A')}")
+                            st.write(f"- Trend: {tech_analysis.get('volume_trend', 'N/A')}")
+                            st.write(f"- Accumulation Ratio: {tech_analysis.get('accumulation_ratio', 0):.2f}")
+
+                    with tab4:
+                        st.markdown("**Market Environment:**")
+                        st.write(f"- Regime: **{market_regime}** ({tech_analysis.get('regime_confidence', 'unknown')} confidence)")
+
+                        # Show regime details
+                        st.info("""
+                        **Market regime affects momentum effectiveness:**
+                        - 🟢 **BULL**: Momentum +20% more effective
+                        - 🔴 **BEAR**: Momentum -60% effectiveness (crowding)
+                        - 🟡 **SIDEWAYS**: Normal momentum behavior
+                        """)
+
                     # SmartDynamicStopLoss section
                     st.markdown("---")
                     stop_loss = tech_analysis.get('smart_stop_loss')
