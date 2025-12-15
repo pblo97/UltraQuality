@@ -5187,17 +5187,21 @@ with tab6:
 
                     # SmartDynamicStopLoss section
                     st.markdown("---")
-                    stop_loss = tech_analysis.get('smart_stop_loss')
+                    st.markdown("### 🛡️ SmartDynamicStopLoss - Sistema Adaptativo")
+                    # Get stop_loss from risk_management (correct location)
+                    risk_mgmt = tech_analysis.get('risk_management', {})
+                    stop_loss = risk_mgmt.get('stop_loss', {})
                     if stop_loss:
                         display_smart_stop_loss(stop_loss, current_price)
+                    else:
+                        st.warning("⚠️ SmartDynamicStopLoss data not available. Analysis may be incomplete.")
 
                     # ========== RISK MANAGEMENT RECOMMENDATIONS SECTION ==========
                     st.markdown("---")
                     st.header("🎯 Risk Management & Trading Strategy")
                     st.caption("Evidence-based position sizing, entry strategy, and profit targets")
 
-                    # Get risk management recommendations
-                    risk_mgmt = tech_analysis.get('risk_management', {})
+                    # risk_mgmt already obtained above for SmartDynamicStopLoss
 
                     if risk_mgmt:
                         # Create tabs for different risk management areas
