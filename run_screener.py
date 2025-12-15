@@ -4806,6 +4806,132 @@ with tab6:
                     if stop_loss:
                         display_smart_stop_loss(stop_loss, current_price)
 
+                    # ========== RISK MANAGEMENT RECOMMENDATIONS SECTION ==========
+                    st.markdown("---")
+                    st.header("🎯 Risk Management & Trading Strategy")
+                    st.caption("Evidence-based position sizing, entry strategy, and profit targets")
+
+                    # Get risk management recommendations
+                    risk_mgmt = tech_analysis.get('risk_management', {})
+
+                    if risk_mgmt:
+                        # Create tabs for different risk management areas
+                        rm_tab1, rm_tab2, rm_tab3, rm_tab4, rm_tab5 = st.tabs([
+                            "📊 Position Sizing",
+                            "🎯 Entry Strategy",
+                            "🛡️ Stop Loss",
+                            "💰 Profit Taking",
+                            "📈 Options Strategies"
+                        ])
+
+                        with rm_tab1:
+                            pos_sizing = risk_mgmt.get('position_sizing', {})
+                            if pos_sizing:
+                                st.markdown(f"**Recommended Size:** {pos_sizing.get('recommended_size', 'N/A')}")
+                                st.write(f"**Max Portfolio Weight:** {pos_sizing.get('max_portfolio_weight', 'N/A')}")
+
+                                # Check if veto is active
+                                if pos_sizing.get('veto_active'):
+                                    st.error(f"**⚠️ VETO ACTIVE:** {pos_sizing.get('rationale', 'N/A')}")
+                                else:
+                                    st.info(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
+
+                        with rm_tab2:
+                            entry_strategy = risk_mgmt.get('entry_strategy', {})
+                            if entry_strategy:
+                                strategy_type = entry_strategy.get('strategy', 'N/A')
+                                st.markdown(f"**Strategy:** {strategy_type}")
+
+                                # Check if veto is active
+                                if entry_strategy.get('veto_active'):
+                                    st.error(f"**⚠️ STATE MACHINE VETO:** {entry_strategy.get('rationale', 'N/A')}")
+                                    market_state = entry_strategy.get('market_state', 'Unknown')
+                                    if market_state == 'PARABOLIC_CLIMAX':
+                                        st.caption("📚 Research: Daniel & Moskowitz (2016) - Momentum Crashes")
+                                else:
+                                    if 'SCALE-IN' in strategy_type:
+                                        st.write(f"**Tranche 1:** {entry_strategy.get('tranche_1', 'N/A')}")
+                                        st.write(f"**Tranche 2:** {entry_strategy.get('tranche_2', 'N/A')}")
+                                        if 'tranche_3' in entry_strategy:
+                                            st.write(f"**Tranche 3:** {entry_strategy.get('tranche_3', 'N/A')}")
+                                    elif 'FULL ENTRY' in strategy_type:
+                                        st.write(f"**Entry Price:** {entry_strategy.get('entry_price', 'N/A')}")
+
+                                    st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
+
+                        with rm_tab3:
+                            stop_loss_rec = risk_mgmt.get('stop_loss', {})
+                            if stop_loss_rec:
+                                # Use SmartDynamicStopLoss data (already displayed above)
+                                st.info("ℹ️ See SmartDynamicStopLoss section above for detailed stop loss recommendations with State Machine analysis")
+
+                        with rm_tab4:
+                            profit_taking = risk_mgmt.get('profit_taking', {})
+                            if profit_taking:
+                                st.markdown(f"**Strategy:** {profit_taking.get('strategy', 'N/A')}")
+
+                                if 'target_1' in profit_taking:
+                                    st.write(f"**Target 1 (Conservative):** {profit_taking.get('target_1', 'N/A')}")
+                                if 'target_2' in profit_taking:
+                                    st.write(f"**Target 2 (Moderate):** {profit_taking.get('target_2', 'N/A')}")
+                                if 'target_3' in profit_taking:
+                                    st.write(f"**Target 3 (Aggressive):** {profit_taking.get('target_3', 'N/A')}")
+
+                                st.info(f"**Rationale:** {profit_taking.get('rationale', 'N/A')}")
+
+                        with rm_tab5:
+                            options_strategies = risk_mgmt.get('options_strategies', [])
+                            if options_strategies:
+                                for strategy in options_strategies:
+                                    with st.expander(f"📋 {strategy.get('name', 'Strategy')}"):
+                                        if 'when' in strategy:
+                                            st.write(f"**When to use:** {strategy['when']}")
+                                        if 'structure' in strategy:
+                                            st.write(f"**Structure:** {strategy['structure']}")
+                                        if 'strike' in strategy:
+                                            st.write(f"**Strike Selection:** {strategy['strike']}")
+                                        if 'example' in strategy:
+                                            st.code(strategy['example'])
+                                        if 'premium' in strategy:
+                                            st.write(f"💰 {strategy['premium']}")
+                                        if 'credit' in strategy:
+                                            st.write(f"💵 {strategy['credit']}")
+                                        if 'cost' in strategy:
+                                            st.write(f"💵 {strategy['cost']}")
+                                        if 'leverage' in strategy:
+                                            st.write(f"📊 {strategy['leverage']}")
+                                        if 'max_profit' in strategy:
+                                            st.write(f"✅ {strategy['max_profit']}")
+                                        if 'max_loss' in strategy:
+                                            st.write(f"⚠️ {strategy['max_loss']}")
+
+                                        if 'rationale' in strategy:
+                                            st.info(f"**Rationale:** {strategy['rationale']}")
+                                        if 'benefit' in strategy:
+                                            st.success(f"✅ **Benefit:** {strategy['benefit']}")
+                                        if 'risk' in strategy:
+                                            st.warning(f"⚠️ **Risk:** {strategy['risk']}")
+
+                                        # Scenarios
+                                        if 'outcome_1' in strategy:
+                                            st.write(f"**Scenario 1:** {strategy['outcome_1']}")
+                                        if 'outcome_2' in strategy:
+                                            st.write(f"**Scenario 2:** {strategy['outcome_2']}")
+
+                                        # Evidence
+                                        if 'evidence' in strategy:
+                                            st.caption(f"📚 {strategy['evidence']}")
+
+                                        # Additional notes
+                                        if 'note' in strategy:
+                                            st.caption(f"💡 {strategy['note']}")
+
+                                st.caption("💡 Based on academic research (Black-Scholes, Whaley 2002, Daniel & Moskowitz 2016, etc.)")
+                            else:
+                                st.info("No options strategies available for current technical setup")
+                    else:
+                        st.warning("⚠️ Risk management recommendations not available. Technical analysis may be incomplete.")
+
             # Export to Excel
             st.markdown("---")
             st.markdown("### 📥 Export Analysis")
