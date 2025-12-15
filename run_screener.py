@@ -3862,6 +3862,295 @@ with tab6:
 
                 st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
                 st.caption(f"**Confidence:** {confidence}")
+            # Second row: PEG Ratio + Intrinsic Value PEG-Forward
+            st.markdown("")  # Spacing
+
+            # Get PEG and related data from correct location
+            peg_ratio = None
+            pe_ratio = None
+            eps_growth = None
+            if 'valuation_multiples' in intrinsic:
+                company_vals = intrinsic['valuation_multiples'].get('company', {})
+                peg_ratio = company_vals.get('peg', None)
+                pe_ratio = company_vals.get('pe', None)
+                eps_growth = company_vals.get('eps_growth_%', None)
+
+            if peg_ratio and peg_ratio > 0:
+                # Calculate PEG-based Intrinsic Value
+                # Formula: Fair Value = Current Price × (Fair PEG / Current PEG)
+                # Fair PEG = 1.0 (conservative) or 1.5 (growth premium)
+                fair_peg_conservative = 1.0
+                fair_peg_growth = 1.5
+
+                peg_intrinsic_conservative = current_price * (fair_peg_conservative / peg_ratio) if current_price > 0 else None
+                peg_intrinsic_growth = current_price * (fair_peg_growth / peg_ratio) if current_price > 0 else None
+
+                # Color-coded PEG display
+                if peg_ratio < 1.0:
+                    peg_color = "🟢"
+                    peg_label = "Excelente"
+                elif peg_ratio < 1.5:
+                    peg_color = "🟢"
+                    peg_label = "Bueno (GARP)"
+                elif peg_ratio < 2.0:
+                    peg_color = "🟡"
+                    peg_label = "Aceptable"
+                else:
+                    peg_color = "🔴"
+                    peg_label = "Caro para Growth"
+
+                col_peg1, col_peg2, col_peg3 = st.columns([1, 2, 2])
+                with col_peg1:
+                    # Show Intrinsic Value as main metric, PEG in caption
+                    if peg_intrinsic_conservative:
+                        upside_conservative = ((peg_intrinsic_conservative - current_price) / current_price) * 100
+                        st.metric("Valor PEG", f"${peg_intrinsic_conservative:.2f}", delta=f"{upside_conservative:+.1f}%")
+                        st.caption(f"PEG: {peg_ratio:.2f} | EPS Growth: {eps_growth:.1f}%" if eps_growth else f"PEG: {peg_ratio:.2f}")
+                with col_peg2:
+                    st.markdown(f"### {peg_color} **{peg_label}**")
+                    st.caption(f"*Fair PEG = 1.0 (conservador)*")
+                with col_peg3:
+                    if peg_intrinsic_growth:
+                        upside_growth = ((peg_intrinsic_growth - current_price) / current_price) * 100
+                        st.caption(f"**Growth PEG 1.5:** ${peg_intrinsic_growth:.2f} ({upside_growth:+.1f}%)")
+                    st.caption("*Premium para empresas de alto crecimiento*")
+            else:
+                st.info("📊 **PEG Ratio:** N/A (Data not available)")
+
+            # === Valuation Method Recommendation ===
+            # Determine which valuation method is most appropriate
+            peg_ratio = None
+            if 'valuation_multiples' in intrinsic:
+                company_vals = intrinsic['valuation_multiples'].get('company', {})
+                peg_ratio = company_vals.get('peg', None)
+
+            revenue_growth = None
+            if 'growth_consistency' in intrinsic:
+                revenue_growth = intrinsic['growth_consistency'].get('revenue_growth_5y_cagr', None)
+
+            # Fallback: Infer growth from PEG if available
+            if not revenue_growth and peg_ratio:
+                company_vals = intrinsic.get('valuation_multiples', {}).get('company', {})
+                eps_growth = company_vals.get('eps_growth_%', None)
+                if eps_growth:
+                    revenue_growth = eps_growth  # Use EPS growth as proxy
+
+            # Determine predominant method
+            # Priority 1: If PEG < 1.5, it's a growth company (even without explicit revenue growth data)
+            if peg_ratio and peg_ratio < 1.5:
+                # Growth company - PEG is king
+                method_icon = "🚀"
+                method_name = "PEG Ratio (Growth Valuation)"
+                growth_text = f"{revenue_growth:.1f}%" if revenue_growth else "Datos limitados (inferido de PEG < 1.5)"
+                method_reason = f"""
+**Por qué PEG es mejor para esta empresa:**
+- PEG Ratio: {peg_ratio:.2f} (< 1.5 = Growth at reasonable price)
+- Growth: {growth_text}
+- DCF subestima empresas de crecimiento porque:
+  - No captura AI/platform optionality
+  - Assumptions conservadoras (3% terminal growth típico)
+  - No valora network effects ni moats digitales
+- **PEG captura el valor del crecimiento futuro** (P/E ajustado por growth)
+- Empresas similares: Amazon, Google, Meta en fase de crecimiento alto
+"""
+            elif peg_ratio and peg_ratio > 2.5 and revenue_growth and revenue_growth < 5:
+                # Mature company - DCF is king
+                method_icon = "🏛️"
+                method_name = "DCF (Mature Company Valuation)"
+                method_reason = f"""
+**Por qué DCF es mejor para esta empresa:**
+- PEG Ratio: {peg_ratio:.2f} (> 2.5 = Expensive for growth)
+- Revenue Growth: {revenue_growth:.1f}% (Mature/stable)
+- DCF es ideal para empresas maduras porque:
+  - Cash flows predecibles y estables
+  - Growth limitado → PEG pierde relevancia
+  - Mejor para dividendos y buybacks
+- **DCF captura el valor intrínseco de FCF estable**
+- Empresas similares: Johnson & Johnson, Procter & Gamble, Coca-Cola
+"""
+            elif peg_ratio and revenue_growth and 1.5 <= peg_ratio <= 2.5 and 5 <= revenue_growth <= 10:
+                # Balanced - use both methods
+                method_icon = "⚖️"
+                method_name = "Hybrid (DCF + PEG)"
+                method_reason = f"""
+**Por qué usar ambos métodos:**
+- PEG Ratio: {peg_ratio:.2f} (1.5-2.5 = GARP territory)
+- Revenue Growth: {revenue_growth:.1f}% (Moderate growth)
+- Empresa en transición: ni puro growth ni pura mature
+- **DCF valora cash flows actuales** | **PEG valora potencial de crecimiento**
+- Fair Value (weighted average) combina ambas perspectivas
+- Empresas similares: Microsoft, Apple (madurez con crecimiento sostenible)
+"""
+            else:
+                # Insufficient data or unknown profile
+                method_icon = "📊"
+                method_name = "Multiple Methods (Insuficiente data)"
+                method_reason = f"""
+**Recomendación:**
+- Se usan múltiples métodos (DCF, Forward Multiple, Fair Value)
+- PEG: {f'{peg_ratio:.2f}' if peg_ratio else 'N/A'}
+- Revenue Growth: {f'{revenue_growth:.1f}%' if revenue_growth else 'N/A'}
+- Se recomienda usar Fair Value (weighted average) como estimación conservadora
+"""
+
+            st.info(f"{method_icon} **Método de Valoración Predominante:** {method_name}\n\n{method_reason}")
+
+            # Show debug notes if present (for troubleshooting)
+            notes = intrinsic.get('notes', [])
+            if notes:
+                with st.expander("📋 Calculation Details & Debug Info"):
+                    for note in notes:
+                        if note.startswith('✓'):
+                            st.success(note)
+                        elif note.startswith('✗') or 'ERROR' in note or 'failed' in note.lower():
+                            st.error(note)
+                        elif note.startswith('⚠️') or 'WARNING' in note:
+                            st.warning(note)
+                        else:
+                            st.info(note)
+
+            # Upside/Downside
+            if intrinsic.get('upside_downside_%') is not None:
+                upside = intrinsic.get('upside_downside_%', 0)
+                assessment = intrinsic.get('valuation_assessment', 'Unknown')
+                confidence = intrinsic.get('confidence', 'Low')
+
+                # === EL MARTILLO DEL PEG: Veto power sobre DCF en Growth Stocks ===
+                # Para empresas de crecimiento, PEG > DCF porque captura optionality
+                # Si PEG < 1.5 y Growth > 10% → VERDE, sin importar DCF
+
+                growth_override_applied = False
+                growth_override_reason = None
+
+                # Get PEG Ratio from CORRECT location (valuation_multiples)
+                peg_ratio = None
+                if 'valuation_multiples' in intrinsic:
+                    company_vals = intrinsic['valuation_multiples'].get('company', {})
+                    peg_ratio = company_vals.get('peg', None)
+
+                # Fallback: try stock_data (might be in features)
+                if not peg_ratio:
+                    peg_ratio = analysis.get('peg_ratio', None)
+
+                # Get revenue growth from intrinsic data or stock_data
+                revenue_growth = None
+                if 'growth_consistency' in intrinsic:
+                    revenue_growth = intrinsic['growth_consistency'].get('revenue_growth_5y_cagr', None)
+
+                # Fallback: try to get from features
+                if not revenue_growth:
+                    # Check if we have earnings growth used for PEG
+                    # If PEG exists and P/E exists, we can infer growth
+                    pe_ttm = analysis.get('pe_ttm', None)
+                    if peg_ratio and pe_ttm and peg_ratio > 0:
+                        # PEG = P/E / Growth → Growth = P/E / PEG
+                        revenue_growth = (pe_ttm / peg_ratio) if peg_ratio > 0 else None
+
+                # Determine if it's a growth stock
+                is_growth_stock = False
+                if revenue_growth and revenue_growth > 10:  # >10% growth
+                    is_growth_stock = True
+                elif peg_ratio and peg_ratio < 2.0:  # PEG suggests growth
+                    is_growth_stock = True
+
+                # Get Reverse DCF signal (optional, not required)
+                reverse_dcf_signal = None
+                if 'reverse_dcf' in intrinsic:
+                    interpretation = intrinsic['reverse_dcf'].get('interpretation', '')
+                    if 'UNDERVALUED' in interpretation.upper():
+                        reverse_dcf_signal = 'UNDERVALUED'
+
+                # === MARTILLO DEL PEG: Override Logic ===
+                # Tier 1: PEG excelente (< 1.2) + Growth Stock → VERDE inmediato
+                # Tier 2: PEG bueno (< 1.5) + Reverse DCF UNDERVALUED → VERDE
+                # Tier 3: PEG razonable (< 2.0) + High Growth (>15%) → VERDE
+
+                peg_hammer_triggered = False
+
+                if peg_ratio:
+                    # Tier 1: PEG excelente (< 1.2) en growth stock
+                    if peg_ratio < 1.2 and is_growth_stock:
+                        peg_hammer_triggered = True
+                        growth_override_reason = f"""
+                        **🔨 EL MARTILLO DEL PEG - Tier 1: Ganga Absoluta**
+                        - PEG Ratio: {peg_ratio:.2f} (< 1.2 = Excelente)
+                        - Growth Stock: Sí (crecimiento sostenible)
+                        - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+
+                        **Veredicto: COMPRA CLARA (PEG tiene veto sobre DCF)**
+
+                        DCF undervalues growth porque:
+                        • No captura AI/platform optionality
+                        • Assumptions conservadoras (3% terminal growth)
+                        • PEG < 1.2 = "Pagando menos de lo que el crecimiento vale"
+
+                        **Empresas similares con PEG < 1.2:** Amazon 2015 (PEG 0.8), Google 2018 (PEG 1.0), Meta 2023 (PEG 0.9)
+                        """
+
+                    # Tier 2: PEG bueno (< 1.5) + Reverse DCF confirma
+                    elif peg_ratio < 1.5 and reverse_dcf_signal == 'UNDERVALUED':
+                        peg_hammer_triggered = True
+                        growth_override_reason = f"""
+                        **🔨 EL MARTILLO DEL PEG - Tier 2: Growth at Reasonable Price**
+                        - PEG Ratio: {peg_ratio:.2f} (< 1.5 = GARP territory)
+                        - Reverse DCF: UNDERVALUED (mercado pesimista sobre futuro)
+                        - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+
+                        **Veredicto: COMPRA (Doble confirmación PEG + Reverse DCF)**
+
+                        2 señales independientes confirman undervaluation:
+                        1. PEG < 1.5 → Crecimiento a precio razonable
+                        2. Reverse DCF → Mercado espera menos crecimiento del real
+                        """
+
+                    # Tier 3: PEG razonable (< 2.0) en high growth (>15%)
+                    elif peg_ratio < 2.0 and revenue_growth and revenue_growth > 15:
+                        peg_hammer_triggered = True
+                        growth_override_reason = f"""
+                        **🔨 EL MARTILLO DEL PEG - Tier 3: High Growth Premium**
+                        - PEG Ratio: {peg_ratio:.2f} (< 2.0 aceptable para growth >15%)
+                        - Revenue Growth: {revenue_growth:.1f}% (High growth justifica premium)
+                        - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+
+                        **Veredicto: COMPRA (High growth justifica valuación)**
+
+                        Para empresas con crecimiento >15%, PEG < 2.0 es razonable.
+                        Regla: "Never short a dull market" → Never sell high growth at PEG < 2.0
+                        """
+
+                # Apply override if PEG Hammer triggered
+                if peg_hammer_triggered and assessment != 'Undervalued':
+                    growth_override_applied = True
+                    original_assessment = assessment
+                    assessment = 'Growth Undervalued'  # Force GREEN
+
+                    # Recalculate upside based on PEG intrinsic value (use Growth PEG 1.5)
+                    current_price = intrinsic.get('current_price', 0)
+                    if peg_ratio and current_price > 0:
+                        fair_peg_growth = 1.5  # Growth premium
+                        peg_intrinsic_growth = current_price * (fair_peg_growth / peg_ratio)
+                        upside = ((peg_intrinsic_growth - current_price) / current_price) * 100
+                        # Store for display
+                        growth_override_applied = True
+
+                # Color based on assessment (with PEG hammer override)
+                if assessment in ['Undervalued', 'Growth Undervalued']:
+                    color = 'green'
+                    emoji = '🟢'
+                elif assessment == 'Overvalued':
+                    color = 'red'
+                    emoji = '🔴'
+                else:
+                    color = 'orange'
+                    emoji = '🟡'
+
+                # Display industry profile
+                industry_profile = intrinsic.get('industry_profile', 'unknown').replace('_', ' ').title()
+                primary_metric = intrinsic.get('primary_metric', 'EV/EBIT')
+
+                # Display main status (with PEG-driven upside if applicable)
+                display_assessment = assessment.replace('Growth Undervalued', 'Undervalued (PEG Driver)')
+
 
             # Advanced Metrics (same as Qualitative tab)
             st.markdown("---")
@@ -4831,6 +5120,70 @@ with tab6:
                     regime_adj = components.get('regime_adjustment', 0)
                     if regime_adj != 0:
                         st.info(f"⚖️ Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
+
+                    # Detailed Metrics
+                    st.markdown("---")
+                    st.markdown("#### 📈 Detailed Metrics")
+
+                    tab1, tab2, tab3, tab4 = st.tabs(["Momentum", "Risk & Relative Strength", "Trend & Volume", "Market Context"])
+
+                    with tab1:
+                        st.markdown("**Multi-Timeframe Momentum:**")
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("12M Return", f"{tech_analysis.get('momentum_12m', 0):+.1f}%")
+                        with col2:
+                            st.metric("6M Return", f"{tech_analysis.get('momentum_6m', 0):+.1f}%")
+                        with col3:
+                            st.metric("3M Return", f"{tech_analysis.get('momentum_3m', 0):+.1f}%")
+                        with col4:
+                            st.metric("1M Return", f"{tech_analysis.get('momentum_1m', 0):+.1f}%")
+
+                        st.write(f"**Consistency:** {tech_analysis.get('momentum_consistency', 'N/A')}")
+                        st.write(f"**Status:** {tech_analysis.get('momentum_status', 'N/A')}")
+
+                    with tab2:
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.markdown("**Risk Metrics:**")
+                            st.write(f"- Sharpe Ratio (12M): {tech_analysis.get('sharpe_12m', 0):.2f}")
+                            st.write(f"- Volatility (12M): {tech_analysis.get('volatility_12m', 0):.1f}%")
+                            st.write(f"- Risk Status: {tech_analysis.get('risk_adjusted_status', 'N/A')}")
+
+                        with col2:
+                            st.markdown("**Relative Strength:**")
+                            st.write(f"- vs Sector: {tech_analysis.get('sector_relative', 0):+.1f}%")
+                            st.write(f"- vs Market (SPY): {tech_analysis.get('market_relative', 0):+.1f}%")
+                            st.write(f"- Sector Status: {tech_analysis.get('sector_status', 'N/A')}")
+                            st.write(f"- Market Status: {tech_analysis.get('market_status', 'N/A')}")
+
+                    with tab3:
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.markdown("**Trend Analysis:**")
+                            st.write(f"- Trend: {tech_analysis.get('trend', 'N/A')}")
+                            st.write(f"- Distance from MA200: {tech_analysis.get('distance_from_ma200', 0):+.1f}%")
+                            st.write(f"- Golden Cross: {'✅' if tech_analysis.get('golden_cross') else '❌'}")
+
+                        with col2:
+                            st.markdown("**Volume Analysis:**")
+                            st.write(f"- Profile: {tech_analysis.get('volume_profile', 'N/A')}")
+                            st.write(f"- Trend: {tech_analysis.get('volume_trend', 'N/A')}")
+                            st.write(f"- Accumulation Ratio: {tech_analysis.get('accumulation_ratio', 0):.2f}")
+
+                    with tab4:
+                        st.markdown("**Market Environment:**")
+                        st.write(f"- Regime: **{market_regime}** ({tech_analysis.get('regime_confidence', 'unknown')} confidence)")
+
+                        # Show regime details
+                        st.info("""
+                        **Market regime affects momentum effectiveness:**
+                        - 🟢 **BULL**: Momentum +20% more effective
+                        - 🔴 **BEAR**: Momentum -60% effectiveness (crowding)
+                        - 🟡 **SIDEWAYS**: Normal momentum behavior
+                        """)
 
                     # SmartDynamicStopLoss section
                     st.markdown("---")
