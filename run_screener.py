@@ -5187,7 +5187,6 @@ with tab6:
 
                     # SmartDynamicStopLoss section
                     st.markdown("---")
-                    st.markdown("### 🛡️ SmartDynamicStopLoss - Sistema Adaptativo")
                     # Get stop_loss from risk_management (correct location)
                     risk_mgmt = tech_analysis.get('risk_management', {})
                     stop_loss = risk_mgmt.get('stop_loss', {})
