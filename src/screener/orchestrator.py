@@ -273,9 +273,51 @@ class ScreenerPipeline:
             try:
                 all_traded = self.fmp._request('available-traded/list', cache=self.fmp.cache_universe)
                 if all_traded:
+                    # Map countries to their primary exchanges
+                    country_to_exchanges = {
+                        'US': ['NYSE', 'NASDAQ', 'AMEX'],
+                        'CA': ['TSX', 'TSXV', 'NEO'],
+                        'UK': ['LSE', 'LONDON', 'LON'],
+                        'IN': ['NSE', 'BSE'],
+                        'AU': ['ASX'],
+                        'BR': ['SAO', 'BVMF'],
+                        'MX': ['BMV', 'MEX'],
+                        'CH': ['SIX', 'SW'],  # Switzerland
+                        'JP': ['TSE', 'JPX'],
+                        'HK': ['HKSE', 'HKG'],
+                        'FR': ['EPA', 'PAR'],
+                        'DE': ['ETR', 'GER', 'FRA', 'XETRA'],
+                        'IT': ['MIL', 'BIT'],
+                        'ES': ['BME', 'MCE'],
+                        'NL': ['AMS'],
+                        'SE': ['STO'],
+                        'NO': ['OSE'],
+                        'DK': ['CPH'],
+                        'FI': ['HEL'],
+                        'BE': ['BRU'],
+                        'AT': ['VIE'],
+                        'PL': ['WSE']
+                    }
+
+                    # Determine which exchanges to filter by
+                    target_exchanges = []
+                    if exchanges:
+                        # User specified exchanges explicitly
+                        target_exchanges = exchanges
+                    elif countries:
+                        # Map countries to exchanges
+                        for country in countries:
+                            target_exchanges.extend(country_to_exchanges.get(country, []))
+
+                    # Default to US exchanges if nothing specified
+                    if not target_exchanges:
+                        target_exchanges = ['NYSE', 'NASDAQ']
+
+                    logger.info(f"Filtering for exchanges: {target_exchanges}")
+
                     # Get profiles in batches
-                    symbols = [item['symbol'] for item in all_traded if item.get('exchangeShortName') in ['NYSE', 'NASDAQ']][:500]
-                    logger.info(f"Found {len(symbols)} NYSE/NASDAQ symbols, fetching profiles...")
+                    symbols = [item['symbol'] for item in all_traded if item.get('exchangeShortName') in target_exchanges][:500]
+                    logger.info(f"Found {len(symbols)} symbols from {target_exchanges}, fetching profiles...")
 
                     # Batch profile requests
                     for i in range(0, len(symbols), 100):
