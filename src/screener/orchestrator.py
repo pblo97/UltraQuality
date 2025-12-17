@@ -99,6 +99,7 @@ class ScreenerPipeline:
         self.df_universe = None
         self.df_topk = None
         self.df_final = None
+        self._using_sample_data = False  # Flag if we had to use hardcoded sample symbols
 
     def _setup_logging(self):
         """Configure logging."""
@@ -252,18 +253,22 @@ class ScreenerPipeline:
                 for part in range(5):
                     logger.info(f"Fetching profile-bulk part {part}...")
 
-                    profiles = self.fmp._request(
-                        'profile-bulk',
-                        params={'part': part},
-                        cache=self.fmp.cache_universe
-                    )
+                    try:
+                        profiles = self.fmp._request(
+                            'profile-bulk',
+                            params={'part': part},
+                            cache=self.fmp.cache_universe
+                        )
 
-                    if not profiles:
-                        logger.warning(f"Part {part} returned empty")
+                        if not profiles:
+                            logger.warning(f"Part {part} returned empty")
+                            break
+
+                        all_profiles.extend(profiles)
+                        logger.info(f"✓ Fetched {len(profiles)} profiles from part {part}")
+                    except Exception as bulk_error:
+                        logger.error(f"profile-bulk part {part} failed: {bulk_error}")
                         break
-
-                    all_profiles.extend(profiles)
-                    logger.info(f"✓ Fetched {len(profiles)} profiles from part {part}")
 
         except Exception as e:
             logger.error(f"Failed to fetch universe: {type(e).__name__}: {e}")
@@ -329,18 +334,62 @@ class ScreenerPipeline:
             except Exception as e2:
                 logger.error(f"All fallback methods failed: {e2}")
 
+        # ULTRA FALLBACK: Use hardcoded symbols for testing if nothing else worked
+        if not all_profiles and countries:
+            logger.warning("All API methods failed. Trying hardcoded sample symbols as last resort...")
+
+            # Sample major stocks from various markets (for testing only)
+            sample_symbols = {
+                'UK': ['SHEL.L', 'BP.L', 'HSBA.L', 'AZN.L', 'ULVR.L', 'GSK.L', 'RIO.L', 'DGE.L', 'BARC.L', 'VOD.L'],
+                'CA': ['SHOP.TO', 'CNR.TO', 'TD.TO', 'RY.TO', 'BMO.TO', 'ENB.TO', 'CP.TO', 'SU.TO', 'CNQ.TO', 'TRP.TO'],
+                'IN': ['RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'BHARTIARTL.NS', 'HINDUNILVR.NS'],
+                'AU': ['BHP.AX', 'CSL.AX', 'CBA.AX', 'WBC.AX', 'NAB.AX', 'ANZ.AX', 'WES.AX', 'RIO.AX'],
+                'BR': ['PETR4.SA', 'VALE3.SA', 'ITUB4.SA', 'BBDC4.SA', 'ABEV3.SA', 'B3SA3.SA'],
+            }
+
+            for country in countries:
+                if country in sample_symbols:
+                    symbols_to_try = sample_symbols[country]
+                    logger.info(f"Attempting to fetch {len(symbols_to_try)} sample {country} stocks...")
+
+                    try:
+                        batch_profiles = self.fmp.get_profile_bulk(symbols_to_try)
+                        if batch_profiles:
+                            all_profiles.extend(batch_profiles)
+                            logger.warning(f"⚠️ Using {len(batch_profiles)} sample stocks for {country}. This is LIMITED DATA for testing only.")
+                            logger.warning(f"⚠️ To get full market data, upgrade your FMP plan to include international markets.")
+                    except Exception as sample_error:
+                        logger.error(f"Even sample symbols failed: {sample_error}")
+
         if not all_profiles:
-            raise ValueError(
-                "No profiles fetched after trying multiple endpoints.\n"
-                f"Tried: stock-screener, profile-bulk, available-traded/list\n"
-                f"Your API key works but may not have access to these endpoints.\n"
-                f"Contact FMP support: support@financialmodelingprep.com"
+            error_msg = (
+                "❌ No profiles fetched after trying multiple endpoints.\n\n"
+                f"**Attempted endpoints:**\n"
+                f"  1. stock-screener (country={countries})\n"
+                f"  2. profile-bulk (5 parts)\n"
+                f"  3. available-traded/list + profile-bulk\n\n"
+                f"**Possible causes:**\n"
+                f"  • Your FMP API plan may not include international data (UK, etc.)\n"
+                f"  • These specific endpoints may be restricted on your plan\n"
+                f"  • The country '{countries}' may not have sufficient data in FMP\n\n"
+                f"**Solutions:**\n"
+                f"  1. Try running with 'United States' instead of '{countries}'\n"
+                f"  2. Check your FMP plan at: https://financialmodelingprep.com/developer/docs/pricing\n"
+                f"  3. Upgrade to a plan that includes international data\n"
+                f"  4. Contact FMP support: support@financialmodelingprep.com\n\n"
+                f"💡 **Free and Basic plans typically only include US stocks.**"
             )
+            raise ValueError(error_msg)
 
         # Convert to DataFrame
         df = pd.DataFrame(all_profiles)
 
+        # Store flag if using sample data (for UI warning)
+        self._using_sample_data = len(all_profiles) <= 20 and countries and countries != ['US']
+
         logger.info(f"Total profiles fetched: {len(df)}")
+        if self._using_sample_data:
+            logger.warning("⚠️ USING SAMPLE DATA - Not a full market screener. Upgrade FMP plan for complete data.")
 
         # Normalize column names (stock-screener uses different names than profile-bulk)
         column_mapping = {
