@@ -768,16 +768,16 @@ class GuardrailCalculator:
 
         # Tier 0: ULTRA-PERMISSIVE (-1.0) - Equipment manufacturers with extreme R&D/capex
         # These companies make the machines/tools that other industries use
-        ultra_permissive_keywords = [
-            'semiconductor equipment', 'semiconductor machinery',  # ASML, Applied Materials, Lam Research
-            'industrial machinery', 'construction machinery',  # Caterpillar, Deere
-            'lithography', 'wafer fabrication equipment',  # ASML EUV systems
-            'chip making equipment', 'chip manufacturing equipment'
-        ]
-
-        for keyword in ultra_permissive_keywords:
-            if keyword in industry_lower:
-                return -1.0  # Most permissive for equipment manufacturers
+        # Check for combination of "equipment/machinery/tools" + industry type
+        if ('equipment' in industry_lower or 'machinery' in industry_lower or 'tools' in industry_lower):
+            # Semiconductor equipment makers (ASML, Applied Materials, Lam Research)
+            if any(kw in industry_lower for kw in ['semiconductor', 'chip', 'wafer', 'lithography']):
+                logger.info(f"🔧 Beneish ultra-permissive (-1.0): {industry} (semiconductor equipment)")
+                return -1.0
+            # Industrial/construction equipment (Caterpillar, Deere)
+            elif any(kw in industry_lower for kw in ['industrial', 'construction', 'agriculture', 'farm']):
+                logger.info(f"🔧 Beneish ultra-permissive (-1.0): {industry} (industrial equipment)")
+                return -1.0
 
         # Tier 1: PERMISSIVE (-1.5) - Complex revenue recognition
         permissive_keywords = [
@@ -903,6 +903,7 @@ class GuardrailCalculator:
 
             if m > rojo_threshold:
                 red_flags += 1
+                logger.warning(f"⚠️ Beneish M-Score ROJO: M={m:.2f} >{rojo_threshold:.2f} for industry '{industry}'")
                 reasons.append(f"Beneish M={m:.2f} >{rojo_threshold:.2f} (manip.?)")
             elif m > amber_threshold:
                 amber_flags += 1
@@ -1021,7 +1022,8 @@ class GuardrailCalculator:
             # This IS a real red flag - earnings not converting to cash
             red_flags += 1
             fcf_ni = cc.get('fcf_to_ni_current')
-            if fcf_ni is not None and fcf_ni < 40:
+            if fcf_ni is not None:
+                logger.warning(f"⚠️ Cash conversion ROJO: FCF/NI={fcf_ni:.1f}% for industry '{industry}'")
                 reasons.append(f"FCF/NI {fcf_ni:.0f}% (earnings quality concern)")
         elif cc.get('status') == 'AMBAR':
             # Only amber if consistently low, not just one bad quarter
@@ -1059,6 +1061,10 @@ class GuardrailCalculator:
 
         if not reasons:
             reasons.append("All checks OK")
+
+        # Log final assessment for debugging
+        if status == 'ROJO':
+            logger.warning(f"🔴 GUARDRAILS {status}: {red_flags} red flags, {amber_flags} amber flags | Industry: '{industry}' | Reasons: {'; '.join(reasons[:3])}")
 
         return status, '; '.join(reasons[:3])  # Limit to 3 reasons
 
@@ -1526,25 +1532,31 @@ class GuardrailCalculator:
             # Industry-specific thresholds for FCF/NI
             industry_lower = industry.lower() if industry else ''
 
+            # ULTRA capital-intensive: Equipment manufacturers (ASML, Applied Materials, Lam Research)
+            # These companies make the machines that make chips/products - even more capex intensive
+            # Check for combination of "equipment/machinery" + industry type
+            is_ultra_capital_intensive = False
+
+            # Semiconductor equipment makers (ASML, Applied Materials, Lam Research)
+            if ('equipment' in industry_lower or 'machinery' in industry_lower or 'tools' in industry_lower):
+                if any(kw in industry_lower for kw in ['semiconductor', 'chip', 'wafer', 'lithography']):
+                    is_ultra_capital_intensive = True
+                    logger.info(f"🔧 Ultra-capital-intensive: {industry} (semiconductor equipment)")
+                # Industrial/construction equipment (Caterpillar, Deere)
+                elif any(kw in industry_lower for kw in ['industrial', 'construction', 'agriculture', 'farm']):
+                    is_ultra_capital_intensive = True
+                    logger.info(f"🔧 Ultra-capital-intensive: {industry} (industrial equipment)")
+
             # Capital-intensive industries: semiconductors, manufacturing, auto, luxury goods
             capital_intensive_keywords = [
                 'semiconductor', 'chip', 'integrated circuit', 'foundry',
-                'manufacturing', 'industrial', 'machinery', 'equipment',
+                'manufacturing', 'industrial', 'machinery',
                 'automotive', 'auto', 'vehicle',
                 'luxury', 'apparel', 'consumer discretionary',
                 'chemical', 'materials', 'steel', 'mining',
                 'oil', 'energy', 'utilities'
             ]
 
-            # ULTRA capital-intensive: Equipment manufacturers (ASML, Applied Materials, Lam Research)
-            # These companies make the machines that make chips/products - even more capex intensive
-            ultra_capital_intensive_keywords = [
-                'equipment', 'machinery', 'tools',  # General equipment
-                'semiconductor equipment', 'semiconductor machinery',  # ASML, Applied Materials
-                'industrial machinery', 'construction machinery'  # Caterpillar, Deere
-            ]
-
-            is_ultra_capital_intensive = any(keyword in industry_lower for keyword in ultra_capital_intensive_keywords)
             is_capital_intensive = any(keyword in industry_lower for keyword in capital_intensive_keywords)
 
             # Adjust thresholds for capital-intensive industries
