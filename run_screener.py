@@ -5727,6 +5727,9 @@ with tab7:
                                 'volume_profile': tech_result.get('volume_profile', 'UNKNOWN'),
                                 'warnings_count': len(tech_result.get('warnings', [])),
                                 'warnings': tech_result.get('warnings', []),
+                                # Extract SmartDynamicStopLoss state
+                                'stop_loss_state': tech_result.get('risk_management', {}).get('stop_loss', {}).get('market_state', 'UNKNOWN'),
+                                'stop_loss_emoji': tech_result.get('risk_management', {}).get('stop_loss', {}).get('state_emoji', ''),
                                 'full_analysis': tech_result
                             })
                         except Exception as e:
@@ -5756,6 +5759,8 @@ with tab7:
                                 'sector_status': 'ERROR',
                                 'warnings_count': 1,
                                 'warnings': [{'type': 'ERROR', 'message': str(e)}],
+                                'stop_loss_state': 'ERROR',
+                                'stop_loss_emoji': '❌',
                                 'full_analysis': None
                             })
 
@@ -5775,8 +5780,64 @@ with tab7:
 
                     st.success("✅ Technical analysis complete!")
 
+                    # === SMARTDYNAMICSTOPLOSS STATE SUMMARY ===
+                    st.markdown("---")
+                    st.subheader("🛡️ SmartDynamicStopLoss - Estado por Acción")
+                    st.caption("Vista rápida del estado técnico de cada acción sin revisar una por una")
+
+                    # Group by stop_loss_state
+                    state_groups = df_tech.groupby('stop_loss_state')['ticker'].apply(list).to_dict()
+
+                    # Define state order and styling
+                    state_config = {
+                        'DOWNTREND': {'emoji': '📉', 'color': 'error', 'label': 'DOWNTREND (Evitar)', 'priority': 1},
+                        'PARABOLIC_CLIMAX': {'emoji': '🚀⚠️', 'color': 'warning', 'label': 'PARABOLIC CLIMAX (Riesgo de corrección)', 'priority': 2},
+                        'CHOPPY_SIDEWAYS': {'emoji': '〰️', 'color': 'info', 'label': 'CHOPPY/SIDEWAYS (Esperar)', 'priority': 3},
+                        'PULLBACK_FLAG': {'emoji': '📊', 'color': 'success', 'label': 'PULLBACK/FLAG (Oportunidad)', 'priority': 4},
+                        'ENTRY_BREAKOUT': {'emoji': '🚀', 'color': 'success', 'label': 'ENTRY BREAKOUT (Comprar)', 'priority': 5},
+                        'POWER_TREND': {'emoji': '💪', 'color': 'success', 'label': 'POWER TREND (Tendencia fuerte)', 'priority': 6},
+                        'BLUE_SKY_ATH': {'emoji': '☁️', 'color': 'success', 'label': 'BLUE SKY ATH (Sin resistencia)', 'priority': 7},
+                        'UNKNOWN': {'emoji': '❓', 'color': 'info', 'label': 'UNKNOWN', 'priority': 99},
+                        'ERROR': {'emoji': '❌', 'color': 'error', 'label': 'ERROR', 'priority': 100}
+                    }
+
+                    # Sort states by priority
+                    sorted_states = sorted(
+                        state_groups.keys(),
+                        key=lambda x: state_config.get(x, {'priority': 999})['priority']
+                    )
+
+                    # Display in columns (2 per row for better visibility)
+                    for i in range(0, len(sorted_states), 2):
+                        cols = st.columns(2)
+
+                        for j, col in enumerate(cols):
+                            if i + j < len(sorted_states):
+                                state = sorted_states[i + j]
+                                tickers = state_groups[state]
+                                config = state_config.get(state, {'emoji': '❓', 'color': 'info', 'label': state, 'priority': 999})
+
+                                with col:
+                                    # Use appropriate streamlit component for color
+                                    if config['color'] == 'error':
+                                        st.error(f"**{config['emoji']} {config['label']}** ({len(tickers)})")
+                                    elif config['color'] == 'warning':
+                                        st.warning(f"**{config['emoji']} {config['label']}** ({len(tickers)})")
+                                    elif config['color'] == 'success':
+                                        st.success(f"**{config['emoji']} {config['label']}** ({len(tickers)})")
+                                    else:
+                                        st.info(f"**{config['emoji']} {config['label']}** ({len(tickers)})")
+
+                                    # Show tickers as comma-separated list (max 10 per line)
+                                    ticker_display = ', '.join(tickers[:15])
+                                    if len(tickers) > 15:
+                                        ticker_display += f" ... (+{len(tickers)-15} más)"
+                                    st.caption(ticker_display)
+
+                    st.markdown("---")
+
                     # Debug info - show signal distribution
-                    with st.expander("📊 Analysis Summary", expanded=True):
+                    with st.expander("📊 Analysis Summary", expanded=False):
                         col1, col2, col3 = st.columns(3)
                         with col1:
                             st.write("**Signal Distribution:**")
@@ -5830,7 +5891,7 @@ with tab7:
                 st.markdown("---")
 
                 # Filters
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
 
                 with col1:
                     tech_signal_filter = st.multiselect(
@@ -5849,6 +5910,16 @@ with tab7:
                     )
 
                 with col3:
+                    # Get unique stop loss states for filter
+                    all_sl_states = sorted(df_tech['stop_loss_state'].unique().tolist())
+                    sl_state_filter = st.multiselect(
+                        "🛡️ Stop Loss State",
+                        options=all_sl_states,
+                        default=all_sl_states,  # Show all by default
+                        key='sl_state_filter'
+                    )
+
+                with col4:
                     min_tech_score = st.slider(
                         "Min Technical Score",
                         0, 100, 0,  # Start at 0 to show all results
@@ -5859,6 +5930,7 @@ with tab7:
                 df_filtered = df_tech[
                     (df_tech['technical_signal'].isin(tech_signal_filter)) &
                     (df_tech['fundamental_decision'].isin(fund_decision_filter)) &
+                    (df_tech['stop_loss_state'].isin(sl_state_filter)) &
                     (df_tech['technical_score'] >= min_tech_score)
                 ]
 
@@ -5869,6 +5941,7 @@ with tab7:
 
                 display_cols = [
                     'ticker', 'name', 'sector',
+                    'stop_loss_state',  # Added SmartDynamicStopLoss state
                     'market_regime',
                     'technical_score', 'technical_signal',
                     'momentum_6m', 'momentum_consistency',
@@ -5892,6 +5965,10 @@ with tab7:
                         'ticker': 'Ticker',
                         'name': 'Company',
                         'sector': 'Sector',
+                        'stop_loss_state': st.column_config.Column(
+                            '🛡️ SL State',
+                            help='SmartDynamicStopLoss State Machine'
+                        ),
                         'technical_score': st.column_config.NumberColumn(
                             'Tech Score',
                             format='%.0f'
