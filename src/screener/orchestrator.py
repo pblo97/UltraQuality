@@ -12,6 +12,7 @@ Pipeline stages:
 import logging
 import os
 import sys
+import time
 import yaml
 import pandas as pd
 import numpy as np
@@ -709,7 +710,8 @@ class ScreenerPipeline:
         # In production: fetch ratios-ttm-bulk or key-metrics-ttm-bulk
 
         # Simple heuristic: rank by marketCap (larger = more liquid)
-        df = self.df_universe.copy()
+        # Note: Working on view (no copy needed for read-only ranking)
+        df = self.df_universe
 
         # Handle potential duplicate columns
         if 'marketCap' in df.columns:
@@ -729,8 +731,8 @@ class ScreenerPipeline:
             logger.warning("No marketCap column found, using sequential ranking")
             df['prelim_rank'] = range(1, len(df) + 1)
 
-        # Select top K
-        self.df_topk = df.nsmallest(top_k, 'prelim_rank').copy()
+        # Select top K (nsmallest already returns a copy, no need for additional .copy())
+        self.df_topk = df.nsmallest(top_k, 'prelim_rank')
 
         logger.info(f"Selected Top-{top_k} stocks for deep analysis")
 
@@ -740,6 +742,7 @@ class ScreenerPipeline:
 
     def _calculate_features(self):
         """Calculate Value & Quality features for Top-K using parallel processing."""
+        start_time = time.time()
         logger.info(f"Starting parallel feature calculation for {len(self.df_topk)} stocks...")
 
         # Convert to list of dicts (faster than iterrows)
@@ -779,7 +782,8 @@ class ScreenerPipeline:
         df_features = pd.DataFrame(results)
         self.df_topk = self.df_topk.merge(df_features, on='ticker', how='left')
 
-        logger.info(f"✓ Features calculated for {len(results)} stocks (parallel processing)")
+        elapsed = time.time() - start_time
+        logger.info(f"✓ Features calculated for {len(results)} stocks in {elapsed:.1f}s ({len(results)/elapsed:.1f} stocks/sec) [parallel processing]")
 
     # ===================================
     # STAGE 4: GUARDRAILS
@@ -787,6 +791,7 @@ class ScreenerPipeline:
 
     def _calculate_guardrails(self):
         """Calculate accounting guardrails for Top-K using parallel processing."""
+        start_time = time.time()
         logger.info(f"Starting parallel guardrail calculation for {len(self.df_topk)} stocks...")
 
         # Convert to list of dicts
@@ -832,7 +837,8 @@ class ScreenerPipeline:
         df_guardrails = pd.DataFrame(results)
         self.df_topk = self.df_topk.merge(df_guardrails, on='ticker', how='left')
 
-        logger.info(f"✓ Guardrails calculated for {len(results)} stocks (parallel processing)")
+        elapsed = time.time() - start_time
+        logger.info(f"✓ Guardrails calculated for {len(results)} stocks in {elapsed:.1f}s ({len(results)/elapsed:.1f} stocks/sec) [parallel processing]")
 
     # ===================================
     # STAGE 5: SCORING
