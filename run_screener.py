@@ -1270,6 +1270,11 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     stop_loss_pct = None
 
     if stop_loss_data:
+        # DEBUG: Print all keys in stop_loss_data to diagnose issue
+        st.caption(f"🔍 DEBUG - stop_loss_data keys: {list(stop_loss_data.keys())}")
+        st.caption(f"🔍 DEBUG - stop_loss_pct value: {stop_loss_data.get('stop_loss_pct', 'NOT FOUND')}")
+        st.caption(f"🔍 DEBUG - current_price value: {stop_loss_data.get('current_price', 'NOT FOUND')}")
+
         # Get stop loss distance as % (negative value, e.g., -5.0 means -5%)
         stop_loss_pct = stop_loss_data.get('stop_loss_pct')
 
