@@ -105,7 +105,7 @@ class ScreenerPipeline:
         self._using_sample_data = False  # Flag if we had to use hardcoded sample symbols
 
         # Incremental processing cache
-        cache_config = config.get('cache', {})
+        cache_config = self.config.get('cache', {})
         cache_dir = cache_config.get('cache_dir', './cache')
         self.incremental_cache_file = Path(cache_dir) / 'incremental_processing.json'
         self.incremental_ttl_hours = cache_config.get('incremental_ttl_hours', 24)  # Re-process after 24h
