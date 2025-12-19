@@ -18,6 +18,7 @@ import numpy as np
 from datetime import datetime
 from typing import Dict, List, Optional
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -738,66 +739,100 @@ class ScreenerPipeline:
     # ===================================
 
     def _calculate_features(self):
-        """Calculate Value & Quality features for Top-K."""
-        results = []
+        """Calculate Value & Quality features for Top-K using parallel processing."""
+        logger.info(f"Starting parallel feature calculation for {len(self.df_topk)} stocks...")
 
-        for idx, row in self.df_topk.iterrows():
-            symbol = row['ticker']
-            company_type = self._get_company_type(row)
+        # Convert to list of dicts (faster than iterrows)
+        stocks = self.df_topk[['ticker', 'is_financial', 'is_REIT', 'is_utility']].to_dict('records')
 
-            logger.info(f"Calculating features for {symbol} ({company_type})...")
+        def process_stock_features(stock_data):
+            """Process a single stock's features."""
+            symbol = stock_data['ticker']
+            company_type = self._get_company_type(stock_data)
 
             try:
                 features = self.features.calculate_features(symbol, company_type)
                 features['ticker'] = symbol
-                results.append(features)
-
+                logger.info(f"✓ Features calculated for {symbol}")
+                return features
             except Exception as e:
-                logger.error(f"Failed to calculate features for {symbol}: {e}")
-                # Add empty row
-                results.append({'ticker': symbol})
+                logger.error(f"✗ Failed to calculate features for {symbol}: {e}")
+                return {'ticker': symbol}
+
+        # Parallel processing with thread pool
+        # Use 20 workers for I/O-bound API calls (optimal for rate limits)
+        max_workers = min(20, len(stocks))
+        results = []
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_stock = {
+                executor.submit(process_stock_features, stock): stock
+                for stock in stocks
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_stock):
+                results.append(future.result())
 
         # Merge features with universe data
         df_features = pd.DataFrame(results)
         self.df_topk = self.df_topk.merge(df_features, on='ticker', how='left')
 
-        logger.info(f"Features calculated for {len(results)} stocks")
+        logger.info(f"✓ Features calculated for {len(results)} stocks (parallel processing)")
 
     # ===================================
     # STAGE 4: GUARDRAILS
     # ===================================
 
     def _calculate_guardrails(self):
-        """Calculate accounting guardrails for Top-K."""
-        results = []
+        """Calculate accounting guardrails for Top-K using parallel processing."""
+        logger.info(f"Starting parallel guardrail calculation for {len(self.df_topk)} stocks...")
 
-        for idx, row in self.df_topk.iterrows():
-            symbol = row['ticker']
-            company_type = self._get_company_type(row)
-            industry = row.get('industry', '')
+        # Convert to list of dicts
+        stocks = self.df_topk[['ticker', 'is_financial', 'is_REIT', 'is_utility', 'industry']].to_dict('records')
 
-            logger.info(f"Calculating guardrails for {symbol}...")
+        def process_stock_guardrails(stock_data):
+            """Process a single stock's guardrails."""
+            symbol = stock_data['ticker']
+            company_type = self._get_company_type(stock_data)
+            industry = stock_data.get('industry', '')
 
             try:
                 guardrails = self.guardrails.calculate_guardrails(
                     symbol, company_type, industry
                 )
                 guardrails['ticker'] = symbol
-                results.append(guardrails)
-
+                logger.info(f"✓ Guardrails calculated for {symbol}")
+                return guardrails
             except Exception as e:
-                logger.error(f"Failed to calculate guardrails for {symbol}: {e}")
-                results.append({
+                logger.error(f"✗ Failed to calculate guardrails for {symbol}: {e}")
+                return {
                     'ticker': symbol,
                     'guardrail_status': 'AMBAR',
                     'guardrail_reasons': f'Error: {str(e)[:50]}'
-                })
+                }
+
+        # Parallel processing with thread pool
+        max_workers = min(20, len(stocks))
+        results = []
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_stock = {
+                executor.submit(process_stock_guardrails, stock): stock
+                for stock in stocks
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_stock):
+                results.append(future.result())
 
         # Merge guardrails
         df_guardrails = pd.DataFrame(results)
         self.df_topk = self.df_topk.merge(df_guardrails, on='ticker', how='left')
 
-        logger.info(f"Guardrails calculated for {len(results)} stocks")
+        logger.info(f"✓ Guardrails calculated for {len(results)} stocks (parallel processing)")
 
     # ===================================
     # STAGE 5: SCORING

@@ -100,14 +100,39 @@ class FeatureCalculator:
         bal = balance[0] if balance else {}
         cf = cashflow[0] if cashflow else {}
 
+        # ============ PERFORMANCE OPTIMIZATION ============
+        # Cache all TTM calculations upfront (avoids 29+ iterations over same data)
+        ttm_cache = {
+            # Income statement TTM
+            'ebit': self._sum_ttm(income, 'operatingIncome'),
+            'ebitda': self._sum_ttm(income, 'ebitda'),
+            'gross_profit': self._sum_ttm(income, 'grossProfit'),
+            'revenue': self._sum_ttm(income, 'revenue'),
+            'net_income': self._sum_ttm(income, 'netIncome'),
+            'interest_expense': self._sum_ttm(income, 'interestExpense'),
+            'interest_income': self._sum_ttm(income, 'interestIncome'),
+            'opex': self._sum_ttm(income, 'operatingExpenses'),
+            # Cash flow TTM
+            'fcf': self._sum_ttm(cashflow, 'freeCashFlow'),
+            'cfo': self._sum_ttm(cashflow, 'operatingCashFlow'),
+            'capex': abs(self._sum_ttm(cashflow, 'capitalExpenditure')),
+            'dividends_paid': abs(self._sum_ttm(cashflow, 'dividendsPaid') or 0),
+            'buybacks': abs(self._sum_ttm(cashflow, 'commonStockRepurchased') or 0),
+            'da': self._sum_ttm(cashflow, 'depreciationAndAmortization'),
+            # Quarterly slices for growth calculations
+            'ni_last_4q': self._sum_ttm(income[0:4], 'netIncome') if len(income) >= 4 else None,
+            'ni_prev_4q': self._sum_ttm(income[4:8], 'netIncome') if len(income) >= 8 else None,
+        }
+        # ==================================================
+
         # === VALUE METRICS (Modern Yields) ===
         # Using yields (inverted multiples) per Greenblatt, Novy-Marx research
         # Higher yields = better value
 
         # Calculate base components
         market_cap = prof.get('mktCap') or met.get('marketCap')
-        ebit_ttm = self._sum_ttm(income, 'operatingIncome')
-        ebitda_ttm = self._sum_ttm(income, 'ebitda')
+        ebit_ttm = ttm_cache['ebit']
+        ebitda_ttm = ttm_cache['ebitda']
         total_debt = bal.get('totalDebt', 0)
 
         # CRITICAL FIX: Include Short Term Investments (Google, Apple, Microsoft)
@@ -124,10 +149,10 @@ class FeatureCalculator:
         features['short_term_investments'] = short_term_investments
         features['total_liquid_assets'] = total_liquid_assets
 
-        # Free Cash Flow & Operating Cash Flow (TTM)
-        fcf_ttm = self._sum_ttm(cashflow, 'freeCashFlow')
-        cfo_ttm = self._sum_ttm(cashflow, 'operatingCashFlow')
-        capex_ttm = abs(self._sum_ttm(cashflow, 'capitalExpenditure'))  # Usually negative
+        # Free Cash Flow & Operating Cash Flow (TTM) - Use cached values
+        fcf_ttm = ttm_cache['fcf']
+        cfo_ttm = ttm_cache['cfo']
+        capex_ttm = ttm_cache['capex']
 
         # 1. Earnings Yield = EBIT / EV (Greenblatt Magic Formula)
         if ev and ev > 0 and ebit_ttm and ebit_ttm > 0:
@@ -147,8 +172,8 @@ class FeatureCalculator:
         else:
             features['cfo_yield'] = None
 
-        # 4. Gross Profit Yield = Gross Profit / EV (Novy-Marx)
-        gross_profit_ttm = self._sum_ttm(income, 'grossProfit')
+        # 4. Gross Profit Yield = Gross Profit / EV (Novy-Marx) - Use cached value
+        gross_profit_ttm = ttm_cache['gross_profit']
         if ev and ev > 0 and gross_profit_ttm and gross_profit_ttm > 0:
             features['gross_profit_yield'] = (gross_profit_ttm / ev) * 100
         else:
@@ -186,9 +211,9 @@ class FeatureCalculator:
         # PEG < 1.0 = Ganga, < 1.5 = GARP, > 2.0 = Sobrevalorado
         pe_ratio = features['pe_ttm']
         if pe_ratio and pe_ratio > 0 and len(income) >= 8:
-            # Calculate earnings growth: Last 4Q vs Previous 4Q (YoY)
-            earnings_last_4q = self._sum_ttm(income[0:4], 'netIncome')
-            earnings_prev_4q = self._sum_ttm(income[4:8], 'netIncome')
+            # Calculate earnings growth: Last 4Q vs Previous 4Q (YoY) - Use cached values
+            earnings_last_4q = ttm_cache['ni_last_4q']
+            earnings_prev_4q = ttm_cache['ni_prev_4q']
 
             if earnings_last_4q and earnings_prev_4q and earnings_prev_4q > 0:
                 earnings_growth = ((earnings_last_4q - earnings_prev_4q) / abs(earnings_prev_4q)) * 100
@@ -291,38 +316,38 @@ class FeatureCalculator:
         else:
             features['roic_persistence'] = None
 
-        # Gross Profits / Assets (Novy-Marx)
-        gross_profit_ttm = self._sum_ttm(income, 'grossProfit')
+        # Gross Profits / Assets (Novy-Marx) - Use cached value
+        gross_profit_ttm = ttm_cache['gross_profit']
         if gross_profit_ttm and total_assets and total_assets > 0:
             features['grossProfits_to_assets'] = (gross_profit_ttm / total_assets) * 100
         else:
             features['grossProfits_to_assets'] = None
 
-        # FCF Margin % = FCF / Revenue
-        revenue_ttm = self._sum_ttm(income, 'revenue')
+        # FCF Margin % = FCF / Revenue - Use cached values
+        revenue_ttm = ttm_cache['revenue']
         if fcf_ttm and revenue_ttm and revenue_ttm > 0:
             features['fcf_margin_%'] = (fcf_ttm / revenue_ttm) * 100
         else:
             features['fcf_margin_%'] = None
 
-        # CFO / Net Income
-        cfo_ttm = self._sum_ttm(cashflow, 'operatingCashFlow')
-        ni_ttm = self._sum_ttm(income, 'netIncome')
+        # CFO / Net Income - Use cached values
+        cfo_ttm = ttm_cache['cfo']
+        ni_ttm = ttm_cache['net_income']
         if cfo_ttm and ni_ttm and ni_ttm != 0:
             features['cfo_to_ni'] = cfo_ttm / ni_ttm
         else:
             features['cfo_to_ni'] = None
 
-        # Net Debt / EBITDA
-        ebitda_ttm = self._sum_ttm(income, 'ebitda')
+        # Net Debt / EBITDA - Use cached value
+        ebitda_ttm = ttm_cache['ebitda']
         net_debt = total_debt - cash if total_debt is not None and cash is not None else None
         if net_debt is not None and ebitda_ttm and ebitda_ttm > 0:
             features['netDebt_ebitda'] = net_debt / ebitda_ttm
         else:
             features['netDebt_ebitda'] = None
 
-        # Interest Coverage = EBIT / Interest Expense
-        interest_ttm = self._sum_ttm(income, 'interestExpense')
+        # Interest Coverage = EBIT / Interest Expense - Use cached value
+        interest_ttm = ttm_cache['interest_expense']
         if ebit_ttm and interest_ttm and interest_ttm > 0:
             features['interestCoverage'] = ebit_ttm / interest_ttm
         else:
