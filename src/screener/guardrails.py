@@ -97,7 +97,7 @@ class GuardrailCalculator:
             result['margin_trajectory'] = self._calc_margin_trajectory(income)
 
             # 3. Cash Conversion Quality
-            result['cash_conversion'] = self._calc_cash_conversion_quality(income, cashflow, industry)
+            result['cash_conversion'] = self._calc_cash_conversion_quality(income, cashflow, industry, symbol)
 
             # 4. Debt Maturity Wall
             result['debt_maturity_wall'] = self._calc_debt_maturity_wall(balance, cashflow)
@@ -111,7 +111,7 @@ class GuardrailCalculator:
 
             # Determine status and reasons
             result['guardrail_status'], result['guardrail_reasons'] = self._assess_guardrails(
-                result, company_type, industry
+                result, company_type, industry, symbol
             )
 
         except Exception as e:
@@ -721,7 +721,7 @@ class GuardrailCalculator:
         # For all other industries, Z-Score is applicable
         return True
 
-    def _get_beneish_threshold_for_industry(self, industry: str) -> float:
+    def _get_beneish_threshold_for_industry(self, industry: str, symbol: str = '') -> float:
         """
         Get industry-adjusted Beneish M-Score threshold for ROJO classification.
 
@@ -765,18 +765,31 @@ class GuardrailCalculator:
             return -1.78  # Default to original Beneish threshold
 
         industry_lower = industry.lower()
+        symbol_upper = symbol.upper() if symbol else ''
 
         # Tier 0: ULTRA-PERMISSIVE (-1.0) - Equipment manufacturers with extreme R&D/capex
         # These companies make the machines/tools that other industries use
-        # Check for combination of "equipment/machinery/tools" + industry type
+
+        # 1. Check by ticker first (FMP API doesn't classify these as "Semiconductor Equipment")
+        semiconductor_equipment_tickers = ['ASML', 'AMAT', 'LRCX', 'KLAC', 'ENTG', 'MKSI']
+        industrial_equipment_tickers = ['CAT', 'DE', 'CMI', 'PH', 'ITW']
+
+        if symbol_upper in semiconductor_equipment_tickers:
+            logger.info(f"🔧 Beneish ultra-permissive (-1.0) by ticker: {symbol_upper} - {industry} (semiconductor equipment)")
+            return -1.0
+        elif symbol_upper in industrial_equipment_tickers:
+            logger.info(f"🔧 Beneish ultra-permissive (-1.0) by ticker: {symbol_upper} - {industry} (industrial equipment)")
+            return -1.0
+
+        # 2. Check by industry keywords (backup for companies not in ticker list)
         if ('equipment' in industry_lower or 'machinery' in industry_lower or 'tools' in industry_lower):
             # Semiconductor equipment makers (ASML, Applied Materials, Lam Research)
             if any(kw in industry_lower for kw in ['semiconductor', 'chip', 'wafer', 'lithography']):
-                logger.info(f"🔧 Beneish ultra-permissive (-1.0): {industry} (semiconductor equipment)")
+                logger.info(f"🔧 Beneish ultra-permissive (-1.0) by industry: {industry} (semiconductor equipment)")
                 return -1.0
             # Industrial/construction equipment (Caterpillar, Deere)
             elif any(kw in industry_lower for kw in ['industrial', 'construction', 'agriculture', 'farm']):
-                logger.info(f"🔧 Beneish ultra-permissive (-1.0): {industry} (industrial equipment)")
+                logger.info(f"🔧 Beneish ultra-permissive (-1.0) by industry: {industry} (industrial equipment)")
                 return -1.0
 
         # Tier 1: PERMISSIVE (-1.5) - Complex revenue recognition
@@ -813,7 +826,8 @@ class GuardrailCalculator:
         self,
         guardrails: Dict,
         company_type: str,
-        industry: str
+        industry: str,
+        symbol: str = ''
     ) -> Tuple[str, str]:
         """
         Assess overall guardrail status (VERDE, AMBAR, ROJO) and reasons.
@@ -898,7 +912,7 @@ class GuardrailCalculator:
         m = guardrails.get('beneishM')
         if m is not None:
             # Get industry-specific threshold for ROJO classification
-            rojo_threshold = self._get_beneish_threshold_for_industry(industry)
+            rojo_threshold = self._get_beneish_threshold_for_industry(industry, symbol)
             amber_threshold = -2.22  # Standard amber threshold (Beneish original)
 
             if m > rojo_threshold:
@@ -1417,7 +1431,8 @@ class GuardrailCalculator:
         self,
         income: List[Dict],
         cashflow: List[Dict],
-        industry: str = ''
+        industry: str = '',
+        symbol: str = ''
     ) -> Dict:
         """
         Cash Conversion Quality: Separa earnings reales vs manipulados.
@@ -1531,21 +1546,32 @@ class GuardrailCalculator:
 
             # Industry-specific thresholds for FCF/NI
             industry_lower = industry.lower() if industry else ''
+            symbol_upper = symbol.upper() if symbol else ''
 
             # ULTRA capital-intensive: Equipment manufacturers (ASML, Applied Materials, Lam Research)
             # These companies make the machines that make chips/products - even more capex intensive
-            # Check for combination of "equipment/machinery" + industry type
             is_ultra_capital_intensive = False
 
-            # Semiconductor equipment makers (ASML, Applied Materials, Lam Research)
-            if ('equipment' in industry_lower or 'machinery' in industry_lower or 'tools' in industry_lower):
+            # 1. Check by ticker first (FMP API doesn't classify these as "Semiconductor Equipment")
+            semiconductor_equipment_tickers = ['ASML', 'AMAT', 'LRCX', 'KLAC', 'ENTG', 'MKSI']  # ASML, Applied Materials, Lam Research, KLA Corp, Entegris, MKS Instruments
+            industrial_equipment_tickers = ['CAT', 'DE', 'CMI', 'PH', 'ITW']  # Caterpillar, Deere, Cummins, Parker-Hannifin, Illinois Tool Works
+
+            if symbol_upper in semiconductor_equipment_tickers:
+                is_ultra_capital_intensive = True
+                logger.info(f"🔧 Ultra-capital-intensive (ticker): {symbol_upper} - {industry} (semiconductor equipment)")
+            elif symbol_upper in industrial_equipment_tickers:
+                is_ultra_capital_intensive = True
+                logger.info(f"🔧 Ultra-capital-intensive (ticker): {symbol_upper} - {industry} (industrial equipment)")
+            # 2. Check by industry keywords (backup for companies not in ticker list)
+            elif ('equipment' in industry_lower or 'machinery' in industry_lower or 'tools' in industry_lower):
+                # Semiconductor equipment makers
                 if any(kw in industry_lower for kw in ['semiconductor', 'chip', 'wafer', 'lithography']):
                     is_ultra_capital_intensive = True
-                    logger.info(f"🔧 Ultra-capital-intensive: {industry} (semiconductor equipment)")
-                # Industrial/construction equipment (Caterpillar, Deere)
+                    logger.info(f"🔧 Ultra-capital-intensive (industry): {industry} (semiconductor equipment)")
+                # Industrial/construction equipment
                 elif any(kw in industry_lower for kw in ['industrial', 'construction', 'agriculture', 'farm']):
                     is_ultra_capital_intensive = True
-                    logger.info(f"🔧 Ultra-capital-intensive: {industry} (industrial equipment)")
+                    logger.info(f"🔧 Ultra-capital-intensive (industry): {industry} (industrial equipment)")
 
             # Capital-intensive industries: semiconductors, manufacturing, auto, luxury goods
             capital_intensive_keywords = [
