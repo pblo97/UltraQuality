@@ -1124,10 +1124,10 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     top_k = st.slider(
         "Top-K Stocks to Analyze",
         min_value=50,
-        max_value=700,
+        max_value=1200,
         value=500,
         step=50,
-        help="Number of stocks to deep-dive after preliminary ranking. 500 stocks = ~4 min with 1300 calls/min API limit"
+        help="Number of stocks to deep-dive after preliminary ranking. 500 stocks = ~4 min, 1200 stocks = ~10 min (with 1300 calls/min API limit)"
     )
 
 # Scoring weights
