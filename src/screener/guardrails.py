@@ -97,7 +97,7 @@ class GuardrailCalculator:
             result['margin_trajectory'] = self._calc_margin_trajectory(income)
 
             # 3. Cash Conversion Quality
-            result['cash_conversion'] = self._calc_cash_conversion_quality(income, cashflow)
+            result['cash_conversion'] = self._calc_cash_conversion_quality(income, cashflow, industry)
 
             # 4. Debt Maturity Wall
             result['debt_maturity_wall'] = self._calc_debt_maturity_wall(balance, cashflow)
@@ -1391,7 +1391,8 @@ class GuardrailCalculator:
     def _calc_cash_conversion_quality(
         self,
         income: List[Dict],
-        cashflow: List[Dict]
+        cashflow: List[Dict],
+        industry: str = ''
     ) -> Dict:
         """
         Cash Conversion Quality: Separa earnings reales vs manipulados.
@@ -1406,6 +1407,10 @@ class GuardrailCalculator:
         - FCF/NI < 50% = Earnings not converting to cash (accruals too high)
         - FCF/NI declining = Quality deteriorating
         - High capex intensity = Capital-intensive business (harder to scale)
+
+        Industry Adjustments:
+        - Capital-intensive industries (semiconductors, manufacturing, auto) get relaxed thresholds
+        - Growth industries with high R&D/capex (tech, biotech) get adjusted thresholds
 
         Returns:
         {
@@ -1499,12 +1504,38 @@ class GuardrailCalculator:
             if result['capex_intensity_current'] is not None and result['capex_intensity_current'] > 15:
                 flags.append(f"Capital-intensive business ({result['capex_intensity_current']:.1f}% capex/revenue)")
 
-            # Status
+            # Industry-specific thresholds for FCF/NI
+            industry_lower = industry.lower() if industry else ''
+
+            # Capital-intensive industries: semiconductors, manufacturing, auto, luxury goods
+            capital_intensive_keywords = [
+                'semiconductor', 'chip', 'integrated circuit', 'foundry',
+                'manufacturing', 'industrial', 'machinery', 'equipment',
+                'automotive', 'auto', 'vehicle',
+                'luxury', 'apparel', 'consumer discretionary',
+                'chemical', 'materials', 'steel', 'mining',
+                'oil', 'energy', 'utilities'
+            ]
+
+            is_capital_intensive = any(keyword in industry_lower for keyword in capital_intensive_keywords)
+
+            # Adjust thresholds for capital-intensive industries
+            # These industries naturally have lower FCF/NI due to necessary capex for growth/maintenance
+            if is_capital_intensive:
+                red_threshold = 20  # More lenient (was 40)
+                amber_threshold = 40  # More lenient (was 60)
+                threshold_note = " (capital-intensive industry)"
+            else:
+                red_threshold = 40
+                amber_threshold = 60
+                threshold_note = ""
+
+            # Status determination
             if result['fcf_to_ni_current'] is not None:
-                if result['fcf_to_ni_current'] < 40 or (result['fcf_to_ni_avg_8q'] and result['fcf_to_ni_avg_8q'] < 40):
+                if result['fcf_to_ni_current'] < red_threshold or (result['fcf_to_ni_avg_8q'] and result['fcf_to_ni_avg_8q'] < red_threshold):
                     result['status'] = 'ROJO'
-                    flags.append("ROJO: Very low cash conversion - potential earnings manipulation")
-                elif result['fcf_to_ni_current'] < 60 or result['fcf_to_ni_trend'] == 'Deteriorating':
+                    flags.append(f"ROJO: Very low cash conversion (<{red_threshold}%){threshold_note} - potential earnings manipulation")
+                elif result['fcf_to_ni_current'] < amber_threshold or result['fcf_to_ni_trend'] == 'Deteriorating':
                     result['status'] = 'AMBAR'
                 else:
                     result['status'] = 'VERDE'
