@@ -1187,19 +1187,65 @@ try:
 except:
     st.sidebar.warning("⚠️ Secrets not accessible")
 
+# Risk Management Settings
+st.sidebar.markdown("---")
+st.sidebar.subheader("💰 Risk Management")
+
+portfolio_capital = st.sidebar.number_input(
+    "Portfolio Capital ($)",
+    min_value=1000,
+    max_value=10000000,
+    value=100000,
+    step=10000,
+    help="Total portfolio size for position sizing calculations"
+)
+
+max_risk_per_trade_pct = st.sidebar.slider(
+    "Max Risk per Trade (%)",
+    min_value=0.25,
+    max_value=5.0,
+    value=1.0,
+    step=0.25,
+    help="Maximum % of portfolio to risk on any single trade (if stop loss hit)"
+)
+
+max_risk_per_trade_dollars = portfolio_capital * (max_risk_per_trade_pct / 100)
+
+st.sidebar.caption(f"""
+**Risk Settings:**
+- Portfolio: ${portfolio_capital:,}
+- Max Risk: {max_risk_per_trade_pct}% = ${max_risk_per_trade_dollars:,.0f}
+""")
+
+st.sidebar.info("""
+**Dual Constraint System:**
+Position Size = MIN(Quality-Based, Risk-Based)
+
+This ensures you never exceed EITHER:
+- Diversification limit (by quality tier)
+- Risk limit (1% max loss per trade)
+""")
+
 
 # ========== HELPER FUNCTIONS ==========
 
-def display_position_sizing(pos_sizing, portfolio_size=100000):
+def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=100000, max_risk_dollars=1000):
     """
-    Display enhanced position sizing with penalty breakdown.
+    Display enhanced position sizing with DUAL CONSTRAINT system.
+
+    Método A (Quality-Based): Ya calculado con penalties
+    Método B (Risk-Based): max_risk_dollars / stop_loss_distance
+
+    DECISIÓN FINAL = MIN(A, B)
 
     Args:
         pos_sizing: Position sizing dict from risk_management
+        stop_loss_data: Stop loss dict with 'stop_loss_pct' key
         portfolio_size: Total portfolio size in dollars (default: $100k)
+        max_risk_dollars: Maximum $ to risk per trade (default: $1k = 1% of $100k)
     """
     st.markdown("### 📊 Position Sizing Recommendation")
-    st.caption("Penalty-Based System: Quality → Penalties → Final Allocation")
+    st.caption("**Dual Constraint System:** MIN(Quality-Based, Risk-Based)")
 
     # Check for VETO
     if pos_sizing.get('veto_active'):
@@ -1216,7 +1262,71 @@ def display_position_sizing(pos_sizing, portfolio_size=100000):
     bonuses = pos_sizing.get('bonuses', [])
     bear_market = pos_sizing.get('bear_market_adjustment', False)
 
+    # ========== MÉTODO A: QUALITY-BASED (ya calculado) ==========
+    quality_based_dollars = portfolio_size * (final_pct / 100)
+
+    # ========== MÉTODO B: RISK-BASED (calculamos ahora) ==========
+    risk_based_dollars = None
+    stop_loss_pct = None
+
+    if stop_loss_data:
+        # Get stop loss distance as % (negative value, e.g., -5.0 means -5%)
+        stop_loss_pct = stop_loss_data.get('stop_loss_pct')
+
+        if stop_loss_pct and stop_loss_pct != 0:
+            # Convert to positive distance (e.g., -5.0 → 5.0)
+            stop_distance = abs(stop_loss_pct)
+
+            # Risk-Based Position Size = Max Risk $ / (Stop Distance / 100)
+            # Example: $1,000 / (4% / 100) = $1,000 / 0.04 = $25,000
+            risk_based_dollars = max_risk_dollars / (stop_distance / 100)
+
+    # ========== DECISIÓN FINAL: MIN(A, B) ==========
+    if risk_based_dollars is not None:
+        final_dollars = min(quality_based_dollars, risk_based_dollars)
+        constraint = "Quality" if quality_based_dollars < risk_based_dollars else "Risk"
+    else:
+        final_dollars = quality_based_dollars
+        constraint = "Quality (no stop loss data)"
+
+    final_pct_adjusted = (final_dollars / portfolio_size) * 100
+
+    # ========== DISPLAY ==========
+
+    # Show dual calculation in expander first
+    with st.expander("🧮 Dual Constraint Calculation", expanded=True):
+        col_a, col_b, col_final = st.columns(3)
+
+        with col_a:
+            st.markdown("**Método A: Quality-Based**")
+            st.metric("Quality Allocation", f"{final_pct:.1f}%")
+            st.caption(f"${quality_based_dollars:,.0f}")
+            st.caption(f"Tier: {quality_tier}")
+
+        with col_b:
+            st.markdown("**Método B: Risk-Based**")
+            if risk_based_dollars is not None and stop_loss_pct is not None:
+                risk_pct = (risk_based_dollars / portfolio_size) * 100
+                st.metric("Risk Allocation", f"{risk_pct:.1f}%")
+                st.caption(f"${risk_based_dollars:,.0f}")
+                st.caption(f"Stop: {stop_loss_pct:.1f}%")
+            else:
+                st.warning("N/A")
+                st.caption("No stop loss data")
+
+        with col_final:
+            st.markdown("**✅ FINAL (MIN)**")
+            st.metric("Position Size", f"{final_pct_adjusted:.1f}%",
+                     delta=f"{constraint} constraint")
+            st.caption(f"${final_dollars:,.0f}")
+
+            if constraint == "Risk":
+                st.info("🛡️ Risk limit is more conservative")
+            else:
+                st.info("🎯 Quality limit is more conservative")
+
     # Display quality tier and base allocation
+    st.markdown("---")
     st.markdown(f"**{quality_tier}** → Base Allocation: **{base_pct}%**")
 
     # Show penalties
@@ -1235,27 +1345,22 @@ def display_position_sizing(pos_sizing, portfolio_size=100000):
     if bear_market:
         st.warning("⚠️ **Bear Market Override:** All positions halved")
 
-    # Final recommendation
+    # Final recommendation with examples
     st.markdown("---")
-    col1, col2, col3 = st.columns(3)
+    st.success(f"**💰 Final Recommendation: ${final_dollars:,.0f}** ({final_pct_adjusted:.1f}% of portfolio)")
 
-    with col1:
-        st.metric("Final Position Size", f"{final_pct:.1f}%")
-
-    with col2:
-        position_value = portfolio_size * (final_pct / 100)
-        st.metric("Position Value", f"${position_value:,.0f}")
-
-    with col3:
-        # Change vs base
-        change = final_pct - base_pct
-        st.metric("vs Base", f"{change:+.1f}%", delta_color="inverse" if change < 0 else "normal")
+    # Calculate shares (assuming we have current price in stop_loss_data)
+    if stop_loss_data and stop_loss_data.get('current_price'):
+        current_price = stop_loss_data.get('current_price', 0)
+        if current_price > 0:
+            shares = int(final_dollars / current_price)
+            st.caption(f"Approximate shares to buy: **{shares}** @ ${current_price:.2f}")
 
     # Rationale
     st.info(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
 
     # Detailed breakdown (expandable)
-    with st.expander("📋 Detailed Calculation"):
+    with st.expander("📋 Quality-Based Calculation Details"):
         st.caption(pos_sizing.get('calculation_breakdown', 'N/A'))
 
 
@@ -5284,8 +5389,13 @@ with tab6:
                         with rm_tab1:
                             pos_sizing = risk_mgmt.get('position_sizing', {})
                             if pos_sizing:
-                                # Use enhanced display function
-                                display_position_sizing(pos_sizing, portfolio_size=100000)
+                                # Use enhanced display function with dual constraint system
+                                display_position_sizing(
+                                    pos_sizing,
+                                    stop_loss_data=risk_mgmt.get('stop_loss'),
+                                    portfolio_size=portfolio_capital,
+                                    max_risk_dollars=max_risk_per_trade_dollars
+                                )
 
                         with rm_tab2:
                             entry_strategy = risk_mgmt.get('entry_strategy', {})
@@ -6255,8 +6365,13 @@ with tab7:
                             with rm_tab1:
                                 pos_sizing = risk_mgmt.get('position_sizing', {})
                                 if pos_sizing:
-                                    # Use enhanced display function
-                                    display_position_sizing(pos_sizing, portfolio_size=100000)
+                                    # Use enhanced display function with dual constraint system
+                                    display_position_sizing(
+                                        pos_sizing,
+                                        stop_loss_data=risk_mgmt.get('stop_loss'),
+                                        portfolio_size=portfolio_capital,
+                                        max_risk_dollars=max_risk_per_trade_dollars
+                                    )
 
                             with rm_tab2:
                                 entry_strategy = risk_mgmt.get('entry_strategy', {})

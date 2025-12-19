@@ -2741,6 +2741,10 @@ class EnhancedTechnicalAnalyzer:
                     'rationale': state_rationale
                 },
 
+                # Numeric fields for risk-based position sizing calculations
+                'stop_loss_pct': abs(active_stop_pct),  # Absolute distance to stop (e.g., 5.1 from -5.1%)
+                'current_price': current_price,  # Current stock price for share calculation
+
                 # Base Parameters (State Machine uses additional indicators)
                 'parameters': {
                     'atr_14': round(atr_14, 2),
