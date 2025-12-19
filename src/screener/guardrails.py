@@ -733,6 +733,12 @@ class GuardrailCalculator:
 
         Threshold Tiers:
 
+        Tier 0 - ULTRA-PERMISSIVE (-1.0): Equipment manufacturers with extreme R&D/capex
+            - Semiconductor Equipment: ASML, Applied Materials, Lam Research (lithography, etching tools)
+            - Industrial Machinery: Caterpillar, Deere (construction/agriculture equipment)
+            - These companies make the machines that other industries use
+            - Naturally very high accruals due to multi-year R&D cycles and massive capex
+
         Tier 1 - PERMISSIVE (-1.5): Complex revenue recognition, naturally high accruals
             - Travel/Hospitality: Booking vs. consumption timing, deferred revenue
             - E-commerce/Retail: High receivables, inventory accounting complexity
@@ -759,6 +765,19 @@ class GuardrailCalculator:
             return -1.78  # Default to original Beneish threshold
 
         industry_lower = industry.lower()
+
+        # Tier 0: ULTRA-PERMISSIVE (-1.0) - Equipment manufacturers with extreme R&D/capex
+        # These companies make the machines/tools that other industries use
+        ultra_permissive_keywords = [
+            'semiconductor equipment', 'semiconductor machinery',  # ASML, Applied Materials, Lam Research
+            'industrial machinery', 'construction machinery',  # Caterpillar, Deere
+            'lithography', 'wafer fabrication equipment',  # ASML EUV systems
+            'chip making equipment', 'chip manufacturing equipment'
+        ]
+
+        for keyword in ultra_permissive_keywords:
+            if keyword in industry_lower:
+                return -1.0  # Most permissive for equipment manufacturers
 
         # Tier 1: PERMISSIVE (-1.5) - Complex revenue recognition
         permissive_keywords = [
@@ -1517,11 +1536,24 @@ class GuardrailCalculator:
                 'oil', 'energy', 'utilities'
             ]
 
+            # ULTRA capital-intensive: Equipment manufacturers (ASML, Applied Materials, Lam Research)
+            # These companies make the machines that make chips/products - even more capex intensive
+            ultra_capital_intensive_keywords = [
+                'equipment', 'machinery', 'tools',  # General equipment
+                'semiconductor equipment', 'semiconductor machinery',  # ASML, Applied Materials
+                'industrial machinery', 'construction machinery'  # Caterpillar, Deere
+            ]
+
+            is_ultra_capital_intensive = any(keyword in industry_lower for keyword in ultra_capital_intensive_keywords)
             is_capital_intensive = any(keyword in industry_lower for keyword in capital_intensive_keywords)
 
             # Adjust thresholds for capital-intensive industries
             # These industries naturally have lower FCF/NI due to necessary capex for growth/maintenance
-            if is_capital_intensive:
+            if is_ultra_capital_intensive:
+                red_threshold = 10  # Ultra-lenient for equipment manufacturers (ASML, Applied Materials)
+                amber_threshold = 30  # Ultra-lenient
+                threshold_note = " (ultra capital-intensive - equipment manufacturer)"
+            elif is_capital_intensive:
                 red_threshold = 20  # More lenient (was 40)
                 amber_threshold = 40  # More lenient (was 60)
                 threshold_note = " (capital-intensive industry)"
