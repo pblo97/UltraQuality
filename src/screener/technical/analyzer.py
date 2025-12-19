@@ -219,11 +219,14 @@ class EnhancedTechnicalAnalyzer:
             week_52_high = q.get('yearHigh', 0)
             beta = q.get('beta', None)
 
-            # Calculate ATR as % of price (14-day ATR approximation from volatility)
-            # volatility is annualized std dev, ATR ~= 1.5 * daily_std * sqrt(14)
-            # For rough approximation: atr_pct ≈ volatility / sqrt(252) * sqrt(14) * 1.5 / price * 100
-            # Simplified: atr_pct ≈ (volatility * 0.75) as rough estimate
-            atr_pct = (risk_data.get('volatility', 0) * 0.75) if price > 0 else None
+            # Calculate REAL ATR (14-day) as % of price
+            # THIS IS DAILY VOLATILITY, NOT ANNUALIZED!
+            # JNJ (Tortuga): ~1.0-1.5%
+            # NVDA (Cohete): ~3-5%
+            # Meme Stock: >15%
+            atr_pct = self._calculate_atr(prices, period=14)
+            if atr_pct is not None:
+                logger.debug(f"{symbol}: ATR(14) = {atr_pct:.2f}% (daily volatility)")
 
             risk_mgmt_recs = self._generate_risk_management_recommendations(
                 symbol=symbol,
@@ -1130,6 +1133,76 @@ class EnhancedTechnicalAnalyzer:
             })
 
         return risk_score, warnings
+
+    # ============================================================================
+    # ATR CALCULATION (for Position Sizing)
+    # ============================================================================
+
+    def _calculate_atr(self, prices: List[Dict], period: int = 14) -> float:
+        """
+        Calculate Average True Range (ATR) as % of current price.
+
+        ATR measures DAILY volatility using actual intraday range:
+        - True Range = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        - ATR = moving average of TR over period days
+        - ATR% = (ATR / current_price) * 100
+
+        THIS IS NOT ANNUALIZED VOLATILITY!
+
+        Examples:
+        - JNJ (Tier 1 Tortuga): ATR ~1.0-1.5% (se mueve $2-3 por día)
+        - NVDA (Tier 3 Cohete): ATR ~3-5% (se mueve $25-40 por día)
+        - Meme Stock: ATR >15% (se mueve >15% por día)
+
+        Args:
+            prices: List of price dicts with 'high', 'low', 'close' (chronological order)
+            period: ATR period (default: 14 days)
+
+        Returns:
+            ATR as % of current price (e.g., 1.5 means stock moves ~1.5% per day on average)
+            None if insufficient data
+        """
+        if not prices or len(prices) < period + 1:
+            return None
+
+        # Get most recent prices (need period+1 for prev_close calculation)
+        recent_prices = prices[-(period+1):]
+
+        true_ranges = []
+        for i in range(1, len(recent_prices)):
+            current = recent_prices[i]
+            previous = recent_prices[i-1]
+
+            high = current.get('high', 0)
+            low = current.get('low', 0)
+            prev_close = previous.get('close', 0)
+
+            if high == 0 or low == 0 or prev_close == 0:
+                continue
+
+            # True Range = max(high-low, abs(high-prev_close), abs(low-prev_close))
+            tr = max(
+                high - low,
+                abs(high - prev_close),
+                abs(low - prev_close)
+            )
+            true_ranges.append(tr)
+
+        if not true_ranges or len(true_ranges) < period:
+            return None
+
+        # ATR = simple moving average of last 'period' true ranges
+        atr_value = sum(true_ranges[-period:]) / period
+
+        # Get current price
+        current_price = recent_prices[-1].get('close', 0)
+        if current_price == 0:
+            return None
+
+        # ATR as % of price
+        atr_pct = (atr_value / current_price) * 100
+
+        return atr_pct
 
     # ============================================================================
     # RISK MANAGEMENT RECOMMENDATIONS (NEW)
