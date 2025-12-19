@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 import time
+import json
 import yaml
 import pandas as pd
 import numpy as np
@@ -102,6 +103,12 @@ class ScreenerPipeline:
         self.df_topk = None
         self.df_final = None
         self._using_sample_data = False  # Flag if we had to use hardcoded sample symbols
+
+        # Incremental processing cache
+        cache_config = config.get('cache', {})
+        cache_dir = cache_config.get('cache_dir', './cache')
+        self.incremental_cache_file = Path(cache_dir) / 'incremental_processing.json'
+        self.incremental_ttl_hours = cache_config.get('incremental_ttl_hours', 24)  # Re-process after 24h
 
     def _setup_logging(self):
         """Configure logging."""
@@ -740,13 +747,82 @@ class ScreenerPipeline:
     # STAGE 3: FEATURES
     # ===================================
 
+    def _load_incremental_cache(self) -> Dict:
+        """Load incremental processing cache."""
+        if self.incremental_cache_file.exists():
+            try:
+                with open(self.incremental_cache_file, 'r') as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning(f"Failed to load incremental cache: {e}")
+        return {}
+
+    def _save_incremental_cache(self, cache_data: Dict):
+        """Save incremental processing cache."""
+        try:
+            self.incremental_cache_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.incremental_cache_file, 'w') as f:
+                json.dump(cache_data, f, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to save incremental cache: {e}")
+
+    def _should_reprocess(self, symbol: str, cache_data: Dict) -> bool:
+        """Determine if a stock needs reprocessing."""
+        if symbol not in cache_data:
+            return True  # New stock
+
+        stock_data = cache_data[symbol]
+        last_processed = datetime.fromisoformat(stock_data.get('timestamp', '2000-01-01'))
+        age_hours = (datetime.now() - last_processed).total_seconds() / 3600
+
+        if age_hours > self.incremental_ttl_hours:
+            return True  # Cache expired
+
+        return False  # Use cached result
+
+    def _warm_cache_batch(self, symbols: List[str]):
+        """
+        Pre-fetch commonly used data in batches to warm cache.
+        This reduces cache misses during parallel processing.
+        """
+        logger.info(f"Warming cache for {len(symbols)} stocks...")
+        batch_start = time.time()
+
+        # Batch size for profile data (FMP supports up to 100)
+        batch_size = 100
+
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i:i+batch_size]
+            try:
+                # Pre-fetch profiles in batch (most cache-friendly endpoint)
+                self.fmp.get_profile_bulk(batch)
+                logger.debug(f"Warmed cache for batch {i//batch_size + 1} ({len(batch)} stocks)")
+            except Exception as e:
+                logger.warning(f"Cache warming failed for batch {i//batch_size + 1}: {e}")
+
+        elapsed = time.time() - batch_start
+        logger.info(f"✓ Cache warmed in {elapsed:.1f}s")
+
     def _calculate_features(self):
-        """Calculate Value & Quality features for Top-K using parallel processing."""
+        """Calculate Value & Quality features for Top-K using parallel processing + incremental."""
         start_time = time.time()
-        logger.info(f"Starting parallel feature calculation for {len(self.df_topk)} stocks...")
+        logger.info(f"Starting feature calculation for {len(self.df_topk)} stocks...")
 
         # Convert to list of dicts (faster than iterrows)
         stocks = self.df_topk[['ticker', 'is_financial', 'is_REIT', 'is_utility']].to_dict('records')
+        all_symbols = [s['ticker'] for s in stocks]
+
+        # PHASE 3 OPTIMIZATION: Incremental processing
+        incremental_cache = self._load_incremental_cache()
+        stocks_to_process = [s for s in stocks if self._should_reprocess(s['ticker'], incremental_cache)]
+        stocks_cached = [s for s in stocks if not self._should_reprocess(s['ticker'], incremental_cache)]
+
+        logger.info(f"Incremental stats: {len(stocks_to_process)} to process, {len(stocks_cached)} from cache")
+
+        # PHASE 3 OPTIMIZATION: Warm cache before parallel processing (only for stocks to process)
+        if stocks_to_process:
+            symbols_to_warm = [s['ticker'] for s in stocks_to_process]
+            self._warm_cache_batch(symbols_to_warm)
 
         def process_stock_features(stock_data):
             """Process a single stock's features."""
@@ -762,28 +838,52 @@ class ScreenerPipeline:
                 logger.error(f"✗ Failed to calculate features for {symbol}: {e}")
                 return {'ticker': symbol}
 
-        # Parallel processing with thread pool
-        # Use 20 workers for I/O-bound API calls (optimal for rate limits)
-        max_workers = min(20, len(stocks))
+        # Parallel processing with thread pool (only for stocks that need processing)
         results = []
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all tasks
-            future_to_stock = {
-                executor.submit(process_stock_features, stock): stock
-                for stock in stocks
-            }
+        if stocks_to_process:
+            max_workers = min(20, len(stocks_to_process))
 
-            # Collect results as they complete
-            for future in as_completed(future_to_stock):
-                results.append(future.result())
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Submit all tasks
+                future_to_stock = {
+                    executor.submit(process_stock_features, stock): stock
+                    for stock in stocks_to_process
+                }
+
+                # Collect results as they complete
+                for future in as_completed(future_to_stock):
+                    result = future.result()
+                    results.append(result)
+
+                    # Save to incremental cache
+                    if 'ticker' in result:
+                        incremental_cache[result['ticker']] = {
+                            'timestamp': datetime.now().isoformat(),
+                            'features': result
+                        }
+
+        # Add cached results
+        for stock in stocks_cached:
+            symbol = stock['ticker']
+            if symbol in incremental_cache:
+                cached_features = incremental_cache[symbol].get('features', {'ticker': symbol})
+                results.append(cached_features)
+                logger.debug(f"✓ Using cached features for {symbol}")
+
+        # Save updated incremental cache
+        if stocks_to_process:
+            self._save_incremental_cache(incremental_cache)
 
         # Merge features with universe data
         df_features = pd.DataFrame(results)
         self.df_topk = self.df_topk.merge(df_features, on='ticker', how='left')
 
         elapsed = time.time() - start_time
-        logger.info(f"✓ Features calculated for {len(results)} stocks in {elapsed:.1f}s ({len(results)/elapsed:.1f} stocks/sec) [parallel processing]")
+        if stocks_to_process:
+            logger.info(f"✓ Features calculated: {len(stocks_to_process)} processed, {len(stocks_cached)} cached in {elapsed:.1f}s ({len(stocks_to_process)/max(elapsed,0.1):.1f} stocks/sec) [parallel+incremental]")
+        else:
+            logger.info(f"✓ All {len(stocks_cached)} features from cache in {elapsed:.1f}s [incremental]")
 
     # ===================================
     # STAGE 4: GUARDRAILS
