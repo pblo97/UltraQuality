@@ -219,6 +219,12 @@ class EnhancedTechnicalAnalyzer:
             week_52_high = q.get('yearHigh', 0)
             beta = q.get('beta', None)
 
+            # Calculate ATR as % of price (14-day ATR approximation from volatility)
+            # volatility is annualized std dev, ATR ~= 1.5 * daily_std * sqrt(14)
+            # For rough approximation: atr_pct ≈ volatility / sqrt(252) * sqrt(14) * 1.5 / price * 100
+            # Simplified: atr_pct ≈ (volatility * 0.75) as rough estimate
+            atr_pct = (risk_data.get('volatility', 0) * 0.75) if price > 0 else None
+
             risk_mgmt_recs = self._generate_risk_management_recommendations(
                 symbol=symbol,
                 price=price,
@@ -236,7 +242,13 @@ class EnhancedTechnicalAnalyzer:
                 prices=prices,
                 week_52_high=week_52_high,
                 beta=beta,
-                sector=sector
+                sector=sector,
+                # Enhanced position sizing parameters
+                momentum_12m=momentum_data.get('12m', 0),
+                sector_status=sector_data.get('status', 'NEUTRAL'),
+                market_status=market_data.get('status', 'NEUTRAL'),
+                momentum_consistency=momentum_data.get('consistency', 'N/A'),
+                atr_pct=atr_pct
             )
 
             return {
@@ -1141,7 +1153,13 @@ class EnhancedTechnicalAnalyzer:
         prices: List[Dict] = None,
         week_52_high: float = 0,
         beta: float = None,
-        sector: str = None
+        sector: str = None,
+        # Additional technical data for enhanced position sizing
+        momentum_12m: float = None,
+        sector_status: str = None,
+        market_status: str = None,
+        momentum_consistency: str = None,
+        atr_pct: float = None
     ) -> Dict:
         """
         Generate comprehensive risk management and options strategies recommendations.
@@ -1199,7 +1217,17 @@ class EnhancedTechnicalAnalyzer:
         recommendations['position_sizing'] = self._generate_position_sizing(
             signal, overextension_risk, sharpe, volatility, market_regime,
             market_state=market_state,
-            is_veto=is_veto
+            is_veto=is_veto,
+            # Enhanced position sizing parameters (passed through, may be None if not available)
+            fundamental_score=None,  # Not available here - will be enhanced in UI layer
+            guardrails_status=None,  # Not available here
+            fundamental_decision=None,  # Not available here
+            momentum_12m=momentum_12m,
+            sector_status=sector_status,
+            market_status=market_status,
+            volume_profile=volume_profile,
+            momentum_consistency=momentum_consistency,
+            atr_pct=atr_pct
         )
 
         # ========== 3. ENTRY STRATEGY (with veto awareness) ==========
@@ -1222,16 +1250,95 @@ class EnhancedTechnicalAnalyzer:
 
         return recommendations
 
-    def _generate_position_sizing(self, signal, overextension_risk, sharpe, volatility, market_regime,
-                                   market_state=None, is_veto=False):
+    def _calculate_state_penalty(self, market_state, volume_profile=None, sector_status=None,
+                                  market_status=None, sharpe=None, momentum_consistency=None):
         """
-        Position sizing based on risk and quality.
+        Calculate penalty/bonus for SmartDynamicStopLoss state.
+
+        For ENTRY_BREAKOUT, classifies as Strong/Moderate/Weak based on confirmations.
+        """
+        # States with fixed penalties
+        FIXED_PENALTIES = {
+            'POWER_TREND': 0,  # Ideal - no penalty
+            'PULLBACK_FLAG': -1,  # Buying dip - minimal penalty
+            'BLUE_SKY_ATH': -2,  # No resistance but overheating risk
+            'CHOPPY_SIDEWAYS': -5,  # Wait for confirmation
+            # DOWNTREND and PARABOLIC_CLIMAX handled as VETO in main function
+        }
+
+        if market_state in FIXED_PENALTIES:
+            return FIXED_PENALTIES[market_state]
+
+        # ENTRY_BREAKOUT requires strength classification
+        if market_state == 'ENTRY_BREAKOUT':
+            # Calculate breakout strength score
+            score = 0
+
+            # Volume confirmation (+2 points)
+            if volume_profile == 'STRONG':
+                score += 2
+            elif volume_profile == 'MODERATE':
+                score += 1
+
+            # Sector strength (+1 point)
+            if sector_status == 'LEADING':
+                score += 1
+
+            # Market strength (+1 point)
+            if market_status == 'OUTPERFORMING':
+                score += 1
+
+            # Risk-adjusted returns (+1 point)
+            if sharpe and sharpe > 1.5:
+                score += 1
+
+            # Momentum consistency (+1 point)
+            if momentum_consistency in ['STRONG', 'MODERATE']:
+                score += 1
+
+            # Classification
+            if score >= 4:
+                return -1  # STRONG BREAKOUT
+            elif score >= 2:
+                return -2  # MODERATE BREAKOUT
+            else:
+                return -4  # WEAK BREAKOUT
+
+        # Unknown state - neutral
+        return 0
+
+    def _generate_position_sizing(self, signal, overextension_risk, sharpe, volatility, market_regime,
+                                   market_state=None, is_veto=False,
+                                   # Optional fundamental data for enhanced sizing
+                                   fundamental_score=None, guardrails_status=None, fundamental_decision=None,
+                                   # Additional technical data for penalties
+                                   momentum_12m=None, sector_status=None, market_status=None, volume_profile=None,
+                                   momentum_consistency=None, atr_pct=None):
+        """
+        Penalty-Based Position Sizing System.
+
+        **Framework:**
+        1. BASE allocation by quality (Elite 10%, High 5%, Medium 3%, Low 1%)
+        2. Apply PENALTIES for technical risks (subtract %)
+        3. Apply BONUSES for technical strength (add %)
+        4. Floor at 0%, ceiling at BASE %
 
         Args:
             market_state: Current market state from SmartDynamicStopLoss
             is_veto: True if market state is in VETO_STATES (DOWNTREND, PARABOLIC_CLIMAX)
+            fundamental_score: Composite score 0-100 (optional)
+            guardrails_status: VERDE/AMBAR/ROJO (optional)
+            fundamental_decision: BUY/MONITOR/AVOID (optional)
+            momentum_12m: 12-month return % (optional)
+            sector_status: LEADING/NEUTRAL/LAGGING/DOWNTREND (optional)
+            market_status: OUTPERFORMING/NEUTRAL/UNDERPERFORMING/WEAK (optional)
+            volume_profile: STRONG/MODERATE/WEAK/DECLINING (optional)
+            momentum_consistency: Consistency rating (optional)
+            atr_pct: ATR as % of price (optional)
         """
-        # VETO CHECK: If dangerous market state detected, NO POSITION
+        # ========== STEP 1: VETO CHECKS (Absolute No-Entry) ==========
+
+        # VETO A: Dangerous Market State
         if is_veto:
             veto_messages = {
                 'DOWNTREND': 'Price < SMA 50 - Broken structure. Wait for recovery above SMA 50.',
@@ -1239,42 +1346,247 @@ class EnhancedTechnicalAnalyzer:
             }
             return {
                 'recommended_size': '0%',
-                'max_portfolio_weight': '0%',
-                'rationale': f'VETO: {market_state} - {veto_messages.get(market_state, "Dangerous market state detected")}',
-                'veto_active': True
+                'base_pct': 0,
+                'final_pct': 0,
+                'penalties': [f"VETO: {market_state}"],
+                'bonuses': [],
+                'rationale': f'🛑 VETO: {market_state} - {veto_messages.get(market_state, "Dangerous market state detected")}',
+                'veto_active': True,
+                'calculation_breakdown': f"VETO: {market_state} → 0%"
             }
 
-        # NORMAL LOGIC: No veto active
-        if signal == 'BUY' and overextension_risk <= 1 and sharpe > 1.5:
-            return {
-                'recommended_size': '100%',
-                'rationale': 'Full position - Strong technical + low overextension + excellent risk-adjusted returns',
-                'max_portfolio_weight': '10-15%'
-            }
-        elif signal == 'BUY' and overextension_risk >= 3:
-            return {
-                'recommended_size': '50-70%',
-                'rationale': f'Reduced position - Overextension risk {overextension_risk}/7. Reserve capital for pullback entry',
-                'max_portfolio_weight': '5-8%'
-            }
-        elif signal == 'BUY':
-            return {
-                'recommended_size': '75-100%',
-                'rationale': 'Standard position - Moderate risk/reward profile',
-                'max_portfolio_weight': '8-12%'
-            }
-        elif signal == 'HOLD':
-            return {
-                'recommended_size': '50%',
-                'rationale': 'Half position - Wait for clearer signal or better entry',
-                'max_portfolio_weight': '5-7%'
-            }
-        else:  # SELL
+        # VETO B: Extreme Volatility (Meme Stock Territory)
+        if atr_pct and atr_pct > 15:
             return {
                 'recommended_size': '0%',
-                'rationale': 'No position - Technical setup unfavorable',
-                'max_portfolio_weight': '0%'
+                'base_pct': 0,
+                'final_pct': 0,
+                'penalties': [f"VETO: Meme Stock (ATR {atr_pct:.1f}%)"],
+                'bonuses': [],
+                'rationale': f'🛑 VETO: Extreme volatility (ATR {atr_pct:.1f}%) - Meme stock territory. Use options instead.',
+                'veto_active': True,
+                'calculation_breakdown': f"VETO: ATR {atr_pct:.1f}% > 15% → 0%"
             }
+
+        # ========== STEP 2: BASE ALLOCATION (by Quality) ==========
+
+        base_pct = 0
+        quality_tier = "UNKNOWN"
+
+        if fundamental_score is not None and guardrails_status and fundamental_decision:
+            # Full fundamental data available - use precise tiering
+            if fundamental_score > 85 and guardrails_status == 'VERDE' and fundamental_decision == 'BUY':
+                base_pct = 10
+                quality_tier = "💎 ELITE"
+            elif fundamental_score > 70 and guardrails_status in ['VERDE', 'AMBAR'] and fundamental_decision == 'BUY':
+                base_pct = 5
+                quality_tier = "🥇 HIGH"
+            elif fundamental_score > 60 and fundamental_decision in ['BUY', 'MONITOR']:
+                base_pct = 3
+                quality_tier = "🥈 MEDIUM"
+            else:
+                base_pct = 1
+                quality_tier = "🥉 LOW"
+        else:
+            # Fallback: estimate quality from technical signal only
+            if signal == 'BUY' and sharpe > 2.0:
+                base_pct = 8  # Assume high quality
+                quality_tier = "🥇 HIGH (estimated)"
+            elif signal == 'BUY':
+                base_pct = 5  # Assume medium quality
+                quality_tier = "🥈 MEDIUM (estimated)"
+            elif signal == 'HOLD':
+                base_pct = 3
+                quality_tier = "🥈 MEDIUM (estimated)"
+            else:
+                base_pct = 0
+                quality_tier = "AVOID"
+
+        # ========== STEP 3: PENALTIES & BONUSES ==========
+
+        adjusted_pct = base_pct
+        penalties = []
+        bonuses = []
+
+        # A. SmartDynamicStopLoss State Penalty
+        if market_state:
+            state_penalty = self._calculate_state_penalty(market_state, volume_profile, sector_status,
+                                                          market_status, sharpe, momentum_consistency)
+            if state_penalty != 0:
+                adjusted_pct += state_penalty  # state_penalty is negative or positive
+                if state_penalty < 0:
+                    penalties.append(f"{market_state}: {state_penalty:+.1f}%")
+                else:
+                    bonuses.append(f"{market_state}: {state_penalty:+.1f}%")
+
+        # B. Momentum Penalty (overheating risk)
+        if momentum_12m is not None:
+            mom_penalty = 0
+            if momentum_12m > 150:
+                mom_penalty = -3
+                penalties.append(f"Momentum +{momentum_12m:.0f}%: -3%")
+            elif momentum_12m > 100:
+                mom_penalty = -2
+                penalties.append(f"Momentum +{momentum_12m:.0f}%: -2%")
+            elif momentum_12m > 50:
+                mom_penalty = -1
+                penalties.append(f"Momentum +{momentum_12m:.0f}%: -1%")
+            elif momentum_12m < 0:
+                mom_penalty = -2
+                penalties.append(f"Momentum {momentum_12m:.0f}%: -2%")
+            adjusted_pct += mom_penalty
+
+        # C. Volatility Penalty/Bonus
+        if atr_pct is not None:
+            vol_adjustment = 0
+            if atr_pct >= 10:  # 10-15% ATR → PARTIAL VETO (handled separately)
+                vol_adjustment = -999  # Signal for division by 2
+                penalties.append(f"ATR {atr_pct:.1f}%: ÷2 (PARTIAL VETO)")
+            elif atr_pct >= 8:
+                vol_adjustment = -4
+                penalties.append(f"ATR {atr_pct:.1f}%: -4%")
+            elif atr_pct >= 5:
+                vol_adjustment = -2
+                penalties.append(f"ATR {atr_pct:.1f}%: -2%")
+            elif atr_pct >= 3:
+                vol_adjustment = -1
+                penalties.append(f"ATR {atr_pct:.1f}%: -1%")
+            elif atr_pct < 2:
+                vol_adjustment = 1
+                bonuses.append(f"Low Volatility (ATR {atr_pct:.1f}%): +1%")
+
+            if vol_adjustment != -999:
+                adjusted_pct += vol_adjustment
+
+        # D. Sharpe Ratio Bonus/Penalty
+        if sharpe is not None:
+            sharpe_adjustment = 0
+            if sharpe > 2.5:
+                sharpe_adjustment = 2
+                bonuses.append(f"Sharpe {sharpe:.2f}: +2%")
+            elif sharpe > 2.0:
+                sharpe_adjustment = 1
+                bonuses.append(f"Sharpe {sharpe:.2f}: +1%")
+            elif 1.0 <= sharpe <= 2.0:
+                sharpe_adjustment = 0  # Normal
+            elif 0.5 <= sharpe < 1.0:
+                sharpe_adjustment = -1
+                penalties.append(f"Sharpe {sharpe:.2f}: -1%")
+            elif 0 <= sharpe < 0.5:
+                sharpe_adjustment = -2
+                penalties.append(f"Sharpe {sharpe:.2f}: -2%")
+            elif sharpe < 0:
+                sharpe_adjustment = -3
+                penalties.append(f"Sharpe {sharpe:.2f}: -3%")
+            adjusted_pct += sharpe_adjustment
+
+        # E. Sector Relative Strength
+        if sector_status:
+            if sector_status == 'LEADING':
+                adjusted_pct += 1
+                bonuses.append(f"Sector LEADING: +1%")
+            elif sector_status == 'LAGGING':
+                adjusted_pct -= 1
+                penalties.append(f"Sector LAGGING: -1%")
+            elif sector_status == 'DOWNTREND':
+                adjusted_pct -= 3
+                penalties.append(f"Sector DOWNTREND: -3%")
+
+        # F. Market Relative Strength
+        if market_status:
+            if market_status == 'OUTPERFORMING':
+                adjusted_pct += 1
+                bonuses.append(f"vs SPY OUTPERFORMING: +1%")
+            elif market_status == 'UNDERPERFORMING':
+                adjusted_pct -= 1
+                penalties.append(f"vs SPY UNDERPERFORMING: -1%")
+            elif market_status == 'WEAK':
+                adjusted_pct -= 2
+                penalties.append(f"vs SPY WEAK: -2%")
+
+        # G. Volume Profile
+        if volume_profile:
+            if volume_profile == 'STRONG':
+                pass  # No adjustment - normal
+            elif volume_profile == 'MODERATE':
+                adjusted_pct -= 1
+                penalties.append(f"Volume MODERATE: -1%")
+            elif volume_profile == 'WEAK':
+                adjusted_pct -= 2
+                penalties.append(f"Volume WEAK: -2%")
+            elif volume_profile == 'DECLINING':
+                adjusted_pct -= 3
+                penalties.append(f"Volume DECLINING: -3%")
+
+        # ========== STEP 4: FLOOR & CEILING ==========
+
+        # Cap at base % (no bonuses can exceed base allocation)
+        if adjusted_pct > base_pct:
+            adjusted_pct = base_pct
+
+        # Floor at 0% or 1% minimum viable
+        final_pct = max(0, adjusted_pct)
+
+        # If below 1%, consider it 0% (not worth the position)
+        if 0 < final_pct < 1:
+            final_pct = 0
+            penalties.append("Below 1% minimum → 0%")
+
+        # ========== STEP 5: VOLATILITY PARTIAL VETO (÷2) ==========
+
+        # Check if ATR triggered partial veto
+        if atr_pct and 10 <= atr_pct <= 15:
+            final_pct = final_pct / 2
+            penalties.append(f"⚠️ PARTIAL VETO: Position halved due to ATR {atr_pct:.1f}%")
+
+        # ========== STEP 6: BEAR MARKET OVERRIDE ==========
+
+        bear_market_adjustment = False
+        if market_regime == 'BEAR':
+            final_pct = final_pct / 2
+            bear_market_adjustment = True
+
+        # ========== STEP 7: BUILD RESPONSE ==========
+
+        # Build rationale
+        rationale_parts = [f"{quality_tier} Quality → BASE {base_pct}%"]
+
+        if penalties:
+            rationale_parts.append(f"Penalties: {', '.join(penalties)}")
+        if bonuses:
+            rationale_parts.append(f"Bonuses: {', '.join(bonuses)}")
+
+        if bear_market_adjustment:
+            rationale_parts.append("⚠️ Bear Market: Position halved")
+
+        rationale_parts.append(f"FINAL: {final_pct:.1f}% of portfolio")
+
+        if final_pct == 0:
+            if len(penalties) > 0:
+                reason = "Technical conditions unfavorable"
+            else:
+                reason = "No entry signal"
+        elif final_pct >= base_pct * 0.9:
+            reason = "Strong setup - full allocation"
+        elif final_pct >= base_pct * 0.7:
+            reason = "Good setup - moderate allocation"
+        elif final_pct >= base_pct * 0.5:
+            reason = "Cautious allocation - multiple concerns"
+        else:
+            reason = "Reduced allocation - significant risks"
+
+        return {
+            'recommended_size': f'{final_pct:.1f}%',
+            'base_pct': base_pct,
+            'final_pct': final_pct,
+            'quality_tier': quality_tier,
+            'penalties': penalties,
+            'bonuses': bonuses,
+            'bear_market_adjustment': bear_market_adjustment,
+            'rationale': reason,
+            'calculation_breakdown': ' | '.join(rationale_parts),
+            'veto_active': False
+        }
 
     def _generate_entry_strategy(self, signal, overextension_risk, distance_ma200, price, ma_50, ma_200,
                                   market_state=None, is_veto=False):

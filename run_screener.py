@@ -1190,6 +1190,75 @@ except:
 
 # ========== HELPER FUNCTIONS ==========
 
+def display_position_sizing(pos_sizing, portfolio_size=100000):
+    """
+    Display enhanced position sizing with penalty breakdown.
+
+    Args:
+        pos_sizing: Position sizing dict from risk_management
+        portfolio_size: Total portfolio size in dollars (default: $100k)
+    """
+    st.markdown("### 📊 Position Sizing Recommendation")
+    st.caption("Penalty-Based System: Quality → Penalties → Final Allocation")
+
+    # Check for VETO
+    if pos_sizing.get('veto_active'):
+        st.error(f"🛑 **VETO ACTIVE**")
+        st.write(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
+        st.caption(pos_sizing.get('calculation_breakdown', ''))
+        return
+
+    # Get data
+    base_pct = pos_sizing.get('base_pct', 0)
+    final_pct = pos_sizing.get('final_pct', 0)
+    quality_tier = pos_sizing.get('quality_tier', 'UNKNOWN')
+    penalties = pos_sizing.get('penalties', [])
+    bonuses = pos_sizing.get('bonuses', [])
+    bear_market = pos_sizing.get('bear_market_adjustment', False)
+
+    # Display quality tier and base allocation
+    st.markdown(f"**{quality_tier}** → Base Allocation: **{base_pct}%**")
+
+    # Show penalties
+    if penalties:
+        st.markdown("**❌ Penalties:**")
+        for penalty in penalties:
+            st.caption(f"  • {penalty}")
+
+    # Show bonuses
+    if bonuses:
+        st.markdown("**✅ Bonuses:**")
+        for bonus in bonuses:
+            st.caption(f"  • {bonus}")
+
+    # Bear market adjustment
+    if bear_market:
+        st.warning("⚠️ **Bear Market Override:** All positions halved")
+
+    # Final recommendation
+    st.markdown("---")
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Final Position Size", f"{final_pct:.1f}%")
+
+    with col2:
+        position_value = portfolio_size * (final_pct / 100)
+        st.metric("Position Value", f"${position_value:,.0f}")
+
+    with col3:
+        # Change vs base
+        change = final_pct - base_pct
+        st.metric("vs Base", f"{change:+.1f}%", delta_color="inverse" if change < 0 else "normal")
+
+    # Rationale
+    st.info(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
+
+    # Detailed breakdown (expandable)
+    with st.expander("📋 Detailed Calculation"):
+        st.caption(pos_sizing.get('calculation_breakdown', 'N/A'))
+
+
 def get_market_regime_display(regime: str) -> str:
     """
     Get emoji and formatted display for market regime.
@@ -5215,14 +5284,8 @@ with tab6:
                         with rm_tab1:
                             pos_sizing = risk_mgmt.get('position_sizing', {})
                             if pos_sizing:
-                                st.markdown(f"**Recommended Size:** {pos_sizing.get('recommended_size', 'N/A')}")
-                                st.write(f"**Max Portfolio Weight:** {pos_sizing.get('max_portfolio_weight', 'N/A')}")
-
-                                # Check if veto is active
-                                if pos_sizing.get('veto_active'):
-                                    st.error(f"**⚠️ VETO ACTIVE:** {pos_sizing.get('rationale', 'N/A')}")
-                                else:
-                                    st.info(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
+                                # Use enhanced display function
+                                display_position_sizing(pos_sizing, portfolio_size=100000)
 
                         with rm_tab2:
                             entry_strategy = risk_mgmt.get('entry_strategy', {})
@@ -6192,9 +6255,8 @@ with tab7:
                             with rm_tab1:
                                 pos_sizing = risk_mgmt.get('position_sizing', {})
                                 if pos_sizing:
-                                    st.markdown(f"**Recommended Size:** {pos_sizing.get('recommended_size', 'N/A')}")
-                                    st.write(f"**Max Portfolio Weight:** {pos_sizing.get('max_portfolio_weight', 'N/A')}")
-                                    st.info(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
+                                    # Use enhanced display function
+                                    display_position_sizing(pos_sizing, portfolio_size=100000)
 
                             with rm_tab2:
                                 entry_strategy = risk_mgmt.get('entry_strategy', {})
