@@ -90,7 +90,9 @@ class EnhancedTechnicalAnalyzer:
     # MAIN ANALYSIS METHOD
     # ============================================================================
 
-    def analyze(self, symbol: str, sector: str = None, country: str = 'USA') -> Dict:
+    def analyze(self, symbol: str, sector: str = None, country: str = 'USA',
+                fundamental_score: float = None, guardrails_status: str = None,
+                fundamental_decision: str = None) -> Dict:
         """
         Enhanced technical analysis with 7 improvements.
 
@@ -98,6 +100,9 @@ class EnhancedTechnicalAnalyzer:
             symbol: Stock ticker (e.g., 'AAPL')
             sector: Company sector (e.g., 'Technology')
             country: Market country (default: 'USA')
+            fundamental_score: Composite fundamental score 0-100 (optional, for position sizing)
+            guardrails_status: Guardrails status 'VERDE'/'AMBER'/'ROJO' (optional, for position sizing)
+            fundamental_decision: Decision 'BUY'/'MONITOR'/'AVOID' (optional, for position sizing)
 
         Returns:
             {
@@ -251,7 +256,11 @@ class EnhancedTechnicalAnalyzer:
                 sector_status=sector_data.get('status', 'NEUTRAL'),
                 market_status=market_data.get('status', 'NEUTRAL'),
                 momentum_consistency=momentum_data.get('consistency', 'N/A'),
-                atr_pct=atr_pct
+                atr_pct=atr_pct,
+                # Fundamental data (passed from analyze() parameters)
+                fundamental_score=fundamental_score,
+                guardrails_status=guardrails_status,
+                fundamental_decision=fundamental_decision
             )
 
             return {
@@ -1232,7 +1241,11 @@ class EnhancedTechnicalAnalyzer:
         sector_status: str = None,
         market_status: str = None,
         momentum_consistency: str = None,
-        atr_pct: float = None
+        atr_pct: float = None,
+        # Fundamental data for position sizing
+        fundamental_score: float = None,
+        guardrails_status: str = None,
+        fundamental_decision: str = None
     ) -> Dict:
         """
         Generate comprehensive risk management and options strategies recommendations.
@@ -1291,10 +1304,10 @@ class EnhancedTechnicalAnalyzer:
             signal, overextension_risk, sharpe, volatility, market_regime,
             market_state=market_state,
             is_veto=is_veto,
-            # Enhanced position sizing parameters (passed through, may be None if not available)
-            fundamental_score=None,  # Not available here - will be enhanced in UI layer
-            guardrails_status=None,  # Not available here
-            fundamental_decision=None,  # Not available here
+            # Enhanced position sizing parameters (now passed from analyze() method)
+            fundamental_score=fundamental_score,
+            guardrails_status=guardrails_status,
+            fundamental_decision=fundamental_decision,
             momentum_12m=momentum_12m,
             sector_status=sector_status,
             market_status=market_status,
