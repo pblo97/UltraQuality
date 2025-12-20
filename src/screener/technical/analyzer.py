@@ -1316,11 +1316,22 @@ class EnhancedTechnicalAnalyzer:
             atr_pct=atr_pct
         )
 
-        # ========== 3. ENTRY STRATEGY (with veto awareness) ==========
+        # ========== 3. ENTRY STRATEGY (with veto awareness and structural levels) ==========
+        # Extract EMA 20 from stop loss data (if available)
+        stop_loss_params = recommendations['stop_loss'].get('parameters', {})
+        ema_20_value = stop_loss_params.get('ema_20', None)
+        if isinstance(ema_20_value, str) and ema_20_value == 'N/A':
+            ema_20_value = None
+        elif isinstance(ema_20_value, (int, float)):
+            ema_20_value = float(ema_20_value)
+
         recommendations['entry_strategy'] = self._generate_entry_strategy(
             signal, overextension_risk, distance_ma200, price, ma_50, ma_200,
             market_state=market_state,
-            is_veto=is_veto
+            is_veto=is_veto,
+            prices=prices,
+            ema_20=ema_20_value,
+            week_52_high=week_52_high
         )
 
         # ========== 4. PROFIT TAKING ==========
@@ -1695,13 +1706,21 @@ class EnhancedTechnicalAnalyzer:
         }
 
     def _generate_entry_strategy(self, signal, overextension_risk, distance_ma200, price, ma_50, ma_200,
-                                  market_state=None, is_veto=False):
+                                  market_state=None, is_veto=False, prices=None, ema_20=None, week_52_high=None):
         """
-        Entry strategy recommendations.
+        STATE-BASED Entry Strategy - Institutional Grade
+
+        Instead of arbitrary percentages, uses STRUCTURAL LEVELS based on market state:
+        - SNIPER: Limit orders at support levels (PULLBACK_FLAG)
+        - BREAKOUT: Buy stops above resistance (ENTRY_BREAKOUT)
+        - PYRAMID: Add to winners (POWER_TREND)
 
         Args:
             market_state: Current market state from SmartDynamicStopLoss
             is_veto: True if market state is in VETO_STATES (DOWNTREND, PARABOLIC_CLIMAX)
+            prices: Historical price data for calculating structural levels
+            ema_20: 20-day EMA (support level)
+            week_52_high: 52-week high (resistance)
         """
         # VETO CHECK: If dangerous market state detected, NO ENTRY
         if is_veto:
@@ -1720,57 +1739,172 @@ class EnhancedTechnicalAnalyzer:
         if signal == 'SELL':
             return {
                 'strategy': 'NO ENTRY',
-                'rationale': 'Wait for technical improvement'
+                'rationale': 'Wait for technical improvement',
+                'strategy_type': 'NONE'
             }
 
-        # Determine expected pullback based on distance from MA200 (consistent with warnings)
-        abs_distance = abs(distance_ma200)
+        # ========== CALCULATE STRUCTURAL LEVELS ==========
 
-        if abs_distance > 60:
-            # EXTREME: >60% from MA200 → expect 20-40% correction
+        # Calculate yesterday's high (resistance for breakouts)
+        yesterday_high = prices[-2]['high'] if prices and len(prices) >= 2 else price * 1.02
+
+        # Calculate swing low (support level for limit orders)
+        swing_low_20 = self._calculate_swing_low_20(prices) if prices else price * 0.95
+
+        # Use EMA 20 as primary support level (institutional level)
+        support_ema20 = ema_20 if ema_20 and ema_20 > 0 else price * 0.97
+
+        # Use SMA 50 as secondary support (major institutional level)
+        support_sma50 = ma_50 if ma_50 > 0 else price * 0.95
+
+        # Invalidation level (below which setup breaks)
+        invalidation = swing_low_20 * 0.97 if swing_low_20 > 0 else price * 0.92
+
+        # ========== STATE-BASED STRATEGY SELECTION ==========
+
+        # STRATEGY 1: SUPPORT SNIPER (for pullbacks/corrections)
+        if market_state in ['PULLBACK_FLAG', 'CHOPPY_SIDEWAYS']:
             return {
-                'strategy': 'SCALE-IN (3 tranches)',
-                'tranche_1': f'20% NOW at ${price:.2f} (minimal momentum entry)',
-                'tranche_2': f'30% on 20% pullback to ${price*0.80:.2f}',
-                'tranche_3': f'50% on 30% pullback to ${price*0.70:.2f}',
-                'rationale': f'EXTREME overextension ({distance_ma200:+.1f}% from MA200) - expect 20-40% correction. Most capital reserved for deep pullback.'
+                'strategy': 'SUPPORT SNIPER',
+                'strategy_type': 'SNIPER',
+                'state': market_state,
+                'rationale': 'Stock in pullback. Buy at support levels with limit orders. Preserve dry powder for optimal entry.',
+                'tranches': [
+                    {
+                        'number': 1,
+                        'size': '60%',
+                        'order_type': 'MARKET',
+                        'price': price,
+                        'trigger': 'Enter now to secure position',
+                        'is_primary': True
+                    },
+                    {
+                        'number': 2,
+                        'size': '40%',
+                        'order_type': 'LIMIT',
+                        'price': support_ema20,
+                        'trigger': f'Touch of EMA 20 at ${support_ema20:.2f} (institutional support)',
+                        'is_primary': False
+                    }
+                ],
+                'invalidation': {
+                    'price': invalidation,
+                    'action': f'Cancel Tranche #2 and execute stop loss on Tranche #1 if price falls below ${invalidation:.2f}'
+                },
+                'structural_levels': {
+                    'support_primary': support_ema20,
+                    'support_secondary': support_sma50,
+                    'invalidation': invalidation
+                }
             }
-        elif abs_distance > 50:
-            # SEVERE: >50% from MA200 → expect 15-30% correction
-            pullback_15pct = price * 0.85
-            pullback_25pct = price * 0.75
+
+        # STRATEGY 2: BREAKOUT CONFIRMATION (for new highs/breakouts)
+        elif market_state in ['ENTRY_BREAKOUT', 'BLUE_SKY_ATH']:
+            breakout_trigger = yesterday_high * 1.01  # 1% above yesterday's high
             return {
-                'strategy': 'SCALE-IN (2 tranches)',
-                'tranche_1': f'40% NOW at ${price:.2f}',
-                'tranche_2': f'60% on 15-25% pullback to ${pullback_25pct:.2f}-${pullback_15pct:.2f}',
-                'rationale': f'Severe overextension ({distance_ma200:+.1f}% from MA200) - expect 15-30% correction. Reserve majority for pullback.'
+                'strategy': 'MOMENTUM CONFIRMATION',
+                'strategy_type': 'BREAKOUT',
+                'state': market_state,
+                'rationale': 'Breakout in progress. Enter with confirmation to avoid false breakouts. Average up on strength.',
+                'tranches': [
+                    {
+                        'number': 1,
+                        'size': '50%',
+                        'order_type': 'MARKET',
+                        'price': price,
+                        'trigger': 'Enter with half position. Controlled risk.',
+                        'is_primary': True
+                    },
+                    {
+                        'number': 2,
+                        'size': '50%',
+                        'order_type': 'STOP BUY',
+                        'price': breakout_trigger,
+                        'trigger': f'Only if breaks above ${breakout_trigger:.2f} (yesterday high +1%). Confirms strength.',
+                        'is_primary': False
+                    }
+                ],
+                'invalidation': {
+                    'price': support_sma50,
+                    'action': f'Cancel Tranche #2 if price fails to break resistance. Exit if falls below ${support_sma50:.2f}'
+                },
+                'structural_levels': {
+                    'resistance': yesterday_high,
+                    'breakout_trigger': breakout_trigger,
+                    'support_fallback': support_sma50
+                }
             }
-        elif abs_distance > 40:
-            # SIGNIFICANT: >40% from MA200 → expect 10-20% pullback
-            pullback_10pct = price * 0.90
-            pullback_15pct = price * 0.85
+
+        # STRATEGY 3: TREND PYRAMID (for established uptrends)
+        elif market_state == 'POWER_TREND':
+            new_high_trigger = week_52_high * 1.005 if week_52_high else price * 1.02  # 0.5% above 52w high
             return {
-                'strategy': 'SCALE-IN (2 tranches)',
-                'tranche_1': f'60% NOW at ${price:.2f}',
-                'tranche_2': f'40% on 10-15% pullback to ${pullback_15pct:.2f}-${pullback_10pct:.2f}',
-                'rationale': f'Significant overextension ({distance_ma200:+.1f}% from MA200) - possible 10-20% pullback. Reserve capital for likely dip.'
+                'strategy': 'TREND PYRAMID',
+                'strategy_type': 'PYRAMID',
+                'state': market_state,
+                'rationale': 'Strong uptrend established. Enter with discipline. Add ONLY on new highs (average up). Don\'t chase.',
+                'tranches': [
+                    {
+                        'number': 1,
+                        'size': '50%',
+                        'order_type': 'MARKET',
+                        'price': price,
+                        'trigger': 'Enter with half position now',
+                        'is_primary': True
+                    },
+                    {
+                        'number': 2,
+                        'size': '50%',
+                        'order_type': 'STOP BUY',
+                        'price': new_high_trigger,
+                        'trigger': f'Add ONLY if confirms new high above ${new_high_trigger:.2f}. Winner adding.',
+                        'is_primary': False
+                    }
+                ],
+                'invalidation': {
+                    'price': support_sma50,
+                    'action': f'Exit all if trend breaks below SMA 50 at ${support_sma50:.2f}'
+                },
+                'structural_levels': {
+                    'resistance': new_high_trigger,
+                    'support_major': support_sma50,
+                    'support_minor': support_ema20
+                }
             }
-        elif overextension_risk >= 3:
-            # Moderate overextension based on other factors (volatility, momentum)
-            pullback_8pct = price * 0.92
-            pullback_12pct = price * 0.88
-            return {
-                'strategy': 'SCALE-IN (2 tranches)',
-                'tranche_1': f'70% NOW at ${price:.2f}',
-                'tranche_2': f'30% on 8-12% pullback to ${pullback_12pct:.2f}-${pullback_8pct:.2f}',
-                'rationale': f'Moderate overextension risk ({overextension_risk}/7). Small reserve for potential consolidation.'
-            }
+
+        # FALLBACK: For undefined states, use conservative approach
         else:
-            # Low overextension - full entry acceptable
             return {
-                'strategy': 'FULL ENTRY NOW',
-                'entry_price': f'${price:.2f}',
-                'rationale': f'Low overextension risk ({overextension_risk}/7). Technical setup favorable for immediate entry.'
+                'strategy': 'CONSERVATIVE ENTRY',
+                'strategy_type': 'CONSERVATIVE',
+                'state': market_state or 'UNKNOWN',
+                'rationale': f'Undefined state ({market_state}). Using conservative 2-tranche approach.',
+                'tranches': [
+                    {
+                        'number': 1,
+                        'size': '60%',
+                        'order_type': 'MARKET',
+                        'price': price,
+                        'trigger': 'Enter majority now',
+                        'is_primary': True
+                    },
+                    {
+                        'number': 2,
+                        'size': '40%',
+                        'order_type': 'LIMIT',
+                        'price': support_ema20,
+                        'trigger': f'Reserve for pullback to ${support_ema20:.2f}',
+                        'is_primary': False
+                    }
+                ],
+                'invalidation': {
+                    'price': invalidation,
+                    'action': f'Exit if falls below ${invalidation:.2f}'
+                },
+                'structural_levels': {
+                    'support': support_ema20,
+                    'invalidation': invalidation
+                }
             }
 
     # ============================================================================

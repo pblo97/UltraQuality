@@ -869,6 +869,111 @@ def display_smart_stop_loss(stop_loss_data, current_price):
             st.info(note)
 
 
+def display_entry_strategy(entry_strategy):
+    """
+    Display STATE-BASED Entry Strategy with institutional-grade execution plan.
+
+    Shows:
+    - Strategy type (SNIPER, BREAKOUT, PYRAMID)
+    - Order table with specific prices and order types
+    - Invalidation levels
+    - Structural support/resistance levels
+    """
+    st.markdown("### 🎯 Entry Strategy")
+
+    # Check for VETO
+    if entry_strategy.get('veto_active'):
+        st.error(f"🛑 **VETO ACTIVE:** {entry_strategy.get('strategy', 'NO ENTRY')}")
+        st.write(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
+        market_state = entry_strategy.get('market_state', 'Unknown')
+        if market_state == 'PARABOLIC_CLIMAX':
+            st.caption("📚 Research: Daniel & Moskowitz (2016) - Momentum Crashes")
+        return
+
+    # Get strategy details
+    strategy_name = entry_strategy.get('strategy', 'N/A')
+    strategy_type = entry_strategy.get('strategy_type', 'UNKNOWN')
+    state = entry_strategy.get('state', 'UNKNOWN')
+    rationale = entry_strategy.get('rationale', 'N/A')
+    tranches = entry_strategy.get('tranches', [])
+    invalidation = entry_strategy.get('invalidation', {})
+    structural_levels = entry_strategy.get('structural_levels', {})
+
+    # Strategy header with emoji
+    strategy_emoji = {
+        'SNIPER': '🎯',
+        'BREAKOUT': '🚀',
+        'PYRAMID': '📈',
+        'CONSERVATIVE': '🛡️',
+        'NONE': '⏸️'
+    }.get(strategy_type, '📊')
+
+    st.markdown(f"## {strategy_emoji} {strategy_name}")
+    st.caption(f"**State:** {state}")
+
+    # Rationale box
+    st.info(f"**📋 Execution Plan:** {rationale}")
+
+    # ========== TRANCHES TABLE ==========
+    if tranches:
+        st.markdown("#### 📊 Order Execution Plan")
+
+        # Create DataFrame for table display
+        table_data = []
+        for t in tranches:
+            table_data.append({
+                'Tranche': f"#{t['number']}",
+                'Size': t['size'],
+                'Order Type': t['order_type'],
+                'Price': f"${t['price']:.2f}",
+                'Trigger / Condition': t['trigger']
+            })
+
+        # Display as table
+        import pandas as pd
+        df_orders = pd.DataFrame(table_data)
+        st.dataframe(
+            df_orders,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                'Tranche': st.column_config.TextColumn('Lote', width='small'),
+                'Size': st.column_config.TextColumn('Tamaño', width='small'),
+                'Order Type': st.column_config.TextColumn('Tipo Orden', width='medium'),
+                'Price': st.column_config.TextColumn('Precio Objetivo', width='medium'),
+                'Trigger / Condition': st.column_config.TextColumn('Condición / Gatillo', width='large')
+            }
+        )
+
+        # Individual tranche details (expandable)
+        with st.expander("📋 Detalles por Tranche"):
+            for t in tranches:
+                icon = "🎯" if t['is_primary'] else "🎲"
+                st.markdown(f"**{icon} Tranche #{t['number']}** ({t['size']})")
+                st.write(f"- **Tipo:** {t['order_type']}")
+                st.write(f"- **Precio:** ${t['price']:.2f}")
+                st.write(f"- **Gatillo:** {t['trigger']}")
+                st.markdown("---")
+
+    # ========== INVALIDATION ==========
+    if invalidation:
+        st.markdown("#### ⛔ Invalidación del Setup")
+        inv_price = invalidation.get('price', 0)
+        inv_action = invalidation.get('action', 'N/A')
+
+        st.warning(f"**Precio Invalidación:** ${inv_price:.2f}")
+        st.caption(inv_action)
+
+    # ========== STRUCTURAL LEVELS (expandable) ==========
+    if structural_levels:
+        with st.expander("📊 Niveles Técnicos Estructurales"):
+            st.caption("Niveles clave calculados por el sistema")
+            for key, value in structural_levels.items():
+                if isinstance(value, (int, float)) and value > 0:
+                    label = key.replace('_', ' ').title()
+                    st.write(f"**{label}:** ${value:.2f}")
+
+
 st.set_page_config(
     page_title="UltraQuality Screener",
     page_icon="📊",
@@ -5416,25 +5521,8 @@ with tab6:
                         with rm_tab2:
                             entry_strategy = risk_mgmt.get('entry_strategy', {})
                             if entry_strategy:
-                                strategy_type = entry_strategy.get('strategy', 'N/A')
-                                st.markdown(f"**Strategy:** {strategy_type}")
-
-                                # Check if veto is active
-                                if entry_strategy.get('veto_active'):
-                                    st.error(f"**⚠️ STATE MACHINE VETO:** {entry_strategy.get('rationale', 'N/A')}")
-                                    market_state = entry_strategy.get('market_state', 'Unknown')
-                                    if market_state == 'PARABOLIC_CLIMAX':
-                                        st.caption("📚 Research: Daniel & Moskowitz (2016) - Momentum Crashes")
-                                else:
-                                    if 'SCALE-IN' in strategy_type:
-                                        st.write(f"**Tranche 1:** {entry_strategy.get('tranche_1', 'N/A')}")
-                                        st.write(f"**Tranche 2:** {entry_strategy.get('tranche_2', 'N/A')}")
-                                        if 'tranche_3' in entry_strategy:
-                                            st.write(f"**Tranche 3:** {entry_strategy.get('tranche_3', 'N/A')}")
-                                    elif 'FULL ENTRY' in strategy_type:
-                                        st.write(f"**Entry Price:** {entry_strategy.get('entry_price', 'N/A')}")
-
-                                    st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
+                                # Use new state-based entry strategy display
+                                display_entry_strategy(entry_strategy)
 
                         with rm_tab3:
                             stop_loss_rec = risk_mgmt.get('stop_loss', {})
@@ -6403,18 +6491,8 @@ with tab7:
                             with rm_tab2:
                                 entry_strategy = risk_mgmt.get('entry_strategy', {})
                                 if entry_strategy:
-                                    strategy_type = entry_strategy.get('strategy', 'N/A')
-                                    st.markdown(f"**Strategy:** {strategy_type}")
-
-                                    if 'SCALE-IN' in strategy_type:
-                                        st.write(f"**Tranche 1:** {entry_strategy.get('tranche_1', 'N/A')}")
-                                        st.write(f"**Tranche 2:** {entry_strategy.get('tranche_2', 'N/A')}")
-                                        if 'tranche_3' in entry_strategy:
-                                            st.write(f"**Tranche 3:** {entry_strategy.get('tranche_3', 'N/A')}")
-                                    elif 'FULL ENTRY' in strategy_type:
-                                        st.write(f"**Entry Price:** {entry_strategy.get('entry_price', 'N/A')}")
-
-                                    st.info(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
+                                    # Use new state-based entry strategy display
+                                    display_entry_strategy(entry_strategy)
 
                             with rm_tab3:
                                 stop_loss = risk_mgmt.get('stop_loss', {})
