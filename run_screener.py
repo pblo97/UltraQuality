@@ -993,13 +993,13 @@ st.sidebar.markdown("---")
 if st.sidebar.button("🌟 GLOBAL ELITE PRESET",
                      type="primary",
                      use_container_width=True,
-                     help="Auto-configure for finding the best companies worldwide: 3000 stocks, $2B+ mcap, large caps, 90% quality focus"):
+                     help="Auto-configure for finding the best companies worldwide: 10,000 stocks, $2B+ mcap, large caps, 90% quality focus"):
     # Set session state flags for auto-configuration
     st.session_state['global_elite_active'] = True
     st.session_state['global_elite_region'] = "🌎 All Regions"
     st.session_state['global_elite_mcap'] = 2000.0
     st.session_state['global_elite_vol'] = 5.0
-    st.session_state['global_elite_topk'] = 3000
+    st.session_state['global_elite_topk'] = 10000
     st.session_state['global_elite_quality_weight'] = 0.90
     st.rerun()
 
@@ -1267,17 +1267,17 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
 
     # Use preset value if Global Elite is active
     if st.session_state.get('global_elite_active', False):
-        default_topk = st.session_state.get('global_elite_topk', 3000)
+        default_topk = st.session_state.get('global_elite_topk', 10000)
     else:
         default_topk = 500
 
     top_k = st.slider(
         "Top-K Stocks to Analyze",
         min_value=50,
-        max_value=3000,
+        max_value=10000,
         value=default_topk,
         step=50,
-        help="Number of stocks to deep-dive after preliminary ranking. 500 stocks = ~4 min, 1200 stocks = ~10 min, 3000 stocks = ~25-30 min (first run). Re-runs with incremental cache: < 5 min"
+        help="Number of stocks to deep-dive after preliminary ranking. 500 stocks = ~4 min, 3000 stocks = ~25 min, 10,000 stocks = ~80-90 min (first run). Re-runs with incremental cache: < 10 min"
     )
 
 # Scoring weights
