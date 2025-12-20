@@ -6419,6 +6419,10 @@ with tab7:
                             with rm_tab3:
                                 stop_loss = risk_mgmt.get('stop_loss', {})
                                 if stop_loss:
+                                    # Get current price from full_analysis or stop_loss data
+                                    current_price = full_analysis.get('current_price', 0)
+                                    if current_price == 0:
+                                        current_price = stop_loss.get('current_price', stock_data.get('price', 0))
                                     display_smart_stop_loss(stop_loss, current_price)
                                 else:
                                     st.warning("No stop loss data available")
