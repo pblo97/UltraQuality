@@ -1459,8 +1459,12 @@ class EnhancedTechnicalAnalyzer:
         base_pct = 0
         quality_tier = "UNKNOWN"
 
+        # DEBUG: Log what fundamental data we received
+        logger.info(f"Position Sizing DEBUG - fundamental_score: {fundamental_score}, guardrails_status: {guardrails_status}, fundamental_decision: {fundamental_decision}")
+
         if fundamental_score is not None and guardrails_status and fundamental_decision:
             # Full fundamental data available - use precise tiering
+            logger.info(f"Using PRECISE tiering with full fundamental data")
             if fundamental_score > 85 and guardrails_status == 'VERDE' and fundamental_decision == 'BUY':
                 base_pct = 10
                 quality_tier = "💎 ELITE"
@@ -1473,8 +1477,24 @@ class EnhancedTechnicalAnalyzer:
             else:
                 base_pct = 1
                 quality_tier = "🥉 LOW"
+        elif fundamental_score is not None:
+            # Partial fundamental data - use score-based tiering
+            logger.info(f"Using SCORE-BASED tiering (score={fundamental_score})")
+            if fundamental_score > 85:
+                base_pct = 10
+                quality_tier = "💎 ELITE"
+            elif fundamental_score > 70:
+                base_pct = 5
+                quality_tier = "🥇 HIGH"
+            elif fundamental_score > 60:
+                base_pct = 3
+                quality_tier = "🥈 MEDIUM"
+            else:
+                base_pct = 1
+                quality_tier = "🥉 LOW"
         else:
             # Fallback: estimate quality from technical signal only
+            logger.info(f"Using ESTIMATED tiering (no fundamental data)")
             if signal == 'BUY' and sharpe > 2.0:
                 base_pct = 8  # Assume high quality
                 quality_tier = "🥇 HIGH (estimated)"
