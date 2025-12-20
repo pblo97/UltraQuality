@@ -1270,12 +1270,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     stop_loss_pct = None
 
     if stop_loss_data:
-        # DEBUG: Print all keys in stop_loss_data to diagnose issue
-        st.caption(f"🔍 DEBUG - stop_loss_data keys: {list(stop_loss_data.keys())}")
-        st.caption(f"🔍 DEBUG - stop_loss_pct value: {stop_loss_data.get('stop_loss_pct', 'NOT FOUND')}")
-        st.caption(f"🔍 DEBUG - current_price value: {stop_loss_data.get('current_price', 'NOT FOUND')}")
-
-        # Get stop loss distance as % (negative value, e.g., -5.0 means -5%)
+        # Get stop loss distance as % (positive value, e.g., 5.0 means 5% below current price)
         stop_loss_pct = stop_loss_data.get('stop_loss_pct')
 
         if stop_loss_pct and stop_loss_pct != 0:
@@ -3941,8 +3936,24 @@ with tab6:
                     peers_df=None  # No peer comparison in custom analysis
                 )
 
-                # Run TECHNICAL analysis (same as Quick Technical tab)
-                tech_analysis = tech_analyzer.analyze(formatted_custom_ticker, sector=sector, country=custom_country_code)
+                # Extract fundamental data for position sizing
+                fundamental_score = None
+                guardrails_status = None
+                fundamental_decision = None
+                if qual_analysis and 'error' not in qual_analysis:
+                    fundamental_score = qual_analysis.get('composite_score', None)
+                    guardrails_status = qual_analysis.get('guardrails_summary', {}).get('overall_status', None)
+                    fundamental_decision = qual_analysis.get('decision', None)
+
+                # Run TECHNICAL analysis with fundamental data for position sizing
+                tech_analysis = tech_analyzer.analyze(
+                    formatted_custom_ticker,
+                    sector=sector,
+                    country=custom_country_code,
+                    fundamental_score=fundamental_score,
+                    guardrails_status=guardrails_status,
+                    fundamental_decision=fundamental_decision
+                )
 
                 if qual_analysis and 'error' not in qual_analysis:
                     st.session_state[f'custom_{formatted_custom_ticker}'] = qual_analysis
@@ -5872,8 +5883,19 @@ with tab7:
                         sector = row.get('sector', 'Unknown')
 
                         try:
-                            # Analyze
-                            tech_result = tech_analyzer.analyze(symbol, sector=sector)
+                            # Extract fundamental data for position sizing (if available)
+                            fundamental_score = row.get('composite_0_100', None)
+                            fundamental_decision = row.get('decision', None)
+                            guardrails_status = row.get('guardrails_status', None)  # May not be in screener DF
+
+                            # Analyze with fundamental data
+                            tech_result = tech_analyzer.analyze(
+                                symbol,
+                                sector=sector,
+                                fundamental_score=fundamental_score,
+                                guardrails_status=guardrails_status,
+                                fundamental_decision=fundamental_decision
+                            )
 
                             # Fetch current price from FMP
                             current_price = 0
