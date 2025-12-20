@@ -993,12 +993,12 @@ st.sidebar.markdown("---")
 if st.sidebar.button("🌟 GLOBAL ELITE PRESET",
                      type="primary",
                      use_container_width=True,
-                     help="Auto-configure for finding the best companies worldwide: 10,000 stocks, $2B+ mcap, large caps, 90% quality focus"):
+                     help="Auto-configure for finding the best companies worldwide: 10,000 stocks, $500M+ mcap (mid/large caps), 90% quality focus"):
     # Set session state flags for auto-configuration
     st.session_state['global_elite_active'] = True
     st.session_state['global_elite_region'] = "🌎 All Regions"
-    st.session_state['global_elite_mcap'] = 2000.0
-    st.session_state['global_elite_vol'] = 5.0
+    st.session_state['global_elite_mcap'] = 500.0  # $500M for broader mid/large cap coverage
+    st.session_state['global_elite_vol'] = 1.0     # $1M for good liquidity
     st.session_state['global_elite_topk'] = 10000
     st.session_state['global_elite_quality_weight'] = 0.90
     st.rerun()
