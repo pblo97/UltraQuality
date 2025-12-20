@@ -988,6 +988,30 @@ st.markdown("*Screening stocks using fundamental quality and value metrics*")
 # Sidebar configuration
 st.sidebar.header("⚙️ Configuration")
 
+# Global Elite Preset Button
+st.sidebar.markdown("---")
+if st.sidebar.button("🌟 GLOBAL ELITE PRESET",
+                     type="primary",
+                     use_container_width=True,
+                     help="Auto-configure for finding the best companies worldwide: 3000 stocks, $2B+ mcap, large caps, 90% quality focus"):
+    # Set session state flags for auto-configuration
+    st.session_state['global_elite_active'] = True
+    st.session_state['global_elite_region'] = "🌎 All Regions"
+    st.session_state['global_elite_mcap'] = 2000.0
+    st.session_state['global_elite_vol'] = 5.0
+    st.session_state['global_elite_topk'] = 3000
+    st.session_state['global_elite_quality_weight'] = 0.90
+    st.rerun()
+
+# Show active preset indicator
+if st.session_state.get('global_elite_active', False):
+    st.sidebar.success("✅ Global Elite preset is active")
+    if st.sidebar.button("Clear Preset", help="Return to manual configuration"):
+        st.session_state['global_elite_active'] = False
+        st.rerun()
+
+st.sidebar.markdown("---")
+
 # Universe filters
 with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     # Region/Country selector
@@ -1081,10 +1105,17 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "🌎 All Regions": "ALL"
     }
 
+    # Use preset value if Global Elite is active
+    if st.session_state.get('global_elite_active', False):
+        preset_region = st.session_state.get('global_elite_region', "🇺🇸 United States")
+        default_index = list(region_options.keys()).index(preset_region) if preset_region in region_options else 0
+    else:
+        default_index = 0  # Default to US
+
     selected_region = st.selectbox(
         "📍 Market/Region",
         options=list(region_options.keys()),
-        index=0,  # Default to US
+        index=default_index,
         help="Select which stock market/region to screen. Filters by country code in FMP API."
     )
 
@@ -1208,11 +1239,19 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
     # Get defaults for selected country
     defaults = default_thresholds.get(exchange_filter, {"mcap": 200.0, "vol": 1.0})
 
+    # Use preset values if Global Elite is active
+    if st.session_state.get('global_elite_active', False):
+        default_mcap = st.session_state.get('global_elite_mcap', defaults["mcap"])
+        default_vol = st.session_state.get('global_elite_vol', defaults["vol"])
+    else:
+        default_mcap = defaults["mcap"]
+        default_vol = defaults["vol"]
+
     min_mcap = st.number_input(
         "Min Market Cap ($M)",
         min_value=10.0,
         max_value=100000.0,
-        value=defaults["mcap"],
+        value=default_mcap,
         step=10.0,
         help=f"Minimum market capitalization in millions. Recommended for {selected_region}: ${defaults['mcap']:.0f}M"
     )
@@ -1221,23 +1260,35 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "Min Daily Volume ($M)",
         min_value=0.1,
         max_value=100.0,
-        value=defaults["vol"],
+        value=default_vol,
         step=0.1,
         help=f"Minimum average daily dollar volume in millions. Recommended for {selected_region}: ${defaults['vol']:.1f}M"
     )
 
+    # Use preset value if Global Elite is active
+    if st.session_state.get('global_elite_active', False):
+        default_topk = st.session_state.get('global_elite_topk', 3000)
+    else:
+        default_topk = 500
+
     top_k = st.slider(
         "Top-K Stocks to Analyze",
         min_value=50,
-        max_value=2000,
-        value=500,
+        max_value=3000,
+        value=default_topk,
         step=50,
-        help="Number of stocks to deep-dive after preliminary ranking. 500 stocks = ~4 min, 1200 stocks = ~10 min, 2000 stocks = ~15-20 min (first run). Re-runs with incremental cache: < 5 min"
+        help="Number of stocks to deep-dive after preliminary ranking. 500 stocks = ~4 min, 1200 stocks = ~10 min, 3000 stocks = ~25-30 min (first run). Re-runs with incremental cache: < 5 min"
     )
 
 # Scoring weights
 with st.sidebar.expander("⚖️ Scoring Weights", expanded=True):
-    weight_quality = st.slider("Quality Weight", 0.0, 1.0, 0.70, 0.05,
+    # Use preset value if Global Elite is active
+    if st.session_state.get('global_elite_active', False):
+        default_quality_weight = st.session_state.get('global_elite_quality_weight', 0.90)
+    else:
+        default_quality_weight = 0.70
+
+    weight_quality = st.slider("Quality Weight", 0.0, 1.0, default_quality_weight, 0.05,
                                 key='weight_quality_slider',
                                 help="QARP default: 0.70 (prioritize exceptional companies with moats)")
     weight_value = 1.0 - weight_quality

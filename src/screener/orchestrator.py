@@ -390,13 +390,30 @@ class ScreenerPipeline:
             )
             raise ValueError(error_msg)
 
+        # Deduplicate profiles by symbol (to avoid dual listings when fetching ALL regions)
+        # Keep first occurrence (typically the primary/most liquid listing)
+        logger.info(f"Total profiles before deduplication: {len(all_profiles)}")
+
+        seen_symbols = set()
+        deduplicated_profiles = []
+        for profile in all_profiles:
+            symbol = profile.get('symbol', '')
+            if symbol and symbol not in seen_symbols:
+                seen_symbols.add(symbol)
+                deduplicated_profiles.append(profile)
+
+        if len(all_profiles) != len(deduplicated_profiles):
+            logger.info(f"✓ Removed {len(all_profiles) - len(deduplicated_profiles)} duplicate symbols")
+
+        all_profiles = deduplicated_profiles
+
         # Convert to DataFrame
         df = pd.DataFrame(all_profiles)
 
         # Store flag if using sample data (for UI warning)
         self._using_sample_data = len(all_profiles) <= 20 and countries and countries != ['US']
 
-        logger.info(f"Total profiles fetched: {len(df)}")
+        logger.info(f"Total unique profiles fetched: {len(df)}")
         if self._using_sample_data:
             logger.warning("⚠️ USING SAMPLE DATA - Not a full market screener. Upgrade FMP plan for complete data.")
 
