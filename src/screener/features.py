@@ -87,6 +87,11 @@ class FeatureCalculator:
             balance = self.fmp.get_balance_sheet(symbol, period='quarter', limit=12)
             cashflow = self.fmp.get_cash_flow(symbol, period='quarter', limit=12)
 
+            # Check if we got minimal required data
+            if not profile or not income or len(income) < 4:
+                logger.warning(f"Insufficient data for {symbol}: profile={bool(profile)}, income quarters={len(income) if income else 0}")
+                return features
+
         except Exception as e:
             logger.warning(f"Failed to fetch data for {symbol}: {e}")
             return features
@@ -597,6 +602,11 @@ class FeatureCalculator:
             balance = self.fmp.get_balance_sheet(symbol, period='quarter', limit=4)
             cashflow = self.fmp.get_cash_flow(symbol, period='quarter', limit=4)
 
+            # Check if we got minimal required data
+            if not profile or not income or len(income) < 4:
+                logger.warning(f"Insufficient data for financial {symbol}: profile={bool(profile)}, income quarters={len(income) if income else 0}")
+                return features
+
         except Exception as e:
             logger.warning(f"Failed to fetch financial data for {symbol}: {e}")
             return features
@@ -809,6 +819,11 @@ class FeatureCalculator:
             income = self.fmp.get_income_statement(symbol, period='quarter', limit=4)
             balance = self.fmp.get_balance_sheet(symbol, period='quarter', limit=4)
             cashflow = self.fmp.get_cash_flow(symbol, period='quarter', limit=4)
+
+            # Check if we got minimal required data
+            if not profile or not income or len(income) < 4:
+                logger.warning(f"Insufficient data for REIT {symbol}: profile={bool(profile)}, income quarters={len(income) if income else 0}")
+                return features
 
         except Exception as e:
             logger.warning(f"Failed to fetch REIT data for {symbol}: {e}")

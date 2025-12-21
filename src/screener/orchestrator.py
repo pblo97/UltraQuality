@@ -928,10 +928,16 @@ class ScreenerPipeline:
             try:
                 features = self.features.calculate_features(symbol, company_type)
                 features['ticker'] = symbol
-                logger.info(f"✓ Features calculated for {symbol}")
+                # Only log if actually got data (not empty dict)
+                if len(features) > 1:  # More than just ticker
+                    logger.info(f"✓ Features calculated for {symbol}")
+                else:
+                    logger.warning(f"⚠ Features calculation returned empty data for {symbol}")
                 return features
             except Exception as e:
                 logger.error(f"✗ Failed to calculate features for {symbol}: {e}")
+                import traceback
+                logger.error(f"Traceback: {traceback.format_exc()}")
                 return {'ticker': symbol}
 
         # Parallel processing with thread pool (only for stocks that need processing)
