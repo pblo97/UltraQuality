@@ -188,8 +188,11 @@ class ScreenerPipeline:
         Classify as non_financial, financial, or REIT.
         """
         universe_config = self.config['universe']
-        countries = universe_config.get('countries', ['US'])
+        countries = universe_config.get('countries', ['US'])  # Default to US if not specified
         exchanges = universe_config.get('exchanges', [])
+
+        # IMPORTANT: Empty list [] means "All Regions" - fetch from all 54 markets
+        # Non-empty list ['US'] means specific country - fetch only from that country
         min_mcap = universe_config.get('min_market_cap', 500_000_000)
         min_vol = universe_config.get('min_avg_dollar_vol_3m', 5_000_000)
 
@@ -207,8 +210,13 @@ class ScreenerPipeline:
             # Country codes: US, CA, UK, IN, BR, JP, etc. (recommended for filtering)
             # Exchange codes: TSX, LSE, NSE, HKSE, etc. (less commonly used)
 
-            if countries and len(countries) > 0:
-                # Specific country/countries selected (including US)
+            # Determine fetch strategy based on filters
+            has_country_filter = countries and len(countries) > 0
+            has_exchange_filter = exchanges and len(exchanges) > 0
+
+            if has_country_filter:
+                # Specific country/countries selected (e.g., US, UK, JP)
+                logger.info(f"Country filter active: {countries}")
                 for country in countries:
                     logger.info(f"Fetching from country: {country}")
                     profiles = self.fmp.get_stock_screener(
@@ -224,8 +232,9 @@ class ScreenerPipeline:
                     else:
                         logger.warning(f"Country {country} returned empty - trying to continue")
 
-            elif exchanges:
-                # Use exchange parameter (less common, but supported)
+            elif has_exchange_filter:
+                # Specific exchange filter (less common, but supported)
+                logger.info(f"Exchange filter active: {exchanges}")
                 for exchange in exchanges:
                     logger.info(f"Fetching from exchange: {exchange}")
                     profiles = self.fmp.get_stock_screener(
