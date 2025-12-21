@@ -242,18 +242,97 @@ class ScreenerPipeline:
                     else:
                         logger.warning(f"{exchange} returned empty - trying to continue")
             else:
-                # No filter specified - fetch all regions (slower but comprehensive)
-                logger.info("No country/exchange filter - fetching ALL regions")
-                profiles = self.fmp.get_stock_screener(
-                    market_cap_more_than=min_mcap,
-                    volume_more_than=min_vol // 1000,  # API expects volume in thousands
-                    # No country/exchange parameter = all regions
-                    limit=10000  # Maximum results
-                )
+                # No filter specified - fetch all major regions (slower but comprehensive)
+                # FMP API without country parameter only returns US/CA by default
+                # So we need to explicitly query each major region
+                logger.info("No country filter specified - fetching from ALL major global markets")
 
-                if profiles:
-                    all_profiles.extend(profiles)
-                    logger.info(f"✓ Fetched {len(profiles)} profiles from all regions")
+                # List of major markets by region (covering ~95% of global market cap)
+                global_markets = [
+                    # Americas
+                    'US',   # United States (largest market)
+                    'CA',   # Canada
+                    'BR',   # Brazil
+                    'MX',   # Mexico
+                    'CL',   # Chile
+                    'AR',   # Argentina
+
+                    # Europe - Western
+                    'UK',   # United Kingdom
+                    'DE',   # Germany
+                    'FR',   # France
+                    'CH',   # Switzerland
+                    'NL',   # Netherlands
+                    'ES',   # Spain
+                    'IT',   # Italy
+                    'SE',   # Sweden
+                    'NO',   # Norway
+                    'DK',   # Denmark
+                    'FI',   # Finland
+                    'BE',   # Belgium
+                    'AT',   # Austria
+                    'IE',   # Ireland
+
+                    # Europe - Eastern
+                    'PL',   # Poland
+                    'CZ',   # Czech Republic
+                    'HU',   # Hungary
+                    'RU',   # Russia
+
+                    # Asia - Developed
+                    'JP',   # Japan
+                    'CN',   # China
+                    'HK',   # Hong Kong
+                    'SG',   # Singapore
+                    'KR',   # South Korea
+                    'TW',   # Taiwan (if available)
+
+                    # Asia - Emerging
+                    'IN',   # India
+                    'ID',   # Indonesia
+                    'TH',   # Thailand
+                    'MY',   # Malaysia (if available)
+                    'PH',   # Philippines (if available)
+                    'VN',   # Vietnam
+                    'BD',   # Bangladesh
+
+                    # Middle East & Africa
+                    'SA',   # Saudi Arabia
+                    'AE',   # UAE
+                    'QA',   # Qatar
+                    'KW',   # Kuwait
+                    'EG',   # Egypt
+                    'ZA',   # South Africa
+                    'IL',   # Israel (if available)
+                    'TR',   # Turkey (if available)
+
+                    # Oceania
+                    'AU',   # Australia
+                    'NZ',   # New Zealand
+                ]
+
+                logger.info(f"Fetching from {len(global_markets)} markets to achieve true global coverage")
+
+                for country in global_markets:
+                    logger.info(f"Fetching from country: {country}")
+                    try:
+                        profiles = self.fmp.get_stock_screener(
+                            market_cap_more_than=min_mcap,
+                            volume_more_than=min_vol // 1000,  # API expects volume in thousands
+                            country=country,  # Country code
+                            limit=10000  # Maximum results per country
+                        )
+
+                        if profiles:
+                            all_profiles.extend(profiles)
+                            logger.info(f"✓ Fetched {len(profiles)} profiles from {country}")
+                        else:
+                            logger.debug(f"Country {country} returned empty (may not have stocks meeting criteria)")
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch from {country}: {e}")
+                        continue
+
+                logger.info(f"✓ Total profiles fetched from all regions: {len(all_profiles)}")
 
             if not all_profiles:
                 logger.warning("stock-screener returned empty, trying profile-bulk as fallback...")

@@ -1142,7 +1142,7 @@ with st.sidebar.expander("🌍 Universe Filters", expanded=True):
         "ES": "🇪🇸 Bolsa de Madrid (Santander, Inditex)",
         "NL": "🇳🇱 Euronext Amsterdam (Shell, ASML)",
         "SG": "🇸🇬 Singapore Exchange (DBS, Sea)",
-        "ALL": "🌎 All regions combined - May be slower"
+        "ALL": "🌎 All regions (54 global markets) - Comprehensive worldwide coverage"
     }
 
     if exchange_filter in region_info:
