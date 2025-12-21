@@ -496,6 +496,91 @@ class ScreenerPipeline:
         if self._using_sample_data:
             logger.warning("⚠️ USING SAMPLE DATA - Not a full market screener. Upgrade FMP plan for complete data.")
 
+        # CRITICAL FIX: Add exchange suffix to symbols for international stocks
+        # FMP API sometimes returns symbols without exchange suffix (e.g., 'BP' instead of 'BP.L')
+        # But subsequent API calls require the full symbol with suffix
+        exchange_suffix_map = {
+            'LSE': '.L',      # London Stock Exchange
+            'LON': '.L',      # London (alternative code)
+            'JSE': '.JK',     # Jakarta Stock Exchange
+            'IDX': '.JK',     # Indonesia Stock Exchange
+            'NSE': '.NS',     # National Stock Exchange of India
+            'BSE': '.BO',     # Bombay Stock Exchange
+            'ASX': '.AX',     # Australian Securities Exchange
+            'TSX': '.TO',     # Toronto Stock Exchange
+            'TSXV': '.V',     # TSX Venture Exchange
+            'NEO': '.NE',     # NEO Exchange Canada
+            'SAO': '.SA',     # B3 São Paulo
+            'BVMF': '.SA',    # Bovespa (Brazil)
+            'BMV': '.MX',     # Bolsa Mexicana de Valores
+            'MEX': '.MX',     # Mexico Stock Exchange
+            'SIX': '.SW',     # SIX Swiss Exchange
+            'SW': '.SW',      # Swiss Exchange
+            'EPA': '.PA',     # Euronext Paris
+            'PAR': '.PA',     # Paris Stock Exchange
+            'ETR': '.DE',     # Deutsche Börse XETRA
+            'GER': '.DE',     # Germany
+            'FRA': '.F',      # Frankfurt
+            'XETRA': '.DE',   # XETRA
+            'MIL': '.MI',     # Borsa Italiana Milan
+            'BIT': '.MI',     # Milan Stock Exchange
+            'BME': '.MC',     # Bolsa de Madrid
+            'MCE': '.MC',     # Madrid Stock Exchange
+            'AMS': '.AS',     # Euronext Amsterdam
+            'STO': '.ST',     # Nasdaq Stockholm
+            'OSE': '.OL',     # Oslo Børs
+            'CPH': '.CO',     # Nasdaq Copenhagen
+            'HEL': '.HE',     # Nasdaq Helsinki
+            'BRU': '.BR',     # Euronext Brussels
+            'VIE': '.VI',     # Vienna Stock Exchange
+            'WSE': '.WA',     # Warsaw Stock Exchange
+            'TSE': '.T',      # Tokyo Stock Exchange
+            'JPX': '.T',      # Japan Exchange Group
+            'HKSE': '.HK',    # Hong Kong Stock Exchange
+            'HKG': '.HK',     # Hong Kong
+            'SSE': '.SS',     # Shanghai Stock Exchange
+            'SZSE': '.SZ',    # Shenzhen Stock Exchange
+            'KRX': '.KS',     # Korea Exchange
+            'KOSDAQ': '.KQ',  # KOSDAQ
+            'SGX': '.SI',     # Singapore Exchange
+            'SET': '.BK',     # Stock Exchange of Thailand
+            'Tadawul': '.SAU', # Saudi Stock Exchange
+            'DFM': '.DU',     # Dubai Financial Market
+            'ADX': '.AD',     # Abu Dhabi Securities Exchange
+            'QE': '.QA',      # Qatar Exchange
+            'TASE': '.TA',    # Tel Aviv Stock Exchange
+            'JSE': '.JO',     # Johannesburg Stock Exchange (South Africa)
+            'EGX': '.CA',     # Egyptian Exchange
+            # US exchanges don't need suffix
+            'NYSE': '',
+            'NASDAQ': '',
+            'AMEX': '',
+            'NYSEArca': '',
+            'BATS': '',
+        }
+
+        def fix_symbol_suffix(row):
+            """Add exchange suffix to symbol if missing."""
+            symbol = row.get('symbol', '')
+            exchange = row.get('exchangeShortName', '')
+
+            # Skip if symbol already has a suffix (contains a dot)
+            if '.' in symbol:
+                return symbol
+
+            # Add suffix based on exchange
+            suffix = exchange_suffix_map.get(exchange, '')
+            if suffix:
+                return symbol + suffix
+            return symbol
+
+        if 'symbol' in df.columns and 'exchangeShortName' in df.columns:
+            original_count = len(df)
+            df['symbol'] = df.apply(fix_symbol_suffix, axis=1)
+            # Count how many were modified
+            symbols_with_suffix = df['symbol'].str.contains('\.', regex=True).sum()
+            logger.info(f"✓ Fixed exchange suffixes: {symbols_with_suffix}/{original_count} symbols now have exchange suffix")
+
         # Normalize column names (stock-screener uses different names than profile-bulk)
         column_mapping = {
             'marketCap': 'mktCap',          # stock-screener → profile-bulk
