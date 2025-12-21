@@ -1683,7 +1683,18 @@ with tab1:
             st.success(f"✅ Screening complete! Results saved to {output_csv}")
 
             # Load and display results
-            df = pd.read_csv(output_csv)
+            # Use error_bad_lines=False and on_bad_lines='warn' to handle any malformed rows gracefully
+            try:
+                df = pd.read_csv(output_csv, encoding='utf-8', quoting=1)  # quoting=1 is QUOTE_NONNUMERIC
+            except Exception as e:
+                st.error(f"Error reading results CSV: {e}")
+                st.info("Attempting to read with more lenient settings...")
+                # Fallback: try with on_bad_lines='skip' if available (pandas >= 1.3)
+                try:
+                    df = pd.read_csv(output_csv, encoding='utf-8', on_bad_lines='skip')
+                except:
+                    # For older pandas versions
+                    df = pd.read_csv(output_csv, encoding='utf-8', error_bad_lines=False, warn_bad_lines=True)
 
             # Validate results before saving
             if len(df) == 0:
@@ -1813,7 +1824,8 @@ with tab2:
         col1, col2 = st.columns(2)
 
         with col1:
-            csv = df.to_csv(index=False).encode('utf-8')
+            import csv as csv_module
+            csv = df.to_csv(index=False, quoting=csv_module.QUOTE_NONNUMERIC).encode('utf-8')
             st.download_button(
                 label="📄 Download CSV",
                 data=csv,
@@ -7129,7 +7141,8 @@ with tab7:
                 st.markdown("---")
                 st.markdown("### 📥 Download Technical Analysis")
 
-                csv = df_tech.to_csv(index=False).encode('utf-8')
+                import csv as csv_module
+                csv = df_tech.to_csv(index=False, quoting=csv_module.QUOTE_NONNUMERIC).encode('utf-8')
                 st.download_button(
                     label="📄 Download Technical Results (CSV)",
                     data=csv,
