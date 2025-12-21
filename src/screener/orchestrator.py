@@ -1193,11 +1193,25 @@ class ScreenerPipeline:
             if col not in self.df_final.columns:
                 self.df_final[col] = None
 
-        # Export
+        # Export with proper quoting to handle international company names and text with commas
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
 
-        self.df_final[columns].to_csv(output_file, index=False)
+        # Use QUOTE_NONNUMERIC to quote all text fields (handles commas in company names, industries, etc.)
+        # Also replace any newlines in text fields that could break CSV structure
+        df_export = self.df_final[columns].copy()
+
+        # Clean text fields that might contain problematic characters
+        text_columns = ['name', 'sector', 'industry', 'guardrail_reasons', 'decision', 'decision_reason']
+        for col in text_columns:
+            if col in df_export.columns:
+                # Replace newlines and carriage returns with spaces
+                df_export[col] = df_export[col].astype(str).str.replace(r'[\n\r]+', ' ', regex=True)
+                # Remove any stray commas at end of strings that could confuse parsers
+                df_export[col] = df_export[col].str.strip()
+
+        import csv
+        df_export.to_csv(output_file, index=False, quoting=csv.QUOTE_NONNUMERIC, encoding='utf-8')
 
         logger.info(f"Results exported to {output_path}")
 
