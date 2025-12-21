@@ -207,9 +207,8 @@ class ScreenerPipeline:
             # Country codes: US, CA, UK, IN, BR, JP, etc. (recommended for filtering)
             # Exchange codes: TSX, LSE, NSE, HKSE, etc. (less commonly used)
 
-            if countries and countries != ['US']:
-                # Use country parameter for international markets
-                # This is more reliable than exchange codes
+            if countries and len(countries) > 0:
+                # Specific country/countries selected (including US)
                 for country in countries:
                     logger.info(f"Fetching from country: {country}")
                     profiles = self.fmp.get_stock_screener(
