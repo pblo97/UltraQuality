@@ -988,6 +988,33 @@ st.markdown("*Screening stocks using fundamental quality and value metrics*")
 # Sidebar configuration
 st.sidebar.header("⚙️ Configuration")
 
+# Cache Management
+st.sidebar.markdown("---")
+st.sidebar.subheader("🗑️ Cache Management")
+if st.sidebar.button("Clear All Caches",
+                     help="Clear FMP API cache and incremental processing cache. Use this if you're seeing stale data or analysis errors."):
+    import shutil
+    from pathlib import Path
+
+    # Clear caches
+    caches_cleared = []
+    cache_base = Path('./cache')
+    if cache_base.exists():
+        try:
+            shutil.rmtree(cache_base)
+            caches_cleared.append("FMP API cache")
+        except Exception as e:
+            st.sidebar.error(f"Failed to clear cache: {e}")
+
+    # Clear Streamlit cache
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    caches_cleared.append("Streamlit cache")
+
+    if caches_cleared:
+        st.sidebar.success(f"✅ Cleared: {', '.join(caches_cleared)}")
+        st.sidebar.info("🔄 Please run the screener again")
+
 # Global Elite Preset Button
 st.sidebar.markdown("---")
 if st.sidebar.button("🌟 GLOBAL ELITE PRESET",
