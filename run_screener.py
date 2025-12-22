@@ -974,6 +974,144 @@ def display_entry_strategy(entry_strategy):
                     st.write(f"**{label}:** ${value:.2f}")
 
 
+def display_take_profit(profit_taking):
+    """
+    Display professional Take Profit strategies with tier-based asymmetric approach.
+
+    Three strategies:
+    - Compounder (Tier 1): Hold forever, only trailing stop
+    - Swing (Tier 2): 3R rule, scale at targets
+    - Sniper (Tier 3): Aggressive 2R/4R scaling
+    """
+    # Get core data
+    strategy = profit_taking.get('strategy', 'N/A')
+    tier = profit_taking.get('tier', 'N/A')
+    tier_name = profit_taking.get('tier_name', 'Unknown')
+    philosophy = profit_taking.get('philosophy', '')
+    action = profit_taking.get('action', '')
+    targets = profit_taking.get('targets', [])
+    keep_pct = profit_taking.get('keep_pct', 0)
+    keep_stop = profit_taking.get('keep_stop', '')
+    rationale = profit_taking.get('rationale', '')
+    override = profit_taking.get('override', False)
+
+    # Emergency override styling
+    if override or 'EMERGENCY' in strategy or 'PARABOLIC' in strategy:
+        st.error(f"### 🔥 {strategy}")
+        st.warning(f"⚠️ **URGENT ACTION REQUIRED**")
+    else:
+        st.markdown(f"### {strategy}")
+
+    # Display tier badge
+    tier_colors = {1: '🏛️', 2: '🏃', 3: '🚀'}
+    tier_icon = tier_colors.get(tier, '📊')
+    st.markdown(f"**{tier_icon} {tier_name}**")
+
+    # Display philosophy
+    if philosophy:
+        st.info(f"**Philosophy:** {philosophy}")
+
+    # Display action recommendation
+    if action:
+        if override:
+            st.error(f"**📍 Recommended Action:** {action}")
+        else:
+            st.success(f"**📍 Recommended Action:** {action}")
+
+    # Display Take Profit targets as table
+    if targets and len(targets) > 0:
+        st.markdown("#### 🎯 Take Profit Targets")
+
+        import pandas as pd
+        table_data = []
+        for target in targets:
+            level = target.get('level', 'N/A')
+            percent = target.get('percent', 0)
+            price = target.get('price', 0)
+            rationale_target = target.get('rationale', '')
+            r_multiple = target.get('r_multiple', '')
+
+            # Format percent (handle both int/float and string percentages)
+            if isinstance(percent, str):
+                percent_str = percent
+            else:
+                percent_str = f"{percent}%"
+
+            # Format price
+            if isinstance(price, (int, float)) and price > 0:
+                price_str = f"${price:.2f}"
+            else:
+                price_str = str(price)
+
+            # Add R-multiple if available
+            level_display = level
+            if r_multiple:
+                level_display = f"{level} ({r_multiple}R)"
+
+            table_data.append({
+                'Target': level_display,
+                'Sell %': percent_str,
+                'Price': price_str,
+                'Rationale': rationale_target
+            })
+
+        df_targets = pd.DataFrame(table_data)
+        st.dataframe(
+            df_targets,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                'Target': st.column_config.TextColumn('Target Level', width='medium'),
+                'Sell %': st.column_config.TextColumn('Sell %', width='small'),
+                'Price': st.column_config.TextColumn('Price', width='small'),
+                'Rationale': st.column_config.TextColumn('Why', width='large')
+            }
+        )
+
+    # Display remaining position info
+    if keep_pct:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Keep % (Runner)", f"{keep_pct}%")
+        with col2:
+            if keep_stop:
+                st.metric("Trailing Stop", keep_stop)
+
+    # Display R-multiple info if available
+    if 'risk_r' in profit_taking:
+        st.markdown(f"**💰 Risk (R):** {profit_taking['risk_r']} per share")
+    if 'take_profit_rule' in profit_taking:
+        st.caption(f"**Rule:** {profit_taking['take_profit_rule']}")
+
+    # Display rationale
+    if rationale:
+        st.markdown("#### 📝 Strategic Rationale")
+        st.markdown(rationale)
+
+    # Display additional info based on tier
+    if 'examples' in profit_taking:
+        st.success(f"**📈 Historical Examples:** {profit_taking['examples']}")
+
+    if 'exit_only_if' in profit_taking and profit_taking['exit_only_if']:
+        st.markdown("**🚪 Exit Only If:**")
+        for condition in profit_taking['exit_only_if']:
+            st.write(f"- {condition}")
+
+    if 'free_ride' in profit_taking:
+        st.success(f"**💵 Free Ride:** {profit_taking['free_ride']}")
+
+    if 'warning' in profit_taking and profit_taking['warning']:
+        st.warning(f"**⚠️ Warning:** {profit_taking['warning']}")
+
+    # Display Tier-specific recommendations
+    if tier == 1:
+        st.info("**🏛️ Compounder Strategy:** These are \"forever holds\". Only fundamental deterioration or market structure breaks justify selling.")
+    elif tier == 2:
+        st.info("**🏃 Swing Strategy:** Lock in 3R to secure the win, then let the rest run free with trailing stop protection.")
+    elif tier == 3:
+        st.warning("**🚀 Sniper Strategy:** Speculative stocks reverse fast. Scale out aggressively - the last dollar, let someone else make it.")
+
+
 st.set_page_config(
     page_title="UltraQuality Screener",
     page_icon="📊",
@@ -5623,16 +5761,8 @@ with tab6:
                         with rm_tab4:
                             profit_taking = risk_mgmt.get('profit_taking', {})
                             if profit_taking:
-                                st.markdown(f"**Strategy:** {profit_taking.get('strategy', 'N/A')}")
-
-                                if 'target_1' in profit_taking:
-                                    st.write(f"**Target 1 (Conservative):** {profit_taking.get('target_1', 'N/A')}")
-                                if 'target_2' in profit_taking:
-                                    st.write(f"**Target 2 (Moderate):** {profit_taking.get('target_2', 'N/A')}")
-                                if 'target_3' in profit_taking:
-                                    st.write(f"**Target 3 (Aggressive):** {profit_taking.get('target_3', 'N/A')}")
-
-                                st.info(f"**Rationale:** {profit_taking.get('rationale', 'N/A')}")
+                                # Use professional Take Profit display function
+                                display_take_profit(profit_taking)
 
                         with rm_tab5:
                             options_strategies = risk_mgmt.get('options_strategies', [])

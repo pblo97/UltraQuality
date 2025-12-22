@@ -1334,9 +1334,24 @@ class EnhancedTechnicalAnalyzer:
             week_52_high=week_52_high
         )
 
-        # ========== 4. PROFIT TAKING ==========
+        # ========== 4. PROFIT TAKING (Tier-Based Asymmetric Strategy) ==========
+        # Extract market_state and stop_loss info for profit taking decisions
+        market_state = recommendations['stop_loss'].get('state', 'UNKNOWN')
+        stop_loss_pct = recommendations['stop_loss'].get('stop_loss_pct', 0)
+
         recommendations['profit_taking'] = self._generate_profit_targets(
-            signal, distance_ma200, overextension_risk, ma_200, price
+            signal=signal,
+            distance_ma200=distance_ma200,
+            overextension_risk=overextension_risk,
+            ma_200=ma_200,
+            price=price,
+            # Pass fundamental data for tier determination
+            fundamental_score=fundamental_score,
+            guardrails_status=guardrails_status,
+            # Pass market state for PARABOLIC_CLIMAX detection
+            market_state=market_state,
+            # Pass stop loss for R-multiple calculation
+            stop_loss_pct=stop_loss_pct
         )
 
         # ========== 5. OPTIONS STRATEGIES ==========
@@ -3098,36 +3113,219 @@ class EnhancedTechnicalAnalyzer:
             # CRITICAL: Stop loss MUST be below current price
             return min(stop, price * 0.99)
 
-    def _generate_profit_targets(self, signal, distance_ma200, overextension_risk, ma_200, price):
-        """Profit taking recommendations."""
-        if signal == 'SELL':
-            return {'strategy': 'NO POSITION', 'targets': []}
+    def _generate_profit_targets(self, signal, distance_ma200, overextension_risk, ma_200, price,
+                                  fundamental_score=None, guardrails_status=None, market_state=None,
+                                  stop_loss_pct=None):
+        """
+        Professional asymmetric Take Profit strategies based on company quality tier.
 
-        if overextension_risk >= 5 or distance_ma200 > 50:
-            # Already overextended - take profits
+        Philosophy: Different companies require different exit strategies.
+        - Compounders (Tier 1): Hold forever with trailing stop
+        - Quality Value (Tier 2): Swing trade with 3R rule
+        - Speculative (Tier 3): Aggressive scaling out with 2R rule
+
+        Args:
+            fundamental_score: Quality score (0-100) to determine tier
+            guardrails_status: VERDE/AMBAR/ROJO for tier classification
+            market_state: Current market state (PARABOLIC_CLIMAX, POWER_TREND, etc.)
+            stop_loss_pct: Stop loss percentage (e.g., -5.1%) for R calculation
+        """
+        if signal == 'SELL':
+            return {'strategy': 'NO POSITION', 'tier': 'N/A', 'targets': []}
+
+        # ========== DETERMINE QUALITY TIER ==========
+        tier = self._determine_quality_tier(fundamental_score, guardrails_status)
+
+        # Calculate R (Risk per share) for R-multiple targets
+        # R = Distance from entry to stop loss
+        risk_pct = abs(stop_loss_pct) if stop_loss_pct else 10.0  # Default 10% if not available
+
+        # ========== EMERGENCY OVERRIDE: PARABOLIC_CLIMAX ==========
+        # Regardless of tier, if in parabolic climax, take immediate action
+        if market_state == 'PARABOLIC_CLIMAX' or overextension_risk >= 5:
             return {
-                'strategy': 'LADDER SELLS (Scale out)',
-                'sell_25_pct': 'NOW (lock in gains from overextended move)',
-                'sell_25_pct_2': f'+10% from current (${price*1.10:.2f})',
-                'sell_50_pct': f'If reaches {distance_ma200*1.2:.0f}% above MA200 (extreme euphoria)',
-                'rationale': f'Already {distance_ma200:+.1f}% extended. Preserve gains vs being greedy. History shows extreme moves reverse quickly.'
+                'strategy': '🔥 EMERGENCY EXIT (Parabolic Climax Detected)',
+                'tier': tier,
+                'tier_name': self._get_tier_name(tier),
+                'market_state': market_state,
+                'action': 'SELL 50-75% NOW',
+                'targets': [
+                    {
+                        'level': 'TP1 (NOW)',
+                        'percent': 50,
+                        'price': price,
+                        'rationale': 'Parabolic climax detected - extreme euphoria unsustainable'
+                    },
+                    {
+                        'level': 'TP2 (+5-10%)',
+                        'percent': 25,
+                        'price': price * 1.075,
+                        'rationale': 'Final squeeze before reversal - sell into strength'
+                    }
+                ],
+                'keep_pct': 25,
+                'keep_stop': 'Very tight stop (EMA 10 or -5% from highs)',
+                'rationale': f'🔥 PARABOLIC CLIMAX: {distance_ma200:+.1f}% above MA200. History shows violent reversals follow parabolic moves. "Bulls make money, bears make money, pigs get slaughtered."',
+                'override': True
             }
-        elif overextension_risk >= 3:
+
+        # ========== TIER 1: THE COMPOUNDER (Elite Companies) ==========
+        if tier == 1:
+            # Exception: Reduce position slightly if market becomes euphoric
+            if overextension_risk >= 3 and distance_ma200 > 30:
+                return {
+                    'strategy': '🏛️ THE COMPOUNDER (Light Trim Only)',
+                    'tier': tier,
+                    'tier_name': 'TIER 1 - Elite Compounder',
+                    'philosophy': '"Let winners run" - The biggest mistake is selling great companies too early',
+                    'take_profit_fixed': 'NONE',
+                    'action': 'TRIM 10-20% ONLY (Optional)',
+                    'targets': [
+                        {
+                            'level': 'Optional Trim',
+                            'percent': '10-20%',
+                            'price': price,
+                            'rationale': 'Mild overextension - trim to rebalance, NOT to exit'
+                        }
+                    ],
+                    'keep_pct': '80-90%',
+                    'keep_stop': 'SMA 50 or SMA 200 (wide trailing stop)',
+                    'rationale': f'Elite companies (score: {fundamental_score:.0f}) compound wealth over decades. Amazon/Costco/Microsoft owners who sold at "+50%" missed 1000%+ gains. Only trim for rebalancing.',
+                    'examples': 'Amazon +150,000% (1997-2024), Costco +52,000%, Microsoft +288,000%',
+                    'override': False
+                }
+            else:
+                # Normal case: hold with trailing stop
+                return {
+                    'strategy': '🏛️ THE COMPOUNDER (Hold with Trailing Stop)',
+                    'tier': tier,
+                    'tier_name': 'TIER 1 - Elite Compounder',
+                    'philosophy': '"Let winners run" - Never sell a great company in a bull market',
+                    'take_profit_fixed': 'NONE',
+                    'action': 'HOLD (No selling)',
+                    'targets': [],
+                    'keep_pct': 100,
+                    'keep_stop': 'SMA 50 or SMA 200 trailing stop',
+                    'exit_only_if': [
+                        'SMA 50 crosses below SMA 200 (Death Cross)',
+                        'Fundamental deterioration (M-Score spike, insider selling surge)',
+                        'Business model disruption (new technology, regulation)'
+                    ],
+                    'rationale': f'Elite company (score: {fundamental_score:.0f}, {guardrails_status}). These are "forever holds" barring fundamental changes. Market will scare you out - don\'t let it.',
+                    'examples': 'Holding Nvidia since 2020 = +2000%. Holding Microsoft since 2010 = +1200%',
+                    'override': False
+                }
+
+        # ========== TIER 2: THE SWING (Quality at Reasonable Price) ==========
+        elif tier == 2:
+            # Calculate 3R target (3 times the risk)
+            tp1_price = price * (1 + (risk_pct * 3) / 100)
+
             return {
-                'strategy': 'PARTIAL PROFIT TAKING',
-                'sell_25_pct': '+15-20% from entry',
-                'sell_25_pct_2': '+30-40% from entry',
-                'keep_50_pct': 'Runner with trailing stop',
-                'rationale': 'Moderate overextension - lock in some gains while letting winners run with protection.'
+                'strategy': '🏃 THE SWING (3R Rule)',
+                'tier': tier,
+                'tier_name': 'TIER 2 - Quality Value Momentum',
+                'philosophy': '"Pay the risk, let the rest run" - Lock in gains while keeping upside',
+                'take_profit_rule': '3R (3 times Risk)',
+                'risk_r': f'{risk_pct:.1f}%',
+                'action': 'Partial scaling at targets',
+                'targets': [
+                    {
+                        'level': f'TP1 (3R = {risk_pct*3:.0f}%)',
+                        'percent': 33,
+                        'price': tp1_price,
+                        'r_multiple': 3,
+                        'rationale': 'Secured 3x your risk - now playing with house money'
+                    }
+                ],
+                'keep_pct': 67,
+                'keep_stop': 'Move stop to breakeven, then trailing stop (SMA 50 or -12% from highs)',
+                'rationale': f'Quality company (score: {fundamental_score:.0f}) but not elite. Use 3R rule to lock gains while letting 2/3 run. If reaches 3R ({tp1_price:.2f}), you\'ve already won.',
+                'free_ride': 'After TP1, remaining position is "free" (zero risk)',
+                'override': False
             }
-        else:
+
+        # ========== TIER 3: THE SNIPER (Speculative / Lower Quality) ==========
+        else:  # tier == 3
+            # Calculate 2R and 4R targets
+            tp1_price = price * (1 + (risk_pct * 2) / 100)
+            tp2_price = price * (1 + (risk_pct * 4) / 100)
+
+            # Additional aggressive exit if RSI > 80 or extreme overextension
+            aggressive_exit = overextension_risk >= 3 or distance_ma200 > 25
+
             return {
-                'strategy': 'TRAILING STOP (Let winners run)',
-                'target_1': '+25% from entry (optional partial)',
-                'target_2': '+50% from entry (optional partial)',
-                'trailing_stop': 'MA50 or 15% from highs',
-                'rationale': 'Low overextension + strong momentum = let it run with trailing stop protection.'
+                'strategy': '🚀 THE SNIPER (Aggressive Scaling)',
+                'tier': tier,
+                'tier_name': 'TIER 3 - Speculative',
+                'philosophy': '"The last dollar, let someone else make it" - Greed kills in speculative trades',
+                'take_profit_rule': '2R/4R Ladder',
+                'risk_r': f'{risk_pct:.1f}%',
+                'action': 'AGGRESSIVE SCALING OUT',
+                'targets': [
+                    {
+                        'level': f'TP1 (2R = {risk_pct*2:.0f}%)',
+                        'percent': 50,
+                        'price': tp1_price,
+                        'r_multiple': 2,
+                        'rationale': 'Recover capital fast - speculative trades reverse quickly'
+                    },
+                    {
+                        'level': f'TP2 (4R = {risk_pct*4:.0f}%)',
+                        'percent': 25,
+                        'price': tp2_price,
+                        'r_multiple': 4,
+                        'rationale': 'Lock in further gains - don\'t get greedy'
+                    }
+                ],
+                'keep_pct': 25,
+                'keep_stop': 'VERY TIGHT: EMA 10 or -5% from highs (Moonbag)',
+                'rationale': f'Speculative stock (score: {fundamental_score:.0f if fundamental_score else "N/A"}, {guardrails_status}). These "go up the elevator, down the window". Take profits aggressively.',
+                'warning': 'If RSI > 80 or parabolic move, sell 75-100% IMMEDIATELY' if aggressive_exit else None,
+                'override': False
             }
+
+    def _determine_quality_tier(self, fundamental_score, guardrails_status):
+        """
+        Determine company quality tier for Take Profit strategy selection.
+
+        Tier 1 (Compounder): Elite companies with moats - hold forever
+        Tier 2 (Swing): Quality companies - swing trade with 3R
+        Tier 3 (Sniper): Speculative - aggressive scaling with 2R
+
+        Returns: 1, 2, or 3
+        """
+        # Default to Tier 3 if no fundamental data
+        if fundamental_score is None:
+            return 3
+
+        # Tier 1: Elite Compounders (Score > 85 AND VERDE guardrails)
+        if fundamental_score >= 85 and guardrails_status == 'VERDE':
+            return 1
+
+        # Tier 1: Also include ultra-high quality even with AMBAR (score > 90)
+        if fundamental_score >= 90:
+            return 1
+
+        # Tier 2: High Quality (Score 70-85 OR Score > 85 with AMBAR)
+        if fundamental_score >= 70:
+            return 2
+
+        # Tier 2: Medium quality with clean guardrails (Score 60-70 AND VERDE)
+        if fundamental_score >= 60 and guardrails_status == 'VERDE':
+            return 2
+
+        # Tier 3: Everything else (Speculative)
+        return 3
+
+    def _get_tier_name(self, tier):
+        """Get human-readable tier name."""
+        tier_names = {
+            1: 'TIER 1 - Elite Compounder',
+            2: 'TIER 2 - Quality Value Momentum',
+            3: 'TIER 3 - Speculative'
+        }
+        return tier_names.get(tier, 'Unknown')
 
     def _generate_options_strategies(
         self, signal, overextension_risk, volatility, distance_ma200, volume_profile,
