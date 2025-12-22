@@ -6843,17 +6843,8 @@ with tab7:
                             with rm_tab4:
                                 profit_taking = risk_mgmt.get('profit_taking', {})
                                 if profit_taking:
-                                    st.markdown(f"**Strategy:** {profit_taking.get('strategy', 'N/A')}")
-
-                                    # Display specific fields based on strategy
-                                    for key, value in profit_taking.items():
-                                        if key not in ['strategy', 'rationale'] and value:
-                                            # Format the key nicely
-                                            display_key = key.replace('_', ' ').title()
-                                            st.write(f"**{display_key}:** {value}")
-
-                                    if 'rationale' in profit_taking:
-                                        st.info(f"**Rationale:** {profit_taking['rationale']}")
+                                    # Use professional Take Profit display function
+                                    display_take_profit(profit_taking)
 
                             with rm_tab5:
                                 options_strategies = risk_mgmt.get('options_strategies', [])
