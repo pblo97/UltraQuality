@@ -156,8 +156,9 @@ class ScoringEngine:
         for yield_metric in ['earnings_yield', 'fcf_yield', 'cfo_yield', 'gross_profit_yield']:
             if yield_metric in df.columns:
                 roic_adjustment = df['roic_%'].fillna(benchmark_roic) / benchmark_roic
-                # Cap adjustment at 3x to avoid extreme outliers
-                roic_adjustment = roic_adjustment.clip(lower=0.5, upper=3.0)
+                # FIX #4: Cap adjustment at 1.5x (reduced from 3x) to avoid excessive value score inflation
+                # Growth stocks with high ROIC should not get artificially high "value" scores
+                roic_adjustment = roic_adjustment.clip(lower=0.5, upper=1.5)
 
                 df[f'{yield_metric}_adj'] = df[yield_metric] * roic_adjustment
 
@@ -204,35 +205,8 @@ class ScoringEngine:
         else:
             df['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
 
-        # CRITICAL FIX: Penalize shrinking businesses with declining revenues
-        # A company with 30% ROIC but -10% revenue growth is doing financial engineering (buybacks),
-        # not creating real value. Don't let it score 90/100.
-        #
-        # Research: Companies with declining sales AND high ROIC are often:
-        # - Shrinking TAM (mature/declining industry)
-        # - Market share loss (competitive pressure)
-        # - Buyback engineering (boosting ROIC artificially)
-        # - Not sustainable long-term compounders
-        if 'revenue_growth_3y' in df.columns:
-            # Apply aggressive penalty for negative revenue growth
-            df['revenue_penalty'] = 0  # Default: no penalty
-
-            # Progressive penalty based on severity of decline
-            df.loc[df['revenue_growth_3y'] < 0, 'revenue_penalty'] = 15   # -15 points for ANY decline
-            df.loc[df['revenue_growth_3y'] < -5, 'revenue_penalty'] = 25  # -25 points for >5% annual decline
-            df.loc[df['revenue_growth_3y'] < -10, 'revenue_penalty'] = 35 # -35 points for >10% annual decline
-
-            # Apply penalty to quality score
-            df['quality_score_0_100'] = (df['quality_score_0_100'] - df['revenue_penalty']).clip(lower=0, upper=100)
-
-            # Log warning for high-ROIC but shrinking businesses
-            shrinking_with_high_roic = df[
-                (df['revenue_growth_3y'] < -5) &
-                (df['roic_%'] > 25)
-            ]
-            if len(shrinking_with_roic) > 0:
-                logger.warning(f"⚠️ Found {len(shrinking_with_high_roic)} 'shrinking businesses' with high ROIC but declining sales (>5% decline). "
-                              f"Applied -25 to -35 point quality penalty. Examples: {shrinking_with_high_roic['ticker'].head(3).tolist()}")
+        # FIX #3: Apply refined revenue penalty (reusable helper method)
+        df = self._apply_revenue_penalty(df, company_type='non_financial')
 
         # Composite
         df['composite_0_100'] = (
@@ -292,13 +266,8 @@ class ScoringEngine:
             else:
                 df_fin_only['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
 
-            # CRITICAL FIX: Penalize shrinking financial businesses
-            if 'revenue_growth_3y' in df_fin_only.columns and len(df_fin_only) > 0:
-                df_fin_only['revenue_penalty'] = 0
-                df_fin_only.loc[df_fin_only['revenue_growth_3y'] < 0, 'revenue_penalty'] = 15
-                df_fin_only.loc[df_fin_only['revenue_growth_3y'] < -5, 'revenue_penalty'] = 25
-                df_fin_only.loc[df_fin_only['revenue_growth_3y'] < -10, 'revenue_penalty'] = 35
-                df_fin_only['quality_score_0_100'] = (df_fin_only['quality_score_0_100'] - df_fin_only['revenue_penalty']).clip(lower=0, upper=100)
+            # FIX #3: Apply refined revenue penalty (same logic as non-financials)
+            df_fin_only = self._apply_revenue_penalty(df_fin_only, company_type='financial')
 
             df_fin_only['composite_0_100'] = (
                 self.w_value * df_fin_only['value_score_0_100'] +
@@ -370,13 +339,8 @@ class ScoringEngine:
         else:
             df['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
 
-        # CRITICAL FIX: Penalize shrinking REIT businesses
-        if 'revenue_growth_3y' in df.columns and len(df) > 0:
-            df['revenue_penalty'] = 0
-            df.loc[df['revenue_growth_3y'] < 0, 'revenue_penalty'] = 15
-            df.loc[df['revenue_growth_3y'] < -5, 'revenue_penalty'] = 25
-            df.loc[df['revenue_growth_3y'] < -10, 'revenue_penalty'] = 35
-            df['quality_score_0_100'] = (df['quality_score_0_100'] - df['revenue_penalty']).clip(lower=0, upper=100)
+        # FIX #3: Apply refined revenue penalty (same logic as non-financials)
+        df = self._apply_revenue_penalty(df, company_type='reit')
 
         df['composite_0_100'] = (
             self.w_value * df['value_score_0_100'] +
@@ -485,6 +449,79 @@ class ScoringEngine:
         return percentile
 
     # =====================================
+    # REVENUE PENALTY (Helper Method)
+    # =====================================
+
+    def _apply_revenue_penalty(self, df: pd.DataFrame, company_type: str = 'non_financial') -> pd.DataFrame:
+        """
+        FIX #3: Apply refined revenue penalty - distinguish structural vs cyclical decline.
+
+        Penalize STRUCTURAL decline only (revenue decline + margin compression).
+        Do NOT penalize cyclical companies with intact pricing power (stable/expanding margins).
+
+        Args:
+            df: DataFrame with revenue_growth_3y and margin_trajectory columns
+            company_type: 'non_financial', 'financial', or 'reit'
+
+        Returns:
+            DataFrame with revenue_penalty applied to quality_score_0_100
+        """
+        if 'revenue_growth_3y' not in df.columns or len(df) == 0:
+            return df
+
+        df['revenue_penalty'] = 0  # Default: no penalty
+
+        # Check margin trajectory (from guardrails)
+        def is_margin_compressing(row):
+            """Check if gross margin is compressing (structural issue)"""
+            margin_traj = row.get('margin_trajectory', {})
+            if isinstance(margin_traj, dict):
+                gross_traj = margin_traj.get('gross_margin_trajectory', 'Unknown')
+                return gross_traj == 'Compressing'
+            return False  # If no data, assume not compressing (benefit of doubt)
+
+        # Apply penalty ONLY if revenue decline AND margin compressing (structural)
+        for idx, row in df.iterrows():
+            revenue_growth = row.get('revenue_growth_3y', 0)
+            margin_compress = is_margin_compressing(row)
+
+            # STRUCTURAL decline: Revenue down + margins compressing
+            if revenue_growth < 0 and margin_compress:
+                if revenue_growth < -10:
+                    df.loc[idx, 'revenue_penalty'] = 30  # Severe structural decline
+                elif revenue_growth < -5:
+                    df.loc[idx, 'revenue_penalty'] = 20  # Moderate structural decline
+                else:
+                    df.loc[idx, 'revenue_penalty'] = 10  # Mild structural decline
+            # CYCLICAL decline: Revenue down but margins stable/expanding
+            # NO PENALTY - Company reducing output to maintain pricing power = smart management
+            elif revenue_growth < -10 and not margin_compress:
+                # Only apply minimal penalty for EXTREME cyclical decline (>10%)
+                df.loc[idx, 'revenue_penalty'] = 5  # Minimal penalty
+
+        # Apply penalty to quality score
+        df['quality_score_0_100'] = (df['quality_score_0_100'] - df['revenue_penalty']).clip(lower=0, upper=100)
+
+        # Logging
+        structural_decline = df[
+            (df['revenue_growth_3y'] < -5) &
+            (df['revenue_penalty'] >= 20)  # Indicates margin compression detected
+        ]
+        if len(structural_decline) > 0:
+            logger.warning(f"⚠️ {company_type}: Found {len(structural_decline)} 'structural decline' companies (revenue + margins down). "
+                          f"Applied -20 to -30 point penalty. Examples: {structural_decline['ticker'].head(3).tolist()}")
+
+        cyclical_decline = df[
+            (df['revenue_growth_3y'] < -5) &
+            (df['revenue_penalty'] < 20)  # No major penalty = margins intact
+        ]
+        if len(cyclical_decline) > 0:
+            logger.info(f"ℹ️  {company_type}: Found {len(cyclical_decline)} 'cyclical decline' companies (revenue down, margins intact). "
+                       f"Minimal/no penalty. Examples: {cyclical_decline['ticker'].head(3).tolist()}")
+
+        return df
+
+    # =====================================
     # DECISION LOGIC
     # =====================================
 
@@ -513,6 +550,15 @@ class ScoringEngine:
             quality = row.get('quality_score_0_100', 0)
             status = row.get('guardrail_status', 'AMBAR')
 
+            # FIX #2: CRITICAL - Force AVOID if poor cash conversion
+            # Earnings not converting to cash = manipulation risk
+            cash_conversion = row.get('cash_conversion', {})
+            if isinstance(cash_conversion, dict):
+                fcf_ni_avg = cash_conversion.get('fcf_to_ni_avg_8q', 100)
+                if fcf_ni_avg < 50 and status != 'ROJO':
+                    # Hard stop: FCF/NI < 50% = earnings quality concern
+                    return 'AVOID'
+
             # ROJO = Auto AVOID (accounting red flags)
             if self.exclude_reds and status == 'ROJO':
                 return 'AVOID'
@@ -527,9 +573,14 @@ class ScoringEngine:
             if quality >= self.threshold_buy_quality_exceptional and composite >= 60:
                 return 'BUY'
 
+            # FIX #5: Good score + AMBAR (if score very high)
+            # High score (75+) overrides minor accounting concerns
+            if composite >= 75 and status == 'AMBAR':
+                return 'BUY'
+
             # Good score + Clean guardrails = BUY
-            # (top 35% with no accounting concerns)
-            if composite >= self.threshold_buy and status == 'VERDE':
+            # FIX #5: Raised threshold from 65 to 70 for VERDE-only BUY
+            if composite >= 70 and status == 'VERDE':
                 return 'BUY'
 
             # Middle tier = MONITOR (watch list)
@@ -608,3 +659,143 @@ class ScoringEngine:
             return "p60-80"
         else:
             return "p>80"
+
+    # =====================================
+    # FIX #1: TECHNICAL VETO INTEGRATION
+    # =====================================
+
+    def apply_technical_veto(self, df_fundamental: pd.DataFrame, df_technical: pd.DataFrame) -> pd.DataFrame:
+        """
+        FIX #1: Integrate technical analysis to veto or upgrade fundamental decisions.
+
+        Combined Signal Rules:
+        - Fund BUY + Tech BUY (≥70) → STRONG_BUY (highest confidence)
+        - Fund BUY + Tech HOLD (40-70) → BUY (proceed with caution)
+        - Fund BUY + Tech SELL (<40) → MONITOR (downgrade, wait for setup)
+        - Fund MONITOR + Tech STRONG (≥75) AND Composite ≥60 → BUY (momentum upgrade)
+        - Fund AVOID → Force AVOID (no technical override)
+
+        Args:
+            df_fundamental: DataFrame with fundamental scores and 'decision' column
+            df_technical: DataFrame with 'technical_score' and 'technical_signal' columns
+
+        Returns:
+            DataFrame with 'combined_decision', 'combined_signal_strength', and 'technical_veto_applied'
+        """
+        # Merge fundamental + technical on ticker
+        df = df_fundamental.merge(
+            df_technical[['ticker', 'score', 'signal', 'overextension_risk']],
+            on='ticker',
+            how='left',
+            suffixes=('', '_tech')
+        )
+
+        # Rename technical columns for clarity
+        df.rename(columns={
+            'score': 'technical_score',
+            'signal': 'technical_signal',
+            'overextension_risk': 'technical_overextension'
+        }, inplace=True)
+
+        # Fill missing technical data with neutral values
+        df['technical_score'] = df['technical_score'].fillna(50)
+        df['technical_signal'] = df['technical_signal'].fillna('HOLD')
+        df['technical_overextension'] = df['technical_overextension'].fillna(0)
+
+        def combined_decision(row):
+            fund_decision = row.get('decision', 'AVOID')
+            tech_score = row.get('technical_score', 50)
+            tech_signal = row.get('technical_signal', 'HOLD')
+            composite = row.get('composite_0_100', 0)
+            guardrails = row.get('guardrail_status', 'AMBAR')
+            overextension = row.get('technical_overextension', 0)
+
+            # ROJO = Force AVOID (no override)
+            if guardrails == 'ROJO':
+                return {
+                    'combined_decision': 'AVOID',
+                    'signal_strength': 0,
+                    'veto_applied': False,
+                    'veto_reason': 'ROJO guardrails'
+                }
+
+            # Fund BUY decisions
+            if fund_decision == 'BUY':
+                # Tech BUY (≥70) = STRONG_BUY
+                if tech_score >= 70:
+                    return {
+                        'combined_decision': 'STRONG_BUY',
+                        'signal_strength': 10,
+                        'veto_applied': False,
+                        'veto_reason': None
+                    }
+                # Tech HOLD (40-70) = BUY (proceed with caution)
+                elif tech_score >= 40:
+                    return {
+                        'combined_decision': 'BUY',
+                        'signal_strength': 7,
+                        'veto_applied': False,
+                        'veto_reason': None
+                    }
+                # Tech SELL (<40) = MONITOR (downgrade, wait for setup)
+                else:
+                    return {
+                        'combined_decision': 'MONITOR',
+                        'signal_strength': 3,
+                        'veto_applied': True,
+                        'veto_reason': f'Technical SELL (score {tech_score:.0f}) vetoed fundamental BUY'
+                    }
+
+            # Fund MONITOR decisions
+            elif fund_decision == 'MONITOR':
+                # Tech STRONG (≥75) + Composite ≥60 = BUY (momentum upgrade)
+                if tech_score >= 75 and composite >= 60:
+                    return {
+                        'combined_decision': 'BUY',
+                        'signal_strength': 6,
+                        'veto_applied': True,
+                        'veto_reason': f'Strong technical momentum (score {tech_score:.0f}) upgraded MONITOR to BUY'
+                    }
+                # Otherwise keep MONITOR
+                else:
+                    return {
+                        'combined_decision': 'MONITOR',
+                        'signal_strength': 4,
+                        'veto_applied': False,
+                        'veto_reason': None
+                    }
+
+            # Fund AVOID = Force AVOID (no technical override)
+            else:
+                return {
+                    'combined_decision': 'AVOID',
+                    'signal_strength': 0,
+                    'veto_applied': False,
+                    'veto_reason': None
+                }
+
+        # Apply combined decision logic
+        combined_results = df.apply(combined_decision, axis=1, result_type='expand')
+        df['combined_decision'] = combined_results['combined_decision']
+        df['signal_strength'] = combined_results['signal_strength']
+        df['technical_veto_applied'] = combined_results['veto_applied']
+        df['veto_reason'] = combined_results['veto_reason']
+
+        # Log veto statistics
+        vetoed_buy_to_monitor = len(df[
+            (df['decision'] == 'BUY') &
+            (df['combined_decision'] == 'MONITOR') &
+            (df['technical_veto_applied'] == True)
+        ])
+        upgraded_monitor_to_buy = len(df[
+            (df['decision'] == 'MONITOR') &
+            (df['combined_decision'] == 'BUY') &
+            (df['technical_veto_applied'] == True)
+        ])
+
+        if vetoed_buy_to_monitor > 0:
+            logger.warning(f"⚠️ Technical veto: {vetoed_buy_to_monitor} BUY signals downgraded to MONITOR (poor technical setup)")
+        if upgraded_monitor_to_buy > 0:
+            logger.info(f"✅ Momentum upgrade: {upgraded_monitor_to_buy} MONITOR signals upgraded to BUY (strong technical)")
+
+        return df
