@@ -555,7 +555,7 @@ class ScoringEngine:
             cash_conversion = row.get('cash_conversion', {})
             if isinstance(cash_conversion, dict):
                 fcf_ni_avg = cash_conversion.get('fcf_to_ni_avg_8q', 100)
-                if fcf_ni_avg < 50 and status != 'ROJO':
+                if fcf_ni_avg is not None and fcf_ni_avg < 50 and status != 'ROJO':
                     # Hard stop: FCF/NI < 50% = earnings quality concern
                     return 'AVOID'
 
