@@ -216,8 +216,8 @@ class EnhancedTechnicalAnalyzer:
             )
             warnings.extend(overext_warnings)  # Add overextension warnings
 
-            # 14. Generate signal
-            signal = self._generate_signal(total_score, trend_data, market_regime)
+            # 14. Generate signal (FIX #6: Pass overextension_risk for veto logic)
+            signal = self._generate_signal(total_score, trend_data, market_regime, overextension_risk)
 
             # 15. Generate risk management recommendations (NEW)
             # Get additional data for SmartDynamicStopLoss
@@ -1001,7 +1001,7 @@ class EnhancedTechnicalAnalyzer:
     # SIGNAL GENERATION
     # ============================================================================
 
-    def _generate_signal(self, score: float, trend_data: Dict, regime: str) -> str:
+    def _generate_signal(self, score: float, trend_data: Dict, regime: str, overextension_risk: int = 0) -> str:
         """
         Generate BUY/HOLD/SELL signal.
 
@@ -1010,10 +1010,27 @@ class EnhancedTechnicalAnalyzer:
         - HOLD: score 50-75 OR mixed signals
         - SELL: score < 50
 
+        FIX #6: Overextension Risk Veto
+        - IF overextension_risk > 6 (EXTREME) AND score < 80 → Force HOLD
+        - Only allow BUY with EXTREME overextension if score is exceptional (≥80)
+        - Prevents buying into parabolic moves that are due for 20-40% correction
+
+        Args:
+            score: Technical score 0-100
+            trend_data: Trend analysis dictionary
+            regime: Market regime (BULL/BEAR/SIDEWAYS)
+            overextension_risk: Overextension risk score 0-10
+
         Returns:
             'BUY' | 'HOLD' | 'SELL'
         """
         is_uptrend = trend_data.get('status') == 'UPTREND'
+
+        # FIX #6: Overextension veto - Force HOLD if extreme overextension + non-exceptional score
+        if overextension_risk > 6 and score < 80:
+            logger.info(f"⚠️ Overextension veto applied: risk={overextension_risk}/10, score={score:.0f}/100. "
+                       f"Forcing HOLD instead of BUY (wait for pullback to MA200)")
+            return 'HOLD'  # Wait for better entry
 
         if score >= 75 and is_uptrend:
             return 'BUY'
