@@ -978,21 +978,14 @@ def display_entry_strategy(entry_strategy):
 
 def display_take_profit(profit_taking):
     """
-    Display professional Take Profit strategies with tier-based asymmetric approach.
+    Display professional Take Profit strategies with modern, interactive UI.
 
     Three strategies:
     - Compounder (Tier 1): Hold forever, only trailing stop
     - Swing (Tier 2): 3R rule, scale at targets
     - Sniper (Tier 3): Aggressive 2R/4R scaling
     """
-    # Display explanatory note about tier systems
-    st.info("""
-    **ℹ️ Note:** This uses **Quality Tier** (fundamental-based) classification,
-    which is different from **Risk Tier** (volatility-based) used in Stop Loss.
-    A stock can have different tiers because they measure different things:
-    - **Risk Tier**: Based on price volatility and beta (technical)
-    - **Quality Tier**: Based on fundamental score and guardrails (business quality)
-    """)
+    import pandas as pd
 
     # Get core data
     strategy = profit_taking.get('strategy', 'N/A')
@@ -1006,122 +999,232 @@ def display_take_profit(profit_taking):
     rationale = profit_taking.get('rationale', '')
     override = profit_taking.get('override', False)
 
-    # Emergency override styling
+    # Tier-specific styling
+    tier_config = {
+        1: {
+            'icon': '🏛️',
+            'color': '#1E88E5',  # Blue
+            'bg_color': '#E3F2FD',
+            'strategy_emoji': '💎',
+            'recommendation': 'HOLD FOREVER - Only sell on fundamental deterioration'
+        },
+        2: {
+            'icon': '🏃',
+            'color': '#43A047',  # Green
+            'bg_color': '#E8F5E9',
+            'strategy_emoji': '⚖️',
+            'recommendation': 'SWING TRADE - Lock 3R, let rest run free'
+        },
+        3: {
+            'icon': '🚀',
+            'color': '#FB8C00',  # Orange
+            'bg_color': '#FFF3E0',
+            'strategy_emoji': '⚡',
+            'recommendation': 'AGGRESSIVE SCALING - Take profits early and often'
+        }
+    }
+
+    config = tier_config.get(tier, tier_config[2])
+
+    # ========== HEADER: Emergency Override or Normal Strategy ==========
     if override or 'EMERGENCY' in strategy or 'PARABOLIC' in strategy:
-        st.error(f"### 🔥 {strategy}")
-        st.warning(f"⚠️ **URGENT ACTION REQUIRED**")
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #FF6B6B 0%, #C92A2A 100%);
+                    padding: 20px; border-radius: 15px; margin-bottom: 20px;
+                    box-shadow: 0 4px 15px rgba(255,107,107,0.4);">
+            <h2 style="color: white; margin: 0; text-align: center;">🔥 {strategy}</h2>
+            <p style="color: white; margin: 10px 0 0 0; text-align: center; font-size: 18px;">
+                ⚠️ <b>URGENT ACTION REQUIRED</b>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        st.markdown(f"### {strategy}")
+        # Normal header with tier-specific gradient
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, {config['color']} 0%, {config['bg_color']} 100%);
+                    padding: 25px; border-radius: 15px; margin-bottom: 20px;
+                    border-left: 6px solid {config['color']};
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <h2 style="margin: 0; color: #1a1a1a;">
+                        {config['icon']} {strategy}
+                    </h2>
+                    <p style="margin: 8px 0 0 0; font-size: 14px; color: #666;">
+                        {tier_name}
+                    </p>
+                </div>
+                <div style="font-size: 60px; opacity: 0.3;">
+                    {config['strategy_emoji']}
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Display tier badge
-    tier_colors = {1: '🏛️', 2: '🏃', 3: '🚀'}
-    tier_icon = tier_colors.get(tier, '📊')
-    st.markdown(f"**{tier_icon} {tier_name}**")
-    st.caption("📊 *Quality-based classification (fundamental score + guardrails)*")
+    # ========== KEY METRICS ROW ==========
+    col1, col2, col3 = st.columns(3)
 
-    # Display philosophy
-    if philosophy:
-        st.info(f"**Philosophy:** {philosophy}")
-
-    # Display action recommendation
-    if action:
-        if override:
-            st.error(f"**📍 Recommended Action:** {action}")
+    with col1:
+        if action:
+            st.metric(
+                label="📍 Recommended Action",
+                value=action.split()[0] if action else "N/A",
+                help=action
+            )
         else:
-            st.success(f"**📍 Recommended Action:** {action}")
+            st.metric(label="📊 Tier", value=f"Quality Tier {tier}")
 
-    # Display Take Profit targets as table
+    with col2:
+        if keep_pct:
+            st.metric(
+                label="🎯 Keep % (Runner)",
+                value=f"{keep_pct}%",
+                help="Percentage to keep after taking profits"
+            )
+
+    with col3:
+        if 'take_profit_rule' in profit_taking:
+            rule = profit_taking['take_profit_rule']
+            st.metric(
+                label="📐 Rule",
+                value=rule.split()[0] if rule else "N/A",
+                help=rule
+            )
+
+    # ========== PHILOSOPHY & RECOMMENDATION ==========
+    if philosophy or config['recommendation']:
+        st.markdown(f"""
+        <div style="background-color: {config['bg_color']};
+                    padding: 15px; border-radius: 10px; margin: 20px 0;
+                    border-left: 4px solid {config['color']};">
+            <p style="margin: 0; font-size: 16px; color: #1a1a1a;">
+                <b>💡 Strategy Philosophy:</b><br>
+                {philosophy if philosophy else config['recommendation']}
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ========== TAKE PROFIT TARGETS - VISUAL CARDS ==========
     if targets and len(targets) > 0:
-        st.markdown("#### 🎯 Take Profit Targets")
+        st.markdown("### 🎯 Take Profit Targets")
 
-        import pandas as pd
-        table_data = []
-        for target in targets:
+        # Display targets as visual cards
+        for i, target in enumerate(targets):
             level = target.get('level', 'N/A')
             percent = target.get('percent', 0)
             price = target.get('price', 0)
             rationale_target = target.get('rationale', '')
             r_multiple = target.get('r_multiple', '')
 
-            # Format percent (handle both int/float and string percentages)
+            # Format values
             if isinstance(percent, str):
+                percent_val = int(percent.replace('%', '')) if '%' in percent else 0
                 percent_str = percent
             else:
+                percent_val = percent
                 percent_str = f"{percent}%"
 
-            # Format price
             if isinstance(price, (int, float)) and price > 0:
                 price_str = f"${price:.2f}"
             else:
                 price_str = str(price)
 
-            # Add R-multiple if available
-            level_display = level
-            if r_multiple:
-                level_display = f"{level} ({r_multiple}R)"
+            # Color gradient based on target number
+            card_colors = ['#4CAF50', '#2196F3', '#FF9800']
+            card_color = card_colors[min(i, len(card_colors)-1)]
 
-            table_data.append({
-                'Target': level_display,
-                'Sell %': percent_str,
-                'Price': price_str,
-                'Rationale': rationale_target
-            })
+            # Create visual card for each target
+            col_card1, col_card2 = st.columns([3, 1])
 
-        df_targets = pd.DataFrame(table_data)
-        st.dataframe(
-            df_targets,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                'Target': st.column_config.TextColumn('Target Level', width='medium'),
-                'Sell %': st.column_config.TextColumn('Sell %', width='small'),
-                'Price': st.column_config.TextColumn('Price', width='small'),
-                'Rationale': st.column_config.TextColumn('Why', width='large')
-            }
-        )
+            with col_card1:
+                st.markdown(f"""
+                <div style="background: linear-gradient(135deg, {card_color}15 0%, {card_color}05 100%);
+                            padding: 15px; border-radius: 10px; margin: 10px 0;
+                            border-left: 5px solid {card_color};
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 style="margin: 0; color: {card_color};">
+                                {level} {f'({r_multiple}R)' if r_multiple else ''}
+                            </h4>
+                            <p style="margin: 5px 0; color: #666; font-size: 14px;">
+                                {rationale_target if rationale_target else 'Take profit target'}
+                            </p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="margin: 0; font-size: 24px; font-weight: bold; color: {card_color};">
+                                {price_str}
+                            </p>
+                            <p style="margin: 0; font-size: 14px; color: #999;">
+                                Sell {percent_str}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-    # Display remaining position info
-    if keep_pct:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Keep % (Runner)", f"{keep_pct}%")
-        with col2:
-            if keep_stop:
-                st.metric("Trailing Stop", keep_stop)
+            with col_card2:
+                # Visual percentage indicator
+                st.markdown(f"""
+                <div style="text-align: center; padding: 15px;">
+                    <div style="font-size: 32px; font-weight: bold; color: {card_color};">
+                        {percent_str}
+                    </div>
+                    <div style="font-size: 12px; color: #999;">SELL</div>
+                </div>
+                """, unsafe_allow_html=True)
 
-    # Display R-multiple info if available
-    if 'risk_r' in profit_taking:
-        st.markdown(f"**💰 Risk (R):** {profit_taking['risk_r']} per share")
-    if 'take_profit_rule' in profit_taking:
-        st.caption(f"**Rule:** {profit_taking['take_profit_rule']}")
+    # ========== TRAILING STOP INFO ==========
+    if keep_stop:
+        st.markdown(f"""
+        <div style="background-color: #FFF9C4;
+                    padding: 15px; border-radius: 10px; margin: 20px 0;
+                    border-left: 4px solid #FBC02D;">
+            <p style="margin: 0;">
+                <b>🛡️ Trailing Stop for Runner:</b> {keep_stop}
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Display rationale
-    if rationale:
-        st.markdown("#### 📝 Strategic Rationale")
-        st.markdown(rationale)
+    # ========== ADDITIONAL INFO IN EXPANDERS ==========
+    with st.expander("📚 See Full Strategy Details", expanded=False):
 
-    # Display additional info based on tier
-    if 'examples' in profit_taking:
-        st.success(f"**📈 Historical Examples:** {profit_taking['examples']}")
+        # Tier explanation
+        st.markdown(f"""
+        **🎯 Tier Classification:**
+        - This uses **Quality Tier** (fundamental-based), different from **Risk Tier** (volatility-based)
+        - **Risk Tier**: Based on price volatility and beta (technical)
+        - **Quality Tier**: Based on fundamental score and guardrails (business quality)
+        """)
 
-    if 'exit_only_if' in profit_taking and profit_taking['exit_only_if']:
-        st.markdown("**🚪 Exit Only If:**")
-        for condition in profit_taking['exit_only_if']:
-            st.write(f"- {condition}")
+        st.markdown("---")
 
-    if 'free_ride' in profit_taking:
-        st.success(f"**💵 Free Ride:** {profit_taking['free_ride']}")
+        # Rationale
+        if rationale:
+            st.markdown(f"**📝 Strategic Rationale:**")
+            st.markdown(rationale)
 
-    if 'warning' in profit_taking and profit_taking['warning']:
-        st.warning(f"**⚠️ Warning:** {profit_taking['warning']}")
+        # Exit conditions for Tier 1
+        if 'exit_only_if' in profit_taking and profit_taking['exit_only_if']:
+            st.markdown("**🚪 Exit Only If:**")
+            for condition in profit_taking['exit_only_if']:
+                st.markdown(f"- {condition}")
 
-    # Display Tier-specific recommendations
-    if tier == 1:
-        st.info("**🏛️ Compounder Strategy:** These are \"forever holds\". Only fundamental deterioration or market structure breaks justify selling.")
-    elif tier == 2:
-        st.info("**🏃 Swing Strategy:** Lock in 3R to secure the win, then let the rest run free with trailing stop protection.")
-    elif tier == 3:
-        st.warning("**🚀 Sniper Strategy:** Speculative stocks reverse fast. Scale out aggressively - the last dollar, let someone else make it.")
+        # Free ride info
+        if 'free_ride' in profit_taking:
+            st.success(f"**💵 Free Ride:** {profit_taking['free_ride']}")
+
+        # Examples
+        if 'examples' in profit_taking:
+            st.info(f"**📈 Historical Examples:** {profit_taking['examples']}")
+
+        # R-multiple info
+        if 'risk_r' in profit_taking:
+            st.markdown(f"**💰 Risk (R):** {profit_taking['risk_r']} per share")
+
+        # Warning
+        if 'warning' in profit_taking and profit_taking['warning']:
+            st.warning(f"**⚠️ Warning:** {profit_taking['warning']}")
 
 
 st.set_page_config(
