@@ -131,7 +131,8 @@ class ScoringEngine:
             'cfo_to_ni',
             'interestCoverage',
             'cash_roa',    # NEW: Cash-based profitability
-            'moat_score'   # NEW: Competitive advantages (pricing power, operating leverage, ROIC persistence)
+            'moat_score',  # NEW: Competitive advantages (pricing power, operating leverage, ROIC persistence)
+            'revenue_growth_3y'  # CRITICAL: Revenue growth (prevent shrinking businesses from getting high scores)
         ]
         quality_lower_better = [
             'netDebt_ebitda',
@@ -203,6 +204,36 @@ class ScoringEngine:
         else:
             df['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
 
+        # CRITICAL FIX: Penalize shrinking businesses with declining revenues
+        # A company with 30% ROIC but -10% revenue growth is doing financial engineering (buybacks),
+        # not creating real value. Don't let it score 90/100.
+        #
+        # Research: Companies with declining sales AND high ROIC are often:
+        # - Shrinking TAM (mature/declining industry)
+        # - Market share loss (competitive pressure)
+        # - Buyback engineering (boosting ROIC artificially)
+        # - Not sustainable long-term compounders
+        if 'revenue_growth_3y' in df.columns:
+            # Apply aggressive penalty for negative revenue growth
+            df['revenue_penalty'] = 0  # Default: no penalty
+
+            # Progressive penalty based on severity of decline
+            df.loc[df['revenue_growth_3y'] < 0, 'revenue_penalty'] = 15   # -15 points for ANY decline
+            df.loc[df['revenue_growth_3y'] < -5, 'revenue_penalty'] = 25  # -25 points for >5% annual decline
+            df.loc[df['revenue_growth_3y'] < -10, 'revenue_penalty'] = 35 # -35 points for >10% annual decline
+
+            # Apply penalty to quality score
+            df['quality_score_0_100'] = (df['quality_score_0_100'] - df['revenue_penalty']).clip(lower=0, upper=100)
+
+            # Log warning for high-ROIC but shrinking businesses
+            shrinking_with_high_roic = df[
+                (df['revenue_growth_3y'] < -5) &
+                (df['roic_%'] > 25)
+            ]
+            if len(shrinking_with_roic) > 0:
+                logger.warning(f"⚠️ Found {len(shrinking_with_high_roic)} 'shrinking businesses' with high ROIC but declining sales (>5% decline). "
+                              f"Applied -25 to -35 point quality penalty. Examples: {shrinking_with_high_roic['ticker'].head(3).tolist()}")
+
         # Composite
         df['composite_0_100'] = (
             self.w_value * df['value_score_0_100'] +
@@ -260,6 +291,14 @@ class ScoringEngine:
                 df_fin_only['quality_score_0_100'] = df_fin_only[available_quality_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
             else:
                 df_fin_only['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
+
+            # CRITICAL FIX: Penalize shrinking financial businesses
+            if 'revenue_growth_3y' in df_fin_only.columns and len(df_fin_only) > 0:
+                df_fin_only['revenue_penalty'] = 0
+                df_fin_only.loc[df_fin_only['revenue_growth_3y'] < 0, 'revenue_penalty'] = 15
+                df_fin_only.loc[df_fin_only['revenue_growth_3y'] < -5, 'revenue_penalty'] = 25
+                df_fin_only.loc[df_fin_only['revenue_growth_3y'] < -10, 'revenue_penalty'] = 35
+                df_fin_only['quality_score_0_100'] = (df_fin_only['quality_score_0_100'] - df_fin_only['revenue_penalty']).clip(lower=0, upper=100)
 
             df_fin_only['composite_0_100'] = (
                 self.w_value * df_fin_only['value_score_0_100'] +
@@ -330,6 +369,14 @@ class ScoringEngine:
             df['quality_score_0_100'] = df[available_quality_cols].mean(axis=1, skipna=True).apply(self._zscore_to_percentile)
         else:
             df['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
+
+        # CRITICAL FIX: Penalize shrinking REIT businesses
+        if 'revenue_growth_3y' in df.columns and len(df) > 0:
+            df['revenue_penalty'] = 0
+            df.loc[df['revenue_growth_3y'] < 0, 'revenue_penalty'] = 15
+            df.loc[df['revenue_growth_3y'] < -5, 'revenue_penalty'] = 25
+            df.loc[df['revenue_growth_3y'] < -10, 'revenue_penalty'] = 35
+            df['quality_score_0_100'] = (df['quality_score_0_100'] - df['revenue_penalty']).clip(lower=0, upper=100)
 
         df['composite_0_100'] = (
             self.w_value * df['value_score_0_100'] +
