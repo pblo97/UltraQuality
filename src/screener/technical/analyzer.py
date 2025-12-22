@@ -2661,32 +2661,32 @@ class EnhancedTechnicalAnalyzer:
         Returns:
             (tier_number, tier_name, tier_config)
         """
-        # Tier configurations
+        # Tier configurations (RISK-BASED: volatility + beta classification)
         TIER_1_CONFIG = {
-            'name': 'Tier 1: Defensivo 🐢',
+            'name': 'RISK TIER 1: Defensivo 🐢',
             'initial_multiplier': 1.8,
             'trailing_multiplier': 2.0,
             'hard_cap_pct': 8.0,
             'anchor': 'SMA 50',
-            'description': 'Low volatility, stable companies'
+            'description': 'Low volatility, stable price movement'
         }
 
         TIER_2_CONFIG = {
-            'name': 'Tier 2: Core Growth 🏃',
+            'name': 'RISK TIER 2: Core Growth 🏃',
             'initial_multiplier': 2.5,
             'trailing_multiplier': 3.0,
             'hard_cap_pct': 15.0,
             'anchor': 'Swing Low 10d',
-            'description': 'Moderate volatility, balanced growth'
+            'description': 'Moderate volatility, balanced risk/reward'
         }
 
         TIER_3_CONFIG = {
-            'name': 'Tier 3: Especulativo 🚀',
+            'name': 'RISK TIER 3: Especulativo 🚀',
             'initial_multiplier': 3.0,
             'trailing_multiplier': 3.5,
             'hard_cap_pct': 25.0,
             'anchor': 'EMA 20',
-            'description': 'High volatility, high momentum'
+            'description': 'High volatility, aggressive trading'
         }
 
         # Classification logic
@@ -3319,11 +3319,11 @@ class EnhancedTechnicalAnalyzer:
         return 3
 
     def _get_tier_name(self, tier):
-        """Get human-readable tier name."""
+        """Get human-readable tier name for QUALITY-BASED classification."""
         tier_names = {
-            1: 'TIER 1 - Elite Compounder',
-            2: 'TIER 2 - Quality Value Momentum',
-            3: 'TIER 3 - Speculative'
+            1: 'QUALITY TIER 1 - Elite Compounder',
+            2: 'QUALITY TIER 2 - Quality Value Momentum',
+            3: 'QUALITY TIER 3 - Speculative'
         }
         return tier_names.get(tier, 'Unknown')
 

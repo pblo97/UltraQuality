@@ -688,6 +688,8 @@ def display_smart_stop_loss(stop_loss_data, current_price):
 **{tier_name}** {tier_emoji}
 
 {tier_description}
+
+📊 *Risk-based classification (volatility + beta)*
 """)
 
         # === MARKET STATE BOX (NEW - More Visual) ===
@@ -983,6 +985,15 @@ def display_take_profit(profit_taking):
     - Swing (Tier 2): 3R rule, scale at targets
     - Sniper (Tier 3): Aggressive 2R/4R scaling
     """
+    # Display explanatory note about tier systems
+    st.info("""
+    **ℹ️ Note:** This uses **Quality Tier** (fundamental-based) classification,
+    which is different from **Risk Tier** (volatility-based) used in Stop Loss.
+    A stock can have different tiers because they measure different things:
+    - **Risk Tier**: Based on price volatility and beta (technical)
+    - **Quality Tier**: Based on fundamental score and guardrails (business quality)
+    """)
+
     # Get core data
     strategy = profit_taking.get('strategy', 'N/A')
     tier = profit_taking.get('tier', 'N/A')
@@ -1006,6 +1017,7 @@ def display_take_profit(profit_taking):
     tier_colors = {1: '🏛️', 2: '🏃', 3: '🚀'}
     tier_icon = tier_colors.get(tier, '📊')
     st.markdown(f"**{tier_icon} {tier_name}**")
+    st.caption("📊 *Quality-based classification (fundamental score + guardrails)*")
 
     # Display philosophy
     if philosophy:
