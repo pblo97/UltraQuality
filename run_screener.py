@@ -945,11 +945,11 @@ def display_entry_strategy(entry_strategy):
 
     # Strategy header with visual card
     strategy_config = {
-        'SNIPER': {'emoji': '🎯', 'color': '#dc3545', 'bg': '#f8d7da'},
+        'SNIPER': {'icon': '<i class="bi bi-crosshair"></i>', 'color': '#dc3545', 'bg': '#f8d7da'},
         'BREAKOUT': {'icon': '<i class="bi bi-rocket-takeoff"></i>', 'color': '#28a745', 'bg': '#d4edda'},
-        'PYRAMID': {'emoji': '📊', 'color': '#007bff', 'bg': '#d1ecf1'},
-        'CONSERVATIVE': {'emoji': '🛡️', 'color': '#6c757d', 'bg': '#e2e3e5'},
-        'NONE': {'emoji': '⏸️', 'color': '#ffc107', 'bg': '#fff3cd'}
+        'PYRAMID': {'icon': '<i class="bi bi-bar-chart-steps"></i>', 'color': '#007bff', 'bg': '#d1ecf1'},
+        'CONSERVATIVE': {'icon': '<i class="bi bi-shield"></i>', 'color': '#6c757d', 'bg': '#e2e3e5'},
+        'NONE': {'icon': '<i class="bi bi-pause"></i>', 'color': '#ffc107', 'bg': '#fff3cd'}
     }
 
     config = strategy_config.get(strategy_type, {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': '#6c757d', 'bg': '#e2e3e5'})
@@ -958,7 +958,7 @@ def display_entry_strategy(entry_strategy):
     <div style='background: {config['bg']}; padding: 1.5rem; border-radius: 10px;
                 border-left: 6px solid {config['color']}; margin: 1rem 0;'>
         <h3 style='color: {config['color']}; margin-top: 0;'>
-            {config['emoji']} {strategy_name}
+            {config['icon']} {strategy_name}
         </h3>
         <div style='font-size: 0.9rem; color: #495057; margin-top: 0.5rem;'>
             <strong>Market State:</strong> {state}
@@ -1116,7 +1116,7 @@ def display_take_profit(profit_taking):
                     </div>
                 </div>
                 <div style="font-size: 4rem; opacity: 0.25; color: white;">
-                    {config['strategy_emoji']}
+                    {config['strategy_icon']}
                 </div>
             </div>
         </div>
@@ -7027,12 +7027,12 @@ with tab7:
                     # Define state order and styling
                     state_config = {
                         'DOWNTREND': {'icon': '<i class="bi bi-graph-down"></i>', 'color': 'error', 'label': 'DOWNTREND (Evitar)', 'priority': 1},
-                        'PARABOLIC_CLIMAX': {'emoji': '', 'color': 'warning', 'label': 'PARABOLIC CLIMAX (Riesgo de corrección)', 'priority': 2},
-                        'CHOPPY_SIDEWAYS': {'emoji': '〰️', 'color': 'info', 'label': 'CHOPPY/SIDEWAYS (Esperar)', 'priority': 3},
-                        'PULLBACK_FLAG': {'emoji': '', 'color': 'success', 'label': 'PULLBACK/FLAG (Oportunidad)', 'priority': 4},
-                        'ENTRY_BREAKOUT': {'emoji': '', 'color': 'success', 'label': 'ENTRY BREAKOUT (Comprar)', 'priority': 5},
-                        'POWER_TREND': {'emoji': '', 'color': 'success', 'label': 'POWER TREND (Tendencia fuerte)', 'priority': 6},
-                        'BLUE_SKY_ATH': {'emoji': '☁️', 'color': 'success', 'label': 'BLUE SKY ATH (Sin resistencia)', 'priority': 7},
+                        'PARABOLIC_CLIMAX': {'icon': '<i class="bi bi-arrow-up-circle"></i>', 'color': 'warning', 'label': 'PARABOLIC CLIMAX (Riesgo de corrección)', 'priority': 2},
+                        'CHOPPY_SIDEWAYS': {'icon': '<i class="bi bi-arrows-move"></i>', 'color': 'info', 'label': 'CHOPPY/SIDEWAYS (Esperar)', 'priority': 3},
+                        'PULLBACK_FLAG': {'icon': '<i class="bi bi-flag"></i>', 'color': 'success', 'label': 'PULLBACK/FLAG (Oportunidad)', 'priority': 4},
+                        'ENTRY_BREAKOUT': {'icon': '<i class="bi bi-door-open"></i>', 'color': 'success', 'label': 'ENTRY BREAKOUT (Comprar)', 'priority': 5},
+                        'POWER_TREND': {'icon': '<i class="bi bi-lightning"></i>', 'color': 'success', 'label': 'POWER TREND (Tendencia fuerte)', 'priority': 6},
+                        'BLUE_SKY_ATH': {'icon': '<i class="bi bi-cloud"></i>', 'color': 'success', 'label': 'BLUE SKY ATH (Sin resistencia)', 'priority': 7},
                         'UNKNOWN': {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': 'info', 'label': 'UNKNOWN', 'priority': 99},
                         'ERROR': {'emoji': '❌', 'color': 'error', 'label': 'ERROR', 'priority': 100}
                     }
@@ -7056,13 +7056,13 @@ with tab7:
                                 with col:
                                     # Use appropriate streamlit component for color
                                     if config['color'] == 'error':
-                                        st.error(f"**{config['emoji']} {config['label']}** ({len(tickers)})")
+                                        st.error(f"**{config['icon']} {config['label']}** ({len(tickers)})")
                                     elif config['color'] == 'warning':
-                                        st.warning(f"**{config['emoji']} {config['label']}** ({len(tickers)})")
+                                        st.warning(f"**{config['icon']} {config['label']}** ({len(tickers)})")
                                     elif config['color'] == 'success':
-                                        st.success(f"**{config['emoji']} {config['label']}** ({len(tickers)})")
+                                        st.success(f"**{config['icon']} {config['label']}** ({len(tickers)})")
                                     else:
-                                        st.info(f"**{config['emoji']} {config['label']}** ({len(tickers)})")
+                                        st.info(f"**{config['icon']} {config['label']}** ({len(tickers)})")
 
                                     # Show tickers as comma-separated list (max 10 per line)
                                     ticker_display = ', '.join(tickers[:15])
@@ -7489,7 +7489,7 @@ with tab7:
                                         padding: 1.5rem; border-radius: 12px; color: white;
                                         box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-height: 280px;'>
                                 <div style='text-align: center;'>
-                                    <div style='font-size: 3rem; margin-bottom: 0.5rem;'>{reg_info['emoji']}</div>
+                                    <div style='font-size: 3rem; margin-bottom: 0.5rem;'>{reg_info['icon']}</div>
                                     <div style='font-size: 1.3rem; font-weight: 700; margin-bottom: 1rem;'>{reg_info['label']}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
@@ -7536,7 +7536,7 @@ with tab7:
                                         box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-height: 280px;'>
                                 <div style='text-align: center; margin-bottom: 1rem;'>
                                     <div style='font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;'>SECTOR RELATIVE STRENGTH</div>
-                                    <div style='font-size: 2.5rem;'>{verdict_emoji}</div>
+                                    <div style='font-size: 2.5rem;'>{verdict_icon}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
                                     <div style='font-size: 0.75rem; opacity: 0.9;'>SECTOR vs MARKET</div>
@@ -7592,7 +7592,7 @@ with tab7:
                                         box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-height: 280px;'>
                                 <div style='text-align: center; margin-bottom: 1rem;'>
                                     <div style='font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;'>TECHNICAL HEALTH</div>
-                                    <div style='font-size: 2.5rem;'>{trend_info['emoji']}</div>
+                                    <div style='font-size: 2.5rem;'>{trend_info['icon']}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
                                     <div style='font-size: 0.75rem; opacity: 0.9;'>TREND</div>
@@ -7605,7 +7605,7 @@ with tab7:
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px;'>
                                     <div style='font-size: 0.75rem; opacity: 0.9;'>VOLUME</div>
-                                    <div style='font-size: 1.3rem; font-weight: 700;'>{vol_info['emoji']} {volume_profile}</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700;'>{vol_info['icon']} {volume_profile}</div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
@@ -7666,11 +7666,11 @@ with tab7:
                             momentum_status = full_analysis.get('momentum_status', 'N/A')
 
                             consist_config = {
-                                'VERY_CONSISTENT': {'color': '#28a745', 'emoji': '💎', 'label': 'VERY CONSISTENT'},
-                                'CONSISTENT': {'color': '#28a745', 'emoji': '✅', 'label': 'CONSISTENT'},
-                                'MODERATE': {'color': '#ffc107', 'emoji': '⚠️', 'label': 'MODERATE'},
-                                'CHOPPY': {'color': '#dc3545', 'emoji': '⚠️', 'label': 'CHOPPY'},
-                                'INCONSISTENT': {'color': '#dc3545', 'emoji': '❌', 'label': 'INCONSISTENT'}
+                                'VERY_CONSISTENT': {'color': '#28a745', 'icon': '<i class="bi bi-gem"></i>', 'label': 'VERY CONSISTENT'},
+                                'CONSISTENT': {'color': '#28a745', 'icon': '<i class="bi bi-check-circle"></i>', 'label': 'CONSISTENT'},
+                                'MODERATE': {'color': '#ffc107', 'icon': '<i class="bi bi-exclamation-triangle"></i>', 'label': 'MODERATE'},
+                                'CHOPPY': {'color': '#dc3545', 'icon': '<i class="bi bi-exclamation-triangle"></i>', 'label': 'CHOPPY'},
+                                'INCONSISTENT': {'color': '#dc3545', 'icon': '<i class="bi bi-x-circle"></i>', 'label': 'INCONSISTENT'}
                             }
 
                             consist_info = consist_config.get(consistency, {'color': '#6c757d', 'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'label': consistency})
@@ -7679,7 +7679,7 @@ with tab7:
                             st.markdown(f"""
                             <div style='background: {consist_info['color']}; padding: 1.25rem; border-radius: 10px;
                                         text-align: center; color: white; margin-bottom: 1rem;'>
-                                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>{consist_info['emoji']}</div>
+                                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>{consist_info['icon']}</div>
                                 <div style='font-size: 1.2rem; font-weight: 700;'>{consist_info['label']}</div>
                                 <div style='font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem;'>Consistency</div>
                             </div>
