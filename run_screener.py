@@ -881,15 +881,31 @@ def display_entry_strategy(entry_strategy):
     - Invalidation levels
     - Structural support/resistance levels
     """
-    st.markdown("###  Entry Strategy")
+    # Modern section header
+    st.markdown("""
+    <div style='background: linear-gradient(to right, #11998e, #38ef7d); padding: 1rem;
+                border-radius: 8px; margin-bottom: 1rem;'>
+        <h3 style='margin: 0; color: white;'>🎯 Entry Strategy & Execution</h3>
+        <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+            State-based entry plan with specific price levels
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Check for VETO
     if entry_strategy.get('veto_active'):
-        st.error(f"**VETO ACTIVE:** {entry_strategy.get('strategy', 'NO ENTRY')}")
+        st.markdown("""
+        <div style='background: #f8d7da; padding: 1.5rem; border-radius: 10px;
+                    border-left: 6px solid #dc3545; margin: 1rem 0;'>
+            <h3 style='color: #721c24; margin-top: 0;'>🛑 VETO ACTIVE - NO ENTRY</h3>
+            <div style='color: #721c24;'>
+                <strong>Strategy:</strong> {}</div>
+        </div>
+        """.format(entry_strategy.get('strategy', 'NO ENTRY')), unsafe_allow_html=True)
         st.write(f"**Rationale:** {entry_strategy.get('rationale', 'N/A')}")
         market_state = entry_strategy.get('market_state', 'Unknown')
         if market_state == 'PARABOLIC_CLIMAX':
-            st.caption("📚 Research: Daniel & Moskowitz (2016) - Momentum Crashes")
+            st.caption("📚 Academic Evidence: Daniel & Moskowitz (2016) - Momentum Crashes")
         return
 
     # Get strategy details
@@ -901,20 +917,37 @@ def display_entry_strategy(entry_strategy):
     invalidation = entry_strategy.get('invalidation', {})
     structural_levels = entry_strategy.get('structural_levels', {})
 
-    # Strategy header with emoji
-    strategy_emoji = {
-        'SNIPER': '',
-        'BREAKOUT': '',
-        'PYRAMID': '',
-        'CONSERVATIVE': '',
-        'NONE': '⏸️'
-    }.get(strategy_type, '')
+    # Strategy header with visual card
+    strategy_config = {
+        'SNIPER': {'emoji': '🎯', 'color': '#dc3545', 'bg': '#f8d7da'},
+        'BREAKOUT': {'emoji': '🚀', 'color': '#28a745', 'bg': '#d4edda'},
+        'PYRAMID': {'emoji': '📊', 'color': '#007bff', 'bg': '#d1ecf1'},
+        'CONSERVATIVE': {'emoji': '🛡️', 'color': '#6c757d', 'bg': '#e2e3e5'},
+        'NONE': {'emoji': '⏸️', 'color': '#ffc107', 'bg': '#fff3cd'}
+    }
 
-    st.markdown(f"## {strategy_emoji} {strategy_name}")
-    st.caption(f"**State:** {state}")
+    config = strategy_config.get(strategy_type, {'emoji': '❓', 'color': '#6c757d', 'bg': '#e2e3e5'})
 
-    # Rationale box
-    st.info(f"**Execution Plan:** {rationale}")
+    st.markdown(f"""
+    <div style='background: {config['bg']}; padding: 1.5rem; border-radius: 10px;
+                border-left: 6px solid {config['color']}; margin: 1rem 0;'>
+        <h3 style='color: {config['color']}; margin-top: 0;'>
+            {config['emoji']} {strategy_name}
+        </h3>
+        <div style='font-size: 0.9rem; color: #495057; margin-top: 0.5rem;'>
+            <strong>Market State:</strong> {state}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Rationale box with icon
+    st.markdown(f"""
+    <div style='background: #e7f3ff; padding: 1rem; border-radius: 8px;
+                border-left: 4px solid #2196f3; margin: 1rem 0;'>
+        <strong style='color: #1976d2;'>📋 Execution Plan:</strong>
+        <div style='margin-top: 0.5rem; color: #495057;'>{rationale}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # ========== TRANCHES TABLE ==========
     if tranches:
@@ -1801,8 +1834,16 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         portfolio_size: Total portfolio size in dollars (default: $100k)
         max_risk_dollars: Maximum $ to risk per trade (default: $1k = 1% of $100k)
     """
-    st.markdown("###  Position Sizing Recommendation")
-    st.caption("**Dual Constraint System:** MIN(Quality-Based, Risk-Based)")
+    # Modern section header
+    st.markdown("""
+    <div style='background: linear-gradient(to right, #667eea, #764ba2); padding: 1rem;
+                border-radius: 8px; margin-bottom: 1rem;'>
+        <h3 style='margin: 0; color: white;'>💰 Position Sizing Calculator</h3>
+        <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+            Dual Constraint System: MIN(Quality-Based, Risk-Based)
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Check for VETO
     if pos_sizing.get('veto_active'):
@@ -1850,37 +1891,78 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
 
     # ========== DISPLAY ==========
 
-    # Show dual calculation in expander first
-    with st.expander("Dual Constraint Calculation", expanded=True):
-        col_a, col_b, col_final = st.columns(3)
+    # Big visual result card first
+    st.markdown(f"""
+    <div style='background: white; padding: 2rem; border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 1.5rem;
+                border-left: 6px solid #28a745; text-align: center;'>
+        <div style='font-size: 0.9rem; color: #6c757d; margin-bottom: 0.5rem;'>RECOMMENDED POSITION SIZE</div>
+        <div style='font-size: 3rem; font-weight: 700; color: #28a745; margin: 0.5rem 0;'>
+            ${final_dollars:,.0f}
+        </div>
+        <div style='font-size: 1.3rem; color: #495057; margin-bottom: 1rem;'>
+            {final_pct_adjusted:.1f}% of portfolio
+        </div>
+        <div style='font-size: 0.85rem; color: #6c757d;'>
+            Limited by: <strong>{constraint}</strong> constraint
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        with col_a:
-            st.markdown("**Método A: Quality-Based**")
-            st.metric("Quality Allocation", f"{final_pct:.1f}%")
-            st.caption(f"${quality_based_dollars:,.0f}")
-            st.caption(f"Tier: {quality_tier}")
+    # Show dual calculation with visual cards
+    st.markdown("#### Calculation Breakdown")
+    col_a, col_b, col_final = st.columns(3)
 
-        with col_b:
-            st.markdown("**Método B: Risk-Based**")
-            if risk_based_dollars is not None and stop_loss_pct is not None:
-                risk_pct = (risk_based_dollars / portfolio_size) * 100
-                st.metric("Risk Allocation", f"{risk_pct:.1f}%")
-                st.caption(f"${risk_based_dollars:,.0f}")
-                st.caption(f"Stop: {stop_loss_pct:.1f}%")
-            else:
-                st.warning("N/A")
-                st.caption("No stop loss data")
+    with col_a:
+        st.markdown("""
+        <div style='background: #e3f2fd; padding: 1rem; border-radius: 8px;
+                    border: 2px solid #2196f3; margin-bottom: 0.5rem;'>
+            <div style='font-size: 0.85rem; color: #1976d2; font-weight: 600;'>METHOD A: Quality-Based</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.metric("Allocation", f"{final_pct:.1f}%", delta=f"${quality_based_dollars:,.0f}")
+        st.caption(f"Quality Tier: **{quality_tier}**")
 
-        with col_final:
-            st.markdown("** FINAL (MIN)**")
-            st.metric("Position Size", f"{final_pct_adjusted:.1f}%",
-                     delta=f"{constraint} constraint")
-            st.caption(f"${final_dollars:,.0f}")
+        # Visual progress bar for quality allocation
+        quality_progress = min(final_pct / 10, 1.0)  # Normalize to 0-1 (assuming max 10%)
+        st.progress(quality_progress)
 
-            if constraint == "Risk":
-                st.info(" Risk limit is more conservative")
-            else:
-                st.info(" Quality limit is more conservative")
+    with col_b:
+        st.markdown("""
+        <div style='background: #fff3e0; padding: 1rem; border-radius: 8px;
+                    border: 2px solid #ff9800; margin-bottom: 0.5rem;'>
+            <div style='font-size: 0.85rem; color: #f57c00; font-weight: 600;'>METHOD B: Risk-Based</div>
+        </div>
+        """, unsafe_allow_html=True)
+        if risk_based_dollars is not None and stop_loss_pct is not None:
+            risk_pct = (risk_based_dollars / portfolio_size) * 100
+            st.metric("Allocation", f"{risk_pct:.1f}%", delta=f"${risk_based_dollars:,.0f}")
+            st.caption(f"Stop Loss: **{abs(stop_loss_pct):.1f}%**")
+
+            # Visual progress bar for risk allocation
+            risk_progress = min(risk_pct / 10, 1.0)
+            st.progress(risk_progress)
+        else:
+            st.warning("⚠️ N/A")
+            st.caption("No stop loss data available")
+
+    with col_final:
+        st.markdown("""
+        <div style='background: #e8f5e9; padding: 1rem; border-radius: 8px;
+                    border: 2px solid #4caf50; margin-bottom: 0.5rem;'>
+            <div style='font-size: 0.85rem; color: #388e3c; font-weight: 600;'>✓ FINAL (MIN)</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.metric("Position Size", f"{final_pct_adjusted:.1f}%", delta=f"${final_dollars:,.0f}")
+
+        # Visual progress bar for final allocation
+        final_progress = min(final_pct_adjusted / 10, 1.0)
+        st.progress(final_progress)
+
+        if constraint == "Risk":
+            st.info("🛡️ Risk limit is more conservative")
+        else:
+            st.info("⭐ Quality limit is more conservative")
 
     # Display quality tier and base allocation
     st.markdown("---")
@@ -1902,23 +1984,87 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     if bear_market:
         st.warning(" **Bear Market Override:** All positions halved")
 
-    # Final recommendation with examples
+    # Execution details card
     st.markdown("---")
-    st.success(f"** Final Recommendation: ${final_dollars:,.0f}** ({final_pct_adjusted:.1f}% of portfolio)")
+    st.markdown("#### 📋 Execution Plan")
 
     # Calculate shares (assuming we have current price in stop_loss_data)
     if stop_loss_data and stop_loss_data.get('current_price'):
         current_price = stop_loss_data.get('current_price', 0)
         if current_price > 0:
             shares = int(final_dollars / current_price)
-            st.caption(f"Approximate shares to buy: **{shares}** @ ${current_price:.2f}")
+            actual_cost = shares * current_price
 
-    # Rationale
-    st.info(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
+            # Visual execution card
+            st.markdown(f"""
+            <div style='background: linear-gradient(to right, #f8f9fa, #e9ecef); padding: 1.5rem;
+                        border-radius: 10px; border: 2px solid #667eea; margin-bottom: 1rem;'>
+                <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;'>
+                    <div>
+                        <div style='font-size: 0.8rem; color: #6c757d;'>SHARES TO BUY</div>
+                        <div style='font-size: 1.8rem; font-weight: 600; color: #495057;'>{shares:,}</div>
+                    </div>
+                    <div>
+                        <div style='font-size: 0.8rem; color: #6c757d;'>PRICE PER SHARE</div>
+                        <div style='font-size: 1.8rem; font-weight: 600; color: #495057;'>${current_price:.2f}</div>
+                    </div>
+                    <div>
+                        <div style='font-size: 0.8rem; color: #6c757d;'>TOTAL INVESTMENT</div>
+                        <div style='font-size: 1.8rem; font-weight: 600; color: #667eea;'>${actual_cost:,.0f}</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Trading fee estimate
+            estimated_fee = actual_cost * 0.001  # 0.1% typical commission
+            st.caption(f"💡 Estimated trading fees: ${estimated_fee:.2f} (0.1% assumption)")
+    else:
+        st.info("ℹ️ Current price not available. Use recommended dollar amount: **${:,.0f}**".format(final_dollars))
+
+    # Rationale box
+    st.markdown("#### 📝 Sizing Rationale")
+    st.info(pos_sizing.get('rationale', 'N/A'))
+
+    # Adjustments summary
+    if penalties or bonuses or bear_market:
+        st.markdown("#### ⚖️ Position Adjustments")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if penalties:
+                st.markdown("**❌ Applied Penalties:**")
+                for penalty in penalties:
+                    st.markdown(f"  • {penalty}")
+
+        with col2:
+            if bonuses:
+                st.markdown("**✅ Applied Bonuses:**")
+                for bonus in bonuses:
+                    st.markdown(f"  • {bonus}")
+
+        if bear_market:
+            st.warning("🐻 **Bear Market Override:** All positions halved to reduce exposure")
 
     # Detailed breakdown (expandable)
-    with st.expander("Quality-Based Calculation Details"):
+    with st.expander("🔍 Detailed Quality-Based Calculation", expanded=False):
         st.caption(pos_sizing.get('calculation_breakdown', 'N/A'))
+
+    # Risk management reminder
+    st.markdown("---")
+    st.markdown("""
+    <div style='background: #fff3cd; padding: 1rem; border-radius: 8px;
+                border-left: 4px solid #ffc107;'>
+        <strong>⚠️ Risk Management Reminders:</strong>
+        <ul style='margin: 0.5rem 0 0 0; padding-left: 1.5rem;'>
+            <li>Never invest more than recommended position size</li>
+            <li>Always set a stop loss order after buying</li>
+            <li>Consider scaling in with 2-3 entries if position is large</li>
+            <li>Review total portfolio exposure before executing</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def get_market_regime_display(regime: str) -> str:
@@ -6514,17 +6660,48 @@ with tab8:
     """)
 
 with tab7:
-    st.header("Technical Analysis")
-
+    # Modern header with gradient
     st.markdown("""
-    Análisis técnico basado en **evidencia académica 2020-2024**:
-    -  **Momentum 12M** (Jegadeesh & Titman, Moskowitz)
-    -  **Sector Relative Strength** (Bretscher 2023, Arnott 2024)
-    -  **Trend MA200** (Brock et al. 1992)
-    -  **Volume Confirmation**
+    <div style='background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem;'>
+        <h2 style='margin: 0; color: white;'>Technical Analysis & Investment Strategy</h2>
+        <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
+            Evidence-based technical analysis with position sizing and risk management
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    ❌ **NO incluye**: RSI, MACD, Stochastic, Fibonacci (sin evidencia post-2010)
-    """)
+    # Methodology card
+    with st.expander("📚 Methodology - Academic Evidence (2020-2024)", expanded=False):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("""
+            **✅ Evidence-Based Indicators:**
+            - **12-Month Momentum** (Jegadeesh & Titman 1993, Moskowitz 2021)
+              → Strongest predictor of future returns
+            - **Sector Relative Strength** (Bretscher 2023, Arnott 2024)
+              → Industry leadership indicates structural advantages
+            - **Trend Following (MA200)** (Brock et al. 1992, updated 2023)
+              → Long-term trend identification
+            - **Volume Confirmation** (Lo & Wang 2000)
+              → Institutional accumulation/distribution
+            """)
+
+        with col2:
+            st.markdown("""
+            **❌ Excluded (No Post-2010 Evidence):**
+            - RSI (Relative Strength Index)
+            - MACD (Moving Average Convergence Divergence)
+            - Stochastic Oscillator
+            - Fibonacci Retracements
+            - Chart Patterns (head & shoulders, triangles, etc.)
+
+            **Why excluded?** Academic research post-2010 shows these
+            indicators have no predictive power after transaction costs.
+            """)
+
+    st.markdown("---")
 
     if 'results' not in st.session_state:
         st.info("👈 Run the screener first to analyze technical signals")
