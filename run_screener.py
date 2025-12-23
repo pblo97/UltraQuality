@@ -765,7 +765,25 @@ def display_smart_stop_loss(stop_loss_data, current_price):
                 st.metric("Distance", distance_str)
         with col3:
             lifecycle_phase = stop_loss_data.get('lifecycle_phase', 'N/A')
-            st.metric("Status", f"{state_emoji} {market_state.replace('_', ' ').title()}")
+            market_state_clean = market_state.replace('_', ' ').title()
+
+            # Better formatting for status
+            if market_state == 'NO_POSITION':
+                status_display = "Sin Posición"
+            elif market_state == 'DOWNTREND':
+                status_display = "⚠️ Tendencia Bajista"
+            elif market_state == 'PARABOLIC_CLIMAX':
+                status_display = "🔴 Clímax Parabólico"
+            elif market_state == 'POWER_TREND':
+                status_display = "💪 Tendencia Fuerte"
+            elif market_state == 'BLUE_SKY_ATH':
+                status_display = "🚀 Nuevo ATH"
+            elif market_state == 'PULLBACK_FLAG':
+                status_display = "📊 Pullback"
+            else:
+                status_display = market_state_clean
+
+            st.metric("Estado", status_display)
 
         # === SMART RATIONALE (Bullet Points) ===
         state_rationale = stop_loss_data.get('state_rationale', '')
@@ -835,7 +853,7 @@ def display_smart_stop_loss(stop_loss_data, current_price):
                 st.write(f"**Ancla Técnica:** {config.get('anchor', 'N/A')}")
 
         # === TIER COMPARISON ===
-        with st.expander("Stop Comparison byQuality Tier (Reference)"):
+        with st.expander("Stop Comparison by Quality Tier (Reference)"):
             tier_stops = stop_loss_data.get('tier_stops', {})
 
             for tier_key, tier_data in tier_stops.items():
@@ -1040,28 +1058,31 @@ def display_take_profit(profit_taking):
     rationale = profit_taking.get('rationale', '')
     override = profit_taking.get('override', False)
 
-    #Quality Tier-specific styling
+    # Tier-specific styling with improved names
     tier_config = {
         1: {
-            'icon': '🏛️',
+            'icon': '💎',
+            'name': 'Elite Quality',
             'color': '#1E88E5',  # Blue
             'bg_color': '#E3F2FD',
-            'strategy_emoji': '',
-            'recommendation': 'HOLD FOREVER - Only sell on fundamental deterioration'
+            'strategy_emoji': '🏛️',
+            'recommendation': 'Estrategia conservadora: mantener posición, vender solo si fundamentales deterioran'
         },
         2: {
-            'icon': '🏃',
+            'icon': '⭐',
+            'name': 'Premium',
             'color': '#43A047',  # Green
             'bg_color': '#E8F5E9',
-            'strategy_emoji': '⚖️',
-            'recommendation': 'SWING TRADE - Lock 3R, let rest run free'
+            'strategy_emoji': '📈',
+            'recommendation': 'Estrategia balanceada: asegurar ganancias (3R) y dejar correr el resto con trailing stop'
         },
         3: {
-            'icon': '',
+            'icon': '⚡',
+            'name': 'Especulativa',
             'color': '#FB8C00',  # Orange
             'bg_color': '#FFF3E0',
-            'strategy_emoji': '',
-            'recommendation': 'AGGRESSIVE SCALING - Take profits early and often'
+            'strategy_emoji': '🎯',
+            'recommendation': 'Estrategia agresiva: tomar ganancias frecuentemente, reducir exposición rápido'
         }
     }
 
@@ -1080,22 +1101,21 @@ def display_take_profit(profit_taking):
         </div>
         """, unsafe_allow_html=True)
     else:
-        # Normal header with tier-specific gradient
+        # Normal header with tier-specific gradient (improved design)
         st.markdown(f"""
-        <div style="background: linear-gradient(135deg, {config['color']} 0%, {config['bg_color']} 100%);
-                    padding: 25px; border-radius: 15px; margin-bottom: 20px;
-                    border-left: 6px solid {config['color']};
-                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+        <div style="background: linear-gradient(135deg, {config['color']} 0%, {config['color']}dd 100%);
+                    padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
             <div style="display: flex; align-items: center; justify-content: space-between;">
-                <div>
-                    <h2 style="margin: 0; color: #1a1a1a;">
+                <div style="flex: 1;">
+                    <div style="color: white; font-size: 1.8rem; font-weight: 700; margin-bottom: 0.5rem;">
                         {config['icon']} {strategy}
-                    </h2>
-                    <p style="margin: 8px 0 0 0; font-size: 14px; color: #666;">
-                        {tier_name}
-                    </p>
+                    </div>
+                    <div style="color: white; font-size: 1rem; opacity: 0.95;">
+                        {config['name']}
+                    </div>
                 </div>
-                <div style="font-size: 60px; opacity: 0.3;">
+                <div style="font-size: 4rem; opacity: 0.25; color: white;">
                     {config['strategy_emoji']}
                 </div>
             </div>
@@ -1108,12 +1128,13 @@ def display_take_profit(profit_taking):
     with col1:
         if action:
             st.metric(
-                label=" Recommended Action",
+                label="Acción Recomendada",
                 value=action.split()[0] if action else "N/A",
                 help=action
             )
         else:
-            st.metric(label="Quality Tier", value=f"QualityQuality Tier {tier}")
+            tier_display = f"{config['icon']} {config['name']}"
+            st.metric(label="Clasificación", value=tier_display)
 
     with col2:
         if keep_pct:
@@ -1135,13 +1156,16 @@ def display_take_profit(profit_taking):
     # ========== PHILOSOPHY & RECOMMENDATION ==========
     if philosophy or config['recommendation']:
         st.markdown(f"""
-        <div style="background-color: {config['bg_color']};
-                    padding: 15px; border-radius: 10px; margin: 20px 0;
-                    border-left: 4px solid {config['color']};">
-            <p style="margin: 0; font-size: 16px; color: #1a1a1a;">
-                <b> Strategy Philosophy:</b><br>
+        <div style="background: linear-gradient(to right, {config['bg_color']}, white);
+                    padding: 1.25rem; border-radius: 10px; margin: 1.5rem 0;
+                    border-left: 5px solid {config['color']};
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 600; color: {config['color']};">
+                ESTRATEGIA DE SALIDA
+            </div>
+            <div style="margin: 0; font-size: 1rem; color: #495057; line-height: 1.6;">
                 {philosophy if philosophy else config['recommendation']}
-            </p>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1233,12 +1257,12 @@ def display_take_profit(profit_taking):
     # ========== ADDITIONAL INFO IN EXPANDERS ==========
     with st.expander("See Full Strategy Details", expanded=False):
 
-        #Quality Tier explanation
+        # Quality Tier explanation
         st.markdown(f"""
         **Quality Tier Classification:**
-        - This uses **QualityQuality Tier** (fundamental-based), different from **RiskQuality Tier** (volatility-based)
-        - **RiskQuality Tier**: Based on price volatility and beta (technical)
-        - **QualityQuality Tier**: Based on fundamental score and guardrails (business quality)
+        - Sistema de clasificación basado en calidad fundamental (Quality Tier) vs riesgo técnico (Risk Tier)
+        - **Risk Tier**: Basado en volatilidad de precio y beta (análisis técnico)
+        - **Quality Tier**: Basado en score fundamental y guardrails (calidad del negocio)
         """)
 
         st.markdown("---")
