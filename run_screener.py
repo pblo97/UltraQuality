@@ -7635,6 +7635,156 @@ with tab7:
                         else:
                             st.warning("No risk management data available")
 
+                        # ========== SMART MONEY DETECTOR ==========
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+                                    padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
+                            <h3 style='margin: 0; color: white;'>SMART MONEY DETECTOR</h3>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                Insiders, Institucionales y Short Interest
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Check if qualitative data is available
+                        qual_data_for_smart_money = None
+                        if 'results' in st.session_state:
+                            df_results = st.session_state['results']
+                            if selected_ticker in df_results['ticker'].values:
+                                qual_key = f'qual_{selected_ticker}'
+                                if qual_key in st.session_state:
+                                    qual_data_for_smart_money = st.session_state[qual_key]
+
+                        if qual_data_for_smart_money and 'intrinsic_value' in qual_data_for_smart_money:
+                            intrinsic_sm = qual_data_for_smart_money['intrinsic_value']
+                            insider_data = intrinsic_sm.get('insider_trading', {})
+
+                            if insider_data and insider_data.get('available', False):
+                                # Display Smart Money in 3 columns
+                                col1, col2, col3 = st.columns(3)
+
+                                with col1:
+                                    # INSIDERS
+                                    st.markdown("""
+                                    <div style='background: white; padding: 1rem; border-radius: 10px;
+                                                box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
+                                        <div style='font-size: 0.9rem; color: #6c757d; font-weight: 600; margin-bottom: 0.75rem;'>INSIDERS</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                                    signal = insider_data.get('signal', 'Neutral')
+                                    signal_colors = {
+                                        'Strong Buy': '#28a745',
+                                        'Buy': '#28a745',
+                                        'Neutral': '#ffc107',
+                                        'Sell': '#dc3545',
+                                        'Strong Sell': '#dc3545'
+                                    }
+                                    signal_color = signal_colors.get(signal, '#6c757d')
+
+                                    buy_count = insider_data.get('buy_count_12m', 0)
+                                    sell_count = insider_data.get('sell_count_12m', 0)
+                                    exec_buys = insider_data.get('executive_buys', 0)
+                                    recent_buys_3m = insider_data.get('recent_buys_3m', 0)
+
+                                    st.markdown(f"""
+                                    <div style='background: {signal_color}; padding: 1rem; border-radius: 8px;
+                                                text-align: center; color: white; margin-bottom: 0.75rem;'>
+                                        <div style='font-size: 1.8rem; font-weight: 700;'>{signal}</div>
+                                        <div style='font-size: 0.85rem; opacity: 0.9;'>Insider Signal</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                                    st.metric("Buys (12M)", buy_count, delta=f"{exec_buys} executive")
+                                    st.metric("Sells (12M)", sell_count)
+                                    st.metric("Recent (3M)", recent_buys_3m)
+
+                                with col2:
+                                    # INSTITUTIONAL
+                                    st.markdown("""
+                                    <div style='background: white; padding: 1rem; border-radius: 10px;
+                                                box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
+                                        <div style='font-size: 0.9rem; color: #6c757d; font-weight: 600; margin-bottom: 0.75rem;'>INSTITUCIONALES</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                                    inst_own = insider_data.get('institutional_ownership_pct', None)
+
+                                    if inst_own is not None:
+                                        # Determine color based on ownership level
+                                        if inst_own >= 70:
+                                            inst_color = '#28a745'
+                                            inst_status = 'HIGH'
+                                        elif inst_own >= 40:
+                                            inst_color = '#17a2b8'
+                                            inst_status = 'MODERATE'
+                                        else:
+                                            inst_color = '#ffc107'
+                                            inst_status = 'LOW'
+
+                                        st.markdown(f"""
+                                        <div style='background: {inst_color}; padding: 1rem; border-radius: 8px;
+                                                    text-align: center; color: white; margin-bottom: 0.75rem;'>
+                                            <div style='font-size: 2.5rem; font-weight: 700;'>{inst_own:.1f}%</div>
+                                            <div style='font-size: 0.85rem; opacity: 0.9;'>{inst_status}</div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                                        if inst_own >= 70:
+                                            st.success("Strong institutional support")
+                                        elif inst_own >= 40:
+                                            st.info("Moderate institutional presence")
+                                        else:
+                                            st.warning("Low institutional ownership")
+                                    else:
+                                        st.info("Institutional data not available")
+
+                                with col3:
+                                    # SHORT INTEREST (placeholder - data may not be available)
+                                    st.markdown("""
+                                    <div style='background: white; padding: 1rem; border-radius: 10px;
+                                                box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
+                                        <div style='font-size: 0.9rem; color: #6c757d; font-weight: 600; margin-bottom: 0.75rem;'>SHORT INTEREST</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                                    # Check if short interest data exists (may not be in current data structure)
+                                    short_interest = intrinsic_sm.get('short_interest_pct', None)
+
+                                    if short_interest is not None:
+                                        if short_interest > 10:
+                                            short_color = '#dc3545'
+                                            short_status = 'HIGH'
+                                        elif short_interest > 5:
+                                            short_color = '#ffc107'
+                                            short_status = 'MODERATE'
+                                        else:
+                                            short_color = '#28a745'
+                                            short_status = 'LOW'
+
+                                        st.markdown(f"""
+                                        <div style='background: {short_color}; padding: 1rem; border-radius: 8px;
+                                                    text-align: center; color: white; margin-bottom: 0.75rem;'>
+                                            <div style='font-size: 2.5rem; font-weight: 700;'>{short_interest:.1f}%</div>
+                                            <div style='font-size: 0.85rem; opacity: 0.9;'>{short_status}</div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                    else:
+                                        st.markdown("""
+                                        <div style='background: #6c757d; padding: 1rem; border-radius: 8px;
+                                                    text-align: center; color: white; margin-bottom: 0.75rem;'>
+                                            <div style='font-size: 1.5rem; font-weight: 600;'>N/A</div>
+                                            <div style='font-size: 0.85rem; opacity: 0.9;'>Data not available</div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                        st.caption("Short interest data requires premium API access")
+
+                                st.caption("Smart Money data requires running Qualitative Analysis first (tab 5)")
+                            else:
+                                st.info("No insider trading data available. Run Qualitative Analysis in tab 5 to see Smart Money indicators.")
+                        else:
+                            st.info("Smart Money data not available. Run Qualitative Analysis in tab 5 first.")
+
                         # ========== QUALITATIVE ANALYSIS (NEW) ==========
                         # Try to get qualitative analysis if available
                         st.markdown("---")
