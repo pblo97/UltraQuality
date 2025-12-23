@@ -1339,7 +1339,7 @@ def display_take_profit(profit_taking):
     with col2:
         if keep_pct:
             st.metric(
-                label=" Keep % (Runner)",
+                label="Keep % (Runner)",
                 value=f"{keep_pct}%",
                 help="Percentage to keep after taking profits"
             )
@@ -1348,7 +1348,7 @@ def display_take_profit(profit_taking):
         if 'take_profit_rule' in profit_taking:
             rule = profit_taking['take_profit_rule']
             st.metric(
-                label="📐 Rule",
+                label="Rule",
                 value=rule.split()[0] if rule else "N/A",
                 help=rule
             )
@@ -2253,9 +2253,23 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         st.progress(final_progress)
 
         if constraint == "Risk":
-            st.info("🛡️ Risk limit is more conservative")
+            st.markdown("""
+            <div style='background: linear-gradient(to right, #e3f2fd, #bbdefb);
+                        padding: 1rem; border-radius: 8px; border-left: 4px solid #2196f3;'>
+                <div style='color: #1565c0; font-weight: 600;'>
+                    <i class="bi bi-shield-check"></i> Risk limit is more conservative
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         else:
-            st.info("⭐ Quality limit is more conservative")
+            st.markdown("""
+            <div style='background: linear-gradient(to right, #fff8e1, #ffecb3);
+                        padding: 1rem; border-radius: 8px; border-left: 4px solid #ffc107;'>
+                <div style='color: #f57c00; font-weight: 600;'>
+                    <i class="bi bi-star-fill"></i> Quality limit is more conservative
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
     # Display quality tier and base allocation with enhanced design
     st.markdown("---")
@@ -2746,21 +2760,21 @@ with tab2:
         col1, col2, col3 = st.columns(3)
         with col1:
             decision_filter = st.multiselect(
-                "📊 Decision Signal",
+                "Decision Signal",
                 options=['BUY', 'MONITOR', 'AVOID'],
                 default=['BUY', 'MONITOR'],
                 help="Filter by investment recommendation"
             )
         with col2:
             guardrail_filter = st.multiselect(
-                "🛡️ Quality Guardrails",
+                "Quality Guardrails",
                 options=['VERDE', 'AMBAR', 'ROJO'],
                 default=['VERDE', 'AMBAR'],
                 help="Filter by accounting quality status"
             )
         with col3:
             min_score = st.slider(
-                "📈 Min Quality Score",
+                "Min Quality Score",
                 0, 100, 50,
                 help="Minimum composite quality score (0-100)"
             )
@@ -3568,7 +3582,7 @@ with tab5:
 """
                         elif peg_ratio and peg_ratio > 2.5 and revenue_growth and revenue_growth < 5:
                             # Mature company - DCF is king
-                            method_icon = "🏛️"
+                            method_icon = "<i class='bi bi-building-fill'></i>"
                             method_name = "DCF (Mature Company Valuation)"
                             method_reason = f"""
 **Por qué DCF es mejor para esta empresa:**
@@ -3583,7 +3597,7 @@ with tab5:
 """
                         elif peg_ratio and revenue_growth and 1.5 <= peg_ratio <= 2.5 and 5 <= revenue_growth <= 10:
                             # Balanced - use both methods
-                            method_icon = "⚖️"
+                            method_icon = "<i class='bi bi-diagram-3-fill'></i>"
                             method_name = "Hybrid (DCF + PEG)"
                             method_reason = f"""
 **Por qué usar ambos métodos:**
@@ -5360,7 +5374,7 @@ with tab6:
 """
             elif peg_ratio and peg_ratio > 2.5 and revenue_growth and revenue_growth < 5:
                 # Mature company - DCF is king
-                method_icon = "🏛️"
+                method_icon = "<i class='bi bi-building-fill'></i>"
                 method_name = "DCF (Mature Company Valuation)"
                 method_reason = f"""
 **Por qué DCF es mejor para esta empresa:**
@@ -5375,7 +5389,7 @@ with tab6:
 """
             elif peg_ratio and revenue_growth and 1.5 <= peg_ratio <= 2.5 and 5 <= revenue_growth <= 10:
                 # Balanced - use both methods
-                method_icon = "⚖️"
+                method_icon = "<i class='bi bi-diagram-3-fill'></i>"
                 method_name = "Hybrid (DCF + PEG)"
                 method_reason = f"""
 **Por qué usar ambos métodos:**
@@ -8659,10 +8673,38 @@ with tab7:
                         ])
 
                         with adv_tab1:
+                            # Header for Visualizations tab
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem;'>
+                                <div style='color: white; text-align: center;'>
+                                    <div style='font-size: 2rem; margin-bottom: 0.5rem;'>
+                                        <i class="bi bi-graph-up"></i>
+                                    </div>
+                                    <div style='font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;'>
+                                        Technical Visualizations
+                                    </div>
+                                    <div style='font-size: 0.9rem; opacity: 0.95;'>
+                                        Price levels, stop losses & overextension risk analysis
+                                    </div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
                             col1, col2 = st.columns([2, 1])
 
                             with col1:
-                                # Price Levels Chart
+                                # Price Levels Chart with header
+                                st.markdown("""
+                                <div style='background: linear-gradient(to right, #f8f9fa, #e9ecef);
+                                            padding: 1rem; border-radius: 10px; margin-bottom: 1rem;
+                                            border-left: 4px solid #28a745;'>
+                                    <div style='font-size: 1.1rem; font-weight: 700; color: #495057;'>
+                                        <i class="bi bi-bar-chart-line"></i> Price Levels & Risk Management
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
                                 try:
                                     # Get historical data if available
                                     historical_prices = None
@@ -8684,7 +8726,17 @@ with tab7:
                                     st.error(f"Error rendering chart: {e}")
 
                             with col2:
-                                # Overextension Gauge
+                                # Overextension Gauge with header
+                                st.markdown("""
+                                <div style='background: linear-gradient(to right, #f8f9fa, #e9ecef);
+                                            padding: 1rem; border-radius: 10px; margin-bottom: 1rem;
+                                            border-left: 4px solid #dc3545;'>
+                                    <div style='font-size: 1.1rem; font-weight: 700; color: #495057;'>
+                                        <i class="bi bi-speedometer2"></i> Overextension Risk
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
                                 try:
                                     render_overextension_gauge(full_analysis)
                                 except Exception as e:
