@@ -1114,18 +1114,33 @@ def display_entry_strategy(entry_strategy):
     </div>
     """, unsafe_allow_html=True)
 
-    # Rationale box with icon
+    # Rationale box with professional styling
     st.markdown(f"""
-    <div style='background: #e7f3ff; padding: 1rem; border-radius: 8px;
-                border-left: 4px solid #2196f3; margin: 1rem 0;'>
-        <strong style='color: #1976d2;'>📋 Execution Plan:</strong>
-        <div style='margin-top: 0.5rem; color: #495057;'>{rationale}</div>
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 1.5rem; border-radius: 12px; margin: 1.5rem 0;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);'>
+        <div style='color: white;'>
+            <div style='font-size: 1.2rem; font-weight: 700; margin-bottom: 0.75rem;'>
+                <i class="bi bi-clipboard-check-fill"></i> Execution Plan
+            </div>
+            <div style='font-size: 0.95rem; line-height: 1.6; opacity: 0.95;'>
+                {rationale}
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
     # ========== TRANCHES TABLE ==========
     if tranches:
-        st.markdown("####  Order Execution Plan")
+        st.markdown("""
+        <div style='background: linear-gradient(to right, #f8f9fa, #e9ecef);
+                    padding: 1rem; border-radius: 10px; margin: 1rem 0;
+                    border-left: 4px solid #28a745;'>
+            <div style='font-size: 1.1rem; font-weight: 700; color: #495057;'>
+                <i class="bi bi-list-check"></i> Order Execution Plan
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # Create DataFrame for table display
         table_data = []
@@ -1155,23 +1170,60 @@ def display_entry_strategy(entry_strategy):
         )
 
         # Individual tranche details (expandable)
-        with st.expander("Details by Tranche"):
+        with st.expander("📊 Details by Tranche"):
             for t in tranches:
-                icon = "" if t['is_primary'] else "🎲"
-                st.markdown(f"**{icon} Tranche #{t['number']}** ({t['size']})")
-                st.write(f"- **Tipo:** {t['order_type']}")
-                st.write(f"- **Precio:** ${t['price']:.2f}")
-                st.write(f"- **Gatillo:** {t['trigger']}")
-                st.markdown("---")
+                tranche_icon = '<i class="bi bi-1-circle-fill"></i>' if t['number'] == 1 else \
+                              '<i class="bi bi-2-circle-fill"></i>' if t['number'] == 2 else \
+                              '<i class="bi bi-3-circle-fill"></i>'
+
+                primary_badge = "" if not t['is_primary'] else \
+                    '<span style="background: #28a745; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem;">PRIMARY</span>'
+
+                st.markdown(f"""
+                <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;
+                            border-left: 3px solid #667eea; margin-bottom: 1rem;'>
+                    <div style='font-size: 1rem; font-weight: 700; color: #495057; margin-bottom: 0.5rem;'>
+                        {tranche_icon} Tranche #{t['number']} {primary_badge}
+                    </div>
+                    <div style='font-size: 0.9rem; color: #6c757d;'>
+                        <strong>Tamaño:</strong> {t['size']}<br>
+                        <strong>Tipo:</strong> {t['order_type']}<br>
+                        <strong>Precio:</strong> ${t['price']:.2f}<br>
+                        <strong>Gatillo:</strong> {t['trigger']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
     # ========== INVALIDATION ==========
     if invalidation:
-        st.markdown("#### ⛔ Invalidación del Setup")
         inv_price = invalidation.get('price', 0)
         inv_action = invalidation.get('action', 'N/A')
 
-        st.warning(f"**Precio Invalidación:** ${inv_price:.2f}")
-        st.caption(inv_action)
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+                    padding: 1.5rem; border-radius: 12px; margin: 1.5rem 0;
+                    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);'>
+            <div style='color: white; text-align: center;'>
+                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>
+                    <i class="bi bi-x-octagon-fill"></i>
+                </div>
+                <div style='font-size: 1.3rem; font-weight: 700; margin-bottom: 0.75rem;'>
+                    Invalidación del Setup
+                </div>
+                <div style='background: rgba(255,255,255,0.2); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
+                    <div style='font-size: 0.9rem; opacity: 0.9; margin-bottom: 0.25rem;'>
+                        PRECIO INVALIDACIÓN
+                    </div>
+                    <div style='font-size: 2rem; font-weight: 700;'>
+                        ${inv_price:.2f}
+                    </div>
+                </div>
+                <div style='font-size: 0.95rem; opacity: 0.95; line-height: 1.5;'>
+                    {inv_action}
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # ========== STRUCTURAL LEVELS (expandable) ==========
     if structural_levels:
