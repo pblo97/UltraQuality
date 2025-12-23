@@ -7927,16 +7927,6 @@ with tab7:
                             st.warning("No risk management data available")
 
                         # ========== SMART MONEY DETECTOR ==========
-                        st.markdown("""
-                        <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-                                    padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
-                            <h3 style='margin: 0; color: white;'><i class="bi bi-cash-stack"></i> SMART MONEY DETECTOR</h3>
-                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
-                                Insiders, Institucionales y Short Interest
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-
                         # Check if qualitative data is available
                         qual_data_for_smart_money = None
                         if 'results' in st.session_state:
@@ -7946,11 +7936,22 @@ with tab7:
                                 if qual_key in st.session_state:
                                     qual_data_for_smart_money = st.session_state[qual_key]
 
+                        # Only show Smart Money section if data is available
                         if qual_data_for_smart_money and 'intrinsic_value' in qual_data_for_smart_money:
                             intrinsic_sm = qual_data_for_smart_money['intrinsic_value']
                             insider_data = intrinsic_sm.get('insider_trading', {})
 
                             if insider_data and insider_data.get('available', False):
+                                # Show header only when data is available
+                                st.markdown("""
+                                <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+                                            padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
+                                    <h3 style='margin: 0; color: white;'><i class="bi bi-cash-stack"></i> SMART MONEY DETECTOR</h3>
+                                    <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                        Insiders, Institucionales y Short Interest
+                                    </p>
+                                </div>
+                                """, unsafe_allow_html=True)
                                 # Display Smart Money in 3 columns
                                 col1, col2, col3 = st.columns(3)
 
@@ -8070,33 +8071,7 @@ with tab7:
                                         """, unsafe_allow_html=True)
                                         st.caption("Short interest data requires premium API access")
 
-                                st.caption("Smart Money data requires running Qualitative Analysis first (tab 5)")
-                            else:
-                                st.markdown("""
-                                <div style='background: linear-gradient(to right, #d1ecf1, #bee5eb);
-                                            padding: 1.5rem; border-radius: 10px; border-left: 5px solid #17a2b8;
-                                            text-align: center; margin: 1rem 0;'>
-                                    <div style='font-size: 1.1rem; font-weight: 600; color: #0c5460; margin-bottom: 0.5rem;'>
-                                        <i class="bi bi-info-circle"></i> No Insider Trading Data Available
-                                    </div>
-                                    <div style='color: #0c5460; font-size: 0.95rem;'>
-                                        Run <strong>Qualitative Analysis</strong> in tab 5 to see Smart Money indicators
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                        else:
-                            st.markdown("""
-                            <div style='background: linear-gradient(to right, #d1ecf1, #bee5eb);
-                                        padding: 1.5rem; border-radius: 10px; border-left: 5px solid #17a2b8;
-                                        text-align: center; margin: 1rem 0;'>
-                                <div style='font-size: 1.1rem; font-weight: 600; color: #0c5460; margin-bottom: 0.5rem;'>
-                                    <i class="bi bi-info-circle"></i> Smart Money Data Not Available
-                                </div>
-                                <div style='color: #0c5460; font-size: 0.95rem;'>
-                                    Run <strong>Qualitative Analysis</strong> in tab 5 first
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                                st.caption("Smart Money data from Qualitative Analysis (tab 5)")
 
                         # ========== RESUMEN EJECUTIVO: WARNINGS & DIAGNOSTICS ==========
                         st.markdown("---")
