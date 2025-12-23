@@ -2298,7 +2298,7 @@ class EnhancedTechnicalAnalyzer:
             if ma_50 > 0:
                 sma50_distance_pct = ((current_price - ma_50) / ma_50 * 100)
 
-            # STATE 0: DOWNTREND (Radioactive - Avoid or Exit) 💀
+            # STATE 0: DOWNTREND (Radioactive - Avoid or Exit) ▼
             # CRITICAL: Check FIRST if stock is in confirmed downtrend
             # Price < EMA20 < MA50 = broken structure
             if (ema_20 > 0 and
@@ -2307,7 +2307,7 @@ class EnhancedTechnicalAnalyzer:
                 ema_20 < ma_50):
                 return (
                     "DOWNTREND",
-                    "💀",
+                    "▼",
                     f"Broken structure: Price (${current_price:.2f}) < EMA20 (${ema_20:.2f}) < MA50 (${ma_50:.2f}). AVOID or EXIT."
                 )
 
@@ -2317,11 +2317,11 @@ class EnhancedTechnicalAnalyzer:
                 sma_slope < -0.05):  # AND MA50 is falling
                 return (
                     "DOWNTREND",
-                    "💀",
+                    "▼",
                     f"Downtrend confirmed: Price {sma50_distance_pct:.1f}% below MA50, MA50 falling. Do NOT enter."
                 )
 
-            # STATE 1: ENTRY_BREAKOUT (Highest Risk - Initial Fight) 🎯
+            # STATE 1: ENTRY_BREAKOUT (Highest Risk - Initial Fight) ⊚
             # Only trigger if we have a position AND price is actually trying to break out (positive momentum)
             if (entry_price and
                 days_in_position < 10 and
@@ -2329,11 +2329,11 @@ class EnhancedTechnicalAnalyzer:
                 entry_distance_pct >= 0):  # Must be at or above entry (not falling)
                 return (
                     "ENTRY_BREAKOUT",
-                    "🎯",
+                    "⊚",
                     f"Just entered {days_in_position}d ago. Fighting to break out ({entry_distance_pct:+.1f}% from entry). Max risk zone."
                 )
 
-            # STATE 2A: MOMENTUM OVERRIDE - "Tortuga Parabólica" 🔥🐢
+            # STATE 2A: MOMENTUM OVERRIDE - "Tortuga Parabólica" ⚠
             # CRITICAL: Detect when a Tier 1/2 (stable stock) starts behaving like Nvidia (vertical move)
             # When a "boring" stock suddenly goes parabolic, it needs parabolic rules regardless of distance to MA50
             #
@@ -2351,40 +2351,40 @@ class EnhancedTechnicalAnalyzer:
                 week_52_high > 0 and current_price >= 0.95 * week_52_high):  # Near/at ATH
                 return (
                     "PARABOLIC_CLIMAX",
-                    "🔥",
+                    "⚠",
                     f"MOMENTUM OVERRIDE: Tier {tier} stock in vertical move (ADX={adx:.1f}). Price > EMA10 (${ema_10:.2f}) > EMA20. Surf the EMA10, exit if breaks."
                 )
 
-            # STATE 2B: PARABOLIC_CLIMAX (Standard Detection - Vertical Euforia) 🔥
+            # STATE 2B: PARABOLIC_CLIMAX (Standard Detection - Vertical Euforia) ⚠
             # Tier-specific thresholds for overextension
             climax_threshold = 20 if tier <= 2 else 30
             if (rsi and rsi > 75) or (ma_50 > 0 and sma50_distance_pct > climax_threshold):
                 return (
                     "PARABOLIC_CLIMAX",
-                    "🔥",
+                    "⚠",
                     f"Vertical move! RSI={rsi or 'N/A'}, {sma50_distance_pct:+.1f}% above MA50. Unsustainable. Lock profits NOW."
                 )
 
-            # STATE 3: BLUE_SKY_ATH (All-Time High - No Resistance) 🌌
+            # STATE 3: BLUE_SKY_ATH (All-Time High - No Resistance) ★
             if week_52_high > 0 and current_price >= 0.98 * week_52_high:
                 return (
                     "BLUE_SKY_ATH",
-                    "🌌",
+                    "★",
                     f"At ATH (${week_52_high:.2f}). No resistance above. Price discovery mode. Use breakout pivot stop."
                 )
 
-            # STATE 4: POWER_TREND (Strong Trend - Let It Run) 🚀
+            # STATE 4: POWER_TREND (Strong Trend - Let It Run) ↑
             # Price > EMA20 > SMA50 AND strong ADX
             if (current_price > ema_20 > 0 and
                 ema_20 > ma_50 > 0 and
                 adx > 25):
                 return (
                     "POWER_TREND",
-                    "🚀",
+                    "↑",
                     f"Strong uptrend (ADX={adx:.1f}). Price > EMA20 > MA50. Let winners run with wide stop."
                 )
 
-            # STATE 5: PULLBACK_FLAG (Healthy Rest - Give It Air) 🚩
+            # STATE 5: PULLBACK_FLAG (Healthy Rest - Give It Air) ◐
             # Price pulled back but still above MA50, volume declining
             if (current_price < highest_high_20 and
                 current_price > ma_50 > 0 and
@@ -2392,16 +2392,16 @@ class EnhancedTechnicalAnalyzer:
                 sma50_distance_pct > 0):
                 return (
                     "PULLBACK_FLAG",
-                    "🚩",
+                    "◐",
                     f"Healthy pullback. Price < 20d high but > MA50 ({sma50_distance_pct:+.1f}%). Not noise - give it air."
                 )
 
-            # STATE 6: CHOPPY_SIDEWAYS (Dead Money - Exit Soon) 💤
+            # STATE 6: CHOPPY_SIDEWAYS (Dead Money - Exit Soon) ↔
             # Flat SMA50 slope AND low ADX
             if abs(sma_slope) < 0.1 and adx < 20:
                 return (
                     "CHOPPY_SIDEWAYS",
-                    "💤",
+                    "↔",
                     f"Sideways grind (ADX={adx:.1f}, Slope={sma_slope:.2f}%). Dead money. Exit if > 20 days here."
                 )
 
@@ -2410,20 +2410,20 @@ class EnhancedTechnicalAnalyzer:
             if current_price > ma_50 > 0:
                 return (
                     "PULLBACK_FLAG",
-                    "🚩",
+                    "◐",
                     f"Price above MA50 ({sma50_distance_pct:+.1f}%) but no strong trend signal. Monitor for entry."
                 )
             # If below MA50 or flat, it's choppy/weak
             else:
                 return (
                     "CHOPPY_SIDEWAYS",
-                    "💤",
+                    "↔",
                     f"Weak structure (ADX={adx:.1f}, below MA50). Monitor or avoid. Use tight stops if entering."
                 )
 
         except Exception as e:
             logger.error(f"Error detecting market state: {e}")
-            return ("ENTRY_BREAKOUT", "🎯", "Error in state detection, using conservative default.")
+            return ("ENTRY_BREAKOUT", "⊚", "Error in state detection, using conservative default.")
 
     def _calculate_state_aware_stop(
         self,
@@ -2878,7 +2878,7 @@ class EnhancedTechnicalAnalyzer:
                 if abs(current_gain_pct) < 2:
                     # Override everything - this is dead money
                     market_state = "CHOPPY_SIDEWAYS"
-                    state_emoji = "💤"
+                    state_emoji = "↔"
                     active_stop_price = max(entry_price, swing_low_20 if swing_low_20 > 0 else swing_low_10)
                     active_stop_pct = ((active_stop_price - current_price) / current_price * 100)
                     state_rationale = f"ZOMBIE KILLER: Dead money for {days_in_position} days. Exit at ${active_stop_price:.2f} or NOW."
