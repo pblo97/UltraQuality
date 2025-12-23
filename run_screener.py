@@ -6976,7 +6976,40 @@ with tab7:
 
                 st.markdown("---")
 
-                # Filters
+                # Quick Preset Buttons
+                st.markdown("**Filter Presets (Quick Discovery):**")
+                preset_col1, preset_col2, preset_col3, preset_col4, preset_col5 = st.columns(5)
+
+                with preset_col1:
+                    if st.button("Bulls Only", help="BULL market + UPTREND"):
+                        st.session_state['regime_filter'] = ['BULL']
+                        st.session_state['trend_filter'] = ['UPTREND', 'STRONG_UPTREND']
+
+                with preset_col2:
+                    if st.button("Leaders Only", help="Sector + Market leaders"):
+                        st.session_state['sector_filter'] = ['LEADING', 'OUTPERFORMER']
+
+                with preset_col3:
+                    if st.button("Strong Momentum", help="Consistent + Accumulation"):
+                        st.session_state['consistency_filter'] = ['VERY_CONSISTENT', 'CONSISTENT']
+                        st.session_state['volume_filter'] = ['ACCUMULATION']
+
+                with preset_col4:
+                    if st.button("Clear Filters", help="Reset all filters to defaults"):
+                        # Clear all filter states
+                        for key in ['regime_filter', 'sector_filter', 'trend_filter', 'volume_filter', 'consistency_filter']:
+                            if key in st.session_state:
+                                del st.session_state[key]
+
+                with preset_col5:
+                    if st.button("Top Quality", help="BUY signal + 75+ score"):
+                        st.session_state['tech_signal_filter'] = ['BUY']
+                        st.session_state['min_tech_score'] = 75
+
+                st.markdown("---")
+
+                # Filters - Row 1: Basic Filters
+                st.markdown("**Quick Filters:**")
                 col1, col2, col3, col4 = st.columns(4)
 
                 with col1:
@@ -6999,7 +7032,7 @@ with tab7:
                     # Get unique stop loss states for filter
                     all_sl_states = sorted(df_tech['stop_loss_state'].unique().tolist())
                     sl_state_filter = st.multiselect(
-                        " Stop Loss State",
+                        "Stop Loss State",
                         options=all_sl_states,
                         default=all_sl_states,  # Show all by default
                         key='sl_state_filter'
@@ -7012,12 +7045,72 @@ with tab7:
                         key='min_tech_score'
                     )
 
-                # Apply filters
+                # Filters - Row 2: Advanced Parameter-Based Classification
+                st.markdown("**Advanced Filters (Parameter-Based Classification):**")
+                col5, col6, col7, col8, col9 = st.columns(5)
+
+                with col5:
+                    # Market Regime Filter
+                    all_regimes = sorted(df_tech['market_regime'].unique().tolist())
+                    regime_filter = st.multiselect(
+                        "Market Regime",
+                        options=all_regimes,
+                        default=all_regimes,
+                        key='regime_filter'
+                    )
+
+                with col6:
+                    # Sector Relative Strength Filter
+                    all_sector_status = sorted(df_tech['sector_status'].unique().tolist())
+                    sector_filter = st.multiselect(
+                        "Sector Status",
+                        options=all_sector_status,
+                        default=all_sector_status,
+                        key='sector_filter'
+                    )
+
+                with col7:
+                    # Trend Filter
+                    all_trends = sorted(df_tech['trend'].unique().tolist())
+                    trend_filter = st.multiselect(
+                        "Trend",
+                        options=all_trends,
+                        default=all_trends,
+                        key='trend_filter'
+                    )
+
+                with col8:
+                    # Volume Profile Filter
+                    all_volumes = sorted(df_tech['volume_profile'].unique().tolist())
+                    volume_filter = st.multiselect(
+                        "Volume Profile",
+                        options=all_volumes,
+                        default=all_volumes,
+                        key='volume_filter'
+                    )
+
+                with col9:
+                    # Momentum Consistency Filter
+                    all_consistency = sorted(df_tech['momentum_consistency'].unique().tolist())
+                    consistency_filter = st.multiselect(
+                        "Momentum Consistency",
+                        options=all_consistency,
+                        default=all_consistency,
+                        key='consistency_filter'
+                    )
+
+                # Apply filters (Basic + Advanced)
                 df_filtered = df_tech[
                     (df_tech['technical_signal'].isin(tech_signal_filter)) &
                     (df_tech['fundamental_decision'].isin(fund_decision_filter)) &
                     (df_tech['stop_loss_state'].isin(sl_state_filter)) &
-                    (df_tech['technical_score'] >= min_tech_score)
+                    (df_tech['technical_score'] >= min_tech_score) &
+                    # Advanced filters
+                    (df_tech['market_regime'].isin(regime_filter)) &
+                    (df_tech['sector_status'].isin(sector_filter)) &
+                    (df_tech['trend'].isin(trend_filter)) &
+                    (df_tech['volume_profile'].isin(volume_filter)) &
+                    (df_tech['momentum_consistency'].isin(consistency_filter))
                 ]
 
                 st.write(f"**{len(df_filtered)}** stocks match filters")
