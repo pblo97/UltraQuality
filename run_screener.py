@@ -680,20 +680,21 @@ def display_smart_stop_loss(stop_loss_data, current_price):
         </div>
         """, unsafe_allow_html=True)
         st.caption("Basado en ATR (14d) + Clasificación de Riesgo + Lifecycle Management")
+        st.markdown("---")
 
         # === TIER CLASSIFICATION ===
         tier = stop_loss_data.get('tier', 0)
         tier_name = stop_loss_data.get('tier_name', 'N/A')
         tier_description = stop_loss_data.get('tier_description', '')
 
-        tier_emoji = "🐢" if tier == 1 else "🏃" if tier == 2 else ""
+        tier_icon = '<i class="bi bi-shield"></i>' if tier == 1 else '<i class="bi bi-shield-fill-check"></i>' if tier == 2 else '<i class="bi bi-shield-x"></i>'
 
         # === TIER CLASSIFICATION BOX ===
         col_tier, col_state = st.columns([1, 1])
 
         with col_tier:
             st.info(f"""
-**{tier_name}** {tier_emoji}
+**{tier_name}** {tier_icon}
 
 {tier_description}
 
@@ -745,7 +746,7 @@ def display_smart_stop_loss(stop_loss_data, current_price):
 """)
 
         # === ACTIVE STOP (Main recommendation) ===
-        st.markdown("#### 🛑 Stop Loss Activo (Usar este)")
+        st.markdown("""#### <i class="bi bi-shield-check"></i> Stop Loss Activo""")
         active_stop = stop_loss_data.get('active_stop', {})
 
         col1, col2, col3 = st.columns(3)
@@ -786,24 +787,52 @@ def display_smart_stop_loss(stop_loss_data, current_price):
             st.metric("Estado", status_display)
 
         # === SMART RATIONALE (Bullet Points) ===
+        # === ANALYSIS DETAILS ===
+        st.markdown("---")
+        st.markdown("#### Análisis de Mercado")
+
         state_rationale = stop_loss_data.get('state_rationale', '')
         if state_rationale:
             # Split rationale by " | " if present
             rationale_parts = state_rationale.split(' | ')
 
+            # Determine alert level
             if market_state == 'DOWNTREND':
-                st.error("**RISK ALERT:**")
+                alert_color = '#dc3545'
+                alert_bg = '#fff5f5'
+                alert_title = '<i class="bi bi-exclamation-octagon-fill"></i> RISK ALERT'
             elif market_state == 'PARABOLIC_CLIMAX':
-                st.warning("**CLIMAX ZONE:**")
+                alert_color = '#ffc107'
+                alert_bg = '#fffbf0'
+                alert_title = '<i class="bi bi-exclamation-triangle-fill"></i> CLIMAX ZONE'
             elif market_state == 'POWER_TREND':
-                st.success("**STRONG TREND:**")
+                alert_color = '#28a745'
+                alert_bg = '#d4edda'
+                alert_title = '<i class="bi bi-arrow-up-circle-fill"></i> STRONG TREND'
             else:
-                st.info("**ANALYSIS:**")
+                alert_color = '#17a2b8'
+                alert_bg = '#d1ecf1'
+                alert_title = '<i class="bi bi-info-circle-fill"></i> ANALYSIS'
 
-            # Display rationale parts as bullet points
-            for part in rationale_parts[:2]:  # Only show first 2 parts to keep it clean
+            # Display as styled card
+            st.markdown(f"""
+            <div style='background: {alert_bg}; padding: 1.25rem; border-radius: 10px;
+                        border-left: 5px solid {alert_color}; margin-bottom: 1rem;'>
+                <div style='font-weight: 700; font-size: 1.05rem; color: {alert_color}; margin-bottom: 0.75rem;'>
+                    {alert_title}
+                </div>
+            """, unsafe_allow_html=True)
+
+            # Display rationale parts as styled bullets
+            for part in rationale_parts[:3]:  # Show up to 3 parts
                 if part.strip():
-                    st.markdown(f"• {part.strip()}")
+                    st.markdown(f"""
+                    <div style='color: #495057; font-size: 0.95rem; line-height: 1.6; margin-bottom: 0.5rem;'>
+                        <i class="bi bi-chevron-right" style='color: {alert_color};'></i> {part.strip()}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
 
         # === BASE PARAMETERS ===
@@ -911,7 +940,7 @@ def display_entry_strategy(entry_strategy):
     st.markdown("""
     <div style='background: linear-gradient(to right, #11998e, #38ef7d); padding: 1rem;
                 border-radius: 8px; margin-bottom: 1rem;'>
-        <h3 style='margin: 0; color: white;'>🎯 Entry Strategy & Execution</h3>
+        <h3 style='margin: 0; color: white;'><i class="bi bi-crosshair"></i> Entry Strategy & Execution</h3>
         <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
             State-based entry plan with specific price levels
         </p>
@@ -923,7 +952,7 @@ def display_entry_strategy(entry_strategy):
         st.markdown("""
         <div style='background: #f8d7da; padding: 1.5rem; border-radius: 10px;
                     border-left: 6px solid #dc3545; margin: 1rem 0;'>
-            <h3 style='color: #721c24; margin-top: 0;'>🛑 VETO ACTIVE - NO ENTRY</h3>
+            <h3 style='color: #721c24; margin-top: 0;'><i class="bi bi-shield-x"></i> VETO ACTIVE - NO ENTRY</h3>
             <div style='color: #721c24;'>
                 <strong>Strategy:</strong> {}</div>
         </div>
@@ -1931,7 +1960,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     st.markdown("""
     <div style='background: linear-gradient(to right, #667eea, #764ba2); padding: 1rem;
                 border-radius: 8px; margin-bottom: 1rem;'>
-        <h3 style='margin: 0; color: white;'>💰 Position Sizing Calculator</h3>
+        <h3 style='margin: 0; color: white;'><i class="bi bi-calculator"></i> Position Sizing Calculator</h3>
         <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
             Dual Constraint System: MIN(Quality-Based, Risk-Based)
         </p>
@@ -2068,21 +2097,21 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         'SPECULATIVE': '#f39c12',
         'AVOID': '#e74c3c'
     }
-    tier_emojis = {
-        'ELITE': '💎',
-        'PREMIUM': '⭐',
-        'SOLID': '✅',
-        'SPECULATIVE': '⚠️',
-        'AVOID': '❌'
+    tier_icons = {
+        'ELITE': '<i class="bi bi-gem"></i>',
+        'PREMIUM': '<i class="bi bi-star-fill"></i>',
+        'SOLID': '<i class="bi bi-check-circle-fill"></i>',
+        'SPECULATIVE': '<i class="bi bi-exclamation-triangle-fill"></i>',
+        'AVOID': '<i class="bi bi-x-circle-fill"></i>'
     }
 
     tier_color = tier_colors.get(quality_tier, '#95a5a6')
-    tier_emoji = tier_emojis.get(quality_tier, '📊')
+    tier_icon_ps = tier_icons.get(quality_tier, '📊')
 
     st.markdown(f"""
     <div style='background: linear-gradient(135deg, {tier_color} 0%, {tier_color}cc 100%);
                 padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; color: white;'>
-        <div style='font-size: 2rem; margin-bottom: 0.5rem;'>{tier_emoji}</div>
+        <div style='font-size: 2rem; margin-bottom: 0.5rem;'>{tier_icon}</div>
         <div style='font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;'>{quality_tier}</div>
         <div style='font-size: 1.2rem; opacity: 0.95;'>Base Allocation: {base_pct}%</div>
     </div>
@@ -8058,9 +8087,31 @@ with tab7:
 
                                 st.caption("Smart Money data requires running Qualitative Analysis first (tab 5)")
                             else:
-                                st.info("No insider trading data available. Run Qualitative Analysis in tab 5 to see Smart Money indicators.")
+                                st.markdown("""
+                                <div style='background: linear-gradient(to right, #d1ecf1, #bee5eb);
+                                            padding: 1.5rem; border-radius: 10px; border-left: 5px solid #17a2b8;
+                                            text-align: center; margin: 1rem 0;'>
+                                    <div style='font-size: 1.1rem; font-weight: 600; color: #0c5460; margin-bottom: 0.5rem;'>
+                                        <i class="bi bi-info-circle"></i> No Insider Trading Data Available
+                                    </div>
+                                    <div style='color: #0c5460; font-size: 0.95rem;'>
+                                        Run <strong>Qualitative Analysis</strong> in tab 5 to see Smart Money indicators
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
                         else:
-                            st.info("Smart Money data not available. Run Qualitative Analysis in tab 5 first.")
+                            st.markdown("""
+                            <div style='background: linear-gradient(to right, #d1ecf1, #bee5eb);
+                                        padding: 1.5rem; border-radius: 10px; border-left: 5px solid #17a2b8;
+                                        text-align: center; margin: 1rem 0;'>
+                                <div style='font-size: 1.1rem; font-weight: 600; color: #0c5460; margin-bottom: 0.5rem;'>
+                                    <i class="bi bi-info-circle"></i> Smart Money Data Not Available
+                                </div>
+                                <div style='color: #0c5460; font-size: 0.95rem;'>
+                                    Run <strong>Qualitative Analysis</strong> in tab 5 first
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                         # ========== QUALITATIVE ANALYSIS (NEW) ==========
                         # Try to get qualitative analysis if available
@@ -8145,7 +8196,14 @@ with tab7:
 
                             # Display in columns by severity
                             if high_warnings:
-                                st.markdown("""**<i class="bi bi-exclamation-circle-fill" style="color: #dc3545;"></i> Critical Warnings:**""")
+                                st.markdown("""
+                                <div style='margin-bottom: 0.5rem;'>
+                                    <span style='font-weight: 600; font-size: 1.05rem;'>
+                                        <i class="bi bi-exclamation-circle-fill" style="color: #dc3545;"></i>
+                                        Critical Warnings
+                                    </span>
+                                </div>
+                                """, unsafe_allow_html=True)
                                 for warning in high_warnings:
                                     message = warning.get('message', '')
                                     st.markdown(f"""
@@ -8156,7 +8214,14 @@ with tab7:
                                     """, unsafe_allow_html=True)
 
                             if med_warnings:
-                                st.markdown("""**<i class="bi bi-exclamation-triangle-fill" style="color: #ffc107;"></i> Moderate Warnings:**""")
+                                st.markdown("""
+                                <div style='margin-bottom: 0.5rem; margin-top: 1rem;'>
+                                    <span style='font-weight: 600; font-size: 1.05rem;'>
+                                        <i class="bi bi-exclamation-triangle-fill" style="color: #ffc107;"></i>
+                                        Moderate Warnings
+                                    </span>
+                                </div>
+                                """, unsafe_allow_html=True)
                                 for warning in med_warnings:
                                     message = warning.get('message', '')
                                     st.markdown(f"""
@@ -8273,7 +8338,7 @@ with tab7:
                             elif fund_score >= 50:
                                 st.warning(f" MODERATE ({fund_score}/100) - Mixed fundamentals")
                             else:
-                                st.error(f"❌ WEAK ({fund_score}/100) - Fundamental concerns")
+                                st.error(f"WEAK ({fund_score}/100) - Fundamental concerns")
 
                             # Step 2: Technical Timing Assessment (includes overextension)
                             st.markdown("""
@@ -8313,7 +8378,7 @@ with tab7:
                             elif tech_score >= 50:
                                 st.warning(f" MODERATE ({tech_score}/100) - Mixed technical signals")
                             else:
-                                st.error(f"❌ WEAK ({tech_score}/100) - Unfavorable technicals")
+                                st.error(f"WEAK ({tech_score}/100) - Unfavorable technicals")
 
                             # Step 3: Final Combined Recommendation
                             st.markdown("""
@@ -8417,11 +8482,9 @@ with tab7:
                 # ========== ADVANCED TOOLS (NEW) ==========
                 if selected_ticker and full_analysis:
                     st.markdown("---")
-                    st.markdown("## Advanced Risk Management Tools")
+                    st.markdown("""<div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100'); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'><h3 style='margin: 0; color: white;'><i class="bi bi-tools"></i> Advanced Risk Management Tools</h3><p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>Herramientas avanzadas basadas en investigación académica</p></div>""", unsafe_allow_html=True)
 
-                    st.markdown("""
-                    Herramientas avanzadas basadas en investigación académica para análisis profundo y toma de decisiones.
-                    """)
+                    
 
                     # Import advanced UI components (lazy import)
                     try:
@@ -8436,11 +8499,11 @@ with tab7:
 
                         # Create tabs for different tools
                         adv_tab1, adv_tab2, adv_tab3, adv_tab4, adv_tab5 = st.tabs([
-                            " Visualizations",
-                            " Backtesting",
-                            " Options",
-                            "🌡️ Market Timing",
-                            "💼 Portfolio"
+                            "<i class='bi bi-graph-up'></i> Visualizations",
+                            "<i class='bi bi-clock-history'></i> Backtesting",
+                            "<i class='bi bi-currency-dollar'></i> Options",
+                            "<i class='bi bi-speedometer'></i> Market Timing",
+                            "<i class='bi bi-briefcase'></i> Portfolio"
                         ])
 
                         with adv_tab1:
