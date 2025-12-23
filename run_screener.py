@@ -2126,7 +2126,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
                 st.markdown("""
                 <div style='background: #fff5f5; padding: 1rem; border-radius: 10px;
                             border-left: 4px solid #dc3545; margin-bottom: 1rem;'>
-                    <div style='font-size: 1rem; font-weight: 600; color: #dc3545; margin-bottom: 0.75rem;'>❌ Penalties:</div>
+                    <div style='font-size: 1rem; font-weight: 600; color: #dc3545; margin-bottom: 0.75rem;'><i class="bi bi-x-circle-fill"></i> Penalties:</div>
                 </div>
                 """, unsafe_allow_html=True)
                 for penalty in penalties:
@@ -2142,7 +2142,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
                 st.markdown("""
                 <div style='background: #f0f9ff; padding: 1rem; border-radius: 10px;
                             border-left: 4px solid #28a745; margin-bottom: 1rem;'>
-                    <div style='font-size: 1rem; font-weight: 600; color: #28a745; margin-bottom: 0.75rem;'>✅ Bonuses:</div>
+                    <div style='font-size: 1rem; font-weight: 600; color: #28a745; margin-bottom: 0.75rem;'><i class="bi bi-check-circle-fill"></i> Bonuses:</div>
                 </div>
                 """, unsafe_allow_html=True)
                 for bonus in bonuses:
