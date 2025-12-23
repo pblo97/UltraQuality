@@ -2111,7 +2111,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     st.markdown(f"""
     <div style='background: linear-gradient(135deg, {tier_color} 0%, {tier_color}cc 100%);
                 padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; color: white;'>
-        <div style='font-size: 2rem; margin-bottom: 0.5rem;'>{tier_icon}</div>
+        <div style='font-size: 2rem; margin-bottom: 0.5rem;'>{tier_icon_ps}</div>
         <div style='font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;'>{quality_tier}</div>
         <div style='font-size: 1.2rem; opacity: 0.95;'>Base Allocation: {base_pct}%</div>
     </div>
