@@ -673,7 +673,7 @@ def display_smart_stop_loss(stop_loss_data, current_price):
         st.markdown("""
         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
-            <h3 style='margin: 0; color: white;'>SmartDynamicStopLoss</h3>
+            <h3 style='margin: 0; color: white;'><i class="bi bi-shield-check"></i> SmartDynamicStopLoss</h3>
             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                 Sistema Adaptativo por Quality Tiers
             </p>
@@ -771,15 +771,15 @@ def display_smart_stop_loss(stop_loss_data, current_price):
             if market_state == 'NO_POSITION':
                 status_display = "Sin Posición"
             elif market_state == 'DOWNTREND':
-                status_display = "⚠️ Tendencia Bajista"
+                status_display = "↓ Tendencia Bajista"
             elif market_state == 'PARABOLIC_CLIMAX':
-                status_display = "🔴 Clímax Parabólico"
+                status_display = "Clímax Parabólico"
             elif market_state == 'POWER_TREND':
-                status_display = "💪 Tendencia Fuerte"
+                status_display = "↑ Tendencia Fuerte"
             elif market_state == 'BLUE_SKY_ATH':
-                status_display = "🚀 Nuevo ATH"
+                status_display = "↑ Nuevo ATH"
             elif market_state == 'PULLBACK_FLAG':
-                status_display = "📊 Pullback"
+                status_display = "↔ Pullback"
             else:
                 status_display = market_state_clean
 
@@ -946,13 +946,13 @@ def display_entry_strategy(entry_strategy):
     # Strategy header with visual card
     strategy_config = {
         'SNIPER': {'emoji': '🎯', 'color': '#dc3545', 'bg': '#f8d7da'},
-        'BREAKOUT': {'emoji': '🚀', 'color': '#28a745', 'bg': '#d4edda'},
+        'BREAKOUT': {'icon': '<i class="bi bi-rocket-takeoff"></i>', 'color': '#28a745', 'bg': '#d4edda'},
         'PYRAMID': {'emoji': '📊', 'color': '#007bff', 'bg': '#d1ecf1'},
         'CONSERVATIVE': {'emoji': '🛡️', 'color': '#6c757d', 'bg': '#e2e3e5'},
         'NONE': {'emoji': '⏸️', 'color': '#ffc107', 'bg': '#fff3cd'}
     }
 
-    config = strategy_config.get(strategy_type, {'emoji': '❓', 'color': '#6c757d', 'bg': '#e2e3e5'})
+    config = strategy_config.get(strategy_type, {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': '#6c757d', 'bg': '#e2e3e5'})
 
     st.markdown(f"""
     <div style='background: {config['bg']}; padding: 1.5rem; border-radius: 10px;
@@ -1061,27 +1061,27 @@ def display_take_profit(profit_taking):
     # Tier-specific styling with improved names
     tier_config = {
         1: {
-            'icon': '💎',
+            'icon': '<i class="bi bi-gem"></i>',
             'name': 'Elite Quality',
             'color': '#1E88E5',  # Blue
             'bg_color': '#E3F2FD',
-            'strategy_emoji': '🏛️',
+            'strategy_icon': '<i class="bi bi-building"></i>',
             'recommendation': 'Estrategia conservadora: mantener posición, vender solo si fundamentales deterioran'
         },
         2: {
-            'icon': '⭐',
+            'icon': '<i class="bi bi-star-fill"></i>',
             'name': 'Premium',
             'color': '#43A047',  # Green
             'bg_color': '#E8F5E9',
-            'strategy_emoji': '📈',
+            'strategy_icon': '<i class="bi bi-graph-up"></i>',
             'recommendation': 'Estrategia balanceada: asegurar ganancias (3R) y dejar correr el resto con trailing stop'
         },
         3: {
-            'icon': '⚡',
+            'icon': '<i class="bi bi-lightning-fill"></i>',
             'name': 'Especulativa',
             'color': '#FB8C00',  # Orange
             'bg_color': '#FFF3E0',
-            'strategy_emoji': '🎯',
+            'strategy_icon': '<i class="bi bi-bullseye"></i>',
             'recommendation': 'Estrategia agresiva: tomar ganancias frecuentemente, reducir exposición rápido'
         }
     }
@@ -1297,17 +1297,75 @@ def display_take_profit(profit_taking):
 
 st.set_page_config(
     page_title="UltraQuality Screener",
-    page_icon="",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Modern CSS styling - Material Design inspired
+# Bootstrap Icons + Modern CSS styling
 st.markdown("""
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 <style>
     /* Main container improvements */
     .main {
         background-color: #f8f9fa;
+    }
+
+    /* Bootstrap Icons base styling */
+    .bi {
+        vertical-align: middle;
+    }
+
+    /* Professional badges */
+    .badge {
+        display: inline-block;
+        padding: 0.35rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .badge-buy {
+        background-color: #28a745;
+        color: white;
+    }
+
+    .badge-sell {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    .badge-hold {
+        background-color: #6c757d;
+        color: white;
+    }
+
+    .badge-monitor {
+        background-color: #ffc107;
+        color: #000;
+    }
+
+    .badge-info {
+        background-color: #17a2b8;
+        color: white;
+    }
+
+    /* Custom progress bar */
+    .custom-progress {
+        width: 100%;
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 0.5rem 0;
+    }
+
+    .custom-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #28a745, #20c997);
+        transition: width 0.3s ease;
     }
 
     /* Card-like containers */
@@ -6968,14 +7026,14 @@ with tab7:
 
                     # Define state order and styling
                     state_config = {
-                        'DOWNTREND': {'emoji': '📉', 'color': 'error', 'label': 'DOWNTREND (Evitar)', 'priority': 1},
+                        'DOWNTREND': {'icon': '<i class="bi bi-graph-down"></i>', 'color': 'error', 'label': 'DOWNTREND (Evitar)', 'priority': 1},
                         'PARABOLIC_CLIMAX': {'emoji': '', 'color': 'warning', 'label': 'PARABOLIC CLIMAX (Riesgo de corrección)', 'priority': 2},
                         'CHOPPY_SIDEWAYS': {'emoji': '〰️', 'color': 'info', 'label': 'CHOPPY/SIDEWAYS (Esperar)', 'priority': 3},
                         'PULLBACK_FLAG': {'emoji': '', 'color': 'success', 'label': 'PULLBACK/FLAG (Oportunidad)', 'priority': 4},
                         'ENTRY_BREAKOUT': {'emoji': '', 'color': 'success', 'label': 'ENTRY BREAKOUT (Comprar)', 'priority': 5},
                         'POWER_TREND': {'emoji': '', 'color': 'success', 'label': 'POWER TREND (Tendencia fuerte)', 'priority': 6},
                         'BLUE_SKY_ATH': {'emoji': '☁️', 'color': 'success', 'label': 'BLUE SKY ATH (Sin resistencia)', 'priority': 7},
-                        'UNKNOWN': {'emoji': '❓', 'color': 'info', 'label': 'UNKNOWN', 'priority': 99},
+                        'UNKNOWN': {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': 'info', 'label': 'UNKNOWN', 'priority': 99},
                         'ERROR': {'emoji': '❌', 'color': 'error', 'label': 'ERROR', 'priority': 100}
                     }
 
@@ -6993,7 +7051,7 @@ with tab7:
                             if i + j < len(sorted_states):
                                 state = sorted_states[i + j]
                                 tickers = state_groups[state]
-                                config = state_config.get(state, {'emoji': '❓', 'color': 'info', 'label': state, 'priority': 999})
+                                config = state_config.get(state, {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': 'info', 'label': state, 'priority': 999})
 
                                 with col:
                                     # Use appropriate streamlit component for color
@@ -7289,13 +7347,45 @@ with tab7:
                             tech_signal = stock_data['technical_signal']
 
                             if fund_signal == 'BUY' and tech_signal == 'BUY':
-                                st.success(" **STRONG BUY** (Fund + Tech)")
+                                st.markdown("""
+                                <div style='background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                                            padding: 1rem; border-radius: 10px; text-align: center;'>
+                                    <span class='badge badge-buy' style='font-size: 1.1rem;'>
+                                        <i class="bi bi-check-circle-fill"></i> STRONG BUY
+                                    </span>
+                                    <div style='color: white; margin-top: 0.5rem; font-size: 0.9rem;'>Fundamental + Technical</div>
+                                </div>
+                                """, unsafe_allow_html=True)
                             elif fund_signal == 'BUY' and tech_signal == 'HOLD':
-                                st.info("🟢 **BUY** (good fundamentals, wait for entry)")
+                                st.markdown("""
+                                <div style='background: #d1ecf1; padding: 1rem; border-radius: 10px; text-align: center;
+                                            border-left: 4px solid #17a2b8;'>
+                                    <span class='badge badge-buy'>
+                                        <i class="bi bi-arrow-up-circle"></i> BUY
+                                    </span>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>Good fundamentals, wait for entry</div>
+                                </div>
+                                """, unsafe_allow_html=True)
                             elif fund_signal == 'BUY' and tech_signal == 'SELL':
-                                st.warning("⏸️ **WAIT** (good company, bad timing)")
+                                st.markdown("""
+                                <div style='background: #fff3cd; padding: 1rem; border-radius: 10px; text-align: center;
+                                            border-left: 4px solid #ffc107;'>
+                                    <span class='badge badge-monitor'>
+                                        <i class="bi bi-pause-circle"></i> WAIT
+                                    </span>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>Good company, bad timing</div>
+                                </div>
+                                """, unsafe_allow_html=True)
                             elif fund_signal == 'MONITOR':
-                                st.info(f"🟡 **MONITOR** (Tech: {tech_signal})")
+                                st.markdown(f"""
+                                <div style='background: #fff3cd; padding: 1rem; border-radius: 10px; text-align: center;
+                                            border-left: 4px solid #ffc107;'>
+                                    <span class='badge badge-monitor'>
+                                        <i class="bi bi-eye"></i> MONITOR
+                                    </span>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>Tech Signal: {tech_signal}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
 
                         # Score breakdown
                         st.markdown("#### Score Breakdown")
@@ -7333,7 +7423,9 @@ with tab7:
                         st.markdown("""
                         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                     padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem;'>
-                            <h3 style='margin: 0; color: white;'>MÓDULO 1: CONTEXTO MACRO</h3>
+                            <h3 style='margin: 0; color: white;'>
+                                <i class="bi bi-globe2"></i> MÓDULO 1: CONTEXTO MACRO
+                            </h3>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                                 ¿Las condiciones favorecen la operación?
                             </p>
@@ -7358,7 +7450,7 @@ with tab7:
                             # TARJETA 1: MARKET REGIME
                             regime_config = {
                                 'BULL': {
-                                    'emoji': '🐂',
+                                    'icon': '<i class="bi bi-graph-up-arrow" style="font-size: 3rem;"></i>',
                                     'label': 'BULL MARKET',
                                     'bg': 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
                                     'effectiveness': '+20%',
@@ -7366,7 +7458,7 @@ with tab7:
                                     'risk_color': '#28a745'
                                 },
                                 'BEAR': {
-                                    'emoji': '🐻',
+                                    'icon': '<i class="bi bi-graph-down-arrow" style="font-size: 3rem;"></i>',
                                     'label': 'BEAR MARKET',
                                     'bg': 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
                                     'effectiveness': '-60%',
@@ -7374,7 +7466,7 @@ with tab7:
                                     'risk_color': '#dc3545'
                                 },
                                 'SIDEWAYS': {
-                                    'emoji': '↔️',
+                                    'icon': '<i class="bi bi-arrow-left-right" style="font-size: 3rem;"></i>',
                                     'label': 'SIDEWAYS MARKET',
                                     'bg': 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)',
                                     'effectiveness': '-30%',
@@ -7384,7 +7476,7 @@ with tab7:
                             }
 
                             reg_info = regime_config.get(market_regime, {
-                                'emoji': '❓',
+                                'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>',
                                 'label': 'UNKNOWN',
                                 'bg': 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
                                 'effectiveness': 'N/A',
@@ -7427,15 +7519,15 @@ with tab7:
                             # Overall verdict
                             if sector_status in ['LEADING', 'OUTPERFORMER'] and market_status in ['LEADING', 'OUTPERFORMER']:
                                 verdict = 'DOUBLE LEADER'
-                                verdict_emoji = '⭐'
+                                verdict_icon = '<i class="bi bi-star-fill"></i>'
                                 verdict_color = '#28a745'
                             elif sector_status in ['LAGGING', 'UNDERPERFORMER'] or market_status in ['LAGGING', 'UNDERPERFORMER']:
                                 verdict = 'WEAK'
-                                verdict_emoji = '⚠️'
+                                verdict_icon = '<i class="bi bi-exclamation-triangle"></i>'
                                 verdict_color = '#dc3545'
                             else:
                                 verdict = 'MIXED'
-                                verdict_emoji = '↔️'
+                                verdict_icon = '<i class="bi bi-dash-circle"></i>'
                                 verdict_color = '#ffc107'
 
                             st.markdown(f"""
@@ -7466,14 +7558,14 @@ with tab7:
                             # TARJETA 3: TECHNICAL HEALTH
                             # Determine trend color and emoji
                             trend_config = {
-                                'STRONG_UPTREND': {'emoji': '🚀', 'color': '#28a745', 'label': 'STRONG UPTREND'},
-                                'UPTREND': {'emoji': '📈', 'color': '#28a745', 'label': 'UPTREND'},
-                                'DOWNTREND': {'emoji': '📉', 'color': '#dc3545', 'label': 'DOWNTREND'},
-                                'STRONG_DOWNTREND': {'emoji': '⬇️', 'color': '#dc3545', 'label': 'STRONG DOWNTREND'},
-                                'SIDEWAYS': {'emoji': '↔️', 'color': '#ffc107', 'label': 'SIDEWAYS'}
+                                'STRONG_UPTREND': {'icon': '<i class="bi bi-rocket-takeoff"></i>', 'color': '#28a745', 'label': 'STRONG UPTREND'},
+                                'UPTREND': {'icon': '<i class="bi bi-graph-up"></i>', 'color': '#28a745', 'label': 'UPTREND'},
+                                'DOWNTREND': {'icon': '<i class="bi bi-graph-down"></i>', 'color': '#dc3545', 'label': 'DOWNTREND'},
+                                'STRONG_DOWNTREND': {'icon': '<i class="bi bi-arrow-down"></i>', 'color': '#dc3545', 'label': 'STRONG DOWNTREND'},
+                                'SIDEWAYS': {'icon': '<i class="bi bi-arrow-left-right" style="font-size: 3rem;"></i>', 'color': '#ffc107', 'label': 'SIDEWAYS'}
                             }
 
-                            trend_info = trend_config.get(trend, {'emoji': '❓', 'color': '#6c757d', 'label': 'UNKNOWN'})
+                            trend_info = trend_config.get(trend, {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': '#6c757d', 'label': 'UNKNOWN'})
 
                             # Extension level colors
                             ext_config = {
@@ -7487,12 +7579,12 @@ with tab7:
 
                             # Volume profile
                             vol_config = {
-                                'ACCUMULATION': {'emoji': '📥', 'color': '#28a745'},
-                                'DISTRIBUTION': {'emoji': '📤', 'color': '#dc3545'},
-                                'NEUTRAL': {'emoji': '➖', 'color': '#6c757d'}
+                                'ACCUMULATION': {'icon': '<i class="bi bi-box-arrow-in-down"></i>', 'color': '#28a745'},
+                                'DISTRIBUTION': {'icon': '<i class="bi bi-box-arrow-up"></i>', 'color': '#dc3545'},
+                                'NEUTRAL': {'icon': '<i class="bi bi-dash"></i>', 'color': '#6c757d'}
                             }
 
-                            vol_info = vol_config.get(volume_profile, {'emoji': '❓', 'color': '#6c757d'})
+                            vol_info = vol_config.get(volume_profile, {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': '#6c757d'})
 
                             st.markdown(f"""
                             <div style='background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
@@ -7524,7 +7616,7 @@ with tab7:
                         st.markdown("""
                         <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
                                     padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
-                            <h3 style='margin: 0; color: white;'>MÓDULO 2: DIAGNÓSTICO</h3>
+                            <h3 style='margin: 0; color: white;'><i class="bi bi-clipboard2-pulse"></i> MÓDULO 2: DIAGNÓSTICO</h3>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                                 Análisis detallado de fuerza y riesgo del activo
                             </p>
@@ -7581,7 +7673,7 @@ with tab7:
                                 'INCONSISTENT': {'color': '#dc3545', 'emoji': '❌', 'label': 'INCONSISTENT'}
                             }
 
-                            consist_info = consist_config.get(consistency, {'color': '#6c757d', 'emoji': '❓', 'label': consistency})
+                            consist_info = consist_config.get(consistency, {'color': '#6c757d', 'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'label': consistency})
 
                             st.markdown("<br>", unsafe_allow_html=True)
                             st.markdown(f"""
@@ -7701,7 +7793,7 @@ with tab7:
                         st.markdown("""
                         <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
                                     padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
-                            <h3 style='margin: 0; color: white;'>MÓDULO 3: CALCULADORA DE TAMAÑO</h3>
+                            <h3 style='margin: 0; color: white;'><i class="bi bi-calculator"></i> MÓDULO 3: CALCULADORA DE TAMAÑO</h3>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                                 Dual Constraint System: MIN(Quality-Based, Risk-Based)
                             </p>
@@ -7730,7 +7822,7 @@ with tab7:
                         st.markdown("""
                         <div style='background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
                                     padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
-                            <h3 style='margin: 0; color: white;'>MÓDULO 4: EJECUCIÓN TÁCTICA</h3>
+                            <h3 style='margin: 0; color: white;'><i class="bi bi-crosshair"></i> MÓDULO 4: EJECUCIÓN TÁCTICA</h3>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                                 Stop Loss + Entry Strategy
                             </p>
@@ -7824,7 +7916,7 @@ with tab7:
                         st.markdown("""
                         <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
                                     padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
-                            <h3 style='margin: 0; color: white;'>SMART MONEY DETECTOR</h3>
+                            <h3 style='margin: 0; color: white;'><i class="bi bi-cash-stack"></i> SMART MONEY DETECTOR</h3>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                                 Insiders, Institucionales y Short Interest
                             </p>
@@ -8026,7 +8118,7 @@ with tab7:
                         st.markdown("""
                         <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
                                     padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; margin-top: 2rem;'>
-                            <h3 style='margin: 0; color: white;'>DIAGNÓSTICO Y ALERTAS</h3>
+                            <h3 style='margin: 0; color: white;'><i class="bi bi-exclamation-triangle"></i> DIAGNÓSTICO Y ALERTAS</h3>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                                 Warnings técnicas y señales de riesgo
                             </p>
@@ -8053,7 +8145,7 @@ with tab7:
 
                             # Display in columns by severity
                             if high_warnings:
-                                st.markdown("**🔴 Critical Warnings:**")
+                                st.markdown("""**<i class="bi bi-exclamation-circle-fill" style="color: #dc3545;"></i> Critical Warnings:**""")
                                 for warning in high_warnings:
                                     message = warning.get('message', '')
                                     st.markdown(f"""
@@ -8064,7 +8156,7 @@ with tab7:
                                     """, unsafe_allow_html=True)
 
                             if med_warnings:
-                                st.markdown("**🟡 Moderate Warnings:**")
+                                st.markdown("""**<i class="bi bi-exclamation-triangle-fill" style="color: #ffc107;"></i> Moderate Warnings:**""")
                                 for warning in med_warnings:
                                     message = warning.get('message', '')
                                     st.markdown(f"""
@@ -8075,7 +8167,7 @@ with tab7:
                                     """, unsafe_allow_html=True)
 
                             if low_warnings:
-                                with st.expander("🔵 Low Priority Info", expanded=False):
+                                with st.expander("Low Priority Info", expanded=False):
                                     for warning in low_warnings:
                                         message = warning.get('message', '')
                                         st.caption(f"• {message}")
@@ -8093,7 +8185,7 @@ with tab7:
                         st.markdown("""
                         <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
                                     padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; margin-top: 2rem;'>
-                            <h3 style='margin: 0; color: white;'>RECOMENDACIÓN FINAL</h3>
+                            <h3 style='margin: 0; color: white;'><i class="bi bi-check2-circle"></i> RECOMENDACIÓN FINAL</h3>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                                 Fundamental + Technical + Risk Assessment
                             </p>
@@ -8171,7 +8263,7 @@ with tab7:
                             st.markdown("""
                             <div style='background: linear-gradient(to right, #667eea 0%, #764ba2 100%);
                                         padding: 0.75rem 1rem; border-radius: 8px; margin: 1rem 0 0.75rem 0;'>
-                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'>📊 Fundamental Quality</div>
+                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'><i class="bi bi-bar-chart-line"></i> Fundamental Quality</div>
                             </div>
                             """, unsafe_allow_html=True)
                             if fund_score >= 75:
@@ -8187,7 +8279,7 @@ with tab7:
                             st.markdown("""
                             <div style='background: linear-gradient(to right, #11998e 0%, #38ef7d 100%);
                                         padding: 0.75rem 1rem; border-radius: 8px; margin: 1rem 0 0.75rem 0;'>
-                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'>⏰ Technical Timing</div>
+                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'><i class="bi bi-clock-history"></i> Technical Timing</div>
                             </div>
                             """, unsafe_allow_html=True)
                             abs_distance = abs(distance_ma200)
@@ -8227,7 +8319,7 @@ with tab7:
                             st.markdown("""
                             <div style='background: linear-gradient(to right, #f093fb 0%, #f5576c 100%);
                                         padding: 0.75rem 1rem; border-radius: 8px; margin: 1rem 0 0.75rem 0;'>
-                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'>🎯 Final Recommendation</div>
+                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'><i class="bi bi-flag-fill"></i> Final Recommendation</div>
                             </div>
                             """, unsafe_allow_html=True)
 
