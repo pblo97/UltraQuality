@@ -3239,7 +3239,7 @@ class EnhancedTechnicalAnalyzer:
             tp1_price = price * (1 + (risk_pct * 3) / 100)
 
             return {
-                'strategy': '🏃 THE SWING (3R Rule)',
+                'strategy': 'THE SWING (3R Rule)',
                 'tier': tier,
                 'tier_name': 'TIER 2 - Quality Value Momentum',
                 'philosophy': '"Pay the risk, let the rest run" - Lock in gains while keeping upside',
