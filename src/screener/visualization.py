@@ -184,33 +184,56 @@ def create_price_levels_chart(
         fig.add_hline(
             y=entry['price'],
             line_color=entry['color'],
-            line_width=2,
+            line_width=2.5,
             line_dash="dash",
             annotation_text=f"{entry['label']}: ${entry['price']:.2f}",
-            annotation_position=position
+            annotation_position=position,
+            annotation=dict(
+                font=dict(size=11, weight='bold')
+            )
         )
 
     # Add stop loss levels
     for i, stop in enumerate(stop_levels):
-        line_width = 3 if stop.get('recommended') else 1
+        line_width = 3 if stop.get('recommended') else 1.5
         # Alternate positions to avoid overlap
-        position = "bottom right" if i % 2 == 0 else "top right"
+        position = "bottom left" if i % 2 == 0 else "top left"
+        recommended_marker = " [RECOMMENDED]" if stop.get('recommended') else ""
         fig.add_hline(
             y=stop['price'],
             line_color=stop['color'],
             line_width=line_width,
             line_dash="dot",
-            annotation_text=stop['label'] + (" ⭐" if stop.get('recommended') else "") + f" ${stop['price']:.2f}",
-            annotation_position=position
+            annotation_text=f"{stop['label']}{recommended_marker}: ${stop['price']:.2f}",
+            annotation_position=position,
+            annotation=dict(
+                font=dict(size=11, weight='bold' if stop.get('recommended') else 'normal')
+            )
         )
 
-    # Update layout
+    # Update layout with professional styling
     fig.update_layout(
-        title=f"{symbol} - Price Levels & Risk Management",
-        xaxis_title="Date" if historical_prices else "",
-        yaxis_title="Price ($)",
-        yaxis_range=[min_price, max_price],
-        height=500,
+        title=dict(
+            text=f"{symbol} - Price Levels & Risk Management",
+            font=dict(size=18, weight='bold'),
+            x=0.5,
+            xanchor='center'
+        ),
+        xaxis=dict(
+            title="Date" if historical_prices else "",
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='rgba(128,128,128,0.2)'
+        ),
+        yaxis=dict(
+            title="Price ($)",
+            range=[min_price, max_price],
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='rgba(128,128,128,0.2)',
+            tickformat='$.2f'
+        ),
+        height=550,
         hovermode='x unified',
         showlegend=True,
         legend=dict(
@@ -218,9 +241,14 @@ def create_price_levels_chart(
             yanchor="bottom",
             y=1.02,
             xanchor="right",
-            x=1
+            x=1,
+            bgcolor='rgba(255,255,255,0.8)',
+            bordercolor='rgba(0,0,0,0.2)',
+            borderwidth=1
         ),
-        margin=dict(l=60, r=150, t=80, b=60)  # Margen derecho amplio para anotaciones
+        margin=dict(l=70, r=160, t=90, b=70),
+        plot_bgcolor='rgba(250,250,250,0.5)',
+        paper_bgcolor='white'
     )
 
     return fig

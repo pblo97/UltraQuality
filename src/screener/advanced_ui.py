@@ -58,7 +58,7 @@ def render_price_levels_chart(
     try:
         quote = fmp_client.get_quote(symbol)  # Pass string, not list
         if not quote or len(quote) == 0:
-            st.warning("⚠️ No current price data available")
+            st.warning("No current price data available")
             return
 
         q = quote[0]
@@ -75,14 +75,14 @@ def render_price_levels_chart(
 
     # Validate we have minimum required data
     if not current_price or current_price == 0:
-        st.warning("⚠️ No current price data available")
+        st.warning("No current price data available")
         return
 
     if not ma_200 or ma_200 == 0:
-        st.info("ℹ️ MA200 not available - fetching historical data...")
+        st.info("MA200 not available - fetching historical data...")
         # MA200 will be calculated from historical prices if available
         if not historical_prices or len(historical_prices) < 200:
-            st.warning("⚠️ Insufficient historical data (need 200+ days for MA200)")
+            st.warning("Insufficient historical data (need 200+ days for MA200)")
             return
 
     fig = create_price_levels_chart(

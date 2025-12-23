@@ -669,11 +669,11 @@ def display_smart_stop_loss(stop_loss_data, current_price):
     """
     # Check if it's the new SmartDynamicStopLoss format
     if 'tier' in stop_loss_data:
-        # === NEW FORMAT: SmartDynamicStopLoss ===
+        # === NEW FORMAT: Smart Dynamic StopLoss ===
         st.markdown("""
         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
-            <h3 style='margin: 0; color: white;'><i class="bi bi-shield-check"></i> SmartDynamicStopLoss</h3>
+            <h3 style='margin: 0; color: white;'><i class="bi bi-shield-check"></i> Smart Dynamic StopLoss</h3>
             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                 Sistema Adaptativo por Quality Tiers
             </p>
@@ -1326,7 +1326,7 @@ def display_take_profit(profit_taking):
 
 st.set_page_config(
     page_title="UltraQuality Screener",
-    page_icon="📊",
+    page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -2105,8 +2105,8 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         'AVOID': '<i class="bi bi-x-circle-fill"></i>'
     }
 
-    tier_color = tier_colors.get(quality_tier, '#95a5a6')
-    tier_icon_ps = tier_icons.get(quality_tier, '📊')
+    tier_color = tier_colors.get(quality_tier, '#3498db')
+    tier_icon_ps = tier_icons.get(quality_tier, '<i class="bi bi-graph-up"></i>')
 
     st.markdown(f"""
     <div style='background: linear-gradient(135deg, {tier_color} 0%, {tier_color}cc 100%);
@@ -2158,14 +2158,14 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         st.markdown("""
         <div style='background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
                     padding: 1rem; border-radius: 10px; margin-top: 1rem; color: white;'>
-            <div style='font-size: 1.1rem; font-weight: 600;'>🐻 Bear Market Override</div>
+            <div style='font-size: 1.1rem; font-weight: 600;'><i class="bi bi-exclamation-triangle-fill"></i> Bear Market Override</div>
             <div style='font-size: 0.9rem; opacity: 0.95; margin-top: 0.5rem;'>All positions halved to reduce exposure</div>
         </div>
         """, unsafe_allow_html=True)
 
     # Execution details card
     st.markdown("---")
-    st.markdown("#### 📋 Execution Plan")
+    st.markdown("#### <i class='bi bi-card-checklist'></i> Execution Plan", unsafe_allow_html=True)
 
     # Calculate shares (assuming we have current price in stop_loss_data)
     if stop_loss_data and stop_loss_data.get('current_price'):
@@ -2197,37 +2197,22 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
 
             # Trading fee estimate
             estimated_fee = actual_cost * 0.001  # 0.1% typical commission
-            st.caption(f"💡 Estimated trading fees: ${estimated_fee:.2f} (0.1% assumption)")
+            st.caption(f"Estimated trading fees: ${estimated_fee:.2f} (0.1% assumption)")
     else:
-        st.info("ℹ️ Current price not available. Use recommended dollar amount: **${:,.0f}**".format(final_dollars))
+        st.info("Current price not available. Use recommended dollar amount: **${:,.0f}**".format(final_dollars))
 
     # Rationale box
-    st.markdown("#### 📝 Sizing Rationale")
+    st.markdown("""
+    <div style='margin-top: 1.5rem;'>
+        <div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem;'>
+            <i class="bi bi-lightbulb"></i> Sizing Rationale
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     st.info(pos_sizing.get('rationale', 'N/A'))
 
-    # Adjustments summary
-    if penalties or bonuses or bear_market:
-        st.markdown("#### ⚖️ Position Adjustments")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if penalties:
-                st.markdown("**❌ Applied Penalties:**")
-                for penalty in penalties:
-                    st.markdown(f"  • {penalty}")
-
-        with col2:
-            if bonuses:
-                st.markdown("**✅ Applied Bonuses:**")
-                for bonus in bonuses:
-                    st.markdown(f"  • {bonus}")
-
-        if bear_market:
-            st.warning("🐻 **Bear Market Override:** All positions halved to reduce exposure")
-
     # Detailed breakdown (expandable)
-    with st.expander("🔍 Detailed Quality-Based Calculation", expanded=False):
+    with st.expander("Detailed Quality-Based Calculation", expanded=False):
         st.caption(pos_sizing.get('calculation_breakdown', 'N/A'))
 
     # Risk management reminder
@@ -2235,7 +2220,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     st.markdown("""
     <div style='background: #fff3cd; padding: 1rem; border-radius: 8px;
                 border-left: 4px solid #ffc107;'>
-        <strong>⚠️ Risk Management Reminders:</strong>
+        <strong><i class="bi bi-exclamation-triangle-fill"></i> Risk Management Reminders:</strong>
         <ul style='margin: 0.5rem 0 0 0; padding-left: 1.5rem;'>
             <li>Never invest more than recommended position size</li>
             <li>Always set a stop loss order after buying</li>
@@ -7539,8 +7524,8 @@ with tab7:
                         with col2:
                             # TARJETA 2: SECTOR RELATIVE STRENGTH
                             # Determine sector and market colors
-                            sector_perf = full_analysis.get('sector_relative_strength', 0)
-                            market_perf = full_analysis.get('market_relative_strength', 0)
+                            sector_perf = full_analysis.get('sector_relative', 0)
+                            market_perf = full_analysis.get('market_relative', 0)
 
                             sector_color = '#28a745' if sector_status in ['LEADING', 'OUTPERFORMER'] else '#dc3545' if sector_status in ['LAGGING', 'UNDERPERFORMER'] else '#ffc107'
                             market_color = '#28a745' if market_status in ['LEADING', 'OUTPERFORMER'] else '#dc3545' if market_status in ['LAGGING', 'UNDERPERFORMER'] else '#ffc107'
@@ -7596,11 +7581,11 @@ with tab7:
 
                             trend_info = trend_config.get(trend, {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': '#6c757d', 'label': 'UNKNOWN'})
 
-                            # Extension level colors
+                            # Extension level colors (matching technical analyzer output)
                             ext_config = {
-                                'HEALTHY': {'color': '#28a745', 'label': 'HEALTHY'},
-                                'STRETCHED': {'color': '#ffc107', 'label': 'STRETCHED'},
-                                'OVEREXTENDED': {'color': '#dc3545', 'label': 'OVEREXTENDED'},
+                                'LOW': {'color': '#28a745', 'label': 'HEALTHY'},
+                                'MEDIUM': {'color': '#ffc107', 'label': 'STRETCHED'},
+                                'HIGH': {'color': '#ff6b35', 'label': 'OVEREXTENDED'},
                                 'EXTREME': {'color': '#dc3545', 'label': 'EXTREME'}
                             }
 
@@ -8113,57 +8098,6 @@ with tab7:
                             </div>
                             """, unsafe_allow_html=True)
 
-                        # ========== QUALITATIVE ANALYSIS (NEW) ==========
-                        # Try to get qualitative analysis if available
-                        st.markdown("---")
-                        st.markdown("---")
-                        st.header("Fundamental Valuation (from Screener)")
-                        st.caption("Quick fundamental context for this technical signal")
-
-                        # Check if ticker exists in qualitative results from tab5
-                        qual_data = None
-                        if 'results' in st.session_state:
-                            df_results = st.session_state['results']
-                            if selected_ticker in df_results['ticker'].values:
-                                ticker_row = df_results[df_results['ticker'] == selected_ticker].iloc[0]
-                                # Try to get cached qualitative data
-                                qual_key = f'qual_{selected_ticker}'
-                                if qual_key in st.session_state:
-                                    qual_data = st.session_state[qual_key]
-
-                        if qual_data and 'intrinsic_value' in qual_data:
-                            intrinsic = qual_data['intrinsic_value']
-
-                            col1, col2, col3, col4 = st.columns(4)
-
-                            with col1:
-                                current_p = intrinsic.get('current_price', 0)
-                                if current_p > 0:
-                                    st.metric("Current Price", f"${current_p:.2f}")
-
-                            with col2:
-                                fair = intrinsic.get('weighted_value', 0)
-                                if fair > 0:
-                                    st.metric("Fair Value", f"${fair:.2f}")
-
-                            with col3:
-                                upside = intrinsic.get('upside_downside_%', 0)
-                                if upside:
-                                    st.metric("Upside/Downside", f"{upside:+.1f}%")
-
-                            with col4:
-                                assessment = intrinsic.get('valuation_assessment', 'Unknown')
-                                if assessment == 'Undervalued':
-                                    st.success(f"🟢 {assessment}")
-                                elif assessment == 'Overvalued':
-                                    st.error(f"🔴 {assessment}")
-                                else:
-                                    st.warning(f"🟡 {assessment}")
-
-                            st.caption(" For full fundamental analysis, check the ** Qualitative** tab")
-                        else:
-                            st.info(" Fundamental valuation data not available. Run full analysis in ** Qualitative** or ** Custom Analysis** tabs.")
-
                         # ========== RESUMEN EJECUTIVO: WARNINGS & DIAGNOSTICS ==========
                         st.markdown("---")
                         st.markdown("""
@@ -8499,11 +8433,11 @@ with tab7:
 
                         # Create tabs for different tools
                         adv_tab1, adv_tab2, adv_tab3, adv_tab4, adv_tab5 = st.tabs([
-                            "<i class='bi bi-graph-up'></i> Visualizations",
-                            "<i class='bi bi-clock-history'></i> Backtesting",
-                            "<i class='bi bi-currency-dollar'></i> Options",
-                            "<i class='bi bi-speedometer'></i> Market Timing",
-                            "<i class='bi bi-briefcase'></i> Portfolio"
+                            "Visualizations",
+                            "Backtesting",
+                            "Options",
+                            "Market Timing",
+                            "Portfolio"
                         ])
 
                         with adv_tab1:
