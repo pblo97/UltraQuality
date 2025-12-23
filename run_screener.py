@@ -7512,116 +7512,128 @@ with tab7:
 
                         st.markdown("---")
 
-                        # ========== RISK MANAGEMENT (NEW) ==========
-                        st.markdown("---")
-                        st.markdown("####  Risk Management & Options Strategies")
-
-                        # Show overextension risk first
-                        overext_risk = full_analysis.get('overextension_risk', 0)
-                        overext_level = full_analysis.get('overextension_level', 'LOW')
-
-                        if overext_risk >= 6:
-                            st.error(f" **EXTREME Overextension Risk**: {overext_risk}/7 - High probability of 20-40% correction")
-                        elif overext_risk >= 4:
-                            st.warning(f" **HIGH Overextension Risk**: {overext_risk}/7 - Possible 10-20% pullback")
-                        elif overext_risk >= 2:
-                            st.info(f" **MEDIUM Overextension Risk**: {overext_risk}/7 - Monitor for reversal")
-                        else:
-                            st.success(f" **LOW Overextension Risk**: {overext_risk}/7")
+                        # ========== MÓDULO 3: LA CALCULADORA DE TAMAÑO ==========
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                                    padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
+                            <h3 style='margin: 0; color: white;'>MÓDULO 3: CALCULADORA DE TAMAÑO</h3>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                Dual Constraint System: MIN(Quality-Based, Risk-Based)
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
 
                         # Get risk management recommendations
                         risk_mgmt = full_analysis.get('risk_management', {})
 
                         if risk_mgmt:
-                            # Create tabs for different risk management areas
-                            rm_tab1, rm_tab2, rm_tab3, rm_tab4, rm_tab5 = st.tabs([
-                                " Position Sizing",
-                                " Entry Strategy",
-                                " Stop Loss",
-                                " Profit Taking",
-                                " Options Strategies"
-                            ])
+                            pos_sizing = risk_mgmt.get('position_sizing', {})
+                            if pos_sizing:
+                                # Use enhanced display function with dual constraint system
+                                display_position_sizing(
+                                    pos_sizing,
+                                    stop_loss_data=risk_mgmt.get('stop_loss'),
+                                    portfolio_size=portfolio_capital,
+                                    max_risk_dollars=max_risk_per_trade_dollars
+                                )
+                            else:
+                                st.warning("No position sizing data available")
+                        else:
+                            st.warning("No risk management data available")
 
-                            with rm_tab1:
-                                pos_sizing = risk_mgmt.get('position_sizing', {})
-                                if pos_sizing:
-                                    # Use enhanced display function with dual constraint system
-                                    display_position_sizing(
-                                        pos_sizing,
-                                        stop_loss_data=risk_mgmt.get('stop_loss'),
-                                        portfolio_size=portfolio_capital,
-                                        max_risk_dollars=max_risk_per_trade_dollars
-                                    )
+                        # ========== MÓDULO 4: EJECUCIÓN TÁCTICA ==========
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+                                    padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
+                            <h3 style='margin: 0; color: white;'>MÓDULO 4: EJECUCIÓN TÁCTICA</h3>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                Stop Loss + Entry Strategy
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-                            with rm_tab2:
-                                entry_strategy = risk_mgmt.get('entry_strategy', {})
-                                if entry_strategy:
-                                    # Use new state-based entry strategy display
-                                    display_entry_strategy(entry_strategy)
+                        if risk_mgmt:
+                            # Entry Strategy
+                            entry_strategy = risk_mgmt.get('entry_strategy', {})
+                            if entry_strategy:
+                                # Use new state-based entry strategy display
+                                display_entry_strategy(entry_strategy)
+                            else:
+                                st.warning("No entry strategy data available")
 
-                            with rm_tab3:
-                                stop_loss = risk_mgmt.get('stop_loss', {})
-                                if stop_loss:
-                                    # Get current price from full_analysis or stop_loss data
-                                    current_price = full_analysis.get('current_price', 0)
-                                    if current_price == 0:
-                                        current_price = stop_loss.get('current_price', stock_data.get('price', 0))
-                                    display_smart_stop_loss(stop_loss, current_price)
-                                else:
-                                    st.warning("No stop loss data available")
+                            st.markdown("---")
 
-                            with rm_tab4:
+                            # Stop Loss
+                            stop_loss = risk_mgmt.get('stop_loss', {})
+                            if stop_loss:
+                                # Get current price from full_analysis or stop_loss data
+                                current_price = full_analysis.get('current_price', 0)
+                                if current_price == 0:
+                                    current_price = stop_loss.get('current_price', stock_data.get('price', 0))
+                                display_smart_stop_loss(stop_loss, current_price)
+                            else:
+                                st.warning("No stop loss data available")
+
+                            # Optional: Profit Taking and Options as expandable sections
+                            st.markdown("---")
+
+                            with st.expander("Take Profit Strategy", expanded=False):
                                 profit_taking = risk_mgmt.get('profit_taking', {})
                                 if profit_taking:
                                     # Use professional Take Profit display function
                                     display_take_profit(profit_taking)
+                                else:
+                                    st.info("No take profit data available")
 
-                            with rm_tab5:
+                            with st.expander("Options Strategies", expanded=False):
                                 options_strategies = risk_mgmt.get('options_strategies', [])
                                 if options_strategies:
                                     st.markdown(f"**{len(options_strategies)} Recommended Strategies:**")
 
                                     for i, strategy in enumerate(options_strategies, 1):
-                                        with st.expander(f"**{i}. {strategy.get('name', 'Strategy')}**", expanded=(i==1)):
-                                            if 'when' in strategy:
-                                                st.write(f"**When:** {strategy['when']}")
-                                            if 'structure' in strategy:
-                                                st.write(f"**Structure:** {strategy['structure']}")
-                                            if 'strike' in strategy:
-                                                st.write(f"**Strike:** {strategy['strike']}")
-                                            if 'example' in strategy:
-                                                st.write(f"**Example:** {strategy['example']}")
-                                            if 'premium' in strategy:
-                                                st.write(f"**Premium:** {strategy['premium']}")
-                                            if 'credit' in strategy:
-                                                st.write(f"**Credit:** {strategy['credit']}")
-                                            if 'cost' in strategy:
-                                                st.write(f"**Cost:** {strategy['cost']}")
-                                            if 'leverage' in strategy:
-                                                st.write(f"**Leverage:** {strategy['leverage']}")
-
-                                            if 'rationale' in strategy:
-                                                st.info(f"**Rationale:** {strategy['rationale']}")
-                                            if 'benefit' in strategy:
-                                                st.success(f"**Benefit:** {strategy['benefit']}")
-                                            if 'risk' in strategy:
-                                                st.warning(f"**Risk:** {strategy['risk']}")
-
-                                            # Show outcomes for certain strategies
-                                            if 'outcome_1' in strategy:
-                                                st.write(f"**Outcome 1:** {strategy['outcome_1']}")
-                                            if 'outcome_2' in strategy:
-                                                st.write(f"**Outcome 2:** {strategy['outcome_2']}")
-
-                                            # Show evidence
-                                            if 'evidence' in strategy:
-                                                st.caption(f"📚 Evidence: {strategy['evidence']}")
-
-                                            # Show additional notes
-                                            if 'note' in strategy:
-                                                st.info(f" {strategy['note']}")
+                                        st.markdown(f"### {i}. {strategy.get('name', 'Unknown Strategy')}")
+                                        
+                                        if 'description' in strategy:
+                                            st.write(strategy['description'])
+                                        
+                                        # Show setup
+                                        if 'setup' in strategy:
+                                            st.success(f"**Setup:** {strategy['setup']}")
+                                        
+                                        # Show max profit/loss
+                                        col1, col2 = st.columns(2)
+                                        with col1:
+                                            if 'max_profit' in strategy:
+                                                st.metric("Max Profit", strategy['max_profit'])
+                                        with col2:
+                                            if 'max_loss' in strategy:
+                                                st.metric("Max Loss", strategy['max_loss'])
+                                        
+                                        # Show when to use
+                                        if 'when_to_use' in strategy:
+                                            st.info(f"**When to Use:** {strategy['when_to_use']}")
+                                        
+                                        # Show risk warning if any
+                                        if 'risk' in strategy:
+                                            st.warning(f"**Risk:** {strategy['risk']}")
+                                        
+                                        # Show outcomes for certain strategies
+                                        if 'outcome_1' in strategy:
+                                            st.write(f"**Outcome 1:** {strategy['outcome_1']}")
+                                        if 'outcome_2' in strategy:
+                                            st.write(f"**Outcome 2:** {strategy['outcome_2']}")
+                                        
+                                        # Show evidence
+                                        if 'evidence' in strategy:
+                                            st.caption(f"Evidence: {strategy['evidence']}")
+                                        
+                                        # Show additional notes
+                                        if 'note' in strategy:
+                                            st.info(f"{strategy['note']}")
                                 else:
                                     st.info("No specific options strategies recommended for this setup.")
+                        else:
+                            st.warning("No risk management data available")
 
                         # ========== QUALITATIVE ANALYSIS (NEW) ==========
                         # Try to get qualitative analysis if available
