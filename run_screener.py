@@ -7143,511 +7143,374 @@ with tab7:
                                 "70% Fund + 30% Tech"
                             )
 
-                        # Market Context
+                        # === MÓDULO 1: EL CONTEXTO MACRO (El Clima) ===
+                        # Always visible header - 3 KPI cards showing market conditions
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem;'>
+                            <h3 style='margin: 0; color: white;'>MÓDULO 1: CONTEXTO MACRO</h3>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                ¿Las condiciones favorecen la operación?
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Get data for the 3 cards
                         market_regime = full_analysis.get('market_regime', 'UNKNOWN')
-                        regime_display = get_market_regime_display(market_regime)
-
-                        st.markdown(f"#### Market Context: {regime_display}")
-                        st.caption(f"Confidence: {full_analysis.get('regime_confidence', 'unknown')}")
-
-                        # Component scores (NEW scoring system)
-                        st.markdown("####  Technical Components (NEW Scoring)")
-
+                        sector_status = full_analysis.get('sector_status', 'UNKNOWN')
+                        market_status = full_analysis.get('market_status', 'UNKNOWN')
+                        trend = full_analysis.get('trend', 'UNKNOWN')
+                        distance_ma200 = full_analysis.get('distance_from_ma200', 0)
+                        volume_profile = full_analysis.get('volume_profile', 'UNKNOWN')
+                        overextension_level = full_analysis.get('overextension_level', 'LOW')
                         components = full_analysis.get('component_scores', {})
+                        regime_adj = components.get('regime_adjustment', 0)
 
-                        col1, col2, col3, col4, col5 = st.columns(5)
+                        # Create 3 horizontal KPI cards
+                        col1, col2, col3 = st.columns(3)
 
                         with col1:
-                            st.metric("Multi-TF Momentum", f"{components.get('momentum', 0):.0f}/25")
-                            st.caption(f"{full_analysis.get('momentum_consistency', 'N/A')}")
-
-                        with col2:
-                            st.metric("Risk-Adjusted", f"{components.get('risk_adjusted', 0):.0f}/15")
-                            st.caption(f"Sharpe: {full_analysis.get('sharpe_12m', 0):.2f}")
-
-                        with col3:
-                            st.metric("Sector Relative", f"{components.get('sector_relative', 0):.0f}/15")
-                            st.caption(full_analysis.get('sector_status', 'N/A'))
-
-                        with col4:
-                            st.metric("Market Relative", f"{components.get('market_relative', 0):.0f}/10")
-                            st.caption(full_analysis.get('market_status', 'N/A'))
-
-                        with col5:
-                            st.metric("Volume Profile", f"{components.get('volume', 0):.0f}/10")
-                            st.caption(full_analysis.get('volume_profile', 'N/A'))
-
-                        # Regime Adjustment
-                        regime_adj = components.get('regime_adjustment', 0)
-                        if regime_adj != 0:
-                            st.info(f"⚖️ Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
-
-                        # Detailed metrics (NEW - organized by category)
-                        st.markdown("####  Detailed Metrics")
-
-                        tab1, tab2, tab3, tab4 = st.tabs(["Momentum", "Risk & Relative Strength", "Trend & Volume", "Market Context"])
-
-                        with tab1:
-                            st.markdown("**Multi-Timeframe Momentum:**")
-                            col1, col2, col3, col4 = st.columns(4)
-                            with col1:
-                                st.metric("12M Return", f"{full_analysis.get('momentum_12m', 0):+.1f}%")
-                            with col2:
-                                st.metric("6M Return", f"{full_analysis.get('momentum_6m', 0):+.1f}%")
-                            with col3:
-                                st.metric("3M Return", f"{full_analysis.get('momentum_3m', 0):+.1f}%")
-                            with col4:
-                                st.metric("1M Return", f"{full_analysis.get('momentum_1m', 0):+.1f}%")
-
-                            st.write(f"**Consistency:** {full_analysis.get('momentum_consistency', 'N/A')}")
-                            st.write(f"**Status:** {full_analysis.get('momentum_status', 'N/A')}")
-
-                        with tab2:
-                            # Risk Metrics Section with Visual Gauges
-                            st.markdown("### 📊 Risk Metrics")
-
-                            # Sharpe Ratio with visual gauge
-                            sharpe = full_analysis.get('sharpe_12m', 0)
-                            volatility = full_analysis.get('volatility_12m', 0)
-                            risk_status = full_analysis.get('risk_adjusted_status', 'N/A')
-
-                            col1, col2, col3 = st.columns(3)
-
-                            with col1:
-                                # Sharpe Ratio Card
-                                sharpe_color = '#28a745' if sharpe > 1.0 else '#ffc107' if sharpe > 0.5 else '#dc3545'
-                                sharpe_normalized = min(max(sharpe / 2.0, 0), 1)  # Normalize 0-2 to 0-1
-
-                                st.markdown(f"""
-                                <div style='background: white; padding: 1.5rem; border-radius: 10px;
-                                            box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;
-                                            border-top: 4px solid {sharpe_color};'>
-                                    <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>SHARPE RATIO (12M)</div>
-                                    <div style='font-size: 2.5rem; font-weight: 700; color: {sharpe_color};'>{sharpe:.2f}</div>
-                                    <div style='font-size: 0.8rem; color: #6c757d; margin-top: 0.5rem;'>
-                                        {'Excellent' if sharpe > 1.0 else 'Good' if sharpe > 0.5 else 'Poor'}
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                st.progress(sharpe_normalized)
-                                st.caption("Risk-adjusted returns quality")
-
-                            with col2:
-                                # Volatility Card
-                                vol_color = '#28a745' if volatility < 20 else '#ffc107' if volatility < 40 else '#dc3545'
-                                vol_normalized = min(volatility / 100, 1)  # Normalize to 0-1
-
-                                st.markdown(f"""
-                                <div style='background: white; padding: 1.5rem; border-radius: 10px;
-                                            box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;
-                                            border-top: 4px solid {vol_color};'>
-                                    <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>VOLATILITY (12M)</div>
-                                    <div style='font-size: 2.5rem; font-weight: 700; color: {vol_color};'>{volatility:.1f}%</div>
-                                    <div style='font-size: 0.8rem; color: #6c757d; margin-top: 0.5rem;'>
-                                        {'Low' if volatility < 20 else 'Medium' if volatility < 40 else 'High'}
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                st.progress(vol_normalized)
-                                st.caption("Price fluctuation magnitude")
-
-                            with col3:
-                                # Risk Status Card
-                                status_config = {
-                                    'EXCELLENT': {'color': '#28a745', 'emoji': '🟢', 'label': 'Excellent'},
-                                    'GOOD': {'color': '#17a2b8', 'emoji': '🔵', 'label': 'Good'},
-                                    'MODERATE': {'color': '#ffc107', 'emoji': '🟡', 'label': 'Moderate'},
-                                    'POOR': {'color': '#dc3545', 'emoji': '🔴', 'label': 'Poor'}
-                                }
-                                status_info = status_config.get(risk_status, {'color': '#6c757d', 'emoji': '⚪', 'label': risk_status})
-
-                                st.markdown(f"""
-                                <div style='background: white; padding: 1.5rem; border-radius: 10px;
-                                            box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;
-                                            border-top: 4px solid {status_info['color']};'>
-                                    <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>RISK STATUS</div>
-                                    <div style='font-size: 2rem; margin: 0.5rem 0;'>{status_info['emoji']}</div>
-                                    <div style='font-size: 1.3rem; font-weight: 600; color: {status_info['color']};'>{status_info['label']}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                st.caption("Overall risk assessment")
-
-                            st.markdown("<br>", unsafe_allow_html=True)
-
-                            # Relative Strength Section
-                            st.markdown("### 💪 Relative Strength Analysis")
-
-                            sector_relative = full_analysis.get('sector_relative', 0)
-                            market_relative = full_analysis.get('market_relative', 0)
-                            sector_status = full_analysis.get('sector_status', 'N/A')
-                            market_status = full_analysis.get('market_status', 'N/A')
-
-                            col1, col2 = st.columns(2)
-
-                            with col1:
-                                # Sector Relative Strength
-                                sector_color = '#28a745' if sector_relative > 5 else '#ffc107' if sector_relative > 0 else '#dc3545'
-
-                                st.markdown(f"""
-                                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                            padding: 1.5rem; border-radius: 10px; color: white; margin-bottom: 1rem;'>
-                                    <div style='font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.5rem;'>VS SECTOR PERFORMANCE</div>
-                                    <div style='font-size: 3rem; font-weight: 700; margin: 0.5rem 0;'>{sector_relative:+.1f}%</div>
-                                    <div style='font-size: 1rem; opacity: 0.95;'>Status: {sector_status}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-
-                                # Visual bar for sector comparison
-                                sector_norm = (sector_relative + 50) / 100  # Normalize -50 to +50 → 0 to 1
-                                sector_norm = min(max(sector_norm, 0), 1)
-                                st.progress(sector_norm)
-
-                                if sector_relative > 10:
-                                    st.success("💎 **Sector Leader** - Outperforming peers significantly")
-                                elif sector_relative > 0:
-                                    st.info("✅ **Above Sector** - Better than average")
-                                else:
-                                    st.warning("⚠️ **Below Sector** - Underperforming industry")
-
-                            with col2:
-                                # Market Relative Strength
-                                market_color = '#28a745' if market_relative > 5 else '#ffc107' if market_relative > 0 else '#dc3545'
-
-                                st.markdown(f"""
-                                <div style='background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-                                            padding: 1.5rem; border-radius: 10px; color: white; margin-bottom: 1rem;'>
-                                    <div style='font-size: 0.85rem; opacity: 0.9; margin-bottom: 0.5rem;'>VS MARKET (SPY) PERFORMANCE</div>
-                                    <div style='font-size: 3rem; font-weight: 700; margin: 0.5rem 0;'>{market_relative:+.1f}%</div>
-                                    <div style='font-size: 1rem; opacity: 0.95;'>Status: {market_status}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-
-                                # Visual bar for market comparison
-                                market_norm = (market_relative + 50) / 100
-                                market_norm = min(max(market_norm, 0), 1)
-                                st.progress(market_norm)
-
-                                if market_relative > 10:
-                                    st.success("🚀 **Market Beater** - Crushing the S&P 500")
-                                elif market_relative > 0:
-                                    st.info("📈 **Above Market** - Outperforming benchmark")
-                                else:
-                                    st.warning("📉 **Below Market** - Lagging S&P 500")
-
-                            # Comparison Summary
-                            st.markdown("---")
-                            st.markdown("#### 📊 Strength Comparison")
-
-                            if sector_relative > 0 and market_relative > 0:
-                                st.success("🎯 **Double Outperformance**: Beating both sector AND market")
-                            elif sector_relative > 0:
-                                st.info("🏆 **Sector Champion**: Strong in its industry")
-                            elif market_relative > 0:
-                                st.info("💼 **Market Performer**: Better than broad market")
-                            else:
-                                st.warning("⚠️ **Relative Weakness**: Underperforming both sector and market")
-
-                        with tab3:
-                            # Trend Analysis Section
-                            st.markdown("### 📈 Trend Analysis")
-
-                            trend = full_analysis.get('trend', 'N/A')
-                            distance_ma200 = full_analysis.get('distance_from_ma200', 0)
-                            golden_cross = full_analysis.get('golden_cross', False)
-
-                            # Trend Status Card with Color Coding
-                            trend_config = {
-                                'STRONG_UPTREND': {'color': '#28a745', 'emoji': '🚀', 'label': 'Strong Uptrend', 'bg': '#d4edda'},
-                                'UPTREND': {'color': '#28a745', 'emoji': '📈', 'label': 'Uptrend', 'bg': '#d4edda'},
-                                'SIDEWAYS': {'color': '#ffc107', 'emoji': '➡️', 'label': 'Sideways', 'bg': '#fff3cd'},
-                                'DOWNTREND': {'color': '#dc3545', 'emoji': '📉', 'label': 'Downtrend', 'bg': '#f8d7da'},
-                                'STRONG_DOWNTREND': {'color': '#dc3545', 'emoji': '⚠️', 'label': 'Strong Downtrend', 'bg': '#f8d7da'}
-                            }
-                            trend_info = trend_config.get(trend, {'color': '#6c757d', 'emoji': '❓', 'label': trend, 'bg': '#e2e3e5'})
-
-                            st.markdown(f"""
-                            <div style='background: {trend_info['bg']}; padding: 1.5rem; border-radius: 10px;
-                                        border-left: 6px solid {trend_info['color']}; margin-bottom: 1.5rem;'>
-                                <div style='display: flex; align-items: center; justify-content: space-between;'>
-                                    <div>
-                                        <div style='font-size: 0.85rem; color: #6c757d;'>CURRENT TREND</div>
-                                        <div style='font-size: 2rem; font-weight: 600; color: {trend_info['color']}; margin-top: 0.5rem;'>
-                                            {trend_info['emoji']} {trend_info['label']}
-                                        </div>
-                                    </div>
-                                    <div style='text-align: right;'>
-                                        <div style='font-size: 0.85rem; color: #6c757d;'>GOLDEN CROSS</div>
-                                        <div style='font-size: 2rem; margin-top: 0.5rem;'>
-                                            {'✅' if golden_cross else '❌'}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-
-                            # Distance from MA200 with Visual Gauge
-                            st.markdown("#### 📏 Distance from MA200")
-
-                            dist_color = '#28a745' if -5 <= distance_ma200 <= 20 else '#ffc107' if -15 <= distance_ma200 <= 40 else '#dc3545'
-                            dist_abs = abs(distance_ma200)
-                            dist_normalized = min(dist_abs / 50, 1)  # Normalize to 0-1 (0-50% range)
-
-                            col1, col2 = st.columns([2, 1])
-
-                            with col1:
-                                st.markdown(f"""
-                                <div style='background: white; padding: 1.5rem; border-radius: 10px;
-                                            box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-left: 4px solid {dist_color};'>
-                                    <div style='font-size: 0.9rem; color: #6c757d; margin-bottom: 0.5rem;'>DISTANCE FROM MA200</div>
-                                    <div style='font-size: 3.5rem; font-weight: 700; color: {dist_color};'>{distance_ma200:+.1f}%</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                st.progress(dist_normalized)
-
-                            with col2:
-                                if distance_ma200 > 20:
-                                    st.error("⚠️ **Overextended**\nLikely pullback")
-                                elif distance_ma200 > 5:
-                                    st.success("✅ **Healthy**\nGood momentum")
-                                elif distance_ma200 > -5:
-                                    st.info("ℹ️ **Near MA200**\nConsolidating")
-                                elif distance_ma200 > -15:
-                                    st.warning("⚠️ **Below MA200**\nWeak trend")
-                                else:
-                                    st.error("🚨 **Far Below**\nStrong weakness")
-
-                            st.markdown("<br>", unsafe_allow_html=True)
-
-                            # Volume Analysis Section
-                            st.markdown("### 🔊 Volume Analysis")
-
-                            volume_profile = full_analysis.get('volume_profile', 'N/A')
-                            volume_trend = full_analysis.get('volume_trend', 'N/A')
-                            accumulation_ratio = full_analysis.get('accumulation_ratio', 0)
-
-                            col1, col2 = st.columns(2)
-
-                            with col1:
-                                # Volume Profile Card
-                                vol_profile_config = {
-                                    'ACCUMULATION': {'color': '#28a745', 'emoji': '📥', 'label': 'Accumulation', 'desc': 'Institutional buying'},
-                                    'DISTRIBUTION': {'color': '#dc3545', 'emoji': '📤', 'label': 'Distribution', 'desc': 'Smart money selling'},
-                                    'NEUTRAL': {'color': '#ffc107', 'emoji': '⚖️', 'label': 'Neutral', 'desc': 'Balanced activity'},
-                                    'HIGH': {'color': '#28a745', 'emoji': '🔥', 'label': 'High Volume', 'desc': 'Strong interest'},
-                                    'LOW': {'color': '#6c757d', 'emoji': '💤', 'label': 'Low Volume', 'desc': 'Limited interest'}
-                                }
-                                vol_info = vol_profile_config.get(volume_profile, {'color': '#6c757d', 'emoji': '❓', 'label': volume_profile, 'desc': ''})
-
-                                st.markdown(f"""
-                                <div style='background: linear-gradient(135deg, {vol_info['color']}22, {vol_info['color']}44);
-                                            padding: 1.5rem; border-radius: 10px; border: 2px solid {vol_info['color']};'>
-                                    <div style='font-size: 0.85rem; color: #6c757d;'>VOLUME PROFILE</div>
-                                    <div style='font-size: 2.5rem; margin: 0.5rem 0;'>{vol_info['emoji']}</div>
-                                    <div style='font-size: 1.5rem; font-weight: 600; color: {vol_info['color']};'>{vol_info['label']}</div>
-                                    <div style='font-size: 0.9rem; color: #6c757d; margin-top: 0.5rem;'>{vol_info['desc']}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-
-                            with col2:
-                                # Accumulation Ratio Gauge
-                                acc_color = '#28a745' if accumulation_ratio > 1.2 else '#ffc107' if accumulation_ratio > 0.8 else '#dc3545'
-                                acc_normalized = min(max((accumulation_ratio - 0.5) / 1.5, 0), 1)  # Normalize 0.5-2.0 to 0-1
-
-                                st.markdown(f"""
-                                <div style='background: white; padding: 1.5rem; border-radius: 10px;
-                                            box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;
-                                            border-top: 4px solid {acc_color};'>
-                                    <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>ACCUMULATION RATIO</div>
-                                    <div style='font-size: 2.5rem; font-weight: 700; color: {acc_color};'>{accumulation_ratio:.2f}</div>
-                                    <div style='font-size: 0.8rem; color: #6c757d; margin-top: 0.5rem;'>
-                                        {'Strong Buying' if accumulation_ratio > 1.2 else 'Balanced' if accumulation_ratio > 0.8 else 'Selling Pressure'}
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                st.progress(acc_normalized)
-
-                            # Volume Trend Indicator
-                            st.markdown("---")
-                            vol_trend_config = {
-                                'INCREASING': {'icon': '📈', 'color': '#28a745', 'text': 'Volume is increasing - Growing interest'},
-                                'DECREASING': {'icon': '📉', 'color': '#dc3545', 'text': 'Volume is decreasing - Fading interest'},
-                                'STABLE': {'icon': '➡️', 'color': '#6c757d', 'text': 'Volume is stable - Consistent activity'}
-                            }
-                            vt_info = vol_trend_config.get(volume_trend, {'icon': '❓', 'color': '#6c757d', 'text': volume_trend})
-
-                            st.markdown(f"""
-                            <div style='background: {vt_info['color']}22; padding: 1rem; border-radius: 8px;
-                                        border-left: 4px solid {vt_info['color']}; display: flex; align-items: center;'>
-                                <div style='font-size: 2rem; margin-right: 1rem;'>{vt_info['icon']}</div>
-                                <div>
-                                    <div style='font-size: 0.85rem; color: #6c757d;'>VOLUME TREND</div>
-                                    <div style='font-size: 1.1rem; color: {vt_info['color']}; font-weight: 500;'>{vt_info['text']}</div>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-
-                        with tab4:
-                            # Market Regime Visualization
-                            st.markdown("### 🌐 Market Environment")
-
-                            regime_confidence = full_analysis.get('regime_confidence', 'unknown')
-
-                            # Regime Configuration with Visual Design
+                            # TARJETA 1: MARKET REGIME
                             regime_config = {
                                 'BULL': {
-                                    'color': '#28a745',
-                                    'bg': 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
                                     'emoji': '🐂',
-                                    'label': 'Bull Market',
-                                    'desc': 'Broad market uptrend',
-                                    'momentum': '+20% effectiveness',
-                                    'strategy': 'Ride the trend, momentum works best',
-                                    'risk': 'Low'
+                                    'label': 'BULL MARKET',
+                                    'bg': 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+                                    'effectiveness': '+20%',
+                                    'risk': 'LOW',
+                                    'risk_color': '#28a745'
                                 },
                                 'BEAR': {
-                                    'color': '#dc3545',
-                                    'bg': 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
                                     'emoji': '🐻',
-                                    'label': 'Bear Market',
-                                    'desc': 'Broad market downtrend',
-                                    'momentum': '-60% effectiveness',
-                                    'strategy': 'Defensive positioning, momentum crowded',
-                                    'risk': 'High'
+                                    'label': 'BEAR MARKET',
+                                    'bg': 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
+                                    'effectiveness': '-60%',
+                                    'risk': 'HIGH',
+                                    'risk_color': '#dc3545'
                                 },
                                 'SIDEWAYS': {
-                                    'color': '#ffc107',
-                                    'bg': 'linear-gradient(135deg, #ffc107 0%, #fd7e14 100%)',
-                                    'emoji': '➡️',
-                                    'label': 'Sideways Market',
-                                    'desc': 'Range-bound trading',
-                                    'momentum': 'Normal behavior',
-                                    'strategy': 'Stock picking, mean reversion',
-                                    'risk': 'Medium'
+                                    'emoji': '↔️',
+                                    'label': 'SIDEWAYS MARKET',
+                                    'bg': 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)',
+                                    'effectiveness': '-30%',
+                                    'risk': 'MEDIUM',
+                                    'risk_color': '#ffc107'
                                 }
                             }
 
                             reg_info = regime_config.get(market_regime, {
-                                'color': '#6c757d',
-                                'bg': 'linear-gradient(135deg, #6c757d 0%, #5a6268 100%)',
                                 'emoji': '❓',
-                                'label': market_regime,
-                                'desc': 'Unknown market condition',
-                                'momentum': 'N/A',
-                                'strategy': 'Analyze carefully',
-                                'risk': 'Unknown'
+                                'label': 'UNKNOWN',
+                                'bg': 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+                                'effectiveness': 'N/A',
+                                'risk': 'UNKNOWN',
+                                'risk_color': '#6c757d'
                             })
 
-                            # Main Regime Card
                             st.markdown(f"""
                             <div style='background: {reg_info['bg']};
-                                        padding: 2rem; border-radius: 15px; color: white;
-                                        box-shadow: 0 4px 15px rgba(0,0,0,0.2); margin-bottom: 1.5rem;'>
+                                        padding: 1.5rem; border-radius: 12px; color: white;
+                                        box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-height: 280px;'>
                                 <div style='text-align: center;'>
-                                    <div style='font-size: 4rem; margin-bottom: 0.5rem;'>{reg_info['emoji']}</div>
-                                    <div style='font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem;'>{reg_info['label']}</div>
-                                    <div style='font-size: 1.1rem; opacity: 0.9;'>{reg_info['desc']}</div>
-                                    <div style='font-size: 0.9rem; opacity: 0.8; margin-top: 1rem;
-                                                background: rgba(255,255,255,0.2); padding: 0.5rem; border-radius: 5px;'>
-                                        Confidence: {regime_confidence}
-                                    </div>
+                                    <div style='font-size: 3rem; margin-bottom: 0.5rem;'>{reg_info['emoji']}</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700; margin-bottom: 1rem;'>{reg_info['label']}</div>
+                                </div>
+                                <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>MOMENTUM EFFECTIVENESS</div>
+                                    <div style='font-size: 1.5rem; font-weight: 700;'>{reg_info['effectiveness']}</div>
+                                </div>
+                                <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>MARKET RISK LEVEL</div>
+                                    <div style='font-size: 1.5rem; font-weight: 700;'>{reg_info['risk']}</div>
+                                </div>
+                                <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px;'>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>SCORE ADJUSTMENT</div>
+                                    <div style='font-size: 1.5rem; font-weight: 700;'>{regime_adj:+.0f} pts</div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # Impact Cards
-                            st.markdown("#### 📊 Market Regime Impact")
+                        with col2:
+                            # TARJETA 2: SECTOR RELATIVE STRENGTH
+                            # Determine sector and market colors
+                            sector_perf = full_analysis.get('sector_relative_strength', 0)
+                            market_perf = full_analysis.get('market_relative_strength', 0)
 
-                            col1, col2, col3 = st.columns(3)
+                            sector_color = '#28a745' if sector_status in ['LEADING', 'OUTPERFORMER'] else '#dc3545' if sector_status in ['LAGGING', 'UNDERPERFORMER'] else '#ffc107'
+                            market_color = '#28a745' if market_status in ['LEADING', 'OUTPERFORMER'] else '#dc3545' if market_status in ['LAGGING', 'UNDERPERFORMER'] else '#ffc107'
 
-                            with col1:
-                                st.markdown(f"""
-                                <div style='background: white; padding: 1.5rem; border-radius: 10px;
-                                            box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;
-                                            border-top: 4px solid {reg_info['color']};'>
-                                    <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>MOMENTUM EFFECTIVENESS</div>
-                                    <div style='font-size: 1.8rem; font-weight: 600; color: {reg_info['color']};
-                                                margin: 0.5rem 0;'>{reg_info['momentum']}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-
-                            with col2:
-                                risk_color_map = {'Low': '#28a745', 'Medium': '#ffc107', 'High': '#dc3545', 'Unknown': '#6c757d'}
-                                risk_color = risk_color_map.get(reg_info['risk'], '#6c757d')
-
-                                st.markdown(f"""
-                                <div style='background: white; padding: 1.5rem; border-radius: 10px;
-                                            box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;
-                                            border-top: 4px solid {risk_color};'>
-                                    <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>MARKET RISK LEVEL</div>
-                                    <div style='font-size: 1.8rem; font-weight: 600; color: {risk_color};
-                                                margin: 0.5rem 0;'>{reg_info['risk']}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-
-                            with col3:
-                                # Regime adjustment from component scores
-                                regime_adj = components.get('regime_adjustment', 0)
-                                adj_color = '#28a745' if regime_adj > 0 else '#dc3545' if regime_adj < 0 else '#6c757d'
-
-                                st.markdown(f"""
-                                <div style='background: white; padding: 1.5rem; border-radius: 10px;
-                                            box-shadow: 0 2px 8px rgba(0,0,0,0.1); text-align: center;
-                                            border-top: 4px solid {adj_color};'>
-                                    <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>SCORE ADJUSTMENT</div>
-                                    <div style='font-size: 1.8rem; font-weight: 600; color: {adj_color};
-                                                margin: 0.5rem 0;'>{regime_adj:+.0f} pts</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-
-                            # Strategy Recommendation
-                            st.markdown("---")
-                            st.markdown("#### 🎯 Recommended Strategy")
+                            # Overall verdict
+                            if sector_status in ['LEADING', 'OUTPERFORMER'] and market_status in ['LEADING', 'OUTPERFORMER']:
+                                verdict = 'DOUBLE LEADER'
+                                verdict_emoji = '⭐'
+                                verdict_color = '#28a745'
+                            elif sector_status in ['LAGGING', 'UNDERPERFORMER'] or market_status in ['LAGGING', 'UNDERPERFORMER']:
+                                verdict = 'WEAK'
+                                verdict_emoji = '⚠️'
+                                verdict_color = '#dc3545'
+                            else:
+                                verdict = 'MIXED'
+                                verdict_emoji = '↔️'
+                                verdict_color = '#ffc107'
 
                             st.markdown(f"""
-                            <div style='background: {reg_info['color']}22; padding: 1.5rem; border-radius: 10px;
-                                        border-left: 4px solid {reg_info['color']};'>
-                                <div style='font-size: 1.1rem; font-weight: 600; color: {reg_info['color']};
-                                            margin-bottom: 0.5rem;'>Optimal Approach:</div>
-                                <div style='font-size: 1rem; color: #495057;'>{reg_info['strategy']}</div>
+                            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        padding: 1.5rem; border-radius: 12px; color: white;
+                                        box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-height: 280px;'>
+                                <div style='text-align: center; margin-bottom: 1rem;'>
+                                    <div style='font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;'>SECTOR RELATIVE STRENGTH</div>
+                                    <div style='font-size: 2.5rem;'>{verdict_emoji}</div>
+                                </div>
+                                <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>SECTOR vs MARKET</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700;'>{sector_status}</div>
+                                    <div style='font-size: 1rem; opacity: 0.9;'>{sector_perf:+.1f}%</div>
+                                </div>
+                                <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>STOCK vs SECTOR</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700;'>{market_status}</div>
+                                    <div style='font-size: 1rem; opacity: 0.9;'>{market_perf:+.1f}%</div>
+                                </div>
+                                <div style='background: rgba(255,255,255,0.25); padding: 1rem; border-radius: 8px; text-align: center;'>
+                                    <div style='font-size: 1.5rem; font-weight: 700;'>{verdict}</div>
+                                </div>
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # Regime Comparison Table
-                            st.markdown("---")
-                            st.markdown("#### 📚 Market Regime Reference")
+                        with col3:
+                            # TARJETA 3: TECHNICAL HEALTH
+                            # Determine trend color and emoji
+                            trend_config = {
+                                'STRONG_UPTREND': {'emoji': '🚀', 'color': '#28a745', 'label': 'STRONG UPTREND'},
+                                'UPTREND': {'emoji': '📈', 'color': '#28a745', 'label': 'UPTREND'},
+                                'DOWNTREND': {'emoji': '📉', 'color': '#dc3545', 'label': 'DOWNTREND'},
+                                'STRONG_DOWNTREND': {'emoji': '⬇️', 'color': '#dc3545', 'label': 'STRONG DOWNTREND'},
+                                'SIDEWAYS': {'emoji': '↔️', 'color': '#ffc107', 'label': 'SIDEWAYS'}
+                            }
 
-                            with st.expander("How Market Regimes Affect Momentum Strategies"):
-                                st.markdown("""
-                                <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
-                                    <h4 style='color: #28a745;'>🐂 BULL MARKET</h4>
-                                    <ul>
-                                        <li><strong>Momentum:</strong> +20% more effective</li>
-                                        <li><strong>Why:</strong> Rising tide lifts all boats, trend following works</li>
-                                        <li><strong>Action:</strong> Full position sizes, ride winners</li>
-                                        <li><strong>Evidence:</strong> Moskowitz et al. (2012) - Momentum peaks in bull markets</li>
-                                    </ul>
+                            trend_info = trend_config.get(trend, {'emoji': '❓', 'color': '#6c757d', 'label': 'UNKNOWN'})
+
+                            # Extension level colors
+                            ext_config = {
+                                'HEALTHY': {'color': '#28a745', 'label': 'HEALTHY'},
+                                'STRETCHED': {'color': '#ffc107', 'label': 'STRETCHED'},
+                                'OVEREXTENDED': {'color': '#dc3545', 'label': 'OVEREXTENDED'},
+                                'EXTREME': {'color': '#dc3545', 'label': 'EXTREME'}
+                            }
+
+                            ext_info = ext_config.get(overextension_level, {'color': '#6c757d', 'label': 'UNKNOWN'})
+
+                            # Volume profile
+                            vol_config = {
+                                'ACCUMULATION': {'emoji': '📥', 'color': '#28a745'},
+                                'DISTRIBUTION': {'emoji': '📤', 'color': '#dc3545'},
+                                'NEUTRAL': {'emoji': '➖', 'color': '#6c757d'}
+                            }
+
+                            vol_info = vol_config.get(volume_profile, {'emoji': '❓', 'color': '#6c757d'})
+
+                            st.markdown(f"""
+                            <div style='background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                                        padding: 1.5rem; border-radius: 12px; color: white;
+                                        box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-height: 280px;'>
+                                <div style='text-align: center; margin-bottom: 1rem;'>
+                                    <div style='font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem;'>TECHNICAL HEALTH</div>
+                                    <div style='font-size: 2.5rem;'>{trend_info['emoji']}</div>
                                 </div>
-
-                                <div style='background: #fff3cd; padding: 1rem; border-radius: 8px; margin-top: 1rem;'>
-                                    <h4 style='color: #ffc107;'>➡️ SIDEWAYS MARKET</h4>
-                                    <ul>
-                                        <li><strong>Momentum:</strong> Normal effectiveness</li>
-                                        <li><strong>Why:</strong> Stock-specific moves dominate</li>
-                                        <li><strong>Action:</strong> Standard position sizing, be selective</li>
-                                        <li><strong>Evidence:</strong> Baseline momentum performance</li>
-                                    </ul>
+                                <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>TREND</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700;'>{trend_info['label']}</div>
                                 </div>
+                                <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>EXTENSION</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700;'>{ext_info['label']}</div>
+                                    <div style='font-size: 1rem; opacity: 0.9;'>{distance_ma200:+.1f}% from MA200</div>
+                                </div>
+                                <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px;'>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>VOLUME</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700;'>{vol_info['emoji']} {volume_profile}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
-                                <div style='background: #f8d7da; padding: 1rem; border-radius: 8px; margin-top: 1rem;'>
-                                    <h4 style='color: #dc3545;'>🐻 BEAR MARKET</h4>
-                                    <ul>
-                                        <li><strong>Momentum:</strong> -60% effectiveness (WARNING!)</li>
-                                        <li><strong>Why:</strong> Momentum crowding, mass exit, reversals</li>
-                                        <li><strong>Action:</strong> Cut position sizes 50%, defensive</li>
-                                        <li><strong>Evidence:</strong> Daniel & Moskowitz (2016) - Momentum crashes</li>
-                                    </ul>
+                        st.markdown("---")
+
+                        # === MÓDULO 2: EL DIAGNÓSTICO (El Diagnóstico) ===
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                                    padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
+                            <h3 style='margin: 0; color: white;'>MÓDULO 2: DIAGNÓSTICO</h3>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                Análisis detallado de fuerza y riesgo del activo
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # 2-Column Layout: Momentum & Fuerza | Riesgo & Sobre-Extensión
+                        col_left, col_right = st.columns(2)
+
+                        # ===== LEFT COLUMN: MOMENTUM & FUERZA =====
+                        with col_left:
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        padding: 1rem; border-radius: 10px; margin-bottom: 1.5rem;'>
+                                <h4 style='margin: 0; color: white; text-align: center;'>MOMENTUM & FUERZA</h4>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Multi-Timeframe Momentum Display
+                            st.markdown("**Multi-Timeframe Returns:**")
+
+                            # Get momentum data
+                            mom_12m = full_analysis.get('momentum_12m', 0)
+                            mom_6m = full_analysis.get('momentum_6m', 0)
+                            mom_3m = full_analysis.get('momentum_3m', 0)
+                            mom_1m = full_analysis.get('momentum_1m', 0)
+
+                            # Display each timeframe with color coding
+                            for period, value in [('12M', mom_12m), ('6M', mom_6m), ('3M', mom_3m), ('1M', mom_1m)]:
+                                mom_color = '#28a745' if value > 10 else '#ffc107' if value > 0 else '#dc3545'
+                                mom_norm = min(max((value + 50) / 100, 0), 1)
+
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px;
+                                            box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 0.75rem;
+                                            border-left: 4px solid {mom_color};'>
+                                    <div style='display: flex; justify-content: space-between; align-items: center;'>
+                                        <div style='font-size: 0.9rem; color: #6c757d; font-weight: 600;'>{period} RETURN</div>
+                                        <div style='font-size: 1.5rem; font-weight: 700; color: {mom_color};'>{value:+.1f}%</div>
+                                    </div>
                                 </div>
                                 """, unsafe_allow_html=True)
+                                st.progress(mom_norm)
+
+                            # Consistency Badge
+                            consistency = full_analysis.get('momentum_consistency', 'N/A')
+                            momentum_status = full_analysis.get('momentum_status', 'N/A')
+
+                            consist_config = {
+                                'VERY_CONSISTENT': {'color': '#28a745', 'emoji': '💎', 'label': 'VERY CONSISTENT'},
+                                'CONSISTENT': {'color': '#28a745', 'emoji': '✅', 'label': 'CONSISTENT'},
+                                'MODERATE': {'color': '#ffc107', 'emoji': '⚠️', 'label': 'MODERATE'},
+                                'CHOPPY': {'color': '#dc3545', 'emoji': '⚠️', 'label': 'CHOPPY'},
+                                'INCONSISTENT': {'color': '#dc3545', 'emoji': '❌', 'label': 'INCONSISTENT'}
+                            }
+
+                            consist_info = consist_config.get(consistency, {'color': '#6c757d', 'emoji': '❓', 'label': consistency})
+
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            st.markdown(f"""
+                            <div style='background: {consist_info['color']}; padding: 1.25rem; border-radius: 10px;
+                                        text-align: center; color: white; margin-bottom: 1rem;'>
+                                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>{consist_info['emoji']}</div>
+                                <div style='font-size: 1.2rem; font-weight: 700;'>{consist_info['label']}</div>
+                                <div style='font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem;'>Consistency</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Momentum Status
+                            st.markdown(f"""
+                            <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;
+                                        border-left: 4px solid {consist_info['color']};'>
+                                <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.25rem;'>STATUS</div>
+                                <div style='font-size: 1.1rem; font-weight: 600; color: #495057;'>{momentum_status}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        # ===== RIGHT COLUMN: RIESGO & SOBRE-EXTENSIÓN =====
+                        with col_right:
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                                        padding: 1rem; border-radius: 10px; margin-bottom: 1.5rem;'>
+                                <h4 style='margin: 0; color: white; text-align: center;'>RIESGO & SOBRE-EXTENSIÓN</h4>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Get risk data
+                            sharpe = full_analysis.get('sharpe_12m', 0)
+                            volatility = full_analysis.get('volatility_12m', 0)
+                            risk_status = full_analysis.get('risk_adjusted_status', 'N/A')
+                            overext_risk = full_analysis.get('overextension_risk', 0)
+                            overext_level = full_analysis.get('overextension_level', 'LOW')
+
+                            # Sharpe Ratio
+                            sharpe_color = '#28a745' if sharpe > 1.0 else '#ffc107' if sharpe > 0.5 else '#dc3545'
+                            sharpe_normalized = min(max(sharpe / 2.0, 0), 1)
+
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1rem; border-radius: 8px;
+                                        box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 0.75rem;
+                                        border-left: 4px solid {sharpe_color};'>
+                                <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>SHARPE RATIO (12M)</div>
+                                <div style='font-size: 2rem; font-weight: 700; color: {sharpe_color}; text-align: center;'>{sharpe:.2f}</div>
+                                <div style='font-size: 0.8rem; color: #6c757d; text-align: center;'>
+                                    {'Excellent' if sharpe > 1.0 else 'Good' if sharpe > 0.5 else 'Poor'}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            st.progress(sharpe_normalized)
+
+                            # Volatility
+                            vol_color = '#28a745' if volatility < 20 else '#ffc107' if volatility < 40 else '#dc3545'
+                            vol_normalized = min(volatility / 100, 1)
+
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1rem; border-radius: 8px;
+                                        box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 0.75rem;
+                                        border-left: 4px solid {vol_color};'>
+                                <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>VOLATILITY (12M)</div>
+                                <div style='font-size: 2rem; font-weight: 700; color: {vol_color}; text-align: center;'>{volatility:.1f}%</div>
+                                <div style='font-size: 0.8rem; color: #6c757d; text-align: center;'>
+                                    {'Low' if volatility < 20 else 'Medium' if volatility < 40 else 'High'}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            st.progress(vol_normalized)
+
+                            # Distance from MA200
+                            dist_ma200 = full_analysis.get('distance_from_ma200', 0)
+                            dist_color = '#28a745' if -5 <= dist_ma200 <= 20 else '#ffc107' if -15 <= dist_ma200 <= 40 else '#dc3545'
+
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1rem; border-radius: 8px;
+                                        box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 0.75rem;
+                                        border-left: 4px solid {dist_color};'>
+                                <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>DISTANCE FROM MA200</div>
+                                <div style='font-size: 2rem; font-weight: 700; color: {dist_color}; text-align: center;'>{dist_ma200:+.1f}%</div>
+                                <div style='font-size: 0.8rem; color: #6c757d; text-align: center;'>
+                                    {'Healthy' if -5 <= dist_ma200 <= 20 else 'Stretched' if -15 <= dist_ma200 <= 40 else 'Overextended'}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Overextension Risk Gauge
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            st.markdown("**Overextension Risk:**")
+
+                            overext_color = '#28a745' if overext_risk < 2 else '#ffc107' if overext_risk < 4 else '#dc3545'
+                            overext_norm = overext_risk / 7  # Normalize 0-7 to 0-1
+
+                            st.markdown(f"""
+                            <div style='background: {overext_color}; padding: 1.25rem; border-radius: 10px;
+                                        text-align: center; color: white; margin-bottom: 1rem;'>
+                                <div style='font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem;'>{overext_risk}/7</div>
+                                <div style='font-size: 1.2rem; font-weight: 600;'>{overext_level}</div>
+                                <div style='font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem;'>Overextension Level</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            st.progress(overext_norm)
+
+                            # Risk interpretation
+                            if overext_risk >= 6:
+                                st.error("EXTREME: Alto riesgo de corrección 20-40%")
+                            elif overext_risk >= 4:
+                                st.warning("HIGH: Posible retroceso 10-20%")
+                            elif overext_risk >= 2:
+                                st.info("MEDIUM: Monitorear reversiones")
+                            else:
+                                st.success("LOW: Riesgo controlado")
+
+                        st.markdown("---")
 
                         # ========== RISK MANAGEMENT (NEW) ==========
                         st.markdown("---")
