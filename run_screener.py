@@ -670,8 +670,16 @@ def display_smart_stop_loss(stop_loss_data, current_price):
     # Check if it's the new SmartDynamicStopLoss format
     if 'tier' in stop_loss_data:
         # === NEW FORMAT: SmartDynamicStopLoss ===
-        st.markdown("###  SmartDynamicStopLoss - Sistema Adaptativo porQuality Tiers")
-        st.caption("📚 Basado en ATR (14d) + Clasificación de Riesgo + Lifecycle Management")
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
+            <h3 style='margin: 0; color: white;'>SmartDynamicStopLoss</h3>
+            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                Sistema Adaptativo por Quality Tiers
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.caption("Basado en ATR (14d) + Clasificación de Riesgo + Lifecycle Management")
 
         # === TIER CLASSIFICATION ===
         tier = stop_loss_data.get('tier', 0)
@@ -1149,13 +1157,16 @@ def display_take_profit(profit_taking):
             rationale_target = target.get('rationale', '')
             r_multiple = target.get('r_multiple', '')
 
-            # Format values
+            # Format values - handle different types safely
             if isinstance(percent, str):
-                percent_val = int(percent.replace('%', '')) if '%' in percent else 0
-                percent_str = percent
-            else:
-                percent_val = percent
+                percent_val = int(percent.replace('%', '')) if '%' in percent else int(float(percent))
+                percent_str = percent if '%' in percent else f"{percent}%"
+            elif isinstance(percent, (int, float)):
+                percent_val = int(percent)
                 percent_str = f"{percent}%"
+            else:
+                percent_val = 0
+                percent_str = "N/A"
 
             if isinstance(price, (int, float)) and price > 0:
                 price_str = f"${price:.2f}"
@@ -1964,25 +1975,82 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         else:
             st.info("⭐ Quality limit is more conservative")
 
-    # Display quality tier and base allocation
+    # Display quality tier and base allocation with enhanced design
     st.markdown("---")
-    st.markdown(f"**{quality_tier}** → Base Allocation: **{base_pct}%**")
 
-    # Show penalties
-    if penalties:
-        st.markdown("**❌ Penalties:**")
-        for penalty in penalties:
-            st.caption(f"  • {penalty}")
+    # Quality Tier Header Card
+    tier_colors = {
+        'ELITE': '#9b59b6',
+        'PREMIUM': '#3498db',
+        'SOLID': '#2ecc71',
+        'SPECULATIVE': '#f39c12',
+        'AVOID': '#e74c3c'
+    }
+    tier_emojis = {
+        'ELITE': '💎',
+        'PREMIUM': '⭐',
+        'SOLID': '✅',
+        'SPECULATIVE': '⚠️',
+        'AVOID': '❌'
+    }
 
-    # Show bonuses
-    if bonuses:
-        st.markdown("** Bonuses:**")
-        for bonus in bonuses:
-            st.caption(f"  • {bonus}")
+    tier_color = tier_colors.get(quality_tier, '#95a5a6')
+    tier_emoji = tier_emojis.get(quality_tier, '📊')
+
+    st.markdown(f"""
+    <div style='background: linear-gradient(135deg, {tier_color} 0%, {tier_color}cc 100%);
+                padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; color: white;'>
+        <div style='font-size: 2rem; margin-bottom: 0.5rem;'>{tier_emoji}</div>
+        <div style='font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;'>{quality_tier}</div>
+        <div style='font-size: 1.2rem; opacity: 0.95;'>Base Allocation: {base_pct}%</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Penalties and Bonuses in 2 columns
+    if penalties or bonuses:
+        col_pen, col_bon = st.columns(2)
+
+        with col_pen:
+            if penalties:
+                st.markdown("""
+                <div style='background: #fff5f5; padding: 1rem; border-radius: 10px;
+                            border-left: 4px solid #dc3545; margin-bottom: 1rem;'>
+                    <div style='font-size: 1rem; font-weight: 600; color: #dc3545; margin-bottom: 0.75rem;'>❌ Penalties:</div>
+                </div>
+                """, unsafe_allow_html=True)
+                for penalty in penalties:
+                    st.markdown(f"""
+                    <div style='background: white; padding: 0.75rem; border-radius: 6px;
+                                margin-bottom: 0.5rem; border-left: 3px solid #dc3545;'>
+                        <div style='font-size: 0.9rem; color: #495057;'>• {penalty}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        with col_bon:
+            if bonuses:
+                st.markdown("""
+                <div style='background: #f0f9ff; padding: 1rem; border-radius: 10px;
+                            border-left: 4px solid #28a745; margin-bottom: 1rem;'>
+                    <div style='font-size: 1rem; font-weight: 600; color: #28a745; margin-bottom: 0.75rem;'>✅ Bonuses:</div>
+                </div>
+                """, unsafe_allow_html=True)
+                for bonus in bonuses:
+                    st.markdown(f"""
+                    <div style='background: white; padding: 0.75rem; border-radius: 6px;
+                                margin-bottom: 0.5rem; border-left: 3px solid #28a745;'>
+                        <div style='font-size: 0.9rem; color: #495057;'>• {bonus}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
     # Bear market adjustment
     if bear_market:
-        st.warning(" **Bear Market Override:** All positions halved")
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+                    padding: 1rem; border-radius: 10px; margin-top: 1rem; color: white;'>
+            <div style='font-size: 1.1rem; font-weight: 600;'>🐻 Bear Market Override</div>
+            <div style='font-size: 0.9rem; opacity: 0.95; margin-top: 0.5rem;'>All positions halved to reduce exposure</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Execution details card
     st.markdown("---")
