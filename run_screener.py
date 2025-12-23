@@ -687,104 +687,223 @@ def display_smart_stop_loss(stop_loss_data, current_price):
         tier_name = stop_loss_data.get('tier_name', 'N/A')
         tier_description = stop_loss_data.get('tier_description', '')
 
-        tier_icon = '<i class="bi bi-shield"></i>' if tier == 1 else '<i class="bi bi-shield-fill-check"></i>' if tier == 2 else '<i class="bi bi-shield-x"></i>'
+        # Tier configuration with colors and icons
+        tier_config = {
+            1: {
+                'icon': '<i class="bi bi-shield-fill"></i>',
+                'color': '#3498db',
+                'label': 'TIER 1: Defensivo'
+            },
+            2: {
+                'icon': '<i class="bi bi-shield-fill-check"></i>',
+                'color': '#9b59b6',
+                'label': 'TIER 2: Core Growth'
+            },
+            3: {
+                'icon': '<i class="bi bi-lightning-fill"></i>',
+                'color': '#e74c3c',
+                'label': 'TIER 3: Especulativo'
+            }
+        }
 
-        # === TIER CLASSIFICATION BOX ===
+        tier_info = tier_config.get(tier, {
+            'icon': '<i class="bi bi-shield"></i>',
+            'color': '#95a5a6',
+            'label': 'UNKNOWN TIER'
+        })
+
+        # === TIER & STATE IN 2-COLUMN CARDS ===
         col_tier, col_state = st.columns([1, 1])
 
         with col_tier:
-            st.info(f"""
-**{tier_name}** {tier_icon}
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, {tier_info['color']} 0%, {tier_info['color']}dd 100%);
+                        padding: 1.5rem; border-radius: 12px; color: white;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-height: 180px;'>
+                <div style='text-align: center;'>
+                    <div style='font-size: 3rem; margin-bottom: 0.75rem;'>{tier_info['icon']}</div>
+                    <div style='font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem;'>{tier_info['label']}</div>
+                    <div style='font-size: 0.9rem; opacity: 0.95; margin-bottom: 0.75rem;'>{tier_description}</div>
+                    <div style='background: rgba(255,255,255,0.2); padding: 0.5rem; border-radius: 6px; font-size: 0.8rem;'>
+                        Risk-based classification (volatility + beta)
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-{tier_description}
-
- *Risk-based classification (volatility + beta)*
-""")
-
-        # === MARKET STATE BOX (NEW - More Visual) ===
+        # === MARKET STATE BOX (Professional Cards) ===
         with col_state:
             market_state = stop_loss_data.get('market_state', 'N/A')
             state_emoji = stop_loss_data.get('state_emoji', '')
 
-            # Color-coded based on state
-            if market_state == 'DOWNTREND':
-                st.error(f"""
-### {state_emoji} {market_state}
-**ACCIÓN:** EVITAR o SALIR
-""")
-            elif market_state == 'PARABOLIC_CLIMAX':
-                st.error(f"""
-### {state_emoji} {market_state}
-** ADVERTENCIA CRÍTICA**
+            # State configuration
+            state_cards = {
+                'DOWNTREND': {
+                    'color': '#dc3545',
+                    'action': 'EVITAR o SALIR',
+                    'icon_size': '3rem'
+                },
+                'PARABOLIC_CLIMAX': {
+                    'color': '#ff6b35',
+                    'action': 'ADVERTENCIA CRÍTICA',
+                    'icon_size': '3rem',
+                    'details': [
+                        'Si NO tienes: NO COMPRAR',
+                        'Si YA tienes: ASEGURAR GANANCIAS',
+                        'Movimiento vertical insostenible',
+                        'Alta probabilidad corrección -15% a -30%'
+                    ]
+                },
+                'POWER_TREND': {
+                    'color': '#28a745',
+                    'action': 'Dejar Correr',
+                    'icon_size': '3rem'
+                },
+                'BLUE_SKY_ATH': {
+                    'color': '#667eea',
+                    'action': 'Dejar Correr',
+                    'icon_size': '3rem'
+                },
+                'PULLBACK_FLAG': {
+                    'color': '#17a2b8',
+                    'action': 'Dar Aire / Monitor',
+                    'icon_size': '3rem'
+                },
+                'CHOPPY_SIDEWAYS': {
+                    'color': '#ffc107',
+                    'action': 'Usar Stop Conservador',
+                    'icon_size': '3rem'
+                },
+                'ENTRY_BREAKOUT': {
+                    'color': '#6c757d',
+                    'action': 'Usar Stop Conservador',
+                    'icon_size': '3rem'
+                }
+            }
 
-**ACCIÓN REQUERIDA:**
-- Si **NO** tienes la acción: **NO COMPRAR** ❌
-- Si **YA** tienes la acción: **ASEGURAR GANANCIAS** 
+            state_info = state_cards.get(market_state, {
+                'color': '#6c757d',
+                'action': 'Monitor',
+                'icon_size': '3rem'
+            })
 
-**⛔ NO ENTRAR AHORA:**
-- Movimiento vertical insostenible
-- **Alta probabilidad** de corrección significativa -15% a -30%
-- Momentum crashes research (Daniel & Moskowitz 2016)
-- **Espera el pullback** a niveles de soporte
+            # Build card HTML
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, {state_info['color']} 0%, {state_info['color']}dd 100%);
+                        padding: 1.5rem; border-radius: 12px; color: white;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15); min-height: 180px;'>
+                <div style='text-align: center;'>
+                    <div style='font-size: {state_info['icon_size']}; margin-bottom: 0.75rem;'>{state_emoji}</div>
+                    <div style='font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem;'>{market_state.replace('_', ' ')}</div>
+                    <div style='background: rgba(255,255,255,0.2); padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem;'>
+                        <div style='font-size: 0.9rem; font-weight: 600;'>ACCIÓN:</div>
+                        <div style='font-size: 1rem; margin-top: 0.25rem;'>{state_info['action']}</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-**Regla:** "No compres cohetes en el aire"
-""")
-            elif market_state in ['POWER_TREND', 'BLUE_SKY_ATH']:
-                st.success(f"""
-### {state_emoji} {market_state}
-**ACCIÓN:** Dejar Correr
-""")
-            elif market_state == 'PULLBACK_FLAG':
-                st.info(f"""
-### {state_emoji} {market_state}
-**ACCIÓN:** Dar Aire / Monitor
-""")
-            else:
-                st.info(f"""
-### {state_emoji} {market_state}
-**ACCIÓN:** Usar Stop Conservador
-""")
+            # Show additional details for PARABOLIC_CLIMAX
+            if market_state == 'PARABOLIC_CLIMAX' and 'details' in state_info:
+                with st.expander("⚠️ Ver Detalles Críticos"):
+                    for detail in state_info['details']:
+                        st.markdown(f"• {detail}")
+                    st.caption('Regla: "No compres cohetes en el aire"')
 
-        # === ACTIVE STOP (Main recommendation) ===
-        st.markdown("""#### <i class="bi bi-shield-check"></i> Stop Loss Activo""")
+        # === ACTIVE STOP (Main recommendation with professional card) ===
+        st.markdown("---")
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                    padding: 1rem; border-radius: 10px; margin-bottom: 1rem;'>
+            <div style='color: white; font-size: 1.2rem; font-weight: 700; text-align: center;'>
+                <i class="bi bi-shield-fill-check"></i> Stop Loss Activo
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         active_stop = stop_loss_data.get('active_stop', {})
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Stop Price", active_stop.get('price', 'N/A'),
-                     help="Precio al que debe colocarse el stop loss")
-        with col2:
-            distance_str = active_stop.get('distance', 'N/A')
-            # Parse distance to show delta color
-            try:
-                distance_val = float(distance_str.replace('%', ''))
-                st.metric("Distance", distance_str,
-                         delta=f"{abs(distance_val):.1f}% riesgo",
-                         delta_color="inverse",
-                         help="Distancia porcentual desde precio actual")
-            except:
-                st.metric("Distance", distance_str)
-        with col3:
-            lifecycle_phase = stop_loss_data.get('lifecycle_phase', 'N/A')
-            market_state_clean = market_state.replace('_', ' ').title()
+        # Better formatting for status
+        if market_state == 'NO_POSITION':
+            status_display = "Sin Posición"
+            status_icon = ""
+        elif market_state == 'DOWNTREND':
+            status_display = "Tendencia Bajista"
+            status_icon = "▼"
+        elif market_state == 'PARABOLIC_CLIMAX':
+            status_display = "Clímax Parabólico"
+            status_icon = "⚠"
+        elif market_state == 'POWER_TREND':
+            status_display = "Tendencia Fuerte"
+            status_icon = "↑"
+        elif market_state == 'BLUE_SKY_ATH':
+            status_display = "All-Time High"
+            status_icon = "★"
+        elif market_state == 'PULLBACK_FLAG':
+            status_display = "Pullback"
+            status_icon = "◐"
+        elif market_state == 'CHOPPY_SIDEWAYS':
+            status_display = "Lateral"
+            status_icon = "↔"
+        elif market_state == 'ENTRY_BREAKOUT':
+            status_display = "Breakout"
+            status_icon = "⊚"
+        else:
+            status_display = market_state.replace('_', ' ').title()
+            status_icon = ""
 
-            # Better formatting for status
-            if market_state == 'NO_POSITION':
-                status_display = "Sin Posición"
-            elif market_state == 'DOWNTREND':
-                status_display = "↓ Tendencia Bajista"
-            elif market_state == 'PARABOLIC_CLIMAX':
-                status_display = "Clímax Parabólico"
-            elif market_state == 'POWER_TREND':
-                status_display = "↑ Tendencia Fuerte"
-            elif market_state == 'BLUE_SKY_ATH':
-                status_display = "↑ Nuevo ATH"
-            elif market_state == 'PULLBACK_FLAG':
-                status_display = "↔ Pullback"
-            else:
-                status_display = market_state_clean
+        # Calculate distance value for display
+        distance_str = active_stop.get('distance', 'N/A')
+        try:
+            distance_val = float(distance_str.replace('%', ''))
+            distance_display = f"{distance_str}"
+            risk_display = f"{abs(distance_val):.1f}% riesgo"
+        except:
+            distance_display = distance_str
+            risk_display = ""
 
-            st.metric("Estado", status_display)
+        # Professional metrics card
+        stop_price_val = active_stop.get('price', 'N/A')
+        st.markdown(f"""
+        <div style='background: linear-gradient(to right, #f8f9fa, #e9ecef);
+                    padding: 1.5rem; border-radius: 10px; border: 2px solid #28a745;'>
+            <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;'>
+                <div style='text-align: center;'>
+                    <div style='font-size: 0.85rem; color: #6c757d; font-weight: 600; margin-bottom: 0.5rem;'>
+                        STOP PRICE
+                    </div>
+                    <div style='font-size: 2rem; font-weight: 700; color: #dc3545;'>
+                        {stop_price_val}
+                    </div>
+                    <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
+                        Precio objetivo
+                    </div>
+                </div>
+                <div style='text-align: center;'>
+                    <div style='font-size: 0.85rem; color: #6c757d; font-weight: 600; margin-bottom: 0.5rem;'>
+                        DISTANCE
+                    </div>
+                    <div style='font-size: 2rem; font-weight: 700; color: #495057;'>
+                        {distance_display}
+                    </div>
+                    <div style='font-size: 0.75rem; color: #dc3545; margin-top: 0.25rem; font-weight: 600;'>
+                        {risk_display}
+                    </div>
+                </div>
+                <div style='text-align: center;'>
+                    <div style='font-size: 0.85rem; color: #6c757d; font-weight: 600; margin-bottom: 0.5rem;'>
+                        ESTADO
+                    </div>
+                    <div style='font-size: 1.5rem; font-weight: 700; color: #495057; margin-bottom: 0.25rem;'>
+                        {status_icon}
+                    </div>
+                    <div style='font-size: 0.9rem; color: #495057; font-weight: 600;'>
+                        {status_display}
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         # === SMART RATIONALE (Bullet Points) ===
         # === ANALYSIS DETAILS ===
