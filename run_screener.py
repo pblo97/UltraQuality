@@ -7997,33 +7997,84 @@ with tab7:
                         else:
                             st.info(" Fundamental valuation data not available. Run full analysis in ** Qualitative** or ** Custom Analysis** tabs.")
 
-                        # Warnings & Diagnostics
+                        # ========== RESUMEN EJECUTIVO: WARNINGS & DIAGNOSTICS ==========
                         st.markdown("---")
-                        st.markdown("####  Warnings & Diagnostics")
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                                    padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; margin-top: 2rem;'>
+                            <h3 style='margin: 0; color: white;'>DIAGNÓSTICO Y ALERTAS</h3>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                Warnings técnicas y señales de riesgo
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
 
                         # Check for errors first
                         if 'error' in full_analysis:
-                            st.error(f"🔴 **Analysis Error**: {full_analysis['error']}")
-                            st.info(" **Common causes**: API issues, insufficient historical data (<250 days), or missing API key configuration. Check Streamlit logs for details.")
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+                                        padding: 1.5rem; border-radius: 12px; color: white; margin-bottom: 1rem;'>
+                                <div style='font-size: 1.3rem; font-weight: 600; margin-bottom: 0.5rem;'>❌ Analysis Error</div>
+                                <div style='font-size: 0.95rem; opacity: 0.95;'>{}</div>
+                            </div>
+                            """.format(full_analysis['error']), unsafe_allow_html=True)
+                            st.caption("Common causes: API issues, insufficient historical data (<250 days), or missing API key")
 
                         warnings = full_analysis.get('warnings', [])
                         if warnings:
-                            for warning in warnings:
-                                # Support both 'type' and 'severity' keys
-                                severity = warning.get('type', warning.get('severity', 'LOW'))
-                                message = warning.get('message', '')
+                            # Group warnings by severity
+                            high_warnings = [w for w in warnings if w.get('type', w.get('severity', 'LOW')) in ['HIGH', 'ERROR']]
+                            med_warnings = [w for w in warnings if w.get('type', w.get('severity', 'LOW')) == 'MEDIUM']
+                            low_warnings = [w for w in warnings if w.get('type', w.get('severity', 'LOW')) not in ['HIGH', 'ERROR', 'MEDIUM']]
 
-                                if severity in ['HIGH', 'ERROR']:
-                                    st.error(f"🔴 **{severity}**: {message}")
-                                elif severity == 'MEDIUM':
-                                    st.warning(f"🟡 **{severity}**: {message}")
-                                else:
-                                    st.info(f"🔵 **{severity}**: {message}")
+                            # Display in columns by severity
+                            if high_warnings:
+                                st.markdown("**🔴 Critical Warnings:**")
+                                for warning in high_warnings:
+                                    message = warning.get('message', '')
+                                    st.markdown(f"""
+                                    <div style='background: #fff5f5; padding: 1rem; border-radius: 8px;
+                                                border-left: 4px solid #dc3545; margin-bottom: 0.75rem;'>
+                                        <div style='font-size: 0.95rem; color: #495057;'>{message}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                            if med_warnings:
+                                st.markdown("**🟡 Moderate Warnings:**")
+                                for warning in med_warnings:
+                                    message = warning.get('message', '')
+                                    st.markdown(f"""
+                                    <div style='background: #fffbf0; padding: 1rem; border-radius: 8px;
+                                                border-left: 4px solid #ffc107; margin-bottom: 0.75rem;'>
+                                        <div style='font-size: 0.95rem; color: #495057;'>{message}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                            if low_warnings:
+                                with st.expander("🔵 Low Priority Info", expanded=False):
+                                    for warning in low_warnings:
+                                        message = warning.get('message', '')
+                                        st.caption(f"• {message}")
+
                         elif 'error' not in full_analysis:
-                            st.success(" No technical warnings")
+                            st.markdown("""
+                            <div style='background: #d4edda; padding: 1rem; border-radius: 8px;
+                                        border-left: 4px solid #28a745; margin-bottom: 1rem;'>
+                                <div style='font-size: 0.95rem; color: #155724; font-weight: 600;'>✅ No technical warnings detected</div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
-                        # Recommendation (UPDATED: Now considers overextension risk)
-                        st.markdown("####  Recommendation")
+                        # ========== RESUMEN EJECUTIVO: RECOMMENDATION ==========
+                        st.markdown("---")
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                                    padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; margin-top: 2rem;'>
+                            <h3 style='margin: 0; color: white;'>RECOMENDACIÓN FINAL</h3>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                Fundamental + Technical + Risk Assessment
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
 
                         fund_score = stock_data['fundamental_score']
                         tech_score = full_analysis['score']
@@ -8093,7 +8144,12 @@ with tab7:
                         else:
                             # Only show recommendations if NO veto is active
                             # Step 1: Fundamental Quality Assessment
-                            st.markdown("** Fundamental Quality:**")
+                            st.markdown("""
+                            <div style='background: linear-gradient(to right, #667eea 0%, #764ba2 100%);
+                                        padding: 0.75rem 1rem; border-radius: 8px; margin: 1rem 0 0.75rem 0;'>
+                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'>📊 Fundamental Quality</div>
+                            </div>
+                            """, unsafe_allow_html=True)
                             if fund_score >= 75:
                                 st.success(f" EXCELLENT ({fund_score}/100) - High-quality company with strong fundamentals")
                             elif fund_score >= 60:
@@ -8104,7 +8160,12 @@ with tab7:
                                 st.error(f"❌ WEAK ({fund_score}/100) - Fundamental concerns")
 
                             # Step 2: Technical Timing Assessment (includes overextension)
-                            st.markdown("**⏰ Technical Timing:**")
+                            st.markdown("""
+                            <div style='background: linear-gradient(to right, #11998e 0%, #38ef7d 100%);
+                                        padding: 0.75rem 1rem; border-radius: 8px; margin: 1rem 0 0.75rem 0;'>
+                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'>⏰ Technical Timing</div>
+                            </div>
+                            """, unsafe_allow_html=True)
                             abs_distance = abs(distance_ma200)
                             is_momentum_leader = tech_score > 80
 
@@ -8139,7 +8200,12 @@ with tab7:
                                 st.error(f"❌ WEAK ({tech_score}/100) - Unfavorable technicals")
 
                             # Step 3: Final Combined Recommendation
-                            st.markdown("** Final Recommendation:**")
+                            st.markdown("""
+                            <div style='background: linear-gradient(to right, #f093fb 0%, #f5576c 100%);
+                                        padding: 0.75rem 1rem; border-radius: 8px; margin: 1rem 0 0.75rem 0;'>
+                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'>🎯 Final Recommendation</div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # STRONG BUY: Great fundamentals + Great timing + Low overextension
                             if fund_score >= 75 and tech_score >= 75 and overextension_risk < 2:
