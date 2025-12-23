@@ -1234,9 +1234,130 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Modern CSS styling - Material Design inspired
+st.markdown("""
+<style>
+    /* Main container improvements */
+    .main {
+        background-color: #f8f9fa;
+    }
+
+    /* Card-like containers */
+    .css-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        margin-bottom: 1rem;
+        border: 1px solid #e9ecef;
+    }
+
+    /* Metric cards enhancement */
+    [data-testid="stMetricValue"] {
+        font-size: 2rem;
+        font-weight: 600;
+        color: #1a1a1a;
+    }
+
+    [data-testid="stMetricLabel"] {
+        font-size: 0.9rem;
+        color: #6c757d;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Button improvements */
+    .stButton > button {
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        border: none;
+    }
+
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    /* Progress bars */
+    .stProgress > div > div {
+        background-color: #4CAF50;
+        border-radius: 10px;
+    }
+
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 8px 8px 0 0;
+        padding: 12px 24px;
+        font-weight: 500;
+    }
+
+    /* Info boxes */
+    .stAlert {
+        border-radius: 10px;
+        border-left: 4px solid;
+    }
+
+    /* Sidebar improvements */
+    section[data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #e9ecef;
+    }
+
+    /* Headers */
+    h1 {
+        color: #1a1a1a;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+    }
+
+    h2, h3 {
+        color: #2c3e50;
+        font-weight: 600;
+    }
+
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        font-weight: 500;
+    }
+
+    /* Score indicators */
+    .score-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .score-high {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .score-medium {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    .score-low {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 # Title
 st.title("UltraQuality: Quality + Value Screener")
 st.markdown("**Professional stock screening using fundamental quality and value metrics**")
+st.markdown("---")
 
 # Sidebar configuration
 st.sidebar.header("Configuration")
@@ -1826,7 +1947,17 @@ def get_market_regime_display(regime: str) -> str:
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["Home", "Results", "Analytics", "Calibration", "Qualitative", "Complete Analysis", "Technical", "About"])
 
 with tab1:
-    st.header("Run Screener")
+    # Welcome section with modern card design
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem;'>
+        <h2 style='margin: 0; color: white;'>UltraQuality Stock Screener</h2>
+        <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
+            AI-powered fundamental analysis combining Quality (70%) + Value (30%) metrics with
+            advanced guardrails and technical validation
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Show existing results summary if available
     if 'results' in st.session_state:
@@ -1834,32 +1965,100 @@ with tab1:
         df_existing = get_results_with_current_params()
         buys_existing = (df_existing['decision'] == 'BUY').sum()
         monitors_existing = (df_existing['decision'] == 'MONITOR').sum()
+        avoids_existing = (df_existing['decision'] == 'AVOID').sum()
         timestamp_existing = st.session_state.get('timestamp', datetime.now())
         config_version = st.session_state.get('config_version', 'unknown')
 
         # Check if results are from old config
-        CURRENT_VERSION = "QARP-v3-Moat"  # Updated when major scoring changes (v3 = Moat Score added)
+        CURRENT_VERSION = "QARP-v3-Moat"
         is_stale = config_version != CURRENT_VERSION
 
+        # Results status card
         if is_stale:
-            st.warning(f" **Results are from older version** ({config_version}). Re-run screener to use latest methodology with **Moat Score** (competitive advantages).")
+            st.warning(f"**Results from older version** ({config_version}). Re-run to use latest methodology with Moat Score.")
         else:
-            st.success(f" **Latest Results Available** (from {timestamp_existing.strftime('%Y-%m-%d %H:%M:%S')})")
+            st.success(f"**Latest results available** - Generated: {timestamp_existing.strftime('%Y-%m-%d %H:%M:%S')}")
 
-        col1, col2, col3, col4 = st.columns(4)
+        # Key metrics with enhanced visual design
+        st.markdown("### Screening Results Overview")
+        col1, col2, col3, col4, col5 = st.columns(5)
+
         with col1:
-            st.metric("Total Analyzed", len(df_existing))
-        with col2:
-            st.metric("BUY Signals", buys_existing)
-        with col3:
-            st.metric("MONITOR", monitors_existing)
-        with col4:
-            avg = df_existing['composite_0_100'].mean()
-            st.metric("Avg Score", f"{avg:.1f}")
+            st.metric(
+                "Total Analyzed",
+                f"{len(df_existing):,}",
+                help="Total stocks analyzed in latest screening"
+            )
 
+        with col2:
+            buy_pct = (buys_existing / len(df_existing) * 100) if len(df_existing) > 0 else 0
+            st.metric(
+                "BUY Signals",
+                buys_existing,
+                delta=f"{buy_pct:.1f}%",
+                delta_color="normal",
+                help="High-quality companies at reasonable prices"
+            )
+
+        with col3:
+            monitor_pct = (monitors_existing / len(df_existing) * 100) if len(df_existing) > 0 else 0
+            st.metric(
+                "MONITOR",
+                monitors_existing,
+                delta=f"{monitor_pct:.1f}%",
+                delta_color="off",
+                help="Companies with potential but need more analysis"
+            )
+
+        with col4:
+            avoid_pct = (avoids_existing / len(df_existing) * 100) if len(df_existing) > 0 else 0
+            st.metric(
+                "AVOID",
+                avoids_existing,
+                delta=f"{avoid_pct:.1f}%",
+                delta_color="inverse",
+                help="Low quality or overvalued companies"
+            )
+
+        with col5:
+            avg_score = df_existing['composite_0_100'].mean()
+            st.metric(
+                "Avg Quality Score",
+                f"{avg_score:.1f}",
+                help="Average composite quality score (0-100)"
+            )
+
+        # Score distribution visualization
+        if 'composite_0_100' in df_existing.columns:
+            st.markdown("### Quality Score Distribution")
+
+            # Create score ranges
+            score_ranges = {
+                'Exceptional (80-100)': len(df_existing[df_existing['composite_0_100'] >= 80]),
+                'Strong (60-79)': len(df_existing[(df_existing['composite_0_100'] >= 60) & (df_existing['composite_0_100'] < 80)]),
+                'Moderate (40-59)': len(df_existing[(df_existing['composite_0_100'] >= 40) & (df_existing['composite_0_100'] < 60)]),
+                'Weak (<40)': len(df_existing[df_existing['composite_0_100'] < 40])
+            }
+
+            col1, col2, col3, col4 = st.columns(4)
+            colors = ['#28a745', '#17a2b8', '#ffc107', '#dc3545']
+
+            for (label, count), col, color in zip(score_ranges.items(), [col1, col2, col3, col4], colors):
+                with col:
+                    percentage = (count / len(df_existing) * 100) if len(df_existing) > 0 else 0
+                    st.markdown(f"""
+                    <div style='background: white; padding: 1rem; border-radius: 8px;
+                                border-left: 4px solid {color}; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>{label}</div>
+                        <div style='font-size: 1.5rem; font-weight: 600;'>{count}</div>
+                        <div style='font-size: 0.85rem; color: {color}; font-weight: 500;'>{percentage:.1f}% of universe</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        # Action buttons
         col_btn1, col_btn2 = st.columns([3, 1])
         with col_btn1:
-            st.info("👉 Check **Results**, **Analytics**, and **Qualitative** tabs to explore the data")
+            st.info("**Next steps:** Explore the Results, Analytics, and Qualitative tabs for detailed analysis")
         with col_btn2:
             if st.button("Clear Results", use_container_width=True):
                 for key in ['results', 'timestamp', 'config_version']:
@@ -1869,18 +2068,79 @@ with tab1:
 
         st.markdown("---")
 
+    # Screening configuration preview
+    st.markdown("### Current Configuration")
     col1, col2, col3 = st.columns(3)
+
     with col1:
-        st.metric("Universe", "2000+", "stocks")
+        st.markdown("""
+        <div style='background: white; padding: 1.2rem; border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;'>
+            <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>UNIVERSE SIZE</div>
+            <div style='font-size: 2rem; font-weight: 600; color: #667eea;'>2000+</div>
+            <div style='font-size: 0.85rem; color: #6c757d;'>stocks globally</div>
+        </div>
+        """, unsafe_allow_html=True)
+
     with col2:
-        st.metric("Deep Analysis", f"{top_k}", "top stocks")
+        st.markdown(f"""
+        <div style='background: white; padding: 1.2rem; border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;'>
+            <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>DEEP ANALYSIS</div>
+            <div style='font-size: 2rem; font-weight: 600; color: #764ba2;'>{top_k}</div>
+            <div style='font-size: 0.85rem; color: #6c757d;'>top quality stocks</div>
+        </div>
+        """, unsafe_allow_html=True)
+
     with col3:
-        st.metric("Time", "3-5", "minutes")
+        st.markdown("""
+        <div style='background: white; padding: 1.2rem; border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;'>
+            <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>PROCESSING TIME</div>
+            <div style='font-size: 2rem; font-weight: 600; color: #28a745;'>3-5</div>
+            <div style='font-size: 0.85rem; color: #6c757d;'>minutes average</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Methodology explanation with interactive cards
+    with st.expander("📊 Screening Methodology - How It Works", expanded=False):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("""
+            **Quality Metrics (70% weight)**
+            - **Profitability:** ROIC, ROE, Operating Margins
+            - **Financial Health:** Altman Z-Score, Debt Ratios
+            - **Cash Quality:** Cash Conversion, FCF/NI Ratio
+            - **Moat Score:** Competitive Advantages
+            - **Earnings Quality:** Beneish M-Score (fraud detection)
+
+            **Value Metrics (30% weight)**
+            - **Valuation Multiples:** P/E, P/B, EV/EBITDA
+            - **Growth-Adjusted:** PEG Ratio
+            - **Intrinsic Value:** DCF-based fair value estimates
+            """)
+
+        with col2:
+            st.markdown("""
+            **Technical Validation**
+            - **Multi-timeframe Momentum:** 12M, 6M, 3M, 1M trends
+            - **Overextension Risk:** Distance from MA200
+            - **Trend Quality:** ADX, slope analysis
+            - **Technical Veto:** Filters out poor setups
+
+            **Guardrails System**
+            - 🟢 **VERDE:** All quality checks passed
+            - 🟡 **AMBAR:** Minor concerns, needs review
+            - 🔴 **ROJO:** Critical red flags, avoid
+            """)
 
     st.markdown("---")
 
-    # Big run button
-    if st.button("Run Screener", type="primary", use_container_width=True):
+    # Big run button with better design
+    if st.button("▶️ Run Screener Analysis", type="primary", use_container_width=True, help="Start comprehensive screening process"):
 
         # Progress tracking
         progress_bar = st.progress(0)
@@ -1982,32 +2242,47 @@ with tab1:
             status_text.empty()
 
 with tab2:
-    st.header("Screening Results")
+    st.markdown("### Screening Results")
 
     if 'results' in st.session_state:
         # Get recalculated results with current slider values
         df = get_results_with_current_params()
         timestamp = st.session_state['timestamp']
 
-        st.caption(f"Last run: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
-        st.caption(f"⚖️ Current weights: Quality {weight_quality:.0%}, Value {weight_value:.0%}")
+        # Session info card
+        st.markdown(f"""
+        <div style='background: linear-gradient(to right, #f8f9fa, #e9ecef); padding: 1rem;
+                    border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid #667eea;'>
+            <div style='font-size: 0.9rem;'>
+                <strong>Last Analysis:</strong> {timestamp.strftime('%Y-%m-%d %H:%M:%S')} &nbsp;|&nbsp;
+                <strong>Current Weights:</strong> Quality {weight_quality:.0%}, Value {weight_value:.0%}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        # Filters
+        # Advanced filters with better layout
+        st.markdown("#### Filter Results")
         col1, col2, col3 = st.columns(3)
         with col1:
             decision_filter = st.multiselect(
-                "Decision",
+                "📊 Decision Signal",
                 options=['BUY', 'MONITOR', 'AVOID'],
-                default=['BUY', 'MONITOR']
+                default=['BUY', 'MONITOR'],
+                help="Filter by investment recommendation"
             )
         with col2:
             guardrail_filter = st.multiselect(
-                "Guardrails",
+                "🛡️ Quality Guardrails",
                 options=['VERDE', 'AMBAR', 'ROJO'],
-                default=['VERDE', 'AMBAR']
+                default=['VERDE', 'AMBAR'],
+                help="Filter by accounting quality status"
             )
         with col3:
-            min_score = st.slider("Min Composite Score", 0, 100, 50)
+            min_score = st.slider(
+                "📈 Min Quality Score",
+                0, 100, 50,
+                help="Minimum composite quality score (0-100)"
+            )
 
         # Apply filters
         filtered = df[
@@ -2016,7 +2291,18 @@ with tab2:
             (df['composite_0_100'] >= min_score)
         ]
 
-        st.write(f"**{len(filtered)}** stocks match filters")
+        # Results count with visual indicator
+        st.markdown(f"""
+        <div style='background: white; padding: 1rem; border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 1rem 0;'>
+            <span style='font-size: 1.1rem; font-weight: 600; color: #667eea;'>
+                {len(filtered)} stocks match your filters
+            </span>
+            <span style='color: #6c757d; margin-left: 1rem;'>
+                ({len(filtered)/len(df)*100:.1f}% of total universe)
+            </span>
+        </div>
+        """, unsafe_allow_html=True)
 
         # Debug panel - show if ROIC-adjusted yields are present
         config_version = st.session_state.get('config_version', 'unknown')
