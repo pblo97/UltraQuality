@@ -52,8 +52,6 @@ def render_price_levels_chart(
         full_analysis: Technical analysis results
         historical_prices: Optional historical price data
     """
-    st.markdown("### Price Levels Visualization")
-
     # Fetch current quote
     try:
         quote = fmp_client.get_quote(symbol)  # Pass string, not list
@@ -96,13 +94,27 @@ def render_price_levels_chart(
         historical_prices=historical_prices
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    # Render chart with professional styling
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            'displayModeBar': True,
+            'displaylogo': False,
+            'modeBarButtonsToRemove': ['select2d', 'lasso2d'],
+            'toImageButtonOptions': {
+                'format': 'png',
+                'filename': f'{symbol}_price_levels',
+                'height': 600,
+                'width': 1200,
+                'scale': 2
+            }
+        }
+    )
 
 
 def render_overextension_gauge(full_analysis: Dict):
     """Render overextension risk gauge."""
-    st.markdown("### Overextension Risk Gauge")
-
     overextension_risk = full_analysis.get('overextension_risk', 0)
     overextension_level = full_analysis.get('overextension_level', 'LOW')
     distance_ma200 = full_analysis.get('distance_from_ma200', 0)
@@ -113,7 +125,41 @@ def render_overextension_gauge(full_analysis: Dict):
         distance_ma200=distance_ma200
     )
 
-    st.plotly_chart(fig, use_container_width=True)
+    # Render gauge with professional styling
+    st.plotly_chart(
+        fig,
+        use_container_width=True,
+        config={
+            'displayModeBar': False,
+            'staticPlot': False
+        }
+    )
+
+    # Add interpretation card below gauge
+    if overextension_risk >= 5:
+        risk_color = '#dc3545'
+        risk_bg = '#fff5f5'
+        risk_message = 'EXTREME RISK - Consider waiting for pullback'
+    elif overextension_risk >= 3:
+        risk_color = '#ffc107'
+        risk_bg = '#fffbf0'
+        risk_message = 'ELEVATED RISK - Use caution, scale-in recommended'
+    else:
+        risk_color = '#28a745'
+        risk_bg = '#d4edda'
+        risk_message = 'HEALTHY RANGE - Normal entry acceptable'
+
+    st.markdown(f"""
+    <div style='background: {risk_bg}; padding: 1rem; border-radius: 8px;
+                border-left: 4px solid {risk_color}; margin-top: 1rem;'>
+        <div style='color: {risk_color}; font-weight: 600; font-size: 0.95rem;'>
+            {risk_message}
+        </div>
+        <div style='color: #495057; font-size: 0.85rem; margin-top: 0.5rem;'>
+            Distance from MA200: {distance_ma200:+.1f}%
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def render_backtesting_section(symbol: str, fmp_client):
