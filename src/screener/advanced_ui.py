@@ -1417,7 +1417,8 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
 
         # Revenue Growth
         rev_growth = guardrails_data.get('revenue_growth_3y')
-        if rev_growth is not None:
+        import pandas as pd
+        if rev_growth is not None and not pd.isna(rev_growth):
             st.markdown("### Revenue Growth (3Y CAGR)")
 
             rev_color = "#ef4444" if rev_growth < -5 else "#f59e0b" if rev_growth < 0 else "#10b981"
@@ -1433,10 +1434,12 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                     {rev_growth:+.1f}%
                 </div>
                 <div style='font-size: 1rem; color: #374151; margin-top: 1rem;'>
-                    {'DECLINING' if rev_growth < -5 else '△ FLAT/DECLINING' if rev_growth < 0 else 'GROWING'}
+                    {'DECLINING' if rev_growth < -5 else 'FLAT/DECLINING' if rev_growth < 0 else 'GROWING'}
                 </div>
             </div>
             """, unsafe_allow_html=True)
+        else:
+            st.info("Revenue growth data not available for this period")
 
     # ========== TAB 5: Debt & Liquidity ==========
     with guardrail_tabs[4]:
@@ -1992,7 +1995,8 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
 
             # Revenue Growth
             rev_growth = stock_data.get('revenue_growth_3y')
-            if rev_growth is not None:
+            import pandas as pd
+            if rev_growth is not None and not pd.isna(rev_growth):
                 st.markdown("---")
                 st.markdown("### Revenue Growth (3-Year CAGR)")
 
@@ -2019,6 +2023,9 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+            else:
+                st.markdown("---")
+                st.info("Revenue growth data not available for this period")
 
     else:
         # Financial Company Metrics
