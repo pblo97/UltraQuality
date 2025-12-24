@@ -1799,12 +1799,12 @@ st.sidebar.markdown("""
 """, unsafe_allow_html=True)
 
 # ========== QUICK PRESET ==========
-st.sidebar.markdown("<div class='sidebar-section-header'>⚡ QUICK PRESET</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div class='sidebar-section-header'>QUICK PRESET</div>", unsafe_allow_html=True)
 
-if st.sidebar.button("🌍 GLOBAL ELITE PRESET",
+if st.sidebar.button("GLOBAL ELITE",
                      type="primary",
                      use_container_width=True,
-                     help="Auto-configure for finding the best companies worldwide: 10,000 stocks, $500M+ mcap (mid/large caps), 90% quality focus"):
+                     help="Auto-configure all settings: All Regions, $500M+ mcap, $1M+ volume, 10K stocks, 90% quality weight"):
     # Set session state flags for auto-configuration
     st.session_state['global_elite_active'] = True
     st.session_state['global_elite_region'] = " All Regions"
@@ -1820,7 +1820,7 @@ if st.session_state.get('global_elite_active', False):
     <div style='background: #d1fae5; border-left: 4px solid #10b981; padding: 0.75rem;
                 border-radius: 6px; margin: 0.5rem 0;'>
         <div style='color: #065f46; font-weight: 600; font-size: 0.85rem;'>
-            ✓ Global Elite Active
+            <span style='margin-right: 0.5rem;'>✓</span>Global Elite Active
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1831,7 +1831,7 @@ if st.session_state.get('global_elite_active', False):
 st.sidebar.markdown("<hr class='sidebar-divider'>", unsafe_allow_html=True)
 
 # ========== UNIVERSE FILTERS ==========
-st.sidebar.markdown("<div class='sidebar-section-header'>🌐 UNIVERSE FILTERS</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div class='sidebar-section-header'>UNIVERSE FILTERS</div>", unsafe_allow_html=True)
 
 with st.sidebar.expander("Market Selection & Filters", expanded=True):
     # Region/Country selector
@@ -2103,7 +2103,7 @@ with st.sidebar.expander("Market Selection & Filters", expanded=True):
 st.sidebar.markdown("<hr class='sidebar-divider'>", unsafe_allow_html=True)
 
 # ========== SCORING & THRESHOLDS ==========
-st.sidebar.markdown("<div class='sidebar-section-header'>⚖️ SCORING & THRESHOLDS</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div class='sidebar-section-header'>SCORING & THRESHOLDS</div>", unsafe_allow_html=True)
 
 with st.sidebar.expander("Quality vs Value Balance", expanded=True):
     # Use preset value if Global Elite is active
@@ -2125,7 +2125,7 @@ with st.sidebar.expander("Quality vs Value Balance", expanded=True):
     </div>
     """, unsafe_allow_html=True)
 
-    st.caption("💡 Moving sliders will instantly recalculate results")
+    st.caption("Note: Moving sliders will instantly recalculate results")
 
     # Guidance
     if weight_quality >= 0.75:
@@ -2157,10 +2157,19 @@ with st.sidebar.expander("Decision Thresholds", expanded=True):
         <div style='font-size: 0.75rem; color: #64748b; font-weight: 600; margin-bottom: 0.5rem;'>
             GUARDRAIL SYSTEM
         </div>
-        <div style='font-size: 0.7rem; color: #475569;'>
-            <span class='success-badge'>VERDE</span> Clean accounting<br>
-            <span class='warning-badge'>AMBAR</span> Minor concerns<br>
-            <span style='background: #fee2e2; color: #991b1b; padding: 0.2rem 0.5rem; border-radius: 8px; font-size: 0.7rem; font-weight: 600;'>ROJO</span> Red flags (auto-blocked unless Q≥80 + C≥75)
+        <div style='display: flex; flex-direction: column; gap: 0.5rem;'>
+            <div style='display: flex; align-items: center; gap: 0.5rem;'>
+                <span class='success-badge'>VERDE</span>
+                <span style='font-size: 0.7rem; color: #475569;'>Clean accounting</span>
+            </div>
+            <div style='display: flex; align-items: center; gap: 0.5rem;'>
+                <span class='warning-badge'>AMBAR</span>
+                <span style='font-size: 0.7rem; color: #475569;'>Minor concerns</span>
+            </div>
+            <div style='display: flex; align-items: center; gap: 0.5rem;'>
+                <span style='background: #fee2e2; color: #991b1b; padding: 0.2rem 0.5rem; border-radius: 8px; font-size: 0.7rem; font-weight: 600;'>ROJO</span>
+                <span style='font-size: 0.7rem; color: #475569;'>Red flags (blocked unless Q≥80 + C≥75)</span>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -2168,7 +2177,7 @@ with st.sidebar.expander("Decision Thresholds", expanded=True):
 st.sidebar.markdown("<hr class='sidebar-divider'>", unsafe_allow_html=True)
 
 # ========== RISK MANAGEMENT ==========
-st.sidebar.markdown("<div class='sidebar-section-header'>🛡️ RISK MANAGEMENT</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div class='sidebar-section-header'>RISK MANAGEMENT</div>", unsafe_allow_html=True)
 
 # Initialize variables at sidebar level (outside expander)
 portfolio_capital = st.sidebar.number_input(
@@ -2197,12 +2206,12 @@ max_risk_per_trade_dollars = portfolio_capital * (max_risk_per_trade_pct / 100)
 st.sidebar.markdown(f"""
 <div style='background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 0.5rem;
             border-radius: 6px; margin: 0.5rem 0; font-size: 0.75rem;'>
-    💼 Portfolio: <strong>${portfolio_capital:,}</strong> |
-    🛡️ Risk: <strong>{max_risk_per_trade_pct}%</strong> = <strong>${max_risk_per_trade_dollars:,.0f}</strong>
+    Portfolio: <strong>${portfolio_capital:,}</strong> |
+    Risk: <strong>{max_risk_per_trade_pct}%</strong> = <strong>${max_risk_per_trade_dollars:,.0f}</strong>
 </div>
 """, unsafe_allow_html=True)
 
-with st.sidebar.expander("ℹ️ Dual Constraint System", expanded=False):
+with st.sidebar.expander("Dual Constraint System", expanded=False):
     st.info("""
     **Dual Constraint System:**
     Position Size = MIN(Quality-Based, Risk-Based)
@@ -2215,7 +2224,7 @@ with st.sidebar.expander("ℹ️ Dual Constraint System", expanded=False):
 st.sidebar.markdown("<hr class='sidebar-divider'>", unsafe_allow_html=True)
 
 # ========== SYSTEM ==========
-st.sidebar.markdown("<div class='sidebar-section-header'>⚙️ SYSTEM</div>", unsafe_allow_html=True)
+st.sidebar.markdown("<div class='sidebar-section-header'>SYSTEM</div>", unsafe_allow_html=True)
 
 # API Status
 with st.sidebar.expander("API Status", expanded=False):
@@ -2234,14 +2243,14 @@ with st.sidebar.expander("API Status", expanded=False):
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.error("❌ API Key not configured")
+            st.error("API Key not configured")
             st.info("Add FMP_API_KEY to Streamlit secrets")
     except:
-        st.warning("⚠️ Secrets not accessible")
+        st.warning("Secrets not accessible")
 
 # Cache Management
 with st.sidebar.expander("Cache Management", expanded=False):
-    if st.button("🗑️ Clear All Caches",
+    if st.button("Clear All Caches",
                  use_container_width=True,
                  help="Clear FMP API cache and incremental processing cache. Use this if you're seeing stale data or analysis errors."):
         import shutil
