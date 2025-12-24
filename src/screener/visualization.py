@@ -213,17 +213,13 @@ def create_price_levels_chart(
 
     # Update layout with professional styling
     fig.update_layout(
-        title=dict(
-            text=f"{symbol} - Price Levels & Risk Management",
-            font=dict(size=18, weight='bold'),
-            x=0.5,
-            xanchor='center'
-        ),
+        title=None,  # Title removed - shown in tab header instead
         xaxis=dict(
             title="Date" if historical_prices else "",
             showgrid=True,
             gridwidth=1,
-            gridcolor='rgba(128,128,128,0.2)'
+            gridcolor='rgba(128,128,128,0.2)',
+            zeroline=False
         ),
         yaxis=dict(
             title="Price ($)",
@@ -231,9 +227,10 @@ def create_price_levels_chart(
             showgrid=True,
             gridwidth=1,
             gridcolor='rgba(128,128,128,0.2)',
-            tickformat='$.2f'
+            tickformat='$.2f',
+            zeroline=False
         ),
-        height=550,
+        height=600,
         hovermode='x unified',
         showlegend=True,
         legend=dict(
@@ -242,13 +239,20 @@ def create_price_levels_chart(
             y=1.02,
             xanchor="right",
             x=1,
-            bgcolor='rgba(255,255,255,0.8)',
-            bordercolor='rgba(0,0,0,0.2)',
-            borderwidth=1
+            bgcolor='rgba(255,255,255,0.95)',
+            bordercolor='rgba(0,0,0,0.1)',
+            borderwidth=1,
+            font=dict(size=11)
         ),
-        margin=dict(l=70, r=160, t=90, b=70),
-        plot_bgcolor='rgba(250,250,250,0.5)',
-        paper_bgcolor='white'
+        margin=dict(l=70, r=160, t=60, b=70),
+        plot_bgcolor='rgba(248,249,250,0.8)',
+        paper_bgcolor='white',
+        font=dict(family="Arial, sans-serif", size=12, color='#495057'),
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=12,
+            font_family="Arial, sans-serif"
+        )
     )
 
     return fig
@@ -281,44 +285,53 @@ def create_overextension_gauge(
     color = colors.get(overextension_level, '#7f7f7f')
 
     fig = go.Figure(go.Indicator(
-        mode="gauge+number+delta",
+        mode="gauge+number",
         value=overextension_risk,
         domain={'x': [0, 1], 'y': [0, 1]},
-        title={'text': "Overextension Risk", 'font': {'size': 20}},
-        delta={'reference': 3, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}},
+        number={'font': {'size': 48, 'color': color, 'family': 'Arial, sans-serif'}},
         gauge={
-            'axis': {'range': [None, 7], 'tickwidth': 1, 'tickcolor': "darkblue"},
-            'bar': {'color': color},
+            'axis': {
+                'range': [None, 7],
+                'tickwidth': 2,
+                'tickcolor': "#495057",
+                'tickfont': {'size': 14, 'family': 'Arial, sans-serif'}
+            },
+            'bar': {'color': color, 'thickness': 0.75},
             'bgcolor': "white",
-            'borderwidth': 2,
-            'bordercolor': "gray",
+            'borderwidth': 3,
+            'bordercolor': "#dee2e6",
             'steps': [
-                {'range': [0, 1], 'color': '#90EE90'},
-                {'range': [1, 3], 'color': '#FFE4B5'},
-                {'range': [3, 5], 'color': '#FFB6C1'},
-                {'range': [5, 7], 'color': '#FF6B6B'}
+                {'range': [0, 1], 'color': 'rgba(144, 238, 144, 0.3)'},
+                {'range': [1, 3], 'color': 'rgba(255, 228, 181, 0.3)'},
+                {'range': [3, 5], 'color': 'rgba(255, 182, 193, 0.3)'},
+                {'range': [5, 7], 'color': 'rgba(255, 107, 107, 0.3)'}
             ],
             'threshold': {
-                'line': {'color': "red", 'width': 4},
-                'thickness': 0.75,
+                'line': {'color': "#dc3545", 'width': 5},
+                'thickness': 0.85,
                 'value': 5
             }
         }
     ))
 
+    # Add level indicator annotation
+    level_text = f"<b>{overextension_level}</b><br><span style='font-size:12px'>Distance from MA200: {distance_ma200:+.1f}%</span>"
     fig.add_annotation(
-        text=f"{overextension_level}<br>Distance from MA200: {distance_ma200:+.1f}%",
+        text=level_text,
         xref="paper",
         yref="paper",
         x=0.5,
         y=-0.15,
         showarrow=False,
-        font=dict(size=14)
+        font=dict(size=16, color=color, family='Arial, sans-serif'),
+        align='center'
     )
 
     fig.update_layout(
-        height=300,
-        margin=dict(l=20, r=20, t=40, b=80)
+        height=350,
+        margin=dict(l=20, r=20, t=40, b=100),
+        paper_bgcolor='rgba(248,249,250,0.5)',
+        font=dict(family="Arial, sans-serif", color='#495057')
     )
 
     return fig
