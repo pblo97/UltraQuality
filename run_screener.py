@@ -2050,9 +2050,9 @@ with st.sidebar.expander(" Decision Thresholds", expanded=True):
 
     st.caption("""
     **Guardrail Colors:**
-    - 🟢 VERDE: Clean accounting
-    - 🟡 AMBAR: Minor concerns (high-quality companies often have AMBAR)
-    - 🔴 ROJO: Red flags (manipulation risk)
+    -  VERDE: Clean accounting
+    -  AMBAR: Minor concerns (high-quality companies often have AMBAR)
+    -  ROJO: Red flags (manipulation risk)
 
     **New:** Quality ≥70 + AMBAR can still be BUY
     """)
@@ -2427,12 +2427,12 @@ def get_market_regime_display(regime: str) -> str:
         Formatted string with emoji and regime name
     """
     regime_emojis = {
-        'BULL': '🟢',
-        'BEAR': '🔴',
-        'SIDEWAYS': '🟡',
-        'UNKNOWN': '⚪'
+        'BULL': '',
+        'BEAR': '',
+        'SIDEWAYS': '',
+        'UNKNOWN': ''
     }
-    emoji = regime_emojis.get(regime, '🟡')
+    emoji = regime_emojis.get(regime, '')
     return f"{emoji} {regime}"
 
 
@@ -2627,9 +2627,9 @@ with tab1:
             - **Technical Veto:** Filters out poor setups
 
             **Guardrails System**
-            - 🟢 **VERDE:** All quality checks passed
-            - 🟡 **AMBAR:** Minor concerns, needs review
-            - 🔴 **ROJO:** Critical red flags, avoid
+            -  **VERDE:** All quality checks passed
+            -  **AMBAR:** Minor concerns, needs review
+            -  **ROJO:** Critical red flags, avoid
             """)
 
     st.markdown("---")
@@ -2836,7 +2836,7 @@ with tab2:
         )
 
         # Show special cases
-        with st.expander("🔍 Investigate Specific Companies - Deep Dive Analysis", expanded=False):
+        with st.expander("Investigate Specific Companies - Deep Dive Analysis", expanded=False):
             search_ticker = st.text_input(
                 "Enter a single ticker for deep analysis (e.g., LLY, GOOGL, MSFT)",
                 key="search_ticker",
@@ -2864,7 +2864,7 @@ with tab2:
 
                     with col2:
                         composite = stock_data.get('composite_0_100', 0)
-                        comp_color = "🟢" if composite >= 70 else "🟡" if composite >= 50 else "🔴"
+                        comp_color = "" if composite >= 70 else "" if composite >= 50 else ""
                         st.metric("Composite Score", f"{composite:.0f}", delta=None)
                         st.caption(f"{comp_color} {stock_data.get('decision', 'N/A')}")
 
@@ -2880,10 +2880,10 @@ with tab2:
 
                     # Create analysis tabs
                     analysis_tabs = st.tabs([
-                        "📋 Summary",
-                        "🛡️ Guardrails (Accounting Quality)",
-                        "🌟 Quality Score Breakdown",
-                        "💎 Value Score Breakdown"
+                        "Summary",
+                        "Guardrails (Accounting Quality)",
+                        "Quality Score Breakdown",
+                        "Value Score Breakdown"
                     ])
 
                     # ========== TAB 1: Summary ==========
@@ -2918,7 +2918,7 @@ with tab2:
                         col1, col2, col3 = st.columns(3)
 
                         with col1:
-                            st.markdown("#### 💰 Profitability")
+                            st.markdown("#### Profitability: Profitability")
                             roic = stock_data.get('roic_%')
                             if roic is not None:
                                 st.metric("ROIC", f"{roic:.1f}%")
@@ -2932,7 +2932,7 @@ with tab2:
                                 st.metric("Moat Score", f"{moat:.0f}/100")
 
                         with col2:
-                            st.markdown("#### 💵 Valuation")
+                            st.markdown("#### Valuation: Valuation")
                             ey_adj = stock_data.get('earnings_yield_adj')
                             if ey_adj is not None:
                                 st.metric("Earnings Yield (Adj)", f"{ey_adj:.1f}%")
@@ -2946,13 +2946,13 @@ with tab2:
                                 st.metric("Shareholder Yield", f"{sh_yield:+.1f}%")
 
                         with col3:
-                            st.markdown("#### 🛡️ Financial Health")
+                            st.markdown("#### Financial Health: Financial Health")
 
                             guardrail_color = {
-                                'VERDE': '🟢',
-                                'AMBAR': '🟡',
-                                'ROJO': '🔴'
-                            }.get(guardrail_status, '⚪')
+                                'VERDE': '',
+                                'AMBAR': '',
+                                'ROJO': ''
+                            }.get(guardrail_status, '')
 
                             st.markdown(f"**Guardrail Status:** {guardrail_color} {guardrail_status}")
                             if guardrail_reasons:
@@ -3665,8 +3665,8 @@ with tab5:
 
                         with col4:
                             assessment = insider.get('assessment', 'neutral')
-                            emoji_map = {'positive': '🟢', 'neutral': '🟡', 'negative': '🔴'}
-                            emoji = emoji_map.get(assessment, '🟡')
+                            emoji_map = {'positive': '', 'neutral': '', 'negative': ''}
+                            emoji = emoji_map.get(assessment, '')
                             st.metric("Assessment", f"{emoji} {assessment.title()}")
 
                         # Additional context
@@ -3760,16 +3760,16 @@ with tab5:
 
                             # Color-coded PEG display
                             if peg_ratio < 1.0:
-                                peg_color = "🟢"
+                                peg_color = ""
                                 peg_label = "Excelente"
                             elif peg_ratio < 1.5:
-                                peg_color = "🟢"
+                                peg_color = ""
                                 peg_label = "Bueno (GARP)"
                             elif peg_ratio < 2.0:
-                                peg_color = "🟡"
+                                peg_color = ""
                                 peg_label = "Aceptable"
                             else:
-                                peg_color = "🔴"
+                                peg_color = ""
                                 peg_label = "Caro para Growth"
 
                             col_peg1, col_peg2, col_peg3 = st.columns([1, 2, 2])
@@ -4009,13 +4009,13 @@ with tab5:
                             # Color based on assessment (with PEG hammer override)
                             if assessment in ['Undervalued', 'Growth Undervalued']:
                                 color = 'green'
-                                emoji = '🟢'
+                                emoji = ''
                             elif assessment == 'Overvalued':
                                 color = 'red'
-                                emoji = '🔴'
+                                emoji = ''
                             else:
                                 color = 'orange'
-                                emoji = '🟡'
+                                emoji = ''
 
                             # Display industry profile
                             industry_profile = intrinsic.get('industry_profile', 'unknown').replace('_', ' ').title()
@@ -4465,7 +4465,7 @@ with tab5:
                             # Revenue
                             revenue_data = growth_consistency.get('revenue', {})
                             if revenue_data:
-                                st.markdown("#### 💵 Revenue Growth")
+                                st.markdown("#### Valuation: Revenue Growth")
                                 col1, col2, col3, col4 = st.columns(4)
 
                                 with col1:
@@ -4901,9 +4901,9 @@ with tab5:
                                 buy_val = insider.get('buy_value_formatted', 'N/A')
                                 sell_val = insider.get('sell_value_formatted', 'N/A')
                                 if net_pos == 'Buying':
-                                    st.metric("Net Position", "🟢 Buying")
+                                    st.metric("Net Position", " Buying")
                                 else:
-                                    st.metric("Net Position", "🔴 Selling")
+                                    st.metric("Net Position", " Selling")
                                 st.caption(f"Buy: {buy_val} | Sell: {sell_val}")
 
                             # Show recent trades
@@ -5517,13 +5517,13 @@ with tab6:
 
                 if assessment == 'Undervalued':
                     color = 'green'
-                    emoji = '🟢'
+                    emoji = ''
                 elif assessment == 'Overvalued':
                     color = 'red'
-                    emoji = '🔴'
+                    emoji = ''
                 else:
                     color = 'orange'
-                    emoji = '🟡'
+                    emoji = ''
 
                 st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
                 st.caption(f"**Confidence:** {confidence}")
@@ -5552,16 +5552,16 @@ with tab6:
 
                 # Color-coded PEG display
                 if peg_ratio < 1.0:
-                    peg_color = "🟢"
+                    peg_color = ""
                     peg_label = "Excelente"
                 elif peg_ratio < 1.5:
-                    peg_color = "🟢"
+                    peg_color = ""
                     peg_label = "Bueno (GARP)"
                 elif peg_ratio < 2.0:
-                    peg_color = "🟡"
+                    peg_color = ""
                     peg_label = "Aceptable"
                 else:
-                    peg_color = "🔴"
+                    peg_color = ""
                     peg_label = "Caro para Growth"
 
                 col_peg1, col_peg2, col_peg3 = st.columns([1, 2, 2])
@@ -5801,13 +5801,13 @@ with tab6:
                 # Color based on assessment (with PEG hammer override)
                 if assessment in ['Undervalued', 'Growth Undervalued']:
                     color = 'green'
-                    emoji = '🟢'
+                    emoji = ''
                 elif assessment == 'Overvalued':
                     color = 'red'
-                    emoji = '🔴'
+                    emoji = ''
                 else:
                     color = 'orange'
-                    emoji = '🟡'
+                    emoji = ''
 
                 # Display industry profile
                 industry_profile = intrinsic.get('industry_profile', 'unknown').replace('_', ' ').title()
@@ -6115,7 +6115,7 @@ with tab6:
                 # Revenue
                 revenue_data = growth_consistency.get('revenue', {})
                 if revenue_data:
-                    st.markdown("#### 💵 Revenue Growth")
+                    st.markdown("#### Valuation: Revenue Growth")
                     col1, col2, col3, col4 = st.columns(4)
 
                     with col1:
@@ -6551,9 +6551,9 @@ with tab6:
                     buy_val = insider.get('buy_value_formatted', 'N/A')
                     sell_val = insider.get('sell_value_formatted', 'N/A')
                     if net_pos == 'Buying':
-                        st.metric("Net Position", "🟢 Buying")
+                        st.metric("Net Position", " Buying")
                     else:
-                        st.metric("Net Position", "🔴 Selling")
+                        st.metric("Net Position", " Selling")
                     st.caption(f"Buy: {buy_val} | Sell: {sell_val}")
 
                 # Show recent trades
@@ -6739,11 +6739,11 @@ with tab6:
                         signal = tech_analysis.get('signal', 'HOLD')
 
                         if signal == 'BUY':
-                            st.success(f"**🟢 {signal}**")
+                            st.success(f"** {signal}**")
                         elif signal == 'HOLD':
-                            st.info(f"**🟡 {signal}**")
+                            st.info(f"** {signal}**")
                         else:
-                            st.error(f"**🔴 {signal}**")
+                            st.error(f"** {signal}**")
 
                         st.metric("Technical Score", f"{tech_score:.0f}/100")
 
@@ -6845,9 +6845,9 @@ with tab6:
                         # Show regime details
                         st.info("""
                         **Market regime affects momentum effectiveness:**
-                        - 🟢 **BULL**: Momentum +20% more effective
-                        - 🔴 **BEAR**: Momentum -60% effectiveness (crowding)
-                        - 🟡 **SIDEWAYS**: Normal momentum behavior
+                        -  **BULL**: Momentum +20% more effective
+                        -  **BEAR**: Momentum -60% effectiveness (crowding)
+                        -  **SIDEWAYS**: Normal momentum behavior
                         """)
 
                     # SmartDynamicStopLoss section
@@ -6922,9 +6922,9 @@ with tab6:
                                         if 'premium' in strategy:
                                             st.write(f" {strategy['premium']}")
                                         if 'credit' in strategy:
-                                            st.write(f"💵 {strategy['credit']}")
+                                            st.write(f"Valuation: {strategy['credit']}")
                                         if 'cost' in strategy:
-                                            st.write(f"💵 {strategy['cost']}")
+                                            st.write(f"Valuation: {strategy['cost']}")
                                         if 'leverage' in strategy:
                                             st.write(f" {strategy['leverage']}")
                                         if 'max_profit' in strategy:
@@ -7035,7 +7035,7 @@ with tab8:
 
     **Combined Signals:**
     -  **Strong BUY**: Fundamental BUY + Technical BUY (quality + timing aligned)
-    - 🟢 **BUY**: Fundamental BUY + Technical HOLD (good company, wait for entry)
+    -  **BUY**: Fundamental BUY + Technical HOLD (good company, wait for entry)
     - ⏸️ **WAIT**: Fundamental BUY + Technical SELL (great company, bad timing)
 
     ---
@@ -7551,11 +7551,11 @@ with tab7:
 
                 with col1:
                     tech_buys = len(df_tech[df_tech['technical_signal'] == 'BUY'])
-                    st.metric("🟢 Tech BUY", tech_buys, f"{tech_buys/len(df_tech)*100:.0f}%")
+                    st.metric(" Tech BUY", tech_buys, f"{tech_buys/len(df_tech)*100:.0f}%")
 
                 with col2:
                     tech_holds = len(df_tech[df_tech['technical_signal'] == 'HOLD'])
-                    st.metric("🟡 Tech HOLD", tech_holds, f"{tech_holds/len(df_tech)*100:.0f}%")
+                    st.metric(" Tech HOLD", tech_holds, f"{tech_holds/len(df_tech)*100:.0f}%")
 
                 with col3:
                     avg_tech_score = df_tech['technical_score'].mean()
@@ -8717,19 +8717,19 @@ with tab7:
                                 st.caption(f" Low overextension risk ({overextension_risk}/7). Strong trend can persist. Use Trailing Stop (EMA 20) to protect gains.")
                             elif abs_distance > 60 and not is_momentum_leader:
                                 # Extreme overextension (non-leaders only)
-                                st.error(f"🔴 POOR TIMING - Extreme overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                                st.error(f" POOR TIMING - Extreme overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                                 st.caption(" Expect 20-40% pullback. Wait for correction.")
                             elif abs_distance > 50 and not is_momentum_leader:
                                 # Severe overextension (non-leaders only)
-                                st.error(f"🔴 POOR TIMING - Severe overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                                st.error(f" POOR TIMING - Severe overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                                 st.caption(" Expect 15-30% correction. Scale-in recommended (majority capital on pullback).")
                             elif abs_distance > 40 and overextension_risk >= 2:
                                 # Significant overextension with moderate risk
-                                st.warning(f"🟡 CAUTIOUS TIMING - Significant overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                                st.warning(f" CAUTIOUS TIMING - Significant overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                                 st.caption(" Possible 10-20% pullback. Scale-in recommended.")
                             elif overextension_risk >= 3:
                                 # Moderate overextension (from other factors like volatility)
-                                st.warning(f"🟡 CAUTIOUS TIMING - Moderate overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                                st.warning(f" CAUTIOUS TIMING - Moderate overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                                 st.caption(" Possible 8-12% consolidation. Consider small reserve.")
                             elif tech_score >= 75:
                                 st.success(f" EXCELLENT ({tech_score}/100) - Favorable technical setup, low overextension ({overextension_risk}/7)")
@@ -8817,14 +8817,14 @@ with tab7:
                             # Good fundamentals (60+) but moderate technicals (50-60)
                             elif fund_score >= 60 and tech_score >= 50:
                                 st.info("""
-                                **🟡 CAUTIOUS BUY**: Good fundamentals but moderate technical timing.
+                                ** CAUTIOUS BUY**: Good fundamentals but moderate technical timing.
                                 Consider smaller position (50-60%) or wait for technical improvement.
                                 """)
 
                             # Moderate fundamentals (50-60) but good technicals (60+)
                             elif fund_score >= 50 and tech_score >= 60:
                                 st.info("""
-                                **🟡 HOLD/TACTICAL**: Moderate fundamentals but favorable technicals.
+                                ** HOLD/TACTICAL**: Moderate fundamentals but favorable technicals.
                                 May be suitable for tactical trade with tight stops. Monitor fundamentals closely.
                                 Not a long-term core holding due to fundamental quality.
                                 """)
