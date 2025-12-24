@@ -3021,25 +3021,50 @@ with tab2:
                                     if key in stock_data:
                                         guardrails_data[key] = stock_data[key]
 
-                                # Add nested dictionaries for advanced metrics (if available in features)
-                                # These would normally come from guardrails calculation, but we'll construct from available data
+                                # Parse guardrail_reasons to extract detailed metrics
+                                import re
+                                reasons = guardrails_data.get('guardrail_reasons', '')
+
+                                # Extract FCF/NI from reasons (e.g., "FCF/NI 154%")
+                                fcf_ni_match = re.search(r'FCF/NI\s+([\d.]+)%', reasons)
+                                fcf_ni_value = float(fcf_ni_match.group(1)) if fcf_ni_match else stock_data.get('cfo_to_ni')
+
+                                # Extract CCC from reasons (e.g., "CCC +68 days")
+                                ccc_match = re.search(r'CCC\s+([+-]?\d+)\s+days', reasons)
+                                ccc_value = float(ccc_match.group(1)) if ccc_match else None
+
+                                # Determine CCC trend from reasons
+                                ccc_trend = 'Unknown'
+                                if 'severe deterioration' in reasons.lower():
+                                    ccc_trend = 'Severe Deterioration'
+                                elif 'deterioration' in reasons.lower():
+                                    ccc_trend = 'Deteriorating'
+                                elif 'improvement' in reasons.lower():
+                                    ccc_trend = 'Improving'
+
+                                # Build cash_conversion dict with parsed data
                                 guardrails_data['cash_conversion'] = {
-                                    'fcf_to_ni_current': stock_data.get('cfo_to_ni'),  # Approximation
-                                    'fcf_to_ni_avg_8q': stock_data.get('cfo_to_ni'),
+                                    'fcf_to_ni_current': fcf_ni_value,
+                                    'fcf_to_ni_avg_8q': fcf_ni_value,  # Approximation
                                     'fcf_to_revenue_current': stock_data.get('fcf_margin_%'),
-                                    'capex_intensity_current': None,  # Not available
-                                    'status': 'VERDE' if stock_data.get('cfo_to_ni', 0) >= 80 else 'AMBAR' if stock_data.get('cfo_to_ni', 0) >= 60 else 'ROJO',
-                                    'flags': []
+                                    'capex_intensity_current': None,
+                                    'status': 'VERDE' if fcf_ni_value and fcf_ni_value >= 80 else 'AMBAR' if fcf_ni_value and fcf_ni_value >= 60 else 'ROJO',
+                                    'flags': [f"FCF/NI {fcf_ni_value:.0f}%" if fcf_ni_value else "FCF/NI data not available"]
                                 }
 
+                                # Build working_capital dict with parsed data
                                 guardrails_data['working_capital'] = {
-                                    'ccc_current': None,
+                                    'ccc_current': ccc_value,
                                     'dso_current': None,
                                     'dio_current': None,
-                                    'status': 'VERDE',
-                                    'flags': []
+                                    'ccc_trend': ccc_trend,
+                                    'dso_trend': 'Unknown',
+                                    'dio_trend': 'Unknown',
+                                    'status': 'ROJO' if 'severe deterioration' in reasons.lower() else 'AMBAR' if 'deterioration' in reasons.lower() else 'VERDE',
+                                    'flags': [f"CCC {ccc_value:.0f} days ({ccc_trend})"] if ccc_value else []
                                 }
 
+                                # Build margin_trajectory dict
                                 guardrails_data['margin_trajectory'] = {
                                     'gross_margin_current': None,
                                     'operating_margin_current': None,
@@ -3048,12 +3073,16 @@ with tab2:
                                     'status': 'VERDE'
                                 }
 
+                                # Build debt_maturity_wall dict
+                                debt_pct = stock_data.get('debt_maturity_<24m_%')
+                                int_cov = stock_data.get('interestCoverage')
+
                                 guardrails_data['debt_maturity_wall'] = {
                                     'debt_due_12m': None,
-                                    'short_term_debt_pct': stock_data.get('debt_maturity_<24m_%'),
+                                    'short_term_debt_pct': debt_pct,
                                     'liquidity_ratio': None,
-                                    'interest_coverage': stock_data.get('interestCoverage'),
-                                    'status': 'VERDE' if stock_data.get('interestCoverage', 0) >= 5 else 'AMBAR' if stock_data.get('interestCoverage', 0) >= 3 else 'ROJO',
+                                    'interest_coverage': int_cov,
+                                    'status': 'VERDE' if int_cov and int_cov >= 5 else 'AMBAR' if int_cov and int_cov >= 3 else 'ROJO',
                                     'flags': []
                                 }
 
