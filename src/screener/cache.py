@@ -57,6 +57,8 @@ class CachedFMPClient:
             'key_executives': timedelta(days=7),
             'stock_screener': timedelta(hours=1),
             'stock_peers': timedelta(days=7),
+            'institutional_holders': timedelta(days=7),  # Updates quarterly
+            'earnings_calendar': timedelta(hours=12),  # Updates twice daily
         }
 
         # Stats
@@ -307,6 +309,26 @@ class CachedFMPClient:
             'stock_peers',
             self.fmp.get_stock_peers,
             symbol
+        )
+
+    def get_institutional_holders(self, symbol):
+        """Get institutional holders (cached 7 days)."""
+        return self._fetch_with_cache(
+            'institutional_holders',
+            self.fmp.get_institutional_holders,
+            symbol
+        )
+
+    def get_earnings_calendar(self, from_date=None, to_date=None):
+        """Get earnings calendar (cached 12 hours)."""
+        # For earnings calendar, use 'calendar' as symbol for cache key
+        symbol = 'calendar'
+        return self._fetch_with_cache(
+            'earnings_calendar',
+            self.fmp.get_earnings_calendar,
+            symbol,
+            from_date=from_date,
+            to_date=to_date
         )
 
     # ===================================
