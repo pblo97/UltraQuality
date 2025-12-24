@@ -1382,7 +1382,10 @@ def display_take_profit(profit_taking):
             r_multiple = target.get('r_multiple', '')
 
             # Format values - handle different types safely
-            if isinstance(percent, str):
+            if percent is None:
+                percent_val = 0
+                percent_str = "N/A"
+            elif isinstance(percent, str):
                 percent_val = int(percent.replace('%', '')) if '%' in percent else int(float(percent))
                 percent_str = percent if '%' in percent else f"{percent}%"
             elif isinstance(percent, (int, float)):
