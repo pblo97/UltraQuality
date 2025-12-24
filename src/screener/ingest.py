@@ -480,6 +480,27 @@ class FMPClient:
         """Endpoint: /key-executives/{symbol}"""
         return self._request(f'key-executives/{symbol}', cache=self.cache_qualitative)
 
+    def get_institutional_holders(self, symbol: str) -> List[Dict]:
+        """
+        Endpoint: /institutional-holder/{symbol}
+        Returns list of institutional holders with their positions.
+        """
+        return self._request(f'institutional-holder/{symbol}', cache=self.cache_qualitative)
+
+    def get_earnings_calendar(self, from_date: str = None, to_date: str = None) -> List[Dict]:
+        """
+        Endpoint: /earning_calendar
+        Returns earnings calendar for specified date range.
+        If no dates specified, returns upcoming earnings.
+        """
+        params = {}
+        if from_date:
+            params['from'] = from_date
+        if to_date:
+            params['to'] = to_date
+
+        return self._request('earning_calendar', params=params, cache=self.cache_symbol)
+
     # ========================
     # Metrics & Stats
     # ========================

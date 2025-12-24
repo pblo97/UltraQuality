@@ -8258,77 +8258,25 @@ with tab7:
 
                                 st.caption("Smart Money data from Qualitative Analysis (tab 5)")
 
-                        # ========== EARNINGS DATE ALERT ==========
-                        # Check for upcoming earnings announcement
+                        # ========== INSTITUTIONAL HOLDERS ==========
+                        st.markdown("---")
                         try:
-                            profile_data = fmp.get_profile(selected_ticker)
-                            if profile_data and len(profile_data) > 0:
-                                earnings_date_str = profile_data[0].get('earningsAnnouncement', None)
+                            from screener.advanced_ui import render_institutional_holders
+                            render_institutional_holders(selected_ticker, fmp)
+                        except Exception as e:
+                            st.info("Institutional holder data not available")
+                            if st.checkbox("Show error details", key=f"inst_error_{selected_ticker}"):
+                                st.error(str(e))
 
-                                if earnings_date_str:
-                                    # Parse earnings date
-                                    try:
-                                        # FMP format: "2024-01-25T16:00:00.000+0000"
-                                        earnings_date = datetime.strptime(earnings_date_str.split('T')[0], '%Y-%m-%d')
-                                        today = datetime.now()
-                                        days_until_earnings = (earnings_date - today).days
-
-                                        # Show alert if earnings within 5 days
-                                        if days_until_earnings <= 5 and days_until_earnings >= 0:
-                                            st.markdown("""
-                                            <div style='background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-                                                        padding: 1.5rem; border-radius: 12px; margin: 2rem 0;
-                                                        box-shadow: 0 4px 12px rgba(255, 0, 0, 0.3);'>
-                                                <div style='text-align: center; color: white;'>
-                                                    <div style='font-size: 2.5rem; margin-bottom: 0.5rem;'>
-                                                        <i class="bi bi-exclamation-triangle-fill"></i>
-                                                    </div>
-                                                    <div style='font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem;'>
-                                                        EARNINGS ALERT
-                                                    </div>
-                                                    <div style='font-size: 1.2rem; opacity: 0.95;'>
-                                                        Earnings Report in <span style='font-size: 1.5rem; font-weight: 700;'>{}</span> day{}
-                                                    </div>
-                                                    <div style='font-size: 0.95rem; margin-top: 0.75rem; opacity: 0.9;'>
-                                                        {}
-                                                    </div>
-                                                    <div style='background: rgba(255,255,255,0.2); padding: 0.75rem; border-radius: 8px; margin-top: 1rem;'>
-                                                        <div style='font-size: 0.9rem; font-weight: 600;'>
-                                                            ⚠️ HIGH VOLATILITY RISK
-                                                        </div>
-                                                        <div style='font-size: 0.85rem; margin-top: 0.25rem;'>
-                                                            Consider waiting until after earnings to avoid unpredictable price swings
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            """.format(
-                                                days_until_earnings,
-                                                's' if days_until_earnings != 1 else '',
-                                                earnings_date.strftime('%B %d, %Y')
-                                            ), unsafe_allow_html=True)
-                                        elif days_until_earnings < 0 and days_until_earnings >= -2:
-                                            # Earnings just happened (within last 2 days)
-                                            st.markdown("""
-                                            <div style='background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
-                                                        padding: 1.25rem; border-radius: 12px; margin: 2rem 0;'>
-                                                <div style='text-align: center; color: white;'>
-                                                    <div style='font-size: 1.8rem; margin-bottom: 0.5rem;'>
-                                                        <i class="bi bi-info-circle-fill"></i>
-                                                    </div>
-                                                    <div style='font-size: 1.2rem; font-weight: 700;'>
-                                                        Recent Earnings Report
-                                                    </div>
-                                                    <div style='font-size: 0.9rem; margin-top: 0.5rem; opacity: 0.95;'>
-                                                        Earnings reported {} - Price may still be digesting results
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            """.format(earnings_date.strftime('%B %d, %Y')), unsafe_allow_html=True)
-                                    except (ValueError, AttributeError):
-                                        pass  # Invalid date format
-                        except Exception:
-                            pass  # Silent fail - earnings date is supplementary info
+                        # ========== EARNINGS CALENDAR ==========
+                        st.markdown("---")
+                        try:
+                            from screener.advanced_ui import render_earnings_calendar_section
+                            render_earnings_calendar_section(selected_ticker, fmp)
+                        except Exception as e:
+                            st.info("Earnings calendar data not available")
+                            if st.checkbox("Show error details", key=f"earnings_error_{selected_ticker}"):
+                                st.error(str(e))
 
                         # ========== RESUMEN EJECUTIVO: WARNINGS & DIAGNOSTICS ==========
                         st.markdown("---")
