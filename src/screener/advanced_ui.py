@@ -246,12 +246,12 @@ def render_options_calculator(symbol: str, fmp_client, full_analysis: Dict):
     try:
         quote = fmp_client.get_quote(symbol)  # Pass string, not list
         if not quote or len(quote) == 0:
-            st.warning("⚠️ No current price data available")
+            st.warning("△ No current price data available")
             return
 
         current_price = quote[0].get('price', 0)
         if not current_price or current_price == 0:
-            st.warning("⚠️ No valid price data")
+            st.warning("△ No valid price data")
             return
     except Exception as e:
         st.error(f"Error fetching quote: {e}")
@@ -373,7 +373,7 @@ def render_market_timing_dashboard(fmp_client, top_stocks: List[str] = None):
     """Render market timing dashboard."""
     st.markdown("### Market Timing Dashboard")
 
-    with st.expander("📚 What is this?", expanded=False):
+    with st.expander("What is this?", expanded=False):
         st.markdown("""
         Macro market analysis for timing decisions:
         - % of stocks overextended (correction risk)
@@ -392,7 +392,7 @@ def render_market_timing_dashboard(fmp_client, top_stocks: List[str] = None):
             # SPY
             if 'spy' in analysis:
                 spy = analysis['spy']
-                st.markdown("#### 📊 SPY (Market Index)")
+                st.markdown("#### SPY (Market Index)")
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.metric("Price", f"${spy['price']:.2f}")
@@ -405,7 +405,7 @@ def render_market_timing_dashboard(fmp_client, top_stocks: List[str] = None):
             # VIX
             if 'vix' in analysis and 'error' not in analysis['vix']:
                 vix = analysis['vix']
-                st.markdown("#### 😱 VIX (Volatility Index)")
+                st.markdown("#### VIX (Volatility Index)")
                 col1, col2 = st.columns(2)
                 with col1:
                     st.metric("VIX", f"{vix['vix']:.1f}", help="Volatility Index")
@@ -416,7 +416,7 @@ def render_market_timing_dashboard(fmp_client, top_stocks: List[str] = None):
             # Breadth
             if 'breadth' in analysis and 'error' not in analysis['breadth']:
                 breadth = analysis['breadth']
-                st.markdown("#### 📈 Market Breadth")
+                st.markdown("#### Market Breadth")
                 col1, col2 = st.columns(2)
                 with col1:
                     st.metric(
@@ -430,15 +430,15 @@ def render_market_timing_dashboard(fmp_client, top_stocks: List[str] = None):
             # Overall recommendation
             if 'overall_recommendation' in analysis:
                 rec = analysis['overall_recommendation']
-                st.markdown("#### 🎯 Overall Recommendation")
+                st.markdown("#### Overall Recommendation")
 
                 stance_colors = {
-                    'DEFENSIVE': '🔴',
-                    'CAUTIOUS': '🟡',
-                    'NEUTRAL': '🟢',
-                    'BULLISH': '🟢'
+                    'DEFENSIVE': '',
+                    'CAUTIOUS': '',
+                    'NEUTRAL': '',
+                    'BULLISH': ''
                 }
-                icon = stance_colors.get(rec['stance'], '⚪')
+                icon = stance_colors.get(rec['stance'], '')
 
                 st.markdown(f"### {icon} {rec['stance']} ({rec['confidence']} confidence)")
                 st.markdown(f"**Risk Score:** {rec['risk_score']}/10")
@@ -457,7 +457,7 @@ def render_portfolio_tracker(fmp_client):
     tracker = PortfolioTracker()
 
     # Tabs for different portfolio functions
-    tab1, tab2, tab3 = st.tabs(["📊 Overview", "➕ Add Position", "🚨 Alerts"])
+    tab1, tab2, tab3 = st.tabs(["Overview", "Add Position", "□ Alerts"])
 
     with tab1:
         positions = tracker.get_all_positions()
@@ -526,7 +526,7 @@ def render_portfolio_tracker(fmp_client):
                 quantity=new_quantity,
                 notes=new_notes
             )
-            st.success(f"✅ Added {new_quantity} shares of {new_symbol} at ${new_price:.2f}")
+            st.success(f"• Added {new_quantity} shares of {new_symbol} at ${new_price:.2f}")
             st.rerun()
 
     with tab3:
@@ -558,12 +558,12 @@ def render_portfolio_tracker(fmp_client):
 
                     # Simple alerts
                     if pnl_pct >= 20:
-                        st.success(f"💰 Up {pnl_pct:+.1f}%! Consider taking profits")
+                        st.success(f"Up {pnl_pct:+.1f}%! Consider taking profits")
                     elif pnl_pct <= -10:
-                        st.error(f"🔴 Down {pnl_pct:.1f}%! Review stop loss")
+                        st.error(f" Down {pnl_pct:.1f}%! Review stop loss")
 
                     if ma_50 > 0 and abs(current_price - ma_50) / ma_50 < 0.02:
-                        st.info(f"🎯 Near MA50 (${ma_50:.2f}) - potential scale-in opportunity")
+                        st.info(f"Near MA50 (${ma_50:.2f}) - potential scale-in opportunity")
 
                 except Exception as e:
                     st.error(f"Error analyzing {symbol}: {e}")
@@ -839,7 +839,7 @@ def render_earnings_calendar_section(symbol: str, fmp_client):
                 
                 # Warning if imminent
                 if days_until <= 5:
-                    st.warning("⚠️ **Earnings within 5 days** - High volatility expected. Consider waiting to enter new positions.")
+                    st.warning("△ **Earnings within 5 days** - High volatility expected. Consider waiting to enter new positions.")
                 
             except ValueError:
                 st.info(f"Next Earnings: {earning_date_str}")
@@ -913,22 +913,13 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
         'ROJO': '#ef4444'
     }.get(status, '#6b7280')
 
-    status_emoji = {
-        'VERDE': '✅',
-        'AMBAR': '⚠️',
-        'ROJO': '🚨'
-    }.get(status, '❓')
-
     st.markdown(f"""
     <div style='background: linear-gradient(135deg, {status_color} 0%, {status_color}dd 100%);
                 padding: 2rem; border-radius: 12px; margin-bottom: 2rem; text-align: center;'>
-        <div style='color: white; font-size: 3rem; margin-bottom: 0.5rem;'>
-            {status_emoji}
+        <div style='color: white; font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: 2px;'>
+            ACCOUNTING QUALITY: {status}
         </div>
-        <div style='color: white; font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem;'>
-            Accounting Quality: {status}
-        </div>
-        <div style='color: white; font-size: 1.1rem; opacity: 0.95;'>
+        <div style='color: white; font-size: 1.1rem; opacity: 0.95; margin-top: 1rem;'>
             {guardrails_data.get('guardrail_reasons', 'All checks OK')}
         </div>
     </div>
@@ -936,11 +927,11 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
 
     # Create tabs for different guardrail categories
     guardrail_tabs = st.tabs([
-        "📊 Overview",
-        "🔍 Earnings Quality",
-        "💰 Cash Conversion",
-        "📈 Operating Metrics",
-        "💸 Debt & Liquidity"
+        "Overview",
+        "Earnings Quality",
+        "Cash Conversion",
+        "Operating Metrics",
+        "Debt & Liquidity"
     ])
 
     # ========== TAB 1: Overview ==========
@@ -958,13 +949,13 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
 
                 if m_score > threshold:
                     m_color = "#ef4444"
-                    m_status = "⚠️ HIGH"
+                    m_status = "HIGH"
                 elif m_score > -2.22:
                     m_color = "#f59e0b"
-                    m_status = "⚠️ BORDERLINE"
+                    m_status = "BORDERLINE"
                 else:
                     m_color = "#10b981"
-                    m_status = "✅ GOOD"
+                    m_status = "GOOD"
 
                 st.markdown(f"""
                 <div style='background: white; padding: 1.5rem; border-radius: 8px;
@@ -992,13 +983,13 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
             if z_score is not None:
                 if z_score < 1.8:
                     z_color = "#ef4444"
-                    z_status = "⚠️ DISTRESS"
+                    z_status = "△ DISTRESS"
                 elif z_score < 2.99:
                     z_color = "#f59e0b"
-                    z_status = "⚠️ GRAY ZONE"
+                    z_status = "△ GRAY ZONE"
                 else:
                     z_color = "#10b981"
-                    z_status = "✅ SAFE"
+                    z_status = "SAFE"
 
                 st.markdown(f"""
                 <div style='background: white; padding: 1.5rem; border-radius: 8px;
@@ -1037,13 +1028,13 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
             if fcf_ni is not None:
                 if fcf_ni < 40:
                     cc_color = "#ef4444"
-                    cc_status = "🚨 LOW"
+                    cc_status = "LOW"
                 elif fcf_ni < 60:
                     cc_color = "#f59e0b"
-                    cc_status = "⚠️ MODERATE"
+                    cc_status = "MODERATE"
                 else:
                     cc_color = "#10b981"
-                    cc_status = "✅ STRONG"
+                    cc_status = "STRONG"
 
                 st.markdown(f"""
                 <div style='background: white; padding: 1.5rem; border-radius: 8px;
@@ -1071,16 +1062,16 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
             if dilution is not None:
                 if dilution > 10:
                     dil_color = "#ef4444"
-                    dil_status = "⚠️ HIGH"
+                    dil_status = "HIGH"
                 elif dilution > 5:
                     dil_color = "#f59e0b"
-                    dil_status = "⚠️ MODERATE"
+                    dil_status = "MODERATE"
                 elif dilution < -5:
                     dil_color = "#10b981"
-                    dil_status = "✅ BUYBACKS"
+                    dil_status = "BUYBACKS"
                 else:
                     dil_color = "#10b981"
-                    dil_status = "✅ LOW"
+                    dil_status = "LOW"
 
                 st.markdown(f"""
                 <div style='background: white; padding: 1.5rem; border-radius: 8px;
@@ -1188,7 +1179,7 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
             """.format(
                 m_score,
                 threshold,
-                "🚨 HIGH RISK" if m_score > threshold else "✅ LOW RISK"
+                "HIGH RISK" if m_score > threshold else "LOW RISK"
             ))
         else:
             st.warning("Beneish M-Score data not available (requires at least 2 years of quarterly data)")
@@ -1230,7 +1221,7 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                         {accruals:.1f}%
                     </div>
                     <div style='font-size: 1rem; color: #374151; margin-top: 1rem;'>
-                        {'🚨 HIGH' if accruals > 20 else '⚠️ ELEVATED' if accruals > 15 else '✅ NORMAL'}
+                        {'HIGH' if accruals > 20 else 'ELEVATED' if accruals > 15 else '• NORMAL'}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1341,7 +1332,7 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
 
             # Flags
             if cc.get('flags'):
-                st.markdown("#### ⚠️ Cash Conversion Flags")
+                st.markdown("#### △ Cash Conversion Flags")
                 for flag in cc['flags']:
                     st.warning(flag)
         else:
@@ -1442,7 +1433,7 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                     {rev_growth:+.1f}%
                 </div>
                 <div style='font-size: 1rem; color: #374151; margin-top: 1rem;'>
-                    {'🚨 DECLINING' if rev_growth < -5 else '⚠️ FLAT/DECLINING' if rev_growth < 0 else '✅ GROWING'}
+                    {'DECLINING' if rev_growth < -5 else '△ FLAT/DECLINING' if rev_growth < 0 else 'GROWING'}
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -1499,9 +1490,9 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                     """, unsafe_allow_html=True)
 
             if dm.get('flags'):
-                st.markdown("#### ⚠️ Debt & Liquidity Flags")
+                st.markdown("#### △ Debt & Liquidity Flags")
                 for flag in dm['flags']:
-                    if '🚨' in flag:
+                    if 'FAIL' in flag:
                         st.error(flag)
                     else:
                         st.warning(flag)
@@ -1534,7 +1525,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
             {quality_score:.0f}
         </div>
         <div style='color: white; font-size: 1.1rem; opacity: 0.95;'>
-            {'🌟 EXCELLENT' if quality_score >= 80 else '✅ STRONG' if quality_score >= 70 else '⚠️ MODERATE' if quality_score >= 50 else '🚨 WEAK'}
+            {'EXCELLENT' if quality_score >= 80 else 'STRONG' if quality_score >= 70 else 'MODERATE' if quality_score >= 50 else 'WEAK'}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1561,11 +1552,11 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
 
         # Create tabs for different quality dimensions
         quality_tabs = st.tabs([
-            "📊 All Metrics",
-            "💰 Profitability",
-            "💵 Cash Generation",
-            "🛡️ Financial Strength",
-            "🎯 Moat & Growth"
+            "All Metrics",
+            "Profitability",
+            "Cash Generation",
+            "Financial Strength",
+            "Moat & Growth"
         ])
 
         # ========== TAB 1: All Metrics ==========
@@ -1597,13 +1588,13 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                 value = stock_data.get(key)
                 if value is not None:
                     if value >= threshold_high:
-                        status = "🌟 EXCELLENT"
+                        status = "EXCELLENT"
                         color = "#10b981"
                     elif value >= threshold_low:
-                        status = "✅ GOOD"
+                        status = "GOOD"
                         color = "#22c55e"
                     else:
-                        status = "⚠️ BELOW TARGET"
+                        status = "BELOW TARGET"
                         color = "#f59e0b"
 
                     metrics_data.append({
@@ -1618,13 +1609,13 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                 value = stock_data.get(key)
                 if value is not None:
                     if value <= threshold_low:
-                        status = "🌟 EXCELLENT"
+                        status = "EXCELLENT"
                         color = "#10b981"
                     elif value <= threshold_high:
-                        status = "✅ GOOD"
+                        status = "GOOD"
                         color = "#22c55e"
                     else:
-                        status = "⚠️ ABOVE TARGET"
+                        status = "ABOVE TARGET"
                         color = "#f59e0b"
 
                     metrics_data.append({
@@ -1684,7 +1675,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                             {roic:.1f}%
                         </div>
                         <div style='font-size: 0.9rem; color: #374151; margin-top: 1rem;'>
-                            {'🌟 Excellent (>25%)' if roic >= 25 else '✅ Strong (>15%)' if roic >= 15 else '⚠️ Moderate (<15%)'}
+                            {'Excellent (>25%)' if roic >= 25 else '• Strong (>15%)' if roic >= 15 else '△ Moderate (<15%)'}
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -1713,7 +1704,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                             {gp_assets:.1f}%
                         </div>
                         <div style='font-size: 0.9rem; color: #374151; margin-top: 1rem;'>
-                            {'🌟 Excellent (>35%)' if gp_assets >= 35 else '✅ Strong (>20%)' if gp_assets >= 20 else '⚠️ Moderate (<20%)'}
+                            {'Excellent (>35%)' if gp_assets >= 35 else '• Strong (>20%)' if gp_assets >= 20 else '△ Moderate (<20%)'}
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -1741,7 +1732,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                             {cash_roa:.1f}%
                         </div>
                         <div style='font-size: 0.9rem; color: #374151; margin-top: 1rem;'>
-                            {'🌟 Excellent (>15%)' if cash_roa >= 15 else '✅ Strong (>8%)' if cash_roa >= 8 else '⚠️ Moderate (<8%)'}
+                            {'Excellent (>15%)' if cash_roa >= 15 else '• Strong (>8%)' if cash_roa >= 8 else '△ Moderate (<8%)'}
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -1774,7 +1765,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                             {fcf_margin:.1f}%
                         </div>
                         <div style='font-size: 1rem; color: #374151; margin-top: 1rem; text-align: center;'>
-                            {'🌟 Excellent (>20%)' if fcf_margin >= 20 else '✅ Strong (>10%)' if fcf_margin >= 10 else '⚠️ Low (<10%)'}
+                            {'Excellent (>20%)' if fcf_margin >= 20 else '• Strong (>10%)' if fcf_margin >= 10 else '△ Low (<10%)'}
                         </div>
                         <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem;'>
                             <strong>Formula:</strong> (Operating Cash Flow - Capex) / Revenue<br><br>
@@ -1799,7 +1790,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                             {cfo_ni:.0f}%
                         </div>
                         <div style='font-size: 1rem; color: #374151; margin-top: 1rem; text-align: center;'>
-                            {'🌟 Excellent (>100%)' if cfo_ni >= 100 else '✅ Strong (>80%)' if cfo_ni >= 80 else '⚠️ Low (<80%)'}
+                            {'Excellent (>100%)' if cfo_ni >= 100 else '• Strong (>80%)' if cfo_ni >= 80 else '△ Low (<80%)'}
                         </div>
                         <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem;'>
                             <strong>Earnings Quality Test:</strong><br>
@@ -1827,7 +1818,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                         {fcf_stab:.1f}%
                     </div>
                     <div style='font-size: 1rem; color: #374151; margin-top: 1rem;'>
-                        {'🌟 Very Stable (<15%)' if fcf_stab <= 15 else '✅ Stable (<30%)' if fcf_stab <= 30 else '⚠️ Volatile (>30%)'}
+                        {'🌟 Very Stable (<15%)' if fcf_stab <= 15 else '• Stable (<30%)' if fcf_stab <= 30 else '△ Volatile (>30%)'}
                     </div>
                     <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem; text-align: left;'>
                         <strong>Interpretation:</strong> Measures the predictability of free cash flow over time.
@@ -1859,7 +1850,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                             {int_cov_display:.1f}x
                         </div>
                         <div style='font-size: 1rem; color: #374151; margin-top: 1rem; text-align: center;'>
-                            {'🌟 Excellent (>10x)' if int_cov >= 10 else '✅ Strong (>5x)' if int_cov >= 5 else '⚠️ Weak (<5x)'}
+                            {'Excellent (>10x)' if int_cov >= 10 else '• Strong (>5x)' if int_cov >= 5 else '△ Weak (<5x)'}
                         </div>
                         <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem;'>
                             <strong>What it measures:</strong> How many times EBIT covers interest expense.<br><br>
@@ -1880,16 +1871,16 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                     # Handle negative values (net cash position)
                     if net_debt_ebitda < 0:
                         debt_color = "#10b981"
-                        debt_status = "💰 NET CASH POSITION"
+                        debt_status = "NET CASH POSITION"
                     elif net_debt_ebitda <= 1.5:
                         debt_color = "#10b981"
                         debt_status = "🌟 Very Low Leverage"
                     elif net_debt_ebitda <= 3:
                         debt_color = "#22c55e"
-                        debt_status = "✅ Moderate Leverage"
+                        debt_status = "• Moderate Leverage"
                     else:
                         debt_color = "#f59e0b"
-                        debt_status = "⚠️ High Leverage"
+                        debt_status = "△ High Leverage"
 
                     st.markdown(f"""
                     <div style='background: white; padding: 2rem; border-radius: 8px;
@@ -1935,7 +1926,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                         {moat_score:.0f} / 100
                     </div>
                     <div style='color: white; font-size: 1.1rem; margin-top: 0.5rem; opacity: 0.95;'>
-                        {'🏰 WIDE MOAT' if moat_score >= 70 else '🛡️ NARROW MOAT' if moat_score >= 50 else '⚠️ NO MOAT'}
+                        {'WIDE MOAT' if moat_score >= 70 else 'NARROW MOAT' if moat_score >= 50 else '△ NO MOAT'}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -2018,7 +2009,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
                             {rev_growth:+.1f}%
                         </div>
                         <div style='font-size: 1.1rem; color: #374151; margin-top: 1rem;'>
-                            {'🚀 FAST GROWTH (>15%)' if rev_growth >= 15 else '✅ GROWING (>5%)' if rev_growth >= 5 else '⚠️ SLOW GROWTH' if rev_growth >= 0 else '🚨 DECLINING'}
+                            {'FAST GROWTH (>15%)' if rev_growth >= 15 else 'GROWING (>5%)' if rev_growth >= 5 else 'SLOW GROWTH' if rev_growth >= 0 else 'DECLINING'}
                         </div>
                     </div>
                     <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1.5rem; font-size: 0.85rem;'>
@@ -2059,7 +2050,7 @@ def render_value_score_breakdown(symbol: str, stock_data: dict, is_financial: bo
             {value_score:.0f}
         </div>
         <div style='color: white; font-size: 1.1rem; opacity: 0.95;'>
-            {'💎 DEEP VALUE' if value_score >= 80 else '✅ ATTRACTIVE' if value_score >= 70 else '⚠️ FAIR VALUE' if value_score >= 50 else '🚨 EXPENSIVE'}
+            {'DEEP VALUE' if value_score >= 80 else 'ATTRACTIVE' if value_score >= 70 else 'FAIR VALUE' if value_score >= 50 else 'EXPENSIVE'}
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -2091,10 +2082,10 @@ def render_value_score_breakdown(symbol: str, stock_data: dict, is_financial: bo
 
         # Create tabs
         value_tabs = st.tabs([
-            "📊 All Yields",
-            "💰 Earnings & FCF",
-            "💵 Cash Flow & GP",
-            "📈 Shareholder Returns"
+            "All Yields",
+            "Earnings & FCF",
+            "Cash Flow & GP",
+            "Shareholder Returns"
         ])
 
         # ========== TAB 1: All Yields ==========
@@ -2114,13 +2105,13 @@ def render_value_score_breakdown(symbol: str, stock_data: dict, is_financial: bo
 
                 if raw_val is not None and adj_val is not None:
                     if adj_val >= threshold_high:
-                        status = "💎 DEEP VALUE"
+                        status = "DEEP VALUE"
                         color = "#10b981"
                     elif adj_val >= threshold_low:
-                        status = "✅ ATTRACTIVE"
+                        status = "ATTRACTIVE"
                         color = "#22c55e"
                     else:
-                        status = "⚠️ FAIR/EXPENSIVE"
+                        status = "△ FAIR/EXPENSIVE"
                         color = "#f59e0b"
 
                     yields_data.append({
@@ -2135,13 +2126,13 @@ def render_value_score_breakdown(symbol: str, stock_data: dict, is_financial: bo
             sh_yield = stock_data.get('shareholder_yield_%')
             if sh_yield is not None:
                 if sh_yield >= 5:
-                    status = "💰 EXCELLENT"
+                    status = "EXCELLENT"
                     color = "#10b981"
                 elif sh_yield >= 2:
-                    status = "✅ GOOD"
+                    status = "GOOD"
                     color = "#22c55e"
                 else:
-                    status = "⚠️ LOW"
+                    status = "△ LOW"
                     color = "#f59e0b"
 
                 yields_data.append({
@@ -2332,7 +2323,7 @@ def render_value_score_breakdown(symbol: str, stock_data: dict, is_financial: bo
                             {sh_yield:+.1f}%
                         </div>
                         <div style='font-size: 1.1rem; color: #374151; margin-top: 1rem;'>
-                            {'💰 EXCELLENT (>5%)' if sh_yield >= 5 else '✅ GOOD (>2%)' if sh_yield >= 2 else '⚠️ LOW (<2%)' if sh_yield >= 0 else '🚨 DILUTIVE (Negative)'}
+                            {'EXCELLENT (>5%)' if sh_yield >= 5 else 'GOOD (>2%)' if sh_yield >= 2 else '△ LOW (<2%)' if sh_yield >= 0 else 'DILUTIVE (Negative)'}
                         </div>
                     </div>
 
