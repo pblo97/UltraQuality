@@ -567,3 +567,329 @@ def render_portfolio_tracker(fmp_client):
 
                 except Exception as e:
                     st.error(f"Error analyzing {symbol}: {e}")
+
+
+def render_institutional_holders(symbol: str, fmp_client):
+    """
+    Render institutional holders section with top holders and ownership breakdown.
+    
+    Args:
+        symbol: Stock symbol
+        fmp_client: FMP client instance
+    """
+    import pandas as pd
+    from datetime import datetime
+    
+    try:
+        holders_data = fmp_client.get_institutional_holders(symbol)
+        
+        if not holders_data or len(holders_data) == 0:
+            st.info("No institutional holder data available for this symbol")
+            return
+        
+        # Header
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
+            <div style='color: white; text-align: center;'>
+                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>
+                    <i class="bi bi-building"></i>
+                </div>
+                <div style='font-size: 1.5rem; font-weight: 700;'>
+                    Institutional Holders
+                </div>
+                <div style='font-size: 0.9rem; opacity: 0.95; margin-top: 0.5rem;'>
+                    Major institutional positions & ownership changes
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Calculate total institutional ownership
+        total_shares = sum([h.get('shares', 0) for h in holders_data[:50]])  # Top 50
+        
+        # Create DataFrame for display
+        df_holders = pd.DataFrame(holders_data[:15])  # Top 15 holders
+        
+        # Key metrics row
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric(
+                "Total Holders",
+                f"{len(holders_data):,}",
+                help="Number of institutional holders"
+            )
+        
+        with col2:
+            if 'shares' in df_holders.columns:
+                avg_position = df_holders['shares'].mean()
+                st.metric(
+                    "Avg Position (Top 15)",
+                    f"{avg_position:,.0f}",
+                    help="Average shares held by top 15 institutions"
+                )
+        
+        with col3:
+            # Latest filing date
+            if 'date' in df_holders.columns or 'dateReported' in df_holders.columns:
+                date_col = 'dateReported' if 'dateReported' in df_holders.columns else 'date'
+                latest_date = df_holders[date_col].iloc[0] if len(df_holders) > 0 else "N/A"
+                st.metric(
+                    "Latest Filing",
+                    str(latest_date)[:10] if latest_date != "N/A" else "N/A",
+                    help="Most recent filing date"
+                )
+        
+        # Top holders table
+        st.markdown("### Top 15 Institutional Holders")
+        
+        # Prepare display columns
+        display_cols = []
+        rename_map = {}
+        
+        if 'holder' in df_holders.columns:
+            display_cols.append('holder')
+            rename_map['holder'] = 'Institution'
+        elif 'name' in df_holders.columns:
+            display_cols.append('name')
+            rename_map['name'] = 'Institution'
+        
+        if 'shares' in df_holders.columns:
+            display_cols.append('shares')
+            rename_map['shares'] = 'Shares'
+        
+        if 'value' in df_holders.columns:
+            display_cols.append('value')
+            rename_map['value'] = 'Value ($)'
+        
+        if 'change' in df_holders.columns:
+            display_cols.append('change')
+            rename_map['change'] = 'Change'
+        elif 'sharesChange' in df_holders.columns:
+            display_cols.append('sharesChange')
+            rename_map['sharesChange'] = 'Change'
+        
+        if 'percentOfPortfolio' in df_holders.columns:
+            display_cols.append('percentOfPortfolio')
+            rename_map['percentOfPortfolio'] = '% of Portfolio'
+        
+        if display_cols:
+            df_display = df_holders[display_cols].copy()
+            df_display = df_display.rename(columns=rename_map)
+            
+            # Format numbers
+            if 'Shares' in df_display.columns:
+                df_display['Shares'] = df_display['Shares'].apply(lambda x: f"{x:,.0f}" if pd.notna(x) else "N/A")
+            if 'Value ($)' in df_display.columns:
+                df_display['Value ($)'] = df_display['Value ($)'].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "N/A")
+            if 'Change' in df_display.columns:
+                df_display['Change'] = df_display['Change'].apply(lambda x: f"{x:+,.0f}" if pd.notna(x) else "0")
+            if '% of Portfolio' in df_display.columns:
+                df_display['% of Portfolio'] = df_display['% of Portfolio'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
+            
+            st.dataframe(
+                df_display,
+                use_container_width=True,
+                hide_index=True
+            )
+        
+        # Analysis section
+        with st.expander("Ownership Analysis", expanded=False):
+            st.markdown("""
+            ### What This Means
+            
+            **High Institutional Ownership (>70%):**
+            - Generally positive signal for large caps
+            - Indicates professional money managers see value
+            - Can provide price stability
+            - May have less volatility
+            
+            **Low Institutional Ownership (<30%):**
+            - Common in small caps
+            - Can indicate undiscovered opportunities
+            - May have higher volatility
+            - Less analyst coverage typically
+            
+            **Recent Increases in Holdings:**
+            - Bullish signal - institutions adding positions
+            - Check if it's widespread or concentrated
+            
+            **Recent Decreases:**
+            - Bearish signal - institutions reducing exposure
+            - Investigate reasons (sector rotation, fundamentals, etc.)
+            """)
+    
+    except Exception as e:
+        st.error(f"Error loading institutional holder data: {e}")
+        st.caption("This feature requires a valid FMP API key with access to institutional holder data")
+
+
+def render_earnings_calendar_section(symbol: str, fmp_client):
+    """
+    Render earnings calendar with upcoming and past earnings dates.
+    
+    Args:
+        symbol: Stock symbol
+        fmp_client: FMP client instance
+    """
+    from datetime import datetime, timedelta
+    import pandas as pd
+    
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
+        <div style='color: white; text-align: center;'>
+            <div style='font-size: 2rem; margin-bottom: 0.5rem;'>
+                <i class="bi bi-calendar-event"></i>
+            </div>
+            <div style='font-size: 1.5rem; font-weight: 700;'>
+                Earnings Calendar
+            </div>
+            <div style='font-size: 0.9rem; opacity: 0.95; margin-top: 0.5rem;'>
+                Upcoming and historical earnings announcement dates
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    try:
+        # Get upcoming earnings (next 3 months)
+        today = datetime.now()
+        three_months = today + timedelta(days=90)
+        
+        from_date = today.strftime('%Y-%m-%d')
+        to_date = three_months.strftime('%Y-%m-%d')
+        
+        calendar = fmp_client.get_earnings_calendar(from_date=from_date, to_date=to_date)
+        
+        if not calendar:
+            st.info("No upcoming earnings data available")
+            
+            # Try to show from profile
+            profile = fmp_client.get_profile(symbol)
+            if profile and len(profile) > 0:
+                earnings_date_str = profile[0].get('earningsAnnouncement', None)
+                if earnings_date_str:
+                    st.markdown(f"""
+                    <div style='background: #e7f3ff; padding: 1rem; border-radius: 8px;
+                                border-left: 4px solid #2196f3;'>
+                        <strong>Next Earnings:</strong> {earnings_date_str[:10]}
+                    </div>
+                    """, unsafe_allow_html=True)
+            return
+        
+        # Filter for this symbol
+        symbol_earnings = [e for e in calendar if e.get('symbol', '').upper() == symbol.upper()]
+        
+        if not symbol_earnings:
+            st.info(f"No upcoming earnings found for {symbol} in the next 3 months")
+            return
+        
+        # Create DataFrame
+        df_earnings = pd.DataFrame(symbol_earnings)
+        
+        # Show next earning date prominently
+        next_earning = symbol_earnings[0]
+        earning_date_str = next_earning.get('date', 'N/A')
+        
+        if earning_date_str != 'N/A':
+            try:
+                earning_date = datetime.strptime(earning_date_str, '%Y-%m-%d')
+                days_until = (earning_date - today).days
+                
+                # Color based on proximity
+                if days_until <= 5:
+                    color = '#dc3545'
+                    bg_color = '#fff5f5'
+                    urgency = "IMMINENT"
+                elif days_until <= 14:
+                    color = '#ffc107'
+                    bg_color = '#fffbf0'
+                    urgency = "UPCOMING"
+                else:
+                    color = '#28a745'
+                    bg_color = '#d4edda'
+                    urgency = "SCHEDULED"
+                
+                st.markdown(f"""
+                <div style='background: {bg_color}; padding: 1.5rem; border-radius: 12px;
+                            border-left: 5px solid {color}; margin-bottom: 1.5rem;'>
+                    <div style='display: flex; justify-content: space-between; align-items: center;'>
+                        <div>
+                            <div style='font-size: 0.9rem; color: {color}; font-weight: 600;'>{urgency}</div>
+                            <div style='font-size: 1.5rem; font-weight: 700; color: #495057; margin-top: 0.25rem;'>
+                                {earning_date.strftime('%B %d, %Y')}
+                            </div>
+                            <div style='font-size: 0.9rem; color: #6c757d; margin-top: 0.25rem;'>
+                                {next_earning.get('time', 'Time TBA')}
+                            </div>
+                        </div>
+                        <div style='text-align: right;'>
+                            <div style='font-size: 2.5rem; font-weight: 700; color: {color};'>
+                                {days_until}
+                            </div>
+                            <div style='font-size: 0.9rem; color: #6c757d;'>
+                                days away
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Warning if imminent
+                if days_until <= 5:
+                    st.warning("⚠️ **Earnings within 5 days** - High volatility expected. Consider waiting to enter new positions.")
+                
+            except ValueError:
+                st.info(f"Next Earnings: {earning_date_str}")
+        
+        # Show all upcoming earnings
+        if len(symbol_earnings) > 1:
+            with st.expander(f"All Upcoming Earnings ({len(symbol_earnings)} scheduled)"):
+                # Prepare display
+                display_cols = []
+                if 'date' in df_earnings.columns:
+                    display_cols.append('date')
+                if 'time' in df_earnings.columns:
+                    display_cols.append('time')
+                if 'fiscalQuarter' in df_earnings.columns:
+                    display_cols.append('fiscalQuarter')
+                if 'fiscalYear' in df_earnings.columns:
+                    display_cols.append('fiscalYear')
+                if 'epsEstimate' in df_earnings.columns:
+                    display_cols.append('epsEstimate')
+                if 'revenueEstimate' in df_earnings.columns:
+                    display_cols.append('revenueEstimate')
+                
+                if display_cols:
+                    df_display = df_earnings[display_cols].copy()
+                    df_display = df_display.rename(columns={
+                        'date': 'Date',
+                        'time': 'Time',
+                        'fiscalQuarter': 'Fiscal Q',
+                        'fiscalYear': 'Year',
+                        'epsEstimate': 'EPS Est.',
+                        'revenueEstimate': 'Revenue Est.'
+                    })
+                    
+                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+    
+    except Exception as e:
+        st.error(f"Error loading earnings calendar: {e}")
+        st.caption("Trying to get earnings date from profile...")
+        
+        # Fallback to profile data
+        try:
+            profile = fmp_client.get_profile(symbol)
+            if profile and len(profile) > 0:
+                earnings_date_str = profile[0].get('earningsAnnouncement', None)
+                if earnings_date_str:
+                    st.markdown(f"""
+                    <div style='background: #e7f3ff; padding: 1rem; border-radius: 8px;
+                                border-left: 4px solid #2196f3;'>
+                        <strong>Next Earnings:</strong> {earnings_date_str[:10]}
+                    </div>
+                    """, unsafe_allow_html=True)
+        except:
+            pass
