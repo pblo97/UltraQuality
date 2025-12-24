@@ -893,3 +893,1476 @@ def render_earnings_calendar_section(symbol: str, fmp_client):
                     """, unsafe_allow_html=True)
         except:
             pass
+
+
+def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, industry: str = ''):
+    """
+    Render comprehensive guardrails breakdown dashboard.
+
+    Shows all accounting quality metrics with detailed explanations.
+    """
+    import streamlit as st
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    # Main header
+    status = guardrails_data.get('guardrail_status', 'AMBAR')
+    status_color = {
+        'VERDE': '#10b981',
+        'AMBAR': '#f59e0b',
+        'ROJO': '#ef4444'
+    }.get(status, '#6b7280')
+
+    status_emoji = {
+        'VERDE': '✅',
+        'AMBAR': '⚠️',
+        'ROJO': '🚨'
+    }.get(status, '❓')
+
+    st.markdown(f"""
+    <div style='background: linear-gradient(135deg, {status_color} 0%, {status_color}dd 100%);
+                padding: 2rem; border-radius: 12px; margin-bottom: 2rem; text-align: center;'>
+        <div style='color: white; font-size: 3rem; margin-bottom: 0.5rem;'>
+            {status_emoji}
+        </div>
+        <div style='color: white; font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem;'>
+            Accounting Quality: {status}
+        </div>
+        <div style='color: white; font-size: 1.1rem; opacity: 0.95;'>
+            {guardrails_data.get('guardrail_reasons', 'All checks OK')}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Create tabs for different guardrail categories
+    guardrail_tabs = st.tabs([
+        "📊 Overview",
+        "🔍 Earnings Quality",
+        "💰 Cash Conversion",
+        "📈 Operating Metrics",
+        "💸 Debt & Liquidity"
+    ])
+
+    # ========== TAB 1: Overview ==========
+    with guardrail_tabs[0]:
+        col1, col2, col3, col4 = st.columns(4)
+
+        # Beneish M-Score
+        with col1:
+            m_score = guardrails_data.get('beneishM')
+            if m_score is not None:
+                # Determine threshold based on industry
+                from screener.guardrails import GuardrailCalculator
+                calc = GuardrailCalculator(fmp_client, {'guardrails': {}})
+                threshold = calc._get_beneish_threshold_for_industry(industry, symbol)
+
+                if m_score > threshold:
+                    m_color = "#ef4444"
+                    m_status = "⚠️ HIGH"
+                elif m_score > -2.22:
+                    m_color = "#f59e0b"
+                    m_status = "⚠️ BORDERLINE"
+                else:
+                    m_color = "#10b981"
+                    m_status = "✅ GOOD"
+
+                st.markdown(f"""
+                <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                            border-left: 4px solid {m_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    <div style='font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;'>
+                        Beneish M-Score
+                    </div>
+                    <div style='font-size: 2rem; font-weight: 700; color: {m_color};'>
+                        {m_score:.2f}
+                    </div>
+                    <div style='font-size: 0.9rem; color: #374151; margin-top: 0.5rem;'>
+                        {m_status}
+                    </div>
+                    <div style='font-size: 0.75rem; color: #9ca3af; margin-top: 0.5rem;'>
+                        Threshold: {threshold:.2f}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("N/A")
+
+        # Altman Z-Score (if applicable)
+        with col2:
+            z_score = guardrails_data.get('altmanZ')
+            if z_score is not None:
+                if z_score < 1.8:
+                    z_color = "#ef4444"
+                    z_status = "⚠️ DISTRESS"
+                elif z_score < 2.99:
+                    z_color = "#f59e0b"
+                    z_status = "⚠️ GRAY ZONE"
+                else:
+                    z_color = "#10b981"
+                    z_status = "✅ SAFE"
+
+                st.markdown(f"""
+                <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                            border-left: 4px solid {z_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    <div style='font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;'>
+                        Altman Z-Score
+                    </div>
+                    <div style='font-size: 2rem; font-weight: 700; color: {z_color};'>
+                        {z_score:.2f}
+                    </div>
+                    <div style='font-size: 0.9rem; color: #374151; margin-top: 0.5rem;'>
+                        {z_status}
+                    </div>
+                    <div style='font-size: 0.75rem; color: #9ca3af; margin-top: 0.5rem;'>
+                        Safe: >2.99
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown("""
+                <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                            border-left: 4px solid #6b7280; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    <div style='font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;'>
+                        Altman Z-Score
+                    </div>
+                    <div style='font-size: 1rem; color: #9ca3af;'>
+                        N/A for this industry
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # Cash Conversion
+        with col3:
+            cc = guardrails_data.get('cash_conversion', {})
+            fcf_ni = cc.get('fcf_to_ni_current')
+            if fcf_ni is not None:
+                if fcf_ni < 40:
+                    cc_color = "#ef4444"
+                    cc_status = "🚨 LOW"
+                elif fcf_ni < 60:
+                    cc_color = "#f59e0b"
+                    cc_status = "⚠️ MODERATE"
+                else:
+                    cc_color = "#10b981"
+                    cc_status = "✅ STRONG"
+
+                st.markdown(f"""
+                <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                            border-left: 4px solid {cc_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    <div style='font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;'>
+                        FCF/Net Income
+                    </div>
+                    <div style='font-size: 2rem; font-weight: 700; color: {cc_color};'>
+                        {fcf_ni:.0f}%
+                    </div>
+                    <div style='font-size: 0.9rem; color: #374151; margin-top: 0.5rem;'>
+                        {cc_status}
+                    </div>
+                    <div style='font-size: 0.75rem; color: #9ca3af; margin-top: 0.5rem;'>
+                        Target: >60%
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("N/A")
+
+        # Dilution
+        with col4:
+            dilution = guardrails_data.get('netShareIssuance_12m_%')
+            if dilution is not None:
+                if dilution > 10:
+                    dil_color = "#ef4444"
+                    dil_status = "⚠️ HIGH"
+                elif dilution > 5:
+                    dil_color = "#f59e0b"
+                    dil_status = "⚠️ MODERATE"
+                elif dilution < -5:
+                    dil_color = "#10b981"
+                    dil_status = "✅ BUYBACKS"
+                else:
+                    dil_color = "#10b981"
+                    dil_status = "✅ LOW"
+
+                st.markdown(f"""
+                <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                            border-left: 4px solid {dil_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    <div style='font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;'>
+                        Share Dilution (12M)
+                    </div>
+                    <div style='font-size: 2rem; font-weight: 700; color: {dil_color};'>
+                        {dilution:+.1f}%
+                    </div>
+                    <div style='font-size: 0.9rem; color: #374151; margin-top: 0.5rem;'>
+                        {dil_status}
+                    </div>
+                    <div style='font-size: 0.75rem; color: #9ca3af; margin-top: 0.5rem;'>
+                        Target: <5%
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("N/A")
+
+    # ========== TAB 2: Earnings Quality ==========
+    with guardrail_tabs[1]:
+        st.markdown("### Beneish M-Score Components")
+
+        m_score = guardrails_data.get('beneishM')
+        if m_score is not None:
+            # Explanation
+            st.markdown("""
+            <div style='background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;'>
+                <strong>What is Beneish M-Score?</strong><br>
+                Developed by Professor Messod Beneish (1999), this model detects earnings manipulation
+                by analyzing 8 financial ratios. Higher scores indicate higher probability of manipulation.
+                <br><br>
+                <strong>Interpretation:</strong>
+                <ul style='margin-top: 0.5rem;'>
+                    <li><strong>M < -2.22:</strong> Low manipulation risk ✅</li>
+                    <li><strong>-2.22 < M < -1.78:</strong> Borderline/Gray zone ⚠️</li>
+                    <li><strong>M > -1.78:</strong> High manipulation risk 🚨</li>
+                </ul>
+                <em>Note: Thresholds are industry-adjusted. High-accrual industries (pharma, biotech, construction)
+                use more permissive thresholds.</em>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Get industry threshold
+            from screener.guardrails import GuardrailCalculator
+            calc = GuardrailCalculator(fmp_client, {'guardrails': {}})
+            threshold = calc._get_beneish_threshold_for_industry(industry, symbol)
+
+            # Gauge chart
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=m_score,
+                domain={'x': [0, 1], 'y': [0, 1]},
+                title={'text': f"Beneish M-Score<br><span style='font-size:0.8em'>Industry Threshold: {threshold:.2f}</span>",
+                       'font': {'size': 20}},
+                number={'font': {'size': 48}},
+                gauge={
+                    'axis': {'range': [-4, 0], 'tickwidth': 1},
+                    'bar': {'color': "#ef4444" if m_score > threshold else "#10b981"},
+                    'bgcolor': "white",
+                    'borderwidth': 2,
+                    'bordercolor': "gray",
+                    'steps': [
+                        {'range': [-4, -2.22], 'color': 'rgba(16, 185, 129, 0.3)'},
+                        {'range': [-2.22, threshold], 'color': 'rgba(245, 158, 11, 0.3)'},
+                        {'range': [threshold, 0], 'color': 'rgba(239, 68, 68, 0.3)'}
+                    ],
+                    'threshold': {
+                        'line': {'color': "red", 'width': 4},
+                        'thickness': 0.75,
+                        'value': threshold
+                    }
+                }
+            ))
+
+            fig.update_layout(
+                height=350,
+                margin=dict(l=20, r=20, t=80, b=20),
+                paper_bgcolor='rgba(0,0,0,0)',
+                font={'color': "#374151", 'family': "Arial"}
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # What contributes to this score
+            st.markdown("#### What Drives This Score?")
+            st.markdown("""
+            The Beneish M-Score combines 8 financial indices:
+
+            1. **DSRI** (Days Sales in Receivables Index): Receivables growing faster than sales?
+            2. **GMI** (Gross Margin Index): Gross margins deteriorating?
+            3. **AQI** (Asset Quality Index): Asset quality declining?
+            4. **SGI** (Sales Growth Index): Revenue growth (rapid growth = higher risk)
+            5. **DEPI** (Depreciation Index): Depreciation rate slowing?
+            6. **SGAI** (SG&A Index): SG&A growing slower than sales?
+            7. **TATA** (Total Accruals to Total Assets): High accruals?
+            8. **LVGI** (Leverage Index): Leverage increasing?
+
+            **For this company:**
+            - M-Score = {:.2f}
+            - Industry Threshold = {:.2f}
+            - Status: {}
+            """.format(
+                m_score,
+                threshold,
+                "🚨 HIGH RISK" if m_score > threshold else "✅ LOW RISK"
+            ))
+        else:
+            st.warning("Beneish M-Score data not available (requires at least 2 years of quarterly data)")
+
+        st.markdown("---")
+
+        # Accruals
+        st.markdown("### Accruals / NOA (Sloan 1996)")
+        accruals = guardrails_data.get('accruals_noa_%')
+        if accruals is not None:
+            st.markdown("""
+            <div style='background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;'>
+                <strong>What are Accruals?</strong><br>
+                Accruals represent the difference between reported earnings and actual cash flow.
+                High accruals can indicate:
+                <ul>
+                    <li>Aggressive revenue recognition</li>
+                    <li>Inventory buildup</li>
+                    <li>Delayed payments to suppliers</li>
+                    <li>Lower earnings quality</li>
+                </ul>
+                <strong>Rule of Thumb:</strong> Accruals >15% of NOA = concerning (>20% for growth companies)
+            </div>
+            """, unsafe_allow_html=True)
+
+            accruals_color = "#ef4444" if accruals > 20 else "#f59e0b" if accruals > 15 else "#10b981"
+
+            col1, col2 = st.columns([1, 2])
+
+            with col1:
+                st.markdown(f"""
+                <div style='background: white; padding: 2rem; border-radius: 8px;
+                            border-left: 6px solid {accruals_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                            text-align: center;'>
+                    <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
+                        Accruals / NOA
+                    </div>
+                    <div style='font-size: 3rem; font-weight: 700; color: {accruals_color};'>
+                        {accruals:.1f}%
+                    </div>
+                    <div style='font-size: 1rem; color: #374151; margin-top: 1rem;'>
+                        {'🚨 HIGH' if accruals > 20 else '⚠️ ELEVATED' if accruals > 15 else '✅ NORMAL'}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col2:
+                # Bar chart showing threshold
+                fig = go.Figure()
+
+                fig.add_trace(go.Bar(
+                    x=['Current Accruals', 'Threshold (Growth)', 'Threshold (Mature)'],
+                    y=[accruals, 20, 15],
+                    marker_color=[accruals_color, '#f59e0b', '#10b981'],
+                    text=[f"{accruals:.1f}%", "20%", "15%"],
+                    textposition='outside'
+                ))
+
+                fig.update_layout(
+                    title="Accruals vs. Thresholds",
+                    yaxis_title="% of NOA",
+                    showlegend=False,
+                    height=300,
+                    plot_bgcolor='rgba(248,249,250,0.8)'
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Accruals data not available")
+
+    # ========== TAB 3: Cash Conversion ==========
+    with guardrail_tabs[2]:
+        cc = guardrails_data.get('cash_conversion', {})
+
+        if cc and cc.get('fcf_to_ni_current') is not None:
+            st.markdown("### Free Cash Flow Conversion")
+
+            st.markdown("""
+            <div style='background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;'>
+                <strong>Why Cash Conversion Matters:</strong><br>
+                Companies can manipulate earnings, but cash is harder to fake. Strong companies
+                consistently convert >80% of earnings into free cash flow.
+                <br><br>
+                <strong>Red Flags:</strong>
+                <ul>
+                    <li>FCF/NI < 40%: Serious earnings quality concern</li>
+                    <li>FCF/NI declining: Quality deteriorating</li>
+                    <li>High capex intensity: Capital-intensive business</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+
+            fcf_ni_current = cc.get('fcf_to_ni_current')
+            fcf_ni_avg = cc.get('fcf_to_ni_avg_8q')
+            fcf_rev = cc.get('fcf_to_revenue_current')
+            capex_intensity = cc.get('capex_intensity_current')
+
+            # Metrics row
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                fcf_color = "#ef4444" if fcf_ni_current < 40 else "#f59e0b" if fcf_ni_current < 60 else "#10b981"
+                st.markdown(f"""
+                <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                            border-left: 4px solid {fcf_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    <div style='font-size: 0.85rem; color: #6b7280;'>FCF/NI (Current)</div>
+                    <div style='font-size: 2.5rem; font-weight: 700; color: {fcf_color};'>
+                        {fcf_ni_current:.0f}%
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col2:
+                if fcf_ni_avg:
+                    avg_color = "#ef4444" if fcf_ni_avg < 40 else "#f59e0b" if fcf_ni_avg < 60 else "#10b981"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                border-left: 4px solid {avg_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.85rem; color: #6b7280;'>FCF/NI (8Q Avg)</div>
+                        <div style='font-size: 2.5rem; font-weight: 700; color: {avg_color};'>
+                            {fcf_ni_avg:.0f}%
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col3:
+                if fcf_rev:
+                    st.markdown(f"""
+                    <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                border-left: 4px solid #6366f1; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.85rem; color: #6b7280;'>FCF/Revenue</div>
+                        <div style='font-size: 2.5rem; font-weight: 700; color: #6366f1;'>
+                            {fcf_rev:.0f}%
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col4:
+                if capex_intensity:
+                    capex_color = "#ef4444" if capex_intensity > 20 else "#f59e0b" if capex_intensity > 10 else "#10b981"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                border-left: 4px solid {capex_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.85rem; color: #6b7280;'>Capex Intensity</div>
+                        <div style='font-size: 2.5rem; font-weight: 700; color: {capex_color};'>
+                            {capex_intensity:.1f}%
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # Flags
+            if cc.get('flags'):
+                st.markdown("#### ⚠️ Cash Conversion Flags")
+                for flag in cc['flags']:
+                    st.warning(flag)
+        else:
+            st.info("Cash conversion data not available")
+
+    # ========== TAB 4: Operating Metrics ==========
+    with guardrail_tabs[3]:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Working Capital
+            wc = guardrails_data.get('working_capital', {})
+            if wc and wc.get('ccc_current') is not None:
+                st.markdown("### Working Capital Quality")
+
+                ccc = wc.get('ccc_current')
+                dso = wc.get('dso_current')
+                dio = wc.get('dio_current')
+
+                st.markdown(f"""
+                <div style='background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
+                        <strong>Cash Conversion Cycle (CCC)</strong>
+                    </div>
+                    <div style='font-size: 2.5rem; font-weight: 700; color: #6366f1; margin-bottom: 1rem;'>
+                        {ccc:.0f} days
+                    </div>
+                    <div style='font-size: 0.85rem; color: #374151;'>
+                        DSO: {dso:.0f} days ({wc.get('dso_trend', 'Unknown')})<br>
+                        DIO: {dio:.0f} days ({wc.get('dio_trend', 'Unknown')})<br>
+                        CCC Trend: {wc.get('ccc_trend', 'Unknown')}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                if wc.get('flags'):
+                    st.markdown("#### Flags")
+                    for flag in wc['flags']:
+                        st.warning(flag)
+
+        with col2:
+            # Margin Trajectory
+            mt = guardrails_data.get('margin_trajectory', {})
+            if mt and mt.get('gross_margin_current') is not None:
+                st.markdown("### Margin Trajectory")
+
+                gm_current = mt.get('gross_margin_current')
+                om_current = mt.get('operating_margin_current')
+                gm_traj = mt.get('gross_margin_trajectory', 'Unknown')
+                om_traj = mt.get('operating_margin_trajectory', 'Unknown')
+
+                traj_color = {
+                    'Expanding': '#10b981',
+                    'Stable': '#f59e0b',
+                    'Compressing': '#ef4444',
+                    'Unknown': '#6b7280'
+                }
+
+                st.markdown(f"""
+                <div style='background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    <div style='margin-bottom: 1rem;'>
+                        <div style='font-size: 0.85rem; color: #6b7280;'>Gross Margin</div>
+                        <div style='font-size: 2rem; font-weight: 700; color: {traj_color.get(gm_traj, "#6b7280")};'>
+                            {gm_current:.1f}%
+                        </div>
+                        <div style='font-size: 0.85rem; color: #374151;'>
+                            {gm_traj}
+                        </div>
+                    </div>
+                    <hr style='border: 1px solid #e5e7eb; margin: 1rem 0;'>
+                    <div>
+                        <div style='font-size: 0.85rem; color: #6b7280;'>Operating Margin</div>
+                        <div style='font-size: 2rem; font-weight: 700; color: {traj_color.get(om_traj, "#6b7280")};'>
+                            {om_current:.1f}%
+                        </div>
+                        <div style='font-size: 0.85rem; color: #374151;'>
+                            {om_traj}
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # Revenue Growth
+        rev_growth = guardrails_data.get('revenue_growth_3y')
+        if rev_growth is not None:
+            st.markdown("### Revenue Growth (3Y CAGR)")
+
+            rev_color = "#ef4444" if rev_growth < -5 else "#f59e0b" if rev_growth < 0 else "#10b981"
+
+            st.markdown(f"""
+            <div style='background: white; padding: 2rem; border-radius: 8px;
+                        border-left: 6px solid {rev_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        text-align: center;'>
+                <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
+                    3-Year Revenue CAGR
+                </div>
+                <div style='font-size: 3.5rem; font-weight: 700; color: {rev_color};'>
+                    {rev_growth:+.1f}%
+                </div>
+                <div style='font-size: 1rem; color: #374151; margin-top: 1rem;'>
+                    {'🚨 DECLINING' if rev_growth < -5 else '⚠️ FLAT/DECLINING' if rev_growth < 0 else '✅ GROWING'}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # ========== TAB 5: Debt & Liquidity ==========
+    with guardrail_tabs[4]:
+        dm = guardrails_data.get('debt_maturity_wall', {})
+
+        if dm and dm.get('debt_due_12m') is not None:
+            st.markdown("### Debt Maturity & Liquidity")
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st_debt_pct = dm.get('short_term_debt_pct')
+                if st_debt_pct is not None:
+                    pct_color = "#ef4444" if st_debt_pct > 40 else "#f59e0b" if st_debt_pct > 25 else "#10b981"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                border-left: 4px solid {pct_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.85rem; color: #6b7280;'>ST Debt % of Total</div>
+                        <div style='font-size: 2.5rem; font-weight: 700; color: {pct_color};'>
+                            {st_debt_pct:.0f}%
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col2:
+                liquidity = dm.get('liquidity_ratio')
+                if liquidity is not None:
+                    liq_color = "#ef4444" if liquidity < 0.5 else "#f59e0b" if liquidity < 1.0 else "#10b981"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                border-left: 4px solid {liq_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.85rem; color: #6b7280;'>Liquidity Ratio</div>
+                        <div style='font-size: 2.5rem; font-weight: 700; color: {liq_color};'>
+                            {liquidity:.2f}x
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col3:
+                int_cov = dm.get('interest_coverage')
+                if int_cov is not None:
+                    int_color = "#ef4444" if int_cov < 2.0 else "#f59e0b" if int_cov < 3.0 else "#10b981"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                border-left: 4px solid {int_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.85rem; color: #6b7280;'>Interest Coverage</div>
+                        <div style='font-size: 2.5rem; font-weight: 700; color: {int_color};'>
+                            {int_cov:.1f}x
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            if dm.get('flags'):
+                st.markdown("#### ⚠️ Debt & Liquidity Flags")
+                for flag in dm['flags']:
+                    if '🚨' in flag:
+                        st.error(flag)
+                    else:
+                        st.warning(flag)
+        else:
+            st.info("Debt maturity data not available")
+
+
+def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: bool = False):
+    """
+    Render comprehensive quality score breakdown.
+
+    Shows all quality metrics and how they contribute to the final quality score.
+    """
+    import streamlit as st
+    import plotly.graph_objects as go
+    import pandas as pd
+
+    quality_score = stock_data.get('quality_score_0_100', 0)
+
+    # Header
+    score_color = "#10b981" if quality_score >= 70 else "#f59e0b" if quality_score >= 50 else "#ef4444"
+
+    st.markdown(f"""
+    <div style='background: linear-gradient(135deg, {score_color} 0%, {score_color}dd 100%);
+                padding: 2rem; border-radius: 12px; margin-bottom: 2rem; text-align: center;'>
+        <div style='color: white; font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.95;'>
+            Quality Score
+        </div>
+        <div style='color: white; font-size: 4rem; font-weight: 700; margin-bottom: 0.5rem;'>
+            {quality_score:.0f}
+        </div>
+        <div style='color: white; font-size: 1.1rem; opacity: 0.95;'>
+            {'🌟 EXCELLENT' if quality_score >= 80 else '✅ STRONG' if quality_score >= 70 else '⚠️ MODERATE' if quality_score >= 50 else '🚨 WEAK'}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not is_financial:
+        # Non-Financial Quality Metrics
+        st.markdown("### Quality Metrics Breakdown")
+
+        st.markdown("""
+        <div style='background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;'>
+            <strong>How Quality Score is Calculated:</strong><br>
+            The quality score combines 11 metrics that measure:
+            <ul>
+                <li><strong>Profitability:</strong> ROIC, Gross Profit/Assets, Cash ROA</li>
+                <li><strong>Cash Generation:</strong> FCF Margin, CFO/NI ratio</li>
+                <li><strong>Financial Strength:</strong> Interest Coverage, Net Debt/EBITDA</li>
+                <li><strong>Competitive Position:</strong> Moat Score (pricing power + operating leverage + ROIC persistence)</li>
+                <li><strong>Growth:</strong> Revenue Growth (3Y CAGR)</li>
+                <li><strong>Stability:</strong> ROA & FCF Volatility</li>
+            </ul>
+            Each metric is normalized by industry and converted to a 0-100 percentile score.
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Create tabs for different quality dimensions
+        quality_tabs = st.tabs([
+            "📊 All Metrics",
+            "💰 Profitability",
+            "💵 Cash Generation",
+            "🛡️ Financial Strength",
+            "🎯 Moat & Growth"
+        ])
+
+        # ========== TAB 1: All Metrics ==========
+        with quality_tabs[0]:
+            # Collect all quality metrics
+            metrics_data = []
+
+            # Higher is better
+            higher_better = [
+                ('roic_%', 'ROIC', '%', 15, 25),
+                ('grossProfits_to_assets', 'Gross Profit / Assets', '%', 20, 35),
+                ('cash_roa', 'Cash ROA (CFO/Assets)', '%', 8, 15),
+                ('fcf_margin_%', 'FCF Margin', '%', 10, 20),
+                ('cfo_to_ni', 'CFO / Net Income', '%', 80, 100),
+                ('interestCoverage', 'Interest Coverage', 'x', 5, 10),
+                ('moat_score', 'Moat Score', '/100', 50, 70),
+                ('revenue_growth_3y', 'Revenue Growth (3Y)', '%', 5, 15)
+            ]
+
+            # Lower is better
+            lower_better = [
+                ('netDebt_ebitda', 'Net Debt / EBITDA', 'x', 3, 1.5),
+                ('roa_stability', 'ROA Volatility', '%', 5, 2),
+                ('fcf_stability', 'FCF Volatility', '%', 30, 15)
+            ]
+
+            # Build metrics table
+            for key, name, unit, threshold_low, threshold_high in higher_better:
+                value = stock_data.get(key)
+                if value is not None:
+                    if value >= threshold_high:
+                        status = "🌟 EXCELLENT"
+                        color = "#10b981"
+                    elif value >= threshold_low:
+                        status = "✅ GOOD"
+                        color = "#22c55e"
+                    else:
+                        status = "⚠️ BELOW TARGET"
+                        color = "#f59e0b"
+
+                    metrics_data.append({
+                        'Metric': name,
+                        'Value': f"{value:.1f}{unit}",
+                        'Target': f">{threshold_high}{unit}",
+                        'Status': status,
+                        'Color': color
+                    })
+
+            for key, name, unit, threshold_high, threshold_low in lower_better:
+                value = stock_data.get(key)
+                if value is not None:
+                    if value <= threshold_low:
+                        status = "🌟 EXCELLENT"
+                        color = "#10b981"
+                    elif value <= threshold_high:
+                        status = "✅ GOOD"
+                        color = "#22c55e"
+                    else:
+                        status = "⚠️ ABOVE TARGET"
+                        color = "#f59e0b"
+
+                    metrics_data.append({
+                        'Metric': name,
+                        'Value': f"{value:.1f}{unit}",
+                        'Target': f"<{threshold_low}{unit}",
+                        'Status': status,
+                        'Color': color
+                    })
+
+            # Display as cards
+            if metrics_data:
+                cols_per_row = 2
+                for i in range(0, len(metrics_data), cols_per_row):
+                    cols = st.columns(cols_per_row)
+                    for j, col in enumerate(cols):
+                        if i + j < len(metrics_data):
+                            m = metrics_data[i + j]
+                            with col:
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                            border-left: 4px solid {m['Color']}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                                            margin-bottom: 1rem;'>
+                                    <div style='font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;'>
+                                        {m['Metric']}
+                                    </div>
+                                    <div style='font-size: 2rem; font-weight: 700; color: {m['Color']};'>
+                                        {m['Value']}
+                                    </div>
+                                    <div style='font-size: 0.85rem; color: #374151; margin-top: 0.5rem;'>
+                                        Target: {m['Target']}
+                                    </div>
+                                    <div style='font-size: 0.85rem; margin-top: 0.5rem;'>
+                                        {m['Status']}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+        # ========== TAB 2: Profitability ==========
+        with quality_tabs[1]:
+            st.markdown("### Core Profitability Metrics")
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                roic = stock_data.get('roic_%')
+                if roic is not None:
+                    roic_color = "#10b981" if roic >= 25 else "#22c55e" if roic >= 15 else "#f59e0b"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 8px;
+                                border-left: 6px solid {roic_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                                text-align: center;'>
+                        <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
+                            Return on Invested Capital
+                        </div>
+                        <div style='font-size: 3rem; font-weight: 700; color: {roic_color};'>
+                            {roic:.1f}%
+                        </div>
+                        <div style='font-size: 0.9rem; color: #374151; margin-top: 1rem;'>
+                            {'🌟 Excellent (>25%)' if roic >= 25 else '✅ Strong (>15%)' if roic >= 15 else '⚠️ Moderate (<15%)'}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    st.markdown("""
+                    <div style='background: #f3f4f6; padding: 0.75rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem;'>
+                        <strong>What is ROIC?</strong><br>
+                        ROIC measures how efficiently a company generates profits from invested capital
+                        (debt + equity). It's Warren Buffett's favorite profitability metric.<br>
+                        <strong>Rule of Thumb:</strong> ROIC >15% = strong moat, >25% = exceptional business
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col2:
+                gp_assets = stock_data.get('grossProfits_to_assets')
+                if gp_assets is not None:
+                    gp_color = "#10b981" if gp_assets >= 35 else "#22c55e" if gp_assets >= 20 else "#f59e0b"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 8px;
+                                border-left: 6px solid {gp_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                                text-align: center;'>
+                        <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
+                            Gross Profit / Assets
+                        </div>
+                        <div style='font-size: 3rem; font-weight: 700; color: {gp_color};'>
+                            {gp_assets:.1f}%
+                        </div>
+                        <div style='font-size: 0.9rem; color: #374151; margin-top: 1rem;'>
+                            {'🌟 Excellent (>35%)' if gp_assets >= 35 else '✅ Strong (>20%)' if gp_assets >= 20 else '⚠️ Moderate (<20%)'}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    st.markdown("""
+                    <div style='background: #f3f4f6; padding: 0.75rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem;'>
+                        <strong>Novy-Marx (2013):</strong><br>
+                        Gross profitability is a stronger predictor of returns than traditional
+                        net income measures. Asset-light businesses score highest.
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col3:
+                cash_roa = stock_data.get('cash_roa')
+                if cash_roa is not None:
+                    cash_color = "#10b981" if cash_roa >= 15 else "#22c55e" if cash_roa >= 8 else "#f59e0b"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 8px;
+                                border-left: 6px solid {cash_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                                text-align: center;'>
+                        <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
+                            Cash ROA (CFO/Assets)
+                        </div>
+                        <div style='font-size: 3rem; font-weight: 700; color: {cash_color};'>
+                            {cash_roa:.1f}%
+                        </div>
+                        <div style='font-size: 0.9rem; color: #374151; margin-top: 1rem;'>
+                            {'🌟 Excellent (>15%)' if cash_roa >= 15 else '✅ Strong (>8%)' if cash_roa >= 8 else '⚠️ Moderate (<8%)'}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    st.markdown("""
+                    <div style='background: #f3f4f6; padding: 0.75rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem;'>
+                        <strong>Piotroski F-Score Component:</strong><br>
+                        Cash-based profitability is harder to manipulate than accrual-based
+                        net income. High Cash ROA = high earnings quality.
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        # ========== TAB 3: Cash Generation ==========
+        with quality_tabs[2]:
+            st.markdown("### Cash Generation Quality")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                fcf_margin = stock_data.get('fcf_margin_%')
+                if fcf_margin is not None:
+                    fcf_color = "#10b981" if fcf_margin >= 20 else "#22c55e" if fcf_margin >= 10 else "#f59e0b"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 8px;
+                                border-left: 6px solid {fcf_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
+                            <strong>Free Cash Flow Margin</strong>
+                        </div>
+                        <div style='font-size: 3.5rem; font-weight: 700; color: {fcf_color}; text-align: center;'>
+                            {fcf_margin:.1f}%
+                        </div>
+                        <div style='font-size: 1rem; color: #374151; margin-top: 1rem; text-align: center;'>
+                            {'🌟 Excellent (>20%)' if fcf_margin >= 20 else '✅ Strong (>10%)' if fcf_margin >= 10 else '⚠️ Low (<10%)'}
+                        </div>
+                        <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem;'>
+                            <strong>Formula:</strong> (Operating Cash Flow - Capex) / Revenue<br><br>
+                            <strong>Why it matters:</strong> High FCF margin means the company generates
+                            abundant cash after funding growth. This cash can be returned to shareholders
+                            via dividends and buybacks.
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col2:
+                cfo_ni = stock_data.get('cfo_to_ni')
+                if cfo_ni is not None:
+                    cfo_color = "#10b981" if cfo_ni >= 100 else "#22c55e" if cfo_ni >= 80 else "#f59e0b"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 8px;
+                                border-left: 6px solid {cfo_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
+                            <strong>Operating Cash Flow / Net Income</strong>
+                        </div>
+                        <div style='font-size: 3.5rem; font-weight: 700; color: {cfo_color}; text-align: center;'>
+                            {cfo_ni:.0f}%
+                        </div>
+                        <div style='font-size: 1rem; color: #374151; margin-top: 1rem; text-align: center;'>
+                            {'🌟 Excellent (>100%)' if cfo_ni >= 100 else '✅ Strong (>80%)' if cfo_ni >= 80 else '⚠️ Low (<80%)'}
+                        </div>
+                        <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem;'>
+                            <strong>Earnings Quality Test:</strong><br>
+                            If CFO/NI consistently >100%, earnings are high quality (low accruals).<br>
+                            If CFO/NI <80%, company may be using aggressive accounting to inflate earnings.
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # FCF Stability
+            fcf_stab = stock_data.get('fcf_stability')
+            if fcf_stab is not None:
+                st.markdown("### Cash Flow Stability (Lower is Better)")
+
+                stab_color = "#10b981" if fcf_stab <= 15 else "#22c55e" if fcf_stab <= 30 else "#f59e0b"
+
+                st.markdown(f"""
+                <div style='background: white; padding: 2rem; border-radius: 8px;
+                            border-left: 6px solid {stab_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                            text-align: center;'>
+                    <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
+                        FCF Volatility (Coefficient of Variation)
+                    </div>
+                    <div style='font-size: 3rem; font-weight: 700; color: {stab_color};'>
+                        {fcf_stab:.1f}%
+                    </div>
+                    <div style='font-size: 1rem; color: #374151; margin-top: 1rem;'>
+                        {'🌟 Very Stable (<15%)' if fcf_stab <= 15 else '✅ Stable (<30%)' if fcf_stab <= 30 else '⚠️ Volatile (>30%)'}
+                    </div>
+                    <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem; text-align: left;'>
+                        <strong>Interpretation:</strong> Measures the predictability of free cash flow over time.
+                        Lower volatility = more predictable business = lower risk.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # ========== TAB 4: Financial Strength ==========
+        with quality_tabs[3]:
+            st.markdown("### Financial Health & Leverage")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                int_cov = stock_data.get('interestCoverage')
+                if int_cov is not None:
+                    # Cap display at 50x for readability
+                    int_cov_display = min(int_cov, 50)
+                    int_color = "#10b981" if int_cov >= 10 else "#22c55e" if int_cov >= 5 else "#f59e0b"
+
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 8px;
+                                border-left: 6px solid {int_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem; text-align: center;'>
+                            <strong>Interest Coverage (EBIT/Interest)</strong>
+                        </div>
+                        <div style='font-size: 3.5rem; font-weight: 700; color: {int_color}; text-align: center;'>
+                            {int_cov_display:.1f}x
+                        </div>
+                        <div style='font-size: 1rem; color: #374151; margin-top: 1rem; text-align: center;'>
+                            {'🌟 Excellent (>10x)' if int_cov >= 10 else '✅ Strong (>5x)' if int_cov >= 5 else '⚠️ Weak (<5x)'}
+                        </div>
+                        <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem;'>
+                            <strong>What it measures:</strong> How many times EBIT covers interest expense.<br><br>
+                            <strong>Bankruptcy Risk:</strong>
+                            <ul style='margin-top: 0.5rem;'>
+                                <li>>10x: Very safe</li>
+                                <li>5-10x: Safe</li>
+                                <li>2-5x: Moderate risk</li>
+                                <li><2x: High distress risk</li>
+                            </ul>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col2:
+                net_debt_ebitda = stock_data.get('netDebt_ebitda')
+                if net_debt_ebitda is not None:
+                    # Handle negative values (net cash position)
+                    if net_debt_ebitda < 0:
+                        debt_color = "#10b981"
+                        debt_status = "💰 NET CASH POSITION"
+                    elif net_debt_ebitda <= 1.5:
+                        debt_color = "#10b981"
+                        debt_status = "🌟 Very Low Leverage"
+                    elif net_debt_ebitda <= 3:
+                        debt_color = "#22c55e"
+                        debt_status = "✅ Moderate Leverage"
+                    else:
+                        debt_color = "#f59e0b"
+                        debt_status = "⚠️ High Leverage"
+
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 8px;
+                                border-left: 6px solid {debt_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem; text-align: center;'>
+                            <strong>Net Debt / EBITDA</strong>
+                        </div>
+                        <div style='font-size: 3.5rem; font-weight: 700; color: {debt_color}; text-align: center;'>
+                            {net_debt_ebitda:.1f}x
+                        </div>
+                        <div style='font-size: 1rem; color: #374151; margin-top: 1rem; text-align: center;'>
+                            {debt_status}
+                        </div>
+                        <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.85rem;'>
+                            <strong>Interpretation:</strong> Years of EBITDA needed to pay off net debt.<br><br>
+                            <strong>Leverage Levels:</strong>
+                            <ul style='margin-top: 0.5rem;'>
+                                <li><0x: Net cash (no debt)</li>
+                                <li><1.5x: Conservative</li>
+                                <li>1.5-3x: Moderate</li>
+                                <li>>3x: Aggressive</li>
+                            </ul>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        # ========== TAB 5: Moat & Growth ==========
+        with quality_tabs[4]:
+            st.markdown("### Competitive Advantages & Growth")
+
+            # Moat Score
+            moat_score = stock_data.get('moat_score')
+            if moat_score is not None:
+                moat_color = "#10b981" if moat_score >= 70 else "#f59e0b" if moat_score >= 50 else "#ef4444"
+
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, {moat_color} 0%, {moat_color}dd 100%);
+                            padding: 2rem; border-radius: 12px; margin-bottom: 1.5rem; text-align: center;'>
+                    <div style='color: white; font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.95;'>
+                        Moat Score (Competitive Advantages)
+                    </div>
+                    <div style='color: white; font-size: 3.5rem; font-weight: 700;'>
+                        {moat_score:.0f} / 100
+                    </div>
+                    <div style='color: white; font-size: 1.1rem; margin-top: 0.5rem; opacity: 0.95;'>
+                        {'🏰 WIDE MOAT' if moat_score >= 70 else '🛡️ NARROW MOAT' if moat_score >= 50 else '⚠️ NO MOAT'}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                st.markdown("""
+                <div style='background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;'>
+                    <strong>What is a Moat?</strong><br>
+                    A moat is a sustainable competitive advantage that protects a company's profits
+                    from competition. The moat score combines three components:
+                    <ol>
+                        <li><strong>Pricing Power:</strong> Ability to raise prices without losing customers</li>
+                        <li><strong>Operating Leverage:</strong> Revenue growth faster than cost growth</li>
+                        <li><strong>ROIC Persistence:</strong> Consistently high returns over time</li>
+                    </ol>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Moat components
+                pricing_power = stock_data.get('pricing_power_score')
+                op_leverage = stock_data.get('operating_leverage_score')
+                roic_persist = stock_data.get('roic_persistence_score')
+
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    if pricing_power is not None:
+                        pp_color = "#10b981" if pricing_power >= 70 else "#f59e0b" if pricing_power >= 50 else "#ef4444"
+                        st.markdown(f"""
+                        <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                    border-left: 4px solid {pp_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                            <div style='font-size: 0.85rem; color: #6b7280;'>Pricing Power</div>
+                            <div style='font-size: 2.5rem; font-weight: 700; color: {pp_color};'>
+                                {pricing_power:.0f}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                with col2:
+                    if op_leverage is not None:
+                        ol_color = "#10b981" if op_leverage >= 70 else "#f59e0b" if op_leverage >= 50 else "#ef4444"
+                        st.markdown(f"""
+                        <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                    border-left: 4px solid {ol_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                            <div style='font-size: 0.85rem; color: #6b7280;'>Operating Leverage</div>
+                            <div style='font-size: 2.5rem; font-weight: 700; color: {ol_color};'>
+                                {op_leverage:.0f}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                with col3:
+                    if roic_persist is not None:
+                        rp_color = "#10b981" if roic_persist >= 70 else "#f59e0b" if roic_persist >= 50 else "#ef4444"
+                        st.markdown(f"""
+                        <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                    border-left: 4px solid {rp_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                            <div style='font-size: 0.85rem; color: #6b7280;'>ROIC Persistence</div>
+                            <div style='font-size: 2.5rem; font-weight: 700; color: {rp_color};'>
+                                {roic_persist:.0f}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            # Revenue Growth
+            rev_growth = stock_data.get('revenue_growth_3y')
+            if rev_growth is not None:
+                st.markdown("---")
+                st.markdown("### Revenue Growth (3-Year CAGR)")
+
+                rev_color = "#10b981" if rev_growth >= 15 else "#22c55e" if rev_growth >= 5 else "#f59e0b" if rev_growth >= 0 else "#ef4444"
+
+                st.markdown(f"""
+                <div style='background: white; padding: 2rem; border-radius: 12px;
+                            border-left: 6px solid {rev_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    <div style='text-align: center;'>
+                        <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
+                            3-Year Revenue CAGR
+                        </div>
+                        <div style='font-size: 4rem; font-weight: 700; color: {rev_color};'>
+                            {rev_growth:+.1f}%
+                        </div>
+                        <div style='font-size: 1.1rem; color: #374151; margin-top: 1rem;'>
+                            {'🚀 FAST GROWTH (>15%)' if rev_growth >= 15 else '✅ GROWING (>5%)' if rev_growth >= 5 else '⚠️ SLOW GROWTH' if rev_growth >= 0 else '🚨 DECLINING'}
+                        </div>
+                    </div>
+                    <div style='background: #f3f4f6; padding: 1rem; border-radius: 6px; margin-top: 1.5rem; font-size: 0.85rem;'>
+                        <strong>Why Growth Matters:</strong><br>
+                        Declining revenue is a red flag for moat erosion. Even "value" stocks should
+                        show stable or growing revenue to confirm their competitive position is intact.
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    else:
+        # Financial Company Metrics
+        st.markdown("### Financial Company Quality Metrics")
+        st.info("Quality metrics for financial companies coming soon (ROA, ROE, Efficiency Ratio, NIM, CET1)")
+
+
+def render_value_score_breakdown(symbol: str, stock_data: dict, is_financial: bool = False):
+    """
+    Render comprehensive value score breakdown.
+
+    Shows all value metrics and how they contribute to the final value score.
+    """
+    import streamlit as st
+    import plotly.graph_objects as go
+
+    value_score = stock_data.get('value_score_0_100', 0)
+
+    # Header
+    score_color = "#10b981" if value_score >= 70 else "#f59e0b" if value_score >= 50 else "#ef4444"
+
+    st.markdown(f"""
+    <div style='background: linear-gradient(135deg, {score_color} 0%, {score_color}dd 100%);
+                padding: 2rem; border-radius: 12px; margin-bottom: 2rem; text-align: center;'>
+        <div style='color: white; font-size: 1.2rem; margin-bottom: 0.5rem; opacity: 0.95;'>
+            Value Score
+        </div>
+        <div style='color: white; font-size: 4rem; font-weight: 700; margin-bottom: 0.5rem;'>
+            {value_score:.0f}
+        </div>
+        <div style='color: white; font-size: 1.1rem; opacity: 0.95;'>
+            {'💎 DEEP VALUE' if value_score >= 80 else '✅ ATTRACTIVE' if value_score >= 70 else '⚠️ FAIR VALUE' if value_score >= 50 else '🚨 EXPENSIVE'}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not is_financial:
+        # Non-Financial Value Metrics
+        st.markdown("### Value Metrics Breakdown")
+
+        st.markdown("""
+        <div style='background: #f3f4f6; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;'>
+            <strong>How Value Score is Calculated:</strong><br>
+            The value score uses modern "Yield" metrics instead of traditional P/E ratios.
+            All yields are <strong>ROIC-adjusted</strong> to account for quality differences.
+            <br><br>
+            <strong>The 5 Yield Metrics:</strong>
+            <ol>
+                <li><strong>Earnings Yield (EBIT/EV):</strong> Greenblatt Magic Formula yield</li>
+                <li><strong>FCF Yield (FCF/EV):</strong> Free cash flow yield</li>
+                <li><strong>CFO Yield (CFO/EV):</strong> Operating cash flow yield</li>
+                <li><strong>Gross Profit Yield (GP/EV):</strong> Novy-Marx profitability yield</li>
+                <li><strong>Shareholder Yield:</strong> Dividends + Buybacks - Issuance</li>
+            </ol>
+            <br>
+            <strong>ROIC Adjustment:</strong> High-ROIC companies "deserve" lower yields (higher valuations).
+            The adjustment makes fair comparisons between quality levels.<br>
+            Example: Adobe at 5% EY with 40% ROIC → Adjusted EY = 13.3%
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Create tabs
+        value_tabs = st.tabs([
+            "📊 All Yields",
+            "💰 Earnings & FCF",
+            "💵 Cash Flow & GP",
+            "📈 Shareholder Returns"
+        ])
+
+        # ========== TAB 1: All Yields ==========
+        with value_tabs[0]:
+            yields_data = []
+
+            yields = [
+                ('earnings_yield', 'earnings_yield_adj', 'Earnings Yield (EBIT/EV)', 8, 12),
+                ('fcf_yield', 'fcf_yield_adj', 'FCF Yield (FCF/EV)', 6, 10),
+                ('cfo_yield', 'cfo_yield_adj', 'CFO Yield (CFO/EV)', 8, 12),
+                ('gross_profit_yield', 'gross_profit_yield_adj', 'Gross Profit Yield (GP/EV)', 10, 15)
+            ]
+
+            for raw_key, adj_key, name, threshold_low, threshold_high in yields:
+                raw_val = stock_data.get(raw_key)
+                adj_val = stock_data.get(adj_key)
+
+                if raw_val is not None and adj_val is not None:
+                    if adj_val >= threshold_high:
+                        status = "💎 DEEP VALUE"
+                        color = "#10b981"
+                    elif adj_val >= threshold_low:
+                        status = "✅ ATTRACTIVE"
+                        color = "#22c55e"
+                    else:
+                        status = "⚠️ FAIR/EXPENSIVE"
+                        color = "#f59e0b"
+
+                    yields_data.append({
+                        'name': name,
+                        'raw': raw_val,
+                        'adj': adj_val,
+                        'status': status,
+                        'color': color
+                    })
+
+            # Shareholder Yield (not adjusted)
+            sh_yield = stock_data.get('shareholder_yield_%')
+            if sh_yield is not None:
+                if sh_yield >= 5:
+                    status = "💰 EXCELLENT"
+                    color = "#10b981"
+                elif sh_yield >= 2:
+                    status = "✅ GOOD"
+                    color = "#22c55e"
+                else:
+                    status = "⚠️ LOW"
+                    color = "#f59e0b"
+
+                yields_data.append({
+                    'name': 'Shareholder Yield (Div+Buyback-Dilution)',
+                    'raw': sh_yield,
+                    'adj': sh_yield,  # Not adjusted
+                    'status': status,
+                    'color': color
+                })
+
+            # Display yields in cards
+            for y in yields_data:
+                st.markdown(f"""
+                <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                            border-left: 6px solid {y['color']}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                            margin-bottom: 1rem;'>
+                    <div style='font-size: 1rem; color: #6b7280; margin-bottom: 1rem;'>
+                        <strong>{y['name']}</strong>
+                    </div>
+                    <div style='display: flex; justify-content: space-around; align-items: center;'>
+                        <div style='text-align: center;'>
+                            <div style='font-size: 0.85rem; color: #9ca3af;'>Raw</div>
+                            <div style='font-size: 2rem; font-weight: 600; color: #6b7280;'>
+                                {y['raw']:.1f}%
+                            </div>
+                        </div>
+                        <div style='font-size: 2rem; color: #d1d5db;'>→</div>
+                        <div style='text-align: center;'>
+                            <div style='font-size: 0.85rem; color: #9ca3af;'>ROIC-Adjusted</div>
+                            <div style='font-size: 2.5rem; font-weight: 700; color: {y['color']};'>
+                                {y['adj']:.1f}%
+                            </div>
+                        </div>
+                        <div style='text-align: center;'>
+                            <div style='font-size: 1rem; font-weight: 600; color: {y['color']};'>
+                                {y['status']}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # ========== TAB 2: Earnings & FCF ==========
+        with value_tabs[1]:
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("### Earnings Yield (Greenblatt)")
+
+                ey_raw = stock_data.get('earnings_yield')
+                ey_adj = stock_data.get('earnings_yield_adj')
+
+                if ey_raw is not None and ey_adj is not None:
+                    ey_color = "#10b981" if ey_adj >= 12 else "#22c55e" if ey_adj >= 8 else "#f59e0b"
+
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='text-align: center; margin-bottom: 1.5rem;'>
+                            <div style='font-size: 0.9rem; color: #6b7280;'>ROIC-Adjusted Earnings Yield</div>
+                            <div style='font-size: 3.5rem; font-weight: 700; color: {ey_color};'>
+                                {ey_adj:.1f}%
+                            </div>
+                            <div style='font-size: 0.85rem; color: #9ca3af; margin-top: 0.5rem;'>
+                                Raw: {ey_raw:.1f}%
+                            </div>
+                        </div>
+                        <div style='background: #f3f4f6; padding: 1rem; border-radius: 8px; font-size: 0.85rem;'>
+                            <strong>Formula:</strong> EBIT / Enterprise Value<br><br>
+                            <strong>Joel Greenblatt (2005):</strong> Earnings yield is the inverse
+                            of P/E ratio, but uses enterprise value (more accurate for leveraged companies).
+                            <br><br>
+                            <strong>Target:</strong> >12% = deep value, >8% = attractive
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col2:
+                st.markdown("### Free Cash Flow Yield")
+
+                fcf_raw = stock_data.get('fcf_yield')
+                fcf_adj = stock_data.get('fcf_yield_adj')
+
+                if fcf_raw is not None and fcf_adj is not None:
+                    fcf_color = "#10b981" if fcf_adj >= 10 else "#22c55e" if fcf_adj >= 6 else "#f59e0b"
+
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='text-align: center; margin-bottom: 1.5rem;'>
+                            <div style='font-size: 0.9rem; color: #6b7280;'>ROIC-Adjusted FCF Yield</div>
+                            <div style='font-size: 3.5rem; font-weight: 700; color: {fcf_color};'>
+                                {fcf_adj:.1f}%
+                            </div>
+                            <div style='font-size: 0.85rem; color: #9ca3af; margin-top: 0.5rem;'>
+                                Raw: {fcf_raw:.1f}%
+                            </div>
+                        </div>
+                        <div style='background: #f3f4f6; padding: 1rem; border-radius: 8px; font-size: 0.85rem;'>
+                            <strong>Formula:</strong> Free Cash Flow / Enterprise Value<br><br>
+                            <strong>Why FCF Yield?</strong> FCF is the actual cash available to shareholders
+                            after capex. It's harder to manipulate than earnings.
+                            <br><br>
+                            <strong>Target:</strong> >10% = deep value, >6% = attractive
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        # ========== TAB 3: Cash Flow & Gross Profit ==========
+        with value_tabs[2]:
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("### Operating Cash Flow Yield")
+
+                cfo_raw = stock_data.get('cfo_yield')
+                cfo_adj = stock_data.get('cfo_yield_adj')
+
+                if cfo_raw is not None and cfo_adj is not None:
+                    cfo_color = "#10b981" if cfo_adj >= 12 else "#22c55e" if cfo_adj >= 8 else "#f59e0b"
+
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='text-align: center; margin-bottom: 1.5rem;'>
+                            <div style='font-size: 0.9rem; color: #6b7280;'>ROIC-Adjusted CFO Yield</div>
+                            <div style='font-size: 3.5rem; font-weight: 700; color: {cfo_color};'>
+                                {cfo_adj:.1f}%
+                            </div>
+                            <div style='font-size: 0.85rem; color: #9ca3af; margin-top: 0.5rem;'>
+                                Raw: {cfo_raw:.1f}%
+                            </div>
+                        </div>
+                        <div style='background: #f3f4f6; padding: 1rem; border-radius: 8px; font-size: 0.85rem;'>
+                            <strong>Formula:</strong> Operating Cash Flow / Enterprise Value<br><br>
+                            <strong>Why CFO?</strong> More stable than FCF (doesn't include capex volatility).
+                            Good for companies with lumpy capital spending.
+                            <br><br>
+                            <strong>Target:</strong> >12% = deep value, >8% = attractive
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with col2:
+                st.markdown("### Gross Profit Yield (Novy-Marx)")
+
+                gp_raw = stock_data.get('gross_profit_yield')
+                gp_adj = stock_data.get('gross_profit_yield_adj')
+
+                if gp_raw is not None and gp_adj is not None:
+                    gp_color = "#10b981" if gp_adj >= 15 else "#22c55e" if gp_adj >= 10 else "#f59e0b"
+
+                    st.markdown(f"""
+                    <div style='background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='text-align: center; margin-bottom: 1.5rem;'>
+                            <div style='font-size: 0.9rem; color: #6b7280;'>ROIC-Adjusted GP Yield</div>
+                            <div style='font-size: 3.5rem; font-weight: 700; color: {gp_color};'>
+                                {gp_adj:.1f}%
+                            </div>
+                            <div style='font-size: 0.85rem; color: #9ca3af; margin-top: 0.5rem;'>
+                                Raw: {gp_raw:.1f}%
+                            </div>
+                        </div>
+                        <div style='background: #f3f4f6; padding: 1rem; border-radius: 8px; font-size: 0.85rem;'>
+                            <strong>Formula:</strong> Gross Profit / Enterprise Value<br><br>
+                            <strong>Robert Novy-Marx (2013):</strong> Gross profitability is a better
+                            predictor of returns than traditional value metrics.
+                            <br><br>
+                            <strong>Target:</strong> >15% = deep value, >10% = attractive
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+        # ========== TAB 4: Shareholder Returns ==========
+        with value_tabs[3]:
+            st.markdown("### Shareholder Yield")
+
+            sh_yield = stock_data.get('shareholder_yield_%')
+
+            if sh_yield is not None:
+                sh_color = "#10b981" if sh_yield >= 5 else "#22c55e" if sh_yield >= 2 else "#f59e0b"
+
+                st.markdown(f"""
+                <div style='background: white; padding: 2.5rem; border-radius: 12px;
+                            border-left: 6px solid {sh_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    <div style='text-align: center; margin-bottom: 2rem;'>
+                        <div style='font-size: 1rem; color: #6b7280; margin-bottom: 1rem;'>
+                            Total Shareholder Yield
+                        </div>
+                        <div style='font-size: 4.5rem; font-weight: 700; color: {sh_color};'>
+                            {sh_yield:+.1f}%
+                        </div>
+                        <div style='font-size: 1.1rem; color: #374151; margin-top: 1rem;'>
+                            {'💰 EXCELLENT (>5%)' if sh_yield >= 5 else '✅ GOOD (>2%)' if sh_yield >= 2 else '⚠️ LOW (<2%)' if sh_yield >= 0 else '🚨 DILUTIVE (Negative)'}
+                        </div>
+                    </div>
+
+                    <div style='background: #f3f4f6; padding: 1.5rem; border-radius: 8px; font-size: 0.9rem;'>
+                        <strong>Formula:</strong><br>
+                        Shareholder Yield = (Dividends + Buybacks - Stock Issuance) / Market Cap<br><br>
+
+                        <strong>Why This Matters:</strong><br>
+                        Traditional dividend yield ignores buybacks and dilution. Shareholder yield
+                        captures the <em>total</em> cash returned to shareholders.<br><br>
+
+                        <strong>Components:</strong>
+                        <ul style='margin-top: 0.5rem;'>
+                            <li><strong>Dividends:</strong> Cash paid directly to shareholders</li>
+                            <li><strong>Buybacks:</strong> Reduce share count, increase ownership %</li>
+                            <li><strong>Stock Issuance:</strong> Dilutes shareholders (subtracted)</li>
+                        </ul>
+
+                        <strong>Interpretation:</strong>
+                        <ul style='margin-top: 0.5rem;'>
+                            <li>>5%: Excellent capital allocation</li>
+                            <li>2-5%: Good shareholder returns</li>
+                            <li>0-2%: Modest returns</li>
+                            <li><0%: Dilutive (issuing more stock than returning via div+buybacks)</li>
+                        </ul>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    else:
+        # Financial Company Metrics
+        st.markdown("### Financial Company Value Metrics")
+        st.info("Value metrics for financial companies coming soon (P/E, P/B, P/TBV, Dividend Yield)")
