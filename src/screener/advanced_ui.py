@@ -1368,6 +1368,10 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                 dso = wc.get('dso_current')
                 dio = wc.get('dio_current')
 
+                # Build DSO and DIO lines only if available
+                dso_line = f"DSO: {dso:.0f} days ({wc.get('dso_trend', 'Unknown')})" if dso is not None else "DSO: N/A"
+                dio_line = f"DIO: {dio:.0f} days ({wc.get('dio_trend', 'Unknown')})" if dio is not None else "DIO: N/A"
+
                 st.markdown(f"""
                 <div style='background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
                     <div style='font-size: 0.9rem; color: #6b7280; margin-bottom: 1rem;'>
@@ -1377,8 +1381,8 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                         {ccc:.0f} days
                     </div>
                     <div style='font-size: 0.85rem; color: #374151;'>
-                        DSO: {dso:.0f} days ({wc.get('dso_trend', 'Unknown')})<br>
-                        DIO: {dio:.0f} days ({wc.get('dio_trend', 'Unknown')})<br>
+                        {dso_line}<br>
+                        {dio_line}<br>
                         CCC Trend: {wc.get('ccc_trend', 'Unknown')}
                     </div>
                 </div>
@@ -1407,8 +1411,11 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                     'Unknown': '#6b7280'
                 }
 
-                st.markdown(f"""
-                <div style='background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                # Build margin sections
+                margin_html_parts = []
+
+                # Gross margin (always present due to outer if condition)
+                margin_html_parts.append(f"""
                     <div style='margin-bottom: 1rem;'>
                         <div style='font-size: 0.85rem; color: #6b7280;'>Gross Margin</div>
                         <div style='font-size: 2rem; font-weight: 700; color: {traj_color.get(gm_traj, "#6b7280")};'>
@@ -1418,6 +1425,11 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                             {gm_traj}
                         </div>
                     </div>
+                """)
+
+                # Operating margin (only if available)
+                if om_current is not None:
+                    margin_html_parts.append(f"""
                     <hr style='border: 1px solid #e5e7eb; margin: 1rem 0;'>
                     <div>
                         <div style='font-size: 0.85rem; color: #6b7280;'>Operating Margin</div>
@@ -1428,6 +1440,12 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                             {om_traj}
                         </div>
                     </div>
+                    """)
+
+                # Combine parts and display
+                st.markdown(f"""
+                <div style='background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    {''.join(margin_html_parts)}
                 </div>
                 """, unsafe_allow_html=True)
 
