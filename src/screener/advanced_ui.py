@@ -1294,19 +1294,22 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
-                fcf_color = "#ef4444" if fcf_ni_current < 40 else "#f59e0b" if fcf_ni_current < 60 else "#10b981"
-                st.markdown(f"""
-                <div style='background: white; padding: 1.5rem; border-radius: 8px;
-                            border-left: 4px solid {fcf_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
-                    <div style='font-size: 0.85rem; color: #6b7280;'>FCF/NI (Current)</div>
-                    <div style='font-size: 2.5rem; font-weight: 700; color: {fcf_color};'>
-                        {fcf_ni_current:.0f}%
+                if fcf_ni_current is not None:
+                    fcf_color = "#ef4444" if fcf_ni_current < 40 else "#f59e0b" if fcf_ni_current < 60 else "#10b981"
+                    st.markdown(f"""
+                    <div style='background: white; padding: 1.5rem; border-radius: 8px;
+                                border-left: 4px solid {fcf_color}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                        <div style='font-size: 0.85rem; color: #6b7280;'>FCF/NI (Current)</div>
+                        <div style='font-size: 2.5rem; font-weight: 700; color: {fcf_color};'>
+                            {fcf_ni_current:.0f}%
+                        </div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("FCF/NI data not available")
 
             with col2:
-                if fcf_ni_avg:
+                if fcf_ni_avg is not None:
                     avg_color = "#ef4444" if fcf_ni_avg < 40 else "#f59e0b" if fcf_ni_avg < 60 else "#10b981"
                     st.markdown(f"""
                     <div style='background: white; padding: 1.5rem; border-radius: 8px;
@@ -1319,7 +1322,7 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                     """, unsafe_allow_html=True)
 
             with col3:
-                if fcf_rev:
+                if fcf_rev is not None:
                     st.markdown(f"""
                     <div style='background: white; padding: 1.5rem; border-radius: 8px;
                                 border-left: 4px solid #6366f1; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
@@ -1331,7 +1334,7 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                     """, unsafe_allow_html=True)
 
             with col4:
-                if capex_intensity:
+                if capex_intensity is not None:
                     capex_color = "#ef4444" if capex_intensity > 20 else "#f59e0b" if capex_intensity > 10 else "#10b981"
                     st.markdown(f"""
                     <div style='background: white; padding: 1.5rem; border-radius: 8px;
@@ -1600,9 +1603,10 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
             ]
 
             # Build metrics table
+            import pandas as pd
             for key, name, unit, threshold_low, threshold_high in higher_better:
                 value = stock_data.get(key)
-                if value is not None:
+                if value is not None and not pd.isna(value):
                     if value >= threshold_high:
                         status = "EXCELLENT"
                         color = "#10b981"
@@ -1623,7 +1627,7 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
 
             for key, name, unit, threshold_high, threshold_low in lower_better:
                 value = stock_data.get(key)
-                if value is not None:
+                if value is not None and not pd.isna(value):
                     if value <= threshold_low:
                         status = "EXCELLENT"
                         color = "#10b981"
