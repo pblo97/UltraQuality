@@ -3043,16 +3043,26 @@ with tab2:
                                     ccc_trend = 'Improving'
 
                                 # Build cash_conversion dict with parsed data
+                                # Safely build FCF/NI flag
+                                fcf_flag = ["FCF/NI data not available"]
+                                if fcf_ni_value is not None:
+                                    fcf_flag = [f"FCF/NI {fcf_ni_value:.0f}%"]
+
                                 guardrails_data['cash_conversion'] = {
                                     'fcf_to_ni_current': fcf_ni_value,
                                     'fcf_to_ni_avg_8q': fcf_ni_value,  # Approximation
                                     'fcf_to_revenue_current': stock_data.get('fcf_margin_%'),
                                     'capex_intensity_current': None,
                                     'status': 'VERDE' if fcf_ni_value and fcf_ni_value >= 80 else 'AMBAR' if fcf_ni_value and fcf_ni_value >= 60 else 'ROJO',
-                                    'flags': [f"FCF/NI {fcf_ni_value:.0f}%" if fcf_ni_value else "FCF/NI data not available"]
+                                    'flags': fcf_flag
                                 }
 
                                 # Build working_capital dict with parsed data
+                                # Safely build CCC flag
+                                ccc_flags = []
+                                if ccc_value is not None:
+                                    ccc_flags = [f"CCC {ccc_value:.0f} days ({ccc_trend})"]
+
                                 guardrails_data['working_capital'] = {
                                     'ccc_current': ccc_value,
                                     'dso_current': None,
@@ -3061,7 +3071,7 @@ with tab2:
                                     'dso_trend': 'Unknown',
                                     'dio_trend': 'Unknown',
                                     'status': 'ROJO' if 'severe deterioration' in reasons.lower() else 'AMBAR' if 'deterioration' in reasons.lower() else 'VERDE',
-                                    'flags': [f"CCC {ccc_value:.0f} days ({ccc_trend})"] if ccc_value else []
+                                    'flags': ccc_flags
                                 }
 
                                 # Build margin_trajectory dict
