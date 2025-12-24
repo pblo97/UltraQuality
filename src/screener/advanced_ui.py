@@ -977,16 +977,25 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
             else:
                 st.info("N/A")
 
-        # Altman Z-Score (if applicable)
+        # Altman Z-Score (if applicable - exclude pharma, biotech, software)
         with col2:
             z_score = guardrails_data.get('altmanZ')
-            if z_score is not None:
+
+            # Industries where Altman Z doesn't apply
+            excluded_industries = [
+                'biotechnology', 'drug manufacturers', 'pharmaceutical', 'biotech',
+                'software', 'internet', 'semiconductors', 'healthcare technology'
+            ]
+            industry_lower = industry.lower() if industry else ''
+            z_score_applicable = not any(excl in industry_lower for excl in excluded_industries)
+
+            if z_score is not None and z_score_applicable:
                 if z_score < 1.8:
                     z_color = "#ef4444"
-                    z_status = "△ DISTRESS"
+                    z_status = "DISTRESS"
                 elif z_score < 2.99:
                     z_color = "#f59e0b"
-                    z_status = "△ GRAY ZONE"
+                    z_status = "GRAY ZONE"
                 else:
                     z_color = "#10b981"
                     z_status = "SAFE"
@@ -1009,14 +1018,18 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                 </div>
                 """, unsafe_allow_html=True)
             else:
+                # Show N/A or disclaimer for excluded industries
                 st.markdown("""
                 <div style='background: white; padding: 1.5rem; border-radius: 8px;
                             border-left: 4px solid #6b7280; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
                     <div style='font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;'>
                         Altman Z-Score
                     </div>
-                    <div style='font-size: 1rem; color: #9ca3af;'>
+                    <div style='font-size: 0.9rem; color: #9ca3af; margin-top: 0.5rem;'>
                         N/A for this industry
+                    </div>
+                    <div style='font-size: 0.75rem; color: #9ca3af; margin-top: 0.5rem;'>
+                        (Model designed for manufacturing)
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
