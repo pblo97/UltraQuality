@@ -1036,9 +1036,11 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
 
         # Cash Conversion
         with col3:
+            import math
             cc = guardrails_data.get('cash_conversion', {})
             fcf_ni = cc.get('fcf_to_ni_current')
-            if fcf_ni is not None:
+            # Check for None and NaN
+            if fcf_ni is not None and not (isinstance(fcf_ni, (int, float)) and math.isnan(fcf_ni)):
                 if fcf_ni < 40:
                     cc_color = "#ef4444"
                     cc_status = "LOW"
@@ -1285,6 +1287,7 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
             </div>
             """, unsafe_allow_html=True)
 
+            import math
             fcf_ni_current = cc.get('fcf_to_ni_current')
             fcf_ni_avg = cc.get('fcf_to_ni_avg_8q')
             fcf_rev = cc.get('fcf_to_revenue_current')
@@ -1294,7 +1297,8 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
-                if fcf_ni_current is not None:
+                # Check for None and NaN
+                if fcf_ni_current is not None and not (isinstance(fcf_ni_current, (int, float)) and math.isnan(fcf_ni_current)):
                     fcf_color = "#ef4444" if fcf_ni_current < 40 else "#f59e0b" if fcf_ni_current < 60 else "#10b981"
                     st.markdown(f"""
                     <div style='background: white; padding: 1.5rem; border-radius: 8px;
@@ -1309,7 +1313,7 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                     st.info("FCF/NI data not available")
 
             with col2:
-                if fcf_ni_avg is not None:
+                if fcf_ni_avg is not None and not (isinstance(fcf_ni_avg, (int, float)) and math.isnan(fcf_ni_avg)):
                     avg_color = "#ef4444" if fcf_ni_avg < 40 else "#f59e0b" if fcf_ni_avg < 60 else "#10b981"
                     st.markdown(f"""
                     <div style='background: white; padding: 1.5rem; border-radius: 8px;
@@ -1322,7 +1326,7 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                     """, unsafe_allow_html=True)
 
             with col3:
-                if fcf_rev is not None:
+                if fcf_rev is not None and not (isinstance(fcf_rev, (int, float)) and math.isnan(fcf_rev)):
                     st.markdown(f"""
                     <div style='background: white; padding: 1.5rem; border-radius: 8px;
                                 border-left: 4px solid #6366f1; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
@@ -1334,7 +1338,7 @@ def render_guardrails_breakdown(symbol: str, guardrails_data: dict, fmp_client, 
                     """, unsafe_allow_html=True)
 
             with col4:
-                if capex_intensity is not None:
+                if capex_intensity is not None and not (isinstance(capex_intensity, (int, float)) and math.isnan(capex_intensity)):
                     capex_color = "#ef4444" if capex_intensity > 20 else "#f59e0b" if capex_intensity > 10 else "#10b981"
                     st.markdown(f"""
                     <div style='background: white; padding: 1.5rem; border-radius: 8px;
@@ -1622,47 +1626,54 @@ def render_quality_score_breakdown(symbol: str, stock_data: dict, is_financial: 
 
             # Build metrics table
             import pandas as pd
+            import math
             for key, name, unit, threshold_low, threshold_high in higher_better:
                 value = stock_data.get(key)
-                if value is not None and not pd.isna(value):
-                    if value >= threshold_high:
-                        status = "EXCELLENT"
-                        color = "#10b981"
-                    elif value >= threshold_low:
-                        status = "GOOD"
-                        color = "#22c55e"
-                    else:
-                        status = "BELOW TARGET"
-                        color = "#f59e0b"
+                # Triple check: None, pd.isna, and math.isnan for float NaN
+                if value is None or pd.isna(value) or (isinstance(value, (int, float)) and math.isnan(value)):
+                    continue  # Skip this metric entirely if invalid
 
-                    metrics_data.append({
-                        'Metric': name,
-                        'Value': f"{value:.1f}{unit}",
-                        'Target': f">{threshold_high}{unit}",
-                        'Status': status,
-                        'Color': color
-                    })
+                if value >= threshold_high:
+                    status = "EXCELLENT"
+                    color = "#10b981"
+                elif value >= threshold_low:
+                    status = "GOOD"
+                    color = "#22c55e"
+                else:
+                    status = "BELOW TARGET"
+                    color = "#f59e0b"
+
+                metrics_data.append({
+                    'Metric': name,
+                    'Value': f"{value:.1f}{unit}",
+                    'Target': f">{threshold_high}{unit}",
+                    'Status': status,
+                    'Color': color
+                })
 
             for key, name, unit, threshold_high, threshold_low in lower_better:
                 value = stock_data.get(key)
-                if value is not None and not pd.isna(value):
-                    if value <= threshold_low:
-                        status = "EXCELLENT"
-                        color = "#10b981"
-                    elif value <= threshold_high:
-                        status = "GOOD"
-                        color = "#22c55e"
-                    else:
-                        status = "ABOVE TARGET"
-                        color = "#f59e0b"
+                # Triple check: None, pd.isna, and math.isnan for float NaN
+                if value is None or pd.isna(value) or (isinstance(value, (int, float)) and math.isnan(value)):
+                    continue  # Skip this metric entirely if invalid
 
-                    metrics_data.append({
-                        'Metric': name,
-                        'Value': f"{value:.1f}{unit}",
-                        'Target': f"<{threshold_low}{unit}",
-                        'Status': status,
-                        'Color': color
-                    })
+                if value <= threshold_low:
+                    status = "EXCELLENT"
+                    color = "#10b981"
+                elif value <= threshold_high:
+                    status = "GOOD"
+                    color = "#22c55e"
+                else:
+                    status = "ABOVE TARGET"
+                    color = "#f59e0b"
+
+                metrics_data.append({
+                    'Metric': name,
+                    'Value': f"{value:.1f}{unit}",
+                    'Target': f"<{threshold_low}{unit}",
+                    'Status': status,
+                    'Color': color
+                })
 
             # Display as cards
             if metrics_data:
