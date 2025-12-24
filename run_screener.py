@@ -2983,6 +2983,13 @@ with tab2:
                         try:
                             from screener.advanced_ui import render_guardrails_breakdown
                             from screener.ingest import FMPClient
+                            import yaml
+                            import os
+
+                            # Load config
+                            config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+                            with open(config_file, 'r') as f:
+                                config = yaml.safe_load(f)
 
                             # Get API key
                             api_key = None
@@ -2991,7 +2998,13 @@ with tab2:
                             elif 'FMP' in st.secrets:
                                 api_key = st.secrets['FMP']
 
-                            if api_key:
+                            if not api_key:
+                                api_key = os.getenv('FMP_API_KEY')
+
+                            if not api_key:
+                                api_key = config['fmp'].get('api_key')
+
+                            if api_key and not api_key.startswith('${'):
                                 fmp_client = FMPClient(api_key, config)
 
                                 # Get guardrails data from the row
