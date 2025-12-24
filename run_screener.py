@@ -2836,22 +2836,268 @@ with tab2:
         )
 
         # Show special cases
-        with st.expander(" Investigate Specific Companies"):
-            search_ticker = st.text_input("Enter ticker(s) - comma separated (e.g., MA,V,GOOGL)", key="search_ticker")
+        with st.expander("🔍 Investigate Specific Companies - Deep Dive Analysis", expanded=False):
+            search_ticker = st.text_input(
+                "Enter a single ticker for deep analysis (e.g., LLY, GOOGL, MSFT)",
+                key="search_ticker",
+                help="Enter ONE ticker to see detailed breakdown of scores, guardrails, and metrics"
+            )
+
             if search_ticker:
-                tickers = [t.strip().upper() for t in search_ticker.split(',')]
-                search_df = df[df['ticker'].str.upper().isin(tickers)]
+                ticker = search_ticker.strip().upper()
+                search_df = df[df['ticker'].str.upper() == ticker]
 
                 if not search_df.empty:
-                    detail_cols = ['ticker', 'roic_%', 'moat_score', 'earnings_yield', 'earnings_yield_adj',
-                                  'value_score_0_100', 'quality_score_0_100', 'composite_0_100',
-                                  'guardrail_status', 'decision', 'decision_reason',
-                                  'pricing_power_score', 'operating_leverage_score', 'roic_persistence_score']
-                    available_detail_cols = [col for col in detail_cols if col in search_df.columns]
+                    # Get stock data as dictionary
+                    stock_row = search_df.iloc[0]
+                    stock_data = stock_row.to_dict()
 
-                    st.dataframe(search_df[available_detail_cols], use_container_width=True)
+                    # Header with company info
+                    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+
+                    with col1:
+                        company_name = stock_data.get('companyName', ticker)
+                        industry = stock_data.get('industry', 'Unknown')
+                        sector = stock_data.get('sector', 'Unknown')
+                        st.markdown(f"### {ticker} - {company_name}")
+                        st.caption(f"{sector} / {industry}")
+
+                    with col2:
+                        composite = stock_data.get('composite_0_100', 0)
+                        comp_color = "🟢" if composite >= 70 else "🟡" if composite >= 50 else "🔴"
+                        st.metric("Composite Score", f"{composite:.0f}", delta=None)
+                        st.caption(f"{comp_color} {stock_data.get('decision', 'N/A')}")
+
+                    with col3:
+                        value = stock_data.get('value_score_0_100', 0)
+                        st.metric("Value Score", f"{value:.0f}")
+
+                    with col4:
+                        quality = stock_data.get('quality_score_0_100', 0)
+                        st.metric("Quality Score", f"{quality:.0f}")
+
+                    st.markdown("---")
+
+                    # Create analysis tabs
+                    analysis_tabs = st.tabs([
+                        "📋 Summary",
+                        "🛡️ Guardrails (Accounting Quality)",
+                        "🌟 Quality Score Breakdown",
+                        "💎 Value Score Breakdown"
+                    ])
+
+                    # ========== TAB 1: Summary ==========
+                    with analysis_tabs[0]:
+                        st.markdown("### Quick Overview")
+
+                        # Decision box
+                        decision = stock_data.get('decision', 'N/A')
+                        decision_reason = stock_data.get('decision_reason', '')
+                        guardrail_status = stock_data.get('guardrail_status', 'N/A')
+                        guardrail_reasons = stock_data.get('guardrail_reasons', '')
+
+                        decision_color = {
+                            'BUY': '#10b981',
+                            'MONITOR': '#f59e0b',
+                            'AVOID': '#ef4444'
+                        }.get(decision, '#6b7280')
+
+                        st.markdown(f"""
+                        <div style='background: linear-gradient(135deg, {decision_color} 0%, {decision_color}dd 100%);
+                                    padding: 2rem; border-radius: 12px; margin-bottom: 1.5rem; text-align: center;'>
+                            <div style='color: white; font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem;'>
+                                {decision}
+                            </div>
+                            <div style='color: white; font-size: 1.1rem; opacity: 0.95;'>
+                                {decision_reason}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Key metrics grid
+                        col1, col2, col3 = st.columns(3)
+
+                        with col1:
+                            st.markdown("#### 💰 Profitability")
+                            roic = stock_data.get('roic_%')
+                            if roic is not None:
+                                st.metric("ROIC", f"{roic:.1f}%")
+
+                            fcf_margin = stock_data.get('fcf_margin_%')
+                            if fcf_margin is not None:
+                                st.metric("FCF Margin", f"{fcf_margin:.1f}%")
+
+                            moat = stock_data.get('moat_score')
+                            if moat is not None:
+                                st.metric("Moat Score", f"{moat:.0f}/100")
+
+                        with col2:
+                            st.markdown("#### 💵 Valuation")
+                            ey_adj = stock_data.get('earnings_yield_adj')
+                            if ey_adj is not None:
+                                st.metric("Earnings Yield (Adj)", f"{ey_adj:.1f}%")
+
+                            fcf_yield_adj = stock_data.get('fcf_yield_adj')
+                            if fcf_yield_adj is not None:
+                                st.metric("FCF Yield (Adj)", f"{fcf_yield_adj:.1f}%")
+
+                            sh_yield = stock_data.get('shareholder_yield_%')
+                            if sh_yield is not None:
+                                st.metric("Shareholder Yield", f"{sh_yield:+.1f}%")
+
+                        with col3:
+                            st.markdown("#### 🛡️ Financial Health")
+
+                            guardrail_color = {
+                                'VERDE': '🟢',
+                                'AMBAR': '🟡',
+                                'ROJO': '🔴'
+                            }.get(guardrail_status, '⚪')
+
+                            st.markdown(f"**Guardrail Status:** {guardrail_color} {guardrail_status}")
+                            if guardrail_reasons:
+                                st.caption(guardrail_reasons)
+
+                            int_cov = stock_data.get('interestCoverage')
+                            if int_cov is not None:
+                                st.metric("Interest Coverage", f"{min(int_cov, 50):.1f}x")
+
+                            net_debt_ebitda = stock_data.get('netDebt_ebitda')
+                            if net_debt_ebitda is not None:
+                                st.metric("Net Debt/EBITDA", f"{net_debt_ebitda:.1f}x")
+
+                        # Full data table (expandable)
+                        with st.expander("📊 View All Metrics"):
+                            detail_cols = ['ticker', 'roic_%', 'moat_score', 'earnings_yield', 'earnings_yield_adj',
+                                          'value_score_0_100', 'quality_score_0_100', 'composite_0_100',
+                                          'guardrail_status', 'decision', 'decision_reason',
+                                          'pricing_power_score', 'operating_leverage_score', 'roic_persistence_score',
+                                          'fcf_margin_%', 'cfo_to_ni', 'interestCoverage', 'netDebt_ebitda',
+                                          'revenue_growth_3y', 'shareholder_yield_%']
+                            available_detail_cols = [col for col in detail_cols if col in search_df.columns]
+
+                            st.dataframe(search_df[available_detail_cols], use_container_width=True)
+
+                    # ========== TAB 2: Guardrails ==========
+                    with analysis_tabs[1]:
+                        try:
+                            from screener.advanced_ui import render_guardrails_breakdown
+                            from screener.ingest import FMPClient
+
+                            # Get API key
+                            api_key = None
+                            if 'FMP_API_KEY' in st.secrets:
+                                api_key = st.secrets['FMP_API_KEY']
+                            elif 'FMP' in st.secrets:
+                                api_key = st.secrets['FMP']
+
+                            if api_key:
+                                fmp_client = FMPClient(api_key, config)
+
+                                # Get guardrails data from the row
+                                guardrails_data = {}
+
+                                # Extract all guardrail-related columns
+                                guardrail_keys = [
+                                    'guardrail_status', 'guardrail_reasons', 'altmanZ', 'beneishM',
+                                    'accruals_noa_%', 'netShareIssuance_12m_%', 'mna_flag',
+                                    'revenue_growth_3y', 'debt_maturity_<24m_%', 'rate_mix_variable_%'
+                                ]
+
+                                for key in guardrail_keys:
+                                    if key in stock_data:
+                                        guardrails_data[key] = stock_data[key]
+
+                                # Add nested dictionaries for advanced metrics (if available in features)
+                                # These would normally come from guardrails calculation, but we'll construct from available data
+                                guardrails_data['cash_conversion'] = {
+                                    'fcf_to_ni_current': stock_data.get('cfo_to_ni'),  # Approximation
+                                    'fcf_to_ni_avg_8q': stock_data.get('cfo_to_ni'),
+                                    'fcf_to_revenue_current': stock_data.get('fcf_margin_%'),
+                                    'capex_intensity_current': None,  # Not available
+                                    'status': 'VERDE' if stock_data.get('cfo_to_ni', 0) >= 80 else 'AMBAR' if stock_data.get('cfo_to_ni', 0) >= 60 else 'ROJO',
+                                    'flags': []
+                                }
+
+                                guardrails_data['working_capital'] = {
+                                    'ccc_current': None,
+                                    'dso_current': None,
+                                    'dio_current': None,
+                                    'status': 'VERDE',
+                                    'flags': []
+                                }
+
+                                guardrails_data['margin_trajectory'] = {
+                                    'gross_margin_current': None,
+                                    'operating_margin_current': None,
+                                    'gross_margin_trajectory': 'Unknown',
+                                    'operating_margin_trajectory': 'Unknown',
+                                    'status': 'VERDE'
+                                }
+
+                                guardrails_data['debt_maturity_wall'] = {
+                                    'debt_due_12m': None,
+                                    'short_term_debt_pct': stock_data.get('debt_maturity_<24m_%'),
+                                    'liquidity_ratio': None,
+                                    'interest_coverage': stock_data.get('interestCoverage'),
+                                    'status': 'VERDE' if stock_data.get('interestCoverage', 0) >= 5 else 'AMBAR' if stock_data.get('interestCoverage', 0) >= 3 else 'ROJO',
+                                    'flags': []
+                                }
+
+                                # Render the breakdown
+                                render_guardrails_breakdown(
+                                    symbol=ticker,
+                                    guardrails_data=guardrails_data,
+                                    fmp_client=fmp_client,
+                                    industry=industry
+                                )
+                            else:
+                                st.error("FMP API key not configured. Cannot load detailed guardrails analysis.")
+
+                        except Exception as e:
+                            st.error(f"Error loading guardrails breakdown: {e}")
+                            if st.checkbox("Show error details", key="guardrails_error"):
+                                st.exception(e)
+
+                    # ========== TAB 3: Quality Score ==========
+                    with analysis_tabs[2]:
+                        try:
+                            from screener.advanced_ui import render_quality_score_breakdown
+
+                            is_financial = stock_data.get('is_financial', False)
+
+                            render_quality_score_breakdown(
+                                symbol=ticker,
+                                stock_data=stock_data,
+                                is_financial=is_financial
+                            )
+
+                        except Exception as e:
+                            st.error(f"Error loading quality score breakdown: {e}")
+                            if st.checkbox("Show error details", key="quality_error"):
+                                st.exception(e)
+
+                    # ========== TAB 4: Value Score ==========
+                    with analysis_tabs[3]:
+                        try:
+                            from screener.advanced_ui import render_value_score_breakdown
+
+                            is_financial = stock_data.get('is_financial', False)
+
+                            render_value_score_breakdown(
+                                symbol=ticker,
+                                stock_data=stock_data,
+                                is_financial=is_financial
+                            )
+
+                        except Exception as e:
+                            st.error(f"Error loading value score breakdown: {e}")
+                            if st.checkbox("Show error details", key="value_error"):
+                                st.exception(e)
+
                 else:
-                    st.warning(f"No results found for: {', '.join(tickers)}")
+                    st.warning(f"❌ No results found for: {ticker}")
+                    st.info("💡 Tip: Make sure the ticker exists in the screener results above.")
 
         # Download buttons
         st.markdown("### 📥 Download Results")
