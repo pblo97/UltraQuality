@@ -1717,39 +1717,91 @@ st.title("UltraQuality: Quality + Value Screener")
 st.markdown("**Professional stock screening using fundamental quality and value metrics**")
 st.markdown("---")
 
-# Sidebar configuration
-st.sidebar.header("Configuration")
+# ========== SIDEBAR CONFIGURATION ==========
+# Professional sidebar styling
+st.sidebar.markdown("""
+<style>
+    /* Sidebar header styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+    }
 
-# Cache Management
-st.sidebar.markdown("---")
-st.sidebar.subheader("Cache Management")
-if st.sidebar.button("Clear All Caches",
-                     help="Clear FMP API cache and incremental processing cache. Use this if you're seeing stale data or analysis errors."):
-    import shutil
-    from pathlib import Path
+    /* Section headers */
+    .sidebar-section-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin: 1rem 0 0.5rem 0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
 
-    # Clear caches
-    caches_cleared = []
-    cache_base = Path('./cache')
-    if cache_base.exists():
-        try:
-            shutil.rmtree(cache_base)
-            caches_cleared.append("FMP API cache")
-        except Exception as e:
-            st.sidebar.error(f"Failed to clear cache: {e}")
+    /* Divider styling */
+    .sidebar-divider {
+        height: 2px;
+        background: linear-gradient(90deg, transparent, #e2e8f0, transparent);
+        margin: 1.5rem 0;
+        border: none;
+    }
 
-    # Clear Streamlit cache
-    st.cache_data.clear()
-    st.cache_resource.clear()
-    caches_cleared.append("Streamlit cache")
+    /* Info badges */
+    .info-badge {
+        background: #dbeafe;
+        color: #1e40af;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+        margin: 0.25rem 0;
+    }
 
-    if caches_cleared:
-        st.sidebar.success(f"Cleared: {', '.join(caches_cleared)}")
-        st.sidebar.info("Please run the screener again to refresh data")
+    .success-badge {
+        background: #d1fae5;
+        color: #065f46;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+        margin: 0.25rem 0;
+    }
 
-# Global Elite Preset Button
-st.sidebar.markdown("---")
-if st.sidebar.button("GLOBAL ELITE PRESET",
+    .warning-badge {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        display: inline-block;
+        margin: 0.25rem 0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Sidebar Header
+st.sidebar.markdown("""
+<div style='text-align: center; padding: 1.5rem 0.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px; margin-bottom: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+    <div style='font-size: 1.75rem; font-weight: 700; color: white; margin-bottom: 0.25rem;'>
+        UltraQuality
+    </div>
+    <div style='font-size: 0.85rem; color: #e0e7ff; font-weight: 500;'>
+        Configuration Panel
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ========== QUICK PRESET ==========
+st.sidebar.markdown("<div class='sidebar-section-header'>⚡ QUICK PRESET</div>", unsafe_allow_html=True)
+
+if st.sidebar.button("🌍 GLOBAL ELITE PRESET",
                      type="primary",
                      use_container_width=True,
                      help="Auto-configure for finding the best companies worldwide: 10,000 stocks, $500M+ mcap (mid/large caps), 90% quality focus"):
@@ -1764,15 +1816,24 @@ if st.sidebar.button("GLOBAL ELITE PRESET",
 
 # Show active preset indicator
 if st.session_state.get('global_elite_active', False):
-    st.sidebar.success("Global Elite preset is active")
+    st.sidebar.markdown("""
+    <div style='background: #d1fae5; border-left: 4px solid #10b981; padding: 0.75rem;
+                border-radius: 6px; margin: 0.5rem 0;'>
+        <div style='color: #065f46; font-weight: 600; font-size: 0.85rem;'>
+            ✓ Global Elite Active
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     if st.sidebar.button("Clear Preset", help="Return to manual configuration"):
         st.session_state['global_elite_active'] = False
         st.rerun()
 
-st.sidebar.markdown("---")
+st.sidebar.markdown("<hr class='sidebar-divider'>", unsafe_allow_html=True)
 
-# Universe filters
-with st.sidebar.expander("Universe Filters", expanded=True):
+# ========== UNIVERSE FILTERS ==========
+st.sidebar.markdown("<div class='sidebar-section-header'>🌐 UNIVERSE FILTERS</div>", unsafe_allow_html=True)
+
+with st.sidebar.expander("Market Selection & Filters", expanded=True):
     # Region/Country selector
     # Uses exchange codes (country parameter doesn't work in FMP API)
     # Note: Only exchanges verified as available in FMP API are included
@@ -2039,8 +2100,12 @@ with st.sidebar.expander("Universe Filters", expanded=True):
         help="Number of stocks to deep-dive after preliminary ranking. 500 stocks = ~4 min, 3000 stocks = ~25 min, 10,000 stocks = ~80-90 min (first run). Re-runs with incremental cache: < 10 min"
     )
 
-# Scoring weights
-with st.sidebar.expander("⚖️ Scoring Weights", expanded=True):
+st.sidebar.markdown("<hr class='sidebar-divider'>", unsafe_allow_html=True)
+
+# ========== SCORING & THRESHOLDS ==========
+st.sidebar.markdown("<div class='sidebar-section-header'>⚖️ SCORING & THRESHOLDS</div>", unsafe_allow_html=True)
+
+with st.sidebar.expander("Quality vs Value Balance", expanded=True):
     # Use preset value if Global Elite is active
     if st.session_state.get('global_elite_active', False):
         default_quality_weight = st.session_state.get('global_elite_quality_weight', 0.90)
@@ -2051,21 +2116,28 @@ with st.sidebar.expander("⚖️ Scoring Weights", expanded=True):
                                 key='weight_quality_slider',
                                 help="QARP default: 0.70 (prioritize exceptional companies with moats)")
     weight_value = 1.0 - weight_quality
-    st.write(f"**Value Weight:** {weight_value:.2f}")
-    st.caption(" Moving sliders will instantly recalculate results")
+
+    # Show weights as badges
+    st.markdown(f"""
+    <div style='display: flex; justify-content: space-between; margin: 0.5rem 0;'>
+        <span class='info-badge'>Quality: {weight_quality:.0%}</span>
+        <span class='warning-badge'>Value: {weight_value:.0%}</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.caption("💡 Moving sliders will instantly recalculate results")
 
     # Guidance
     if weight_quality >= 0.75:
         st.success("**Optimal:** 75%+ Quality captures exceptional companies (Buffett-style)")
     elif weight_quality >= 0.70:
-        st.success("**Recommended:** 70% Quality = QARP balance (wonderful companies at fair prices)")
+        st.success("**Recommended:** 70% Quality = QARP balance")
     elif weight_quality >= 0.60:
-        st.info(" **Tip:** 60-70% Quality works but may miss some high-moat companies (GOOGL, META)")
+        st.info("**Tip:** May miss some high-moat companies")
     else:
-        st.warning(" **Warning:** <60% Quality prioritizes value over excellence. Commodities may rank higher than tech giants.")
+        st.warning("**Warning:** Commodities may rank higher than tech giants")
 
-# Decision thresholds
-with st.sidebar.expander(" Decision Thresholds", expanded=True):
+with st.sidebar.expander("Decision Thresholds", expanded=True):
     threshold_buy = st.slider("BUY Threshold", 50, 90, 65, 5,
                                key='threshold_buy_slider',
                                help="Minimum composite score for BUY (QARP default: 65)")
@@ -2076,43 +2148,37 @@ with st.sidebar.expander(" Decision Thresholds", expanded=True):
                                                key='threshold_quality_exceptional_slider',
                                                help="If Quality ≥ this, force BUY even with lower composite (only truly exceptional companies). Default: 85")
 
-    exclude_reds = st.checkbox("Exclude RED Guardrails", value=True,
+    exclude_reds = st.checkbox("Auto-Exclude RED Guardrails", value=True,
                                key='exclude_reds_checkbox',
-                               help="Auto-AVOID stocks with accounting red flags")
+                               help="Auto-AVOID stocks with accounting red flags (exceptions for Q≥80, C≥75)")
 
-    st.caption("""
-    **Guardrail Colors:**
-    -  VERDE: Clean accounting
-    -  AMBAR: Minor concerns (high-quality companies often have AMBAR)
-    -  ROJO: Red flags (manipulation risk)
+    st.markdown("""
+    <div style='background: #f8fafc; padding: 0.75rem; border-radius: 6px; margin-top: 0.75rem;'>
+        <div style='font-size: 0.75rem; color: #64748b; font-weight: 600; margin-bottom: 0.5rem;'>
+            GUARDRAIL SYSTEM
+        </div>
+        <div style='font-size: 0.7rem; color: #475569;'>
+            <span class='success-badge'>VERDE</span> Clean accounting<br>
+            <span class='warning-badge'>AMBAR</span> Minor concerns<br>
+            <span style='background: #fee2e2; color: #991b1b; padding: 0.2rem 0.5rem; border-radius: 8px; font-size: 0.7rem; font-weight: 600;'>ROJO</span> Red flags (auto-blocked unless Q≥80 + C≥75)
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    **New:** Quality ≥70 + AMBAR can still be BUY
-    """)
+st.sidebar.markdown("<hr class='sidebar-divider'>", unsafe_allow_html=True)
 
-# API Key status
-st.sidebar.markdown("---")
-st.sidebar.subheader("🔑 API Status")
-try:
-    api_key = st.secrets.get('FMP_API_KEY', '')
-    if api_key and not api_key.startswith('your_'):
-        st.sidebar.success(f"✓ API Key: {api_key[:10]}...")
-    else:
-        st.sidebar.error("❌ API Key not configured")
-        st.sidebar.info("Add FMP_API_KEY to Streamlit secrets")
-except:
-    st.sidebar.warning(" Secrets not accessible")
+# ========== RISK MANAGEMENT ==========
+st.sidebar.markdown("<div class='sidebar-section-header'>🛡️ RISK MANAGEMENT</div>", unsafe_allow_html=True)
 
-# Risk Management Settings
-st.sidebar.markdown("---")
-st.sidebar.subheader(" Risk Management")
-
+# Initialize variables at sidebar level (outside expander)
 portfolio_capital = st.sidebar.number_input(
     "Portfolio Capital ($)",
     min_value=1000,
     max_value=10000000,
     value=100000,
     step=10000,
-    help="Total portfolio size for position sizing calculations"
+    help="Total portfolio size for position sizing calculations",
+    key='portfolio_capital_input'
 )
 
 max_risk_per_trade_pct = st.sidebar.slider(
@@ -2121,25 +2187,84 @@ max_risk_per_trade_pct = st.sidebar.slider(
     max_value=5.0,
     value=1.0,
     step=0.25,
-    help="Maximum % of portfolio to risk on any single trade (if stop loss hit)"
+    help="Maximum % of portfolio to risk on any single trade (if stop loss hit)",
+    key='max_risk_pct_slider'
 )
 
 max_risk_per_trade_dollars = portfolio_capital * (max_risk_per_trade_pct / 100)
 
-st.sidebar.caption(f"""
-**Risk Settings:**
-- Portfolio: ${portfolio_capital:,}
-- Max Risk: {max_risk_per_trade_pct}% = ${max_risk_per_trade_dollars:,.0f}
-""")
+# Show compact summary
+st.sidebar.markdown(f"""
+<div style='background: #f0f9ff; border-left: 4px solid #3b82f6; padding: 0.5rem;
+            border-radius: 6px; margin: 0.5rem 0; font-size: 0.75rem;'>
+    💼 Portfolio: <strong>${portfolio_capital:,}</strong> |
+    🛡️ Risk: <strong>{max_risk_per_trade_pct}%</strong> = <strong>${max_risk_per_trade_dollars:,.0f}</strong>
+</div>
+""", unsafe_allow_html=True)
 
-st.sidebar.info("""
-**Dual Constraint System:**
-Position Size = MIN(Quality-Based, Risk-Based)
+with st.sidebar.expander("ℹ️ Dual Constraint System", expanded=False):
+    st.info("""
+    **Dual Constraint System:**
+    Position Size = MIN(Quality-Based, Risk-Based)
 
-This ensures you never exceed EITHER:
-- Diversification limit (by quality tier)
-- Risk limit (1% max loss per trade)
-""")
+    Ensures you never exceed EITHER:
+    - Diversification limit (by quality tier)
+    - Risk limit (1% max loss per trade)
+    """)
+
+st.sidebar.markdown("<hr class='sidebar-divider'>", unsafe_allow_html=True)
+
+# ========== SYSTEM ==========
+st.sidebar.markdown("<div class='sidebar-section-header'>⚙️ SYSTEM</div>", unsafe_allow_html=True)
+
+# API Status
+with st.sidebar.expander("API Status", expanded=False):
+    try:
+        api_key = st.secrets.get('FMP_API_KEY', '')
+        if api_key and not api_key.startswith('your_'):
+            st.markdown(f"""
+            <div style='background: #d1fae5; border-left: 4px solid #10b981; padding: 0.75rem;
+                        border-radius: 6px;'>
+                <div style='color: #065f46; font-weight: 600; font-size: 0.85rem;'>
+                    ✓ API Key Active
+                </div>
+                <div style='color: #047857; font-size: 0.75rem; margin-top: 0.25rem;'>
+                    {api_key[:10]}...
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.error("❌ API Key not configured")
+            st.info("Add FMP_API_KEY to Streamlit secrets")
+    except:
+        st.warning("⚠️ Secrets not accessible")
+
+# Cache Management
+with st.sidebar.expander("Cache Management", expanded=False):
+    if st.button("🗑️ Clear All Caches",
+                 use_container_width=True,
+                 help="Clear FMP API cache and incremental processing cache. Use this if you're seeing stale data or analysis errors."):
+        import shutil
+        from pathlib import Path
+
+        # Clear caches
+        caches_cleared = []
+        cache_base = Path('./cache')
+        if cache_base.exists():
+            try:
+                shutil.rmtree(cache_base)
+                caches_cleared.append("FMP API cache")
+            except Exception as e:
+                st.error(f"Failed to clear cache: {e}")
+
+        # Clear Streamlit cache
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        caches_cleared.append("Streamlit cache")
+
+        if caches_cleared:
+            st.success(f"Cleared: {', '.join(caches_cleared)}")
+            st.info("Please run the screener again to refresh data")
 
 
 # ========== HELPER FUNCTIONS ==========
