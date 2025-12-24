@@ -576,15 +576,34 @@ def recalculate_scores(df, weight_quality, weight_value, threshold_buy, threshol
         value = row.get('value_score_0_100', 0)
         status = row.get('guardrail_status', 'AMBAR')
 
-        # ROJO = Auto AVOID (accounting red flags)
-        if exclude_reds and status == 'ROJO':
-            return 'AVOID', 'RED guardrails (accounting concerns)'
-
-        # Exceptional composite score = BUY even with AMBAR
-        # BUT: Block if revenue declining OR quality deteriorating (Piotroski for VALUE, Mohanram for GROWTH)
+        # Get revenue & quality metrics for decision logic
         revenue_growth = row.get('revenue_growth_3y')
         degradation_delta = row.get('quality_degradation_delta')
         degradation_type = row.get('quality_degradation_type')
+
+        # ROJO = Auto AVOID UNLESS exceptional fundamentals override
+        # Allow ROJO to pass if:
+        # 1. Quality score exceptional (≥80) - proves underlying business quality
+        # 2. Composite score high (≥75) - proves valuation + quality
+        # 3. Revenue growing (not declining) - proves business momentum
+        # This catches cases like LLY where CCC deterioration is temporary/strategic
+        if exclude_reds and status == 'ROJO':
+            # Check for override conditions
+            can_override = (
+                quality >= 80 and  # Exceptional quality (top quartile)
+                composite >= 75 and  # High composite score
+                (revenue_growth is None or revenue_growth >= 0)  # Revenue not declining
+            )
+
+            if can_override:
+                # Allow to proceed with standard decision logic
+                # But flag it in the reason for transparency
+                pass  # Continue to normal decision logic below
+            else:
+                return 'AVOID', 'RED guardrails (accounting concerns)'
+
+        # Exceptional composite score = BUY even with AMBAR/ROJO (if passed override)
+        # BUT: Block if revenue declining OR quality deteriorating (Piotroski for VALUE, Mohanram for GROWTH)
 
         if composite >= 85:  # Raised from 80 to 85 (more selective)
             # Check 1: Revenue decline (universal check)
@@ -596,10 +615,12 @@ def recalculate_scores(df, weight_quality, weight_value, threshold_buy, threshol
                 score_name = 'F-Score' if degradation_type == 'VALUE' else 'G-Score'
                 return 'MONITOR', f'High score ({composite:.0f}) but {degradation_type} quality degrading ({score_name} Δ{degradation_delta})'
 
-            return 'BUY', f'Exceptional score ({composite:.0f} ≥ 85)'
+            # Add RED override flag if applicable
+            suffix = ' (RED override - quality Q:{:.0f} justifies)'.format(quality) if status == 'ROJO' else ''
+            return 'BUY', f'Exceptional score ({composite:.0f} ≥ 85){suffix}'
 
         # Exceptional Quality companies = BUY even with moderate composite
-        # Relaxed for AMBAR: if very high quality, accept lower composite
+        # Relaxed for AMBAR/ROJO: if very high quality, accept lower composite
         # BUT: Block if revenue declining OR quality deteriorating (Piotroski/Mohanram)
         if quality >= threshold_quality_exceptional:
             # Check 1: Revenue decline
@@ -611,9 +632,12 @@ def recalculate_scores(df, weight_quality, weight_value, threshold_buy, threshol
                 score_name = 'F-Score' if degradation_type == 'VALUE' else 'G-Score'
                 return 'MONITOR', f'High quality (Q:{quality:.0f}) but {degradation_type} quality degrading ({score_name} Δ{degradation_delta})'
 
+            # Add RED override flag if applicable
+            suffix = ' (RED override)' if status == 'ROJO' else ''
+
             if composite >= 60:
-                return 'BUY', f'Exceptional quality (Q:{quality:.0f} ≥ {threshold_quality_exceptional}, C:{composite:.0f} ≥ 60)'
-            elif composite >= 55 and status != 'ROJO':
+                return 'BUY', f'Exceptional quality (Q:{quality:.0f} ≥ {threshold_quality_exceptional}, C:{composite:.0f} ≥ 60){suffix}'
+            elif composite >= 55 and status != 'ROJO':  # Keep ROJO block for very low composite
                 return 'BUY', f'High quality override (Q:{quality:.0f} ≥ {threshold_quality_exceptional}, C:{composite:.0f} ≥ 55)'
 
         # High Quality with AMBAR can still be BUY if composite is decent
