@@ -2653,7 +2653,7 @@ with tab1:
         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
             <h3 style='margin: 0; color: white; font-weight: 600;'>
-                📊 Screening Results Overview
+                Screening Results Overview
             </h3>
             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                 Summary metrics from latest screening run
@@ -2925,7 +2925,7 @@ with tab2:
     <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
         <h3 style='margin: 0; color: white; font-weight: 600;'>
-            📊 Screening Results
+            Screening Results
         </h3>
         <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
             Detailed analysis and filtering of all screened stocks
@@ -7754,7 +7754,7 @@ with tab7:
                     # Only show if error_reason column exists (new version)
                     if 'error_reason' in df_tech.columns:
                         st.markdown("---")
-                        st.subheader("📊 Data Quality Diagnostics")
+                        st.subheader("Data Quality Diagnostics")
                         st.caption("Breakdown of stocks with incomplete technical data")
 
                         # Count stocks with errors
@@ -7798,7 +7798,7 @@ with tab7:
                             }).rename(columns={'error_reason': 'count'})
                             error_groups = error_groups.sort_values('count', ascending=False)
 
-                            st.markdown("### 🔍 Error Breakdown")
+                            st.markdown("### Error Breakdown")
 
                             for error_reason, row in error_groups.iterrows():
                                 count = row['count']
