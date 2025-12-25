@@ -3297,7 +3297,7 @@ class EnhancedTechnicalAnalyzer:
                 ],
                 'keep_pct': 25,
                 'keep_stop': 'VERY TIGHT: EMA 10 or -5% from highs (Moonbag)',
-                'rationale': f'Speculative stock (score: {fundamental_score:.0f if fundamental_score else "N/A"}, {guardrails_status}). These "go up the elevator, down the window". Take profits aggressively.',
+                'rationale': f'Speculative stock (score: {f"{fundamental_score:.0f}" if fundamental_score is not None else "N/A"}, {guardrails_status}). These "go up the elevator, down the window". Take profits aggressively.',
                 'warning': 'If RSI > 80 or parabolic move, sell 75-100% IMMEDIATELY' if aggressive_exit else None,
                 'override': False
             }
