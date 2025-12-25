@@ -1,5 +1,5 @@
 """
-UltraQuality Screener - Streamlit Web Interface
+UltraQuality - Streamlit Web Interface
 
 This is the MAIN FILE for the Streamlit web app.
 - Streamlit Cloud is configured to run this file
@@ -1528,7 +1528,7 @@ def display_take_profit(profit_taking):
 
 
 st.set_page_config(
-    page_title="UltraQuality Screener",
+    page_title="UltraQuality",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -1712,10 +1712,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Title
-st.title("UltraQuality: Quality + Value Screener")
-st.markdown("**Professional stock screening using fundamental quality and value metrics**")
-st.markdown("---")
+# Title - Professional header with gradient
+st.markdown("""
+<div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2.5rem 2rem; border-radius: 12px; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+    <h1 style='margin: 0; color: white; font-size: 2.5rem; font-weight: 700; letter-spacing: 1px;'>
+        UltraQuality
+    </h1>
+    <p style='margin: 0.75rem 0 0 0; color: white; opacity: 0.95; font-size: 1.1rem;'>
+        Professional stock screening using fundamental quality and value metrics
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
 # ========== SIDEBAR CONFIGURATION ==========
 # Professional sidebar styling
@@ -2611,8 +2619,8 @@ with tab1:
     # Welcome section with modern card design
     st.markdown("""
     <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem;'>
-        <h2 style='margin: 0; color: white;'>UltraQuality Stock Screener</h2>
+                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+        <h2 style='margin: 0; color: white; font-weight: 700;'>Home</h2>
         <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
             AI-powered fundamental analysis combining Quality (70%) + Value (30%) metrics with
             advanced guardrails and technical validation
@@ -3350,7 +3358,15 @@ with tab2:
         st.info("👈 Run the screener first to see results here")
 
 with tab3:
-    st.header("Analytics & Sector Breakdown")
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+        <h2 style='margin: 0; color: white; font-weight: 700;'>Analytics & Sector Breakdown</h2>
+        <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
+            Distribution analysis, sector performance, and portfolio insights
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     if 'results' in st.session_state:
         # Get recalculated results with current slider values
@@ -3545,7 +3561,15 @@ with tab3:
         st.info("👈 Run the screener first to see analytics")
 
 with tab4:
-    st.header("Guardrail Calibration Analysis")
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+        <h2 style='margin: 0; color: white; font-weight: 700;'>Guardrail Calibration Analysis</h2>
+        <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
+            Accounting quality detection and guardrail effectiveness metrics
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     if 'results' in st.session_state:
         df = get_results_with_current_params()
@@ -3651,7 +3675,15 @@ with tab4:
         st.info("👈 Run the screener first to analyze guardrails")
 
 with tab5:
-    st.header("Qualitative Analysis")
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+        <h2 style='margin: 0; color: white; font-weight: 700;'>Qualitative Analysis</h2>
+        <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
+            Deep-dive narratives, transcripts, and management insights
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     if 'results' in st.session_state:
         # Get recalculated results with current slider values
@@ -5458,7 +5490,16 @@ with tab5:
             st.info("👈 Run the screener first to access qualitative analysis")
 
 with tab6:
-    st.header("Complete Analysis - Qualitative + Technical")
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+        <h2 style='margin: 0; color: white; font-weight: 700;'>Complete Analysis</h2>
+        <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
+            Standalone qualitative + technical analysis - No screener required
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("""
     **Análisis integral standalone** - No requiere correr el screener
 
@@ -7199,7 +7240,15 @@ with tab6:
             st.info(f" Enter a ticker above and click 'Analyze' to see detailed quality and valuation analysis")
 
 with tab8:
-    st.header("About UltraQuality Screener")
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+        <h2 style='margin: 0; color: white; font-weight: 700;'>About UltraQuality</h2>
+        <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
+            Methodology, academic research, and screening framework details
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("""
     ###  What It Does
@@ -7469,15 +7518,15 @@ with tab8:
 
     ---
 
-    **UltraQuality Screener** - Combining the best of fundamental and technical analysis, backed by academic research.
+    **UltraQuality** - Combining the best of fundamental and technical analysis, backed by academic research.
     """)
 
 with tab7:
     # Modern header with gradient
     st.markdown("""
-    <div style='background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem;'>
-        <h2 style='margin: 0; color: white;'>Technical Analysis & Investment Strategy</h2>
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+        <h2 style='margin: 0; color: white; font-weight: 700;'>Technical Analysis & Investment Strategy</h2>
         <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
             Evidence-based technical analysis with position sizing and risk management
         </p>
