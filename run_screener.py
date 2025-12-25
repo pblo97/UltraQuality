@@ -8063,47 +8063,61 @@ with tab7:
                         key='sector_filter'
                     )
 
-                # LEVEL 3: TECHNICAL COMPONENTS (Building Blocks)
+                # LEVEL 3: TECHNICAL COMPONENTS (Building Blocks) - ADVANCED DIAGNOSTIC FILTERS
+                # These are the RAW INPUTS that make up the Technical Score
+                # Filtering by both Score AND Components is REDUNDANT
                 st.markdown("""
-                <div style='background: #f8fafc; padding: 0.5rem 1rem; border-radius: 8px;
-                            margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #764ba2;'>
-                    <div style='color: #475569; font-weight: 600; font-size: 0.85rem;'>
-                        🔧 TECHNICAL COMPONENTS (Signal Building Blocks)
+                <div style='background: #fff3cd; padding: 0.75rem 1rem; border-radius: 8px;
+                            margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #ffc107;'>
+                    <div style='color: #856404; font-weight: 600; font-size: 0.85rem;'>
+                        ⚙️ ADVANCED: Diagnostic Component Filters
+                    </div>
+                    <div style='color: #856404; font-size: 0.75rem; margin-top: 0.25rem;'>
+                        💡 <strong>TIP:</strong> These components are ALREADY included in Technical Score and Signal.
+                        Use these filters only for advanced diagnostic analysis to understand WHY a stock has a certain score.
+                        Filtering by both Score ≥75 AND Trend=UPTREND is redundant (Trend already contributes 10-15 pts to Score).
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-                col7, col8, col9 = st.columns(3)
+                with st.expander("🔍 Show Component Filters (Advanced - Usually Not Needed)", expanded=False):
+                    st.caption("⚠️ WARNING: Filtering by components AND score filters the same data twice. "
+                              "These filters are for diagnosing WHY a score is high/low, not for primary filtering.")
 
-                with col7:
-                    all_trends = sorted(df_tech['trend'].unique().tolist())
-                    trend_filter = st.multiselect(
-                        "Trend",
-                        options=all_trends,
-                        default=all_trends,
-                        help="Price trend status - REQUIRED for BUY signal (contributes +15 pts if UPTREND)",
-                        key='trend_filter'
-                    )
+                    col7, col8, col9 = st.columns(3)
 
-                with col8:
-                    all_volumes = sorted(df_tech['volume_profile'].unique().tolist())
-                    volume_filter = st.multiselect(
-                        "Volume Profile",
-                        options=all_volumes,
-                        default=all_volumes,
-                        help="Volume accumulation/distribution pattern - contributes to volume_score component",
-                        key='volume_filter'
-                    )
+                    with col7:
+                        all_trends = sorted(df_tech['trend'].unique().tolist())
+                        trend_filter = st.multiselect(
+                            "Trend (Contributes ~15pts)",
+                            options=all_trends,
+                            default=all_trends,
+                            help="⚠️ REDUNDANT with Technical Score. Trend status already contributes +15 pts if UPTREND. "
+                                "Use this ONLY to diagnose why stocks have certain scores, not for primary filtering.",
+                            key='trend_filter'
+                        )
 
-                with col9:
-                    all_consistency = sorted(df_tech['momentum_consistency'].unique().tolist())
-                    consistency_filter = st.multiselect(
-                        "Momentum Consistency",
-                        options=all_consistency,
-                        default=all_consistency,
-                        help="Multi-timeframe momentum consistency - affects momentum score quality",
-                        key='consistency_filter'
-                    )
+                    with col8:
+                        all_volumes = sorted(df_tech['volume_profile'].unique().tolist())
+                        volume_filter = st.multiselect(
+                            "Volume (Contributes ~5pts)",
+                            options=all_volumes,
+                            default=all_volumes,
+                            help="⚠️ REDUNDANT with Technical Score. Volume pattern already contributes ~5 pts to score. "
+                                "Use this ONLY to diagnose why stocks have certain scores.",
+                            key='volume_filter'
+                        )
+
+                    with col9:
+                        all_consistency = sorted(df_tech['momentum_consistency'].unique().tolist())
+                        consistency_filter = st.multiselect(
+                            "Momentum (Contributes ~35pts)",
+                            options=all_consistency,
+                            default=all_consistency,
+                            help="⚠️ REDUNDANT with Technical Score. Momentum consistency already contributes ~35-40 pts to score. "
+                                "Use this ONLY to diagnose why stocks have certain scores.",
+                            key='consistency_filter'
+                        )
 
                 # LEVEL 4: DATA QUALITY FILTER
                 st.markdown("""
