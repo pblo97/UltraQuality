@@ -3290,7 +3290,7 @@ class EnhancedTechnicalAnalyzer:
             # Exception: Reduce position slightly if market becomes euphoric
             if overextension_risk >= 3 and distance_ma200 > 30:
                 return {
-                    'strategy': '🏛️ THE COMPOUNDER (Light Trim Only)',
+                    'strategy': 'THE COMPOUNDER (Light Trim Only)',
                     'tier': tier,
                     'tier_name': 'TIER 1 - Elite Compounder',
                     'philosophy': '"Let winners run" - The biggest mistake is selling great companies too early',
@@ -3313,7 +3313,7 @@ class EnhancedTechnicalAnalyzer:
             else:
                 # Normal case: hold with trailing stop
                 return {
-                    'strategy': '🏛️ THE COMPOUNDER (Hold with Trailing Stop)',
+                    'strategy': 'THE COMPOUNDER (Hold with Trailing Stop)',
                     'tier': tier,
                     'tier_name': 'TIER 1 - Elite Compounder',
                     'philosophy': '"Let winners run" - Never sell a great company in a bull market',
@@ -3371,7 +3371,7 @@ class EnhancedTechnicalAnalyzer:
             aggressive_exit = overextension_risk >= 3 or distance_ma200 > 25
 
             return {
-                'strategy': '🚀 THE SNIPER (Aggressive Scaling)',
+                'strategy': 'THE SNIPER (Aggressive Scaling)',
                 'tier': tier,
                 'tier_name': 'TIER 3 - Speculative',
                 'philosophy': '"The last dollar, let someone else make it" - Greed kills in speculative trades',

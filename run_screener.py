@@ -7827,7 +7827,7 @@ with tab7:
                     <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                 padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
                         <h3 style='margin: 0; color: white; font-weight: 600;'>
-                            🎯 Estado del Mercado por Acción
+                            Estado del Mercado por Acción
                         </h3>
                         <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
                             SmartDynamicStopLoss - Clasificación automática del estado técnico actual
@@ -7840,15 +7840,15 @@ with tab7:
 
                     # Define state order and styling
                     state_config = {
-                        'DOWNTREND': {'icon': '📉', 'color': 'error', 'label': '🔴 Tendencia Bajista - Evitar Entrada', 'priority': 1},
-                        'PARABOLIC_CLIMAX': {'icon': '🚀', 'color': 'warning', 'label': '🟡 Sobreextendido - Alto Riesgo de Corrección', 'priority': 2},
-                        'CHOPPY_SIDEWAYS': {'icon': '↔️', 'color': 'info', 'label': '🔵 Lateral - Esperar Definición', 'priority': 3},
-                        'PULLBACK_FLAG': {'icon': '🏴', 'color': 'success', 'label': '🟢 Retroceso Saludable - Zona de Compra', 'priority': 4},
-                        'ENTRY_BREAKOUT': {'icon': '🚪', 'color': 'success', 'label': '🟢 Breakout Confirmado - Entrada Activa', 'priority': 5},
-                        'POWER_TREND': {'icon': '⚡', 'color': 'success', 'label': '🟢 Tendencia Potente - Mantener Posición', 'priority': 6},
-                        'BLUE_SKY_ATH': {'icon': '⭐', 'color': 'success', 'label': '🟢 Máximos Históricos - Sin Resistencia', 'priority': 7},
-                        'UNKNOWN': {'icon': '❓', 'color': 'info', 'label': '⚪ Datos Incompletos', 'priority': 99},
-                        'ERROR': {'icon': '❌', 'color': 'error', 'label': '🔴 Error en Análisis', 'priority': 100}
+                        'DOWNTREND': {'icon': '', 'color': 'error', 'label': 'Tendencia Bajista - Evitar Entrada', 'priority': 1},
+                        'PARABOLIC_CLIMAX': {'icon': '', 'color': 'warning', 'label': 'Sobreextendido - Alto Riesgo de Corrección', 'priority': 2},
+                        'CHOPPY_SIDEWAYS': {'icon': '', 'color': 'info', 'label': 'Lateral - Esperar Definición', 'priority': 3},
+                        'PULLBACK_FLAG': {'icon': '', 'color': 'success', 'label': 'Retroceso Saludable - Zona de Compra', 'priority': 4},
+                        'ENTRY_BREAKOUT': {'icon': '', 'color': 'success', 'label': 'Breakout Confirmado - Entrada Activa', 'priority': 5},
+                        'POWER_TREND': {'icon': '', 'color': 'success', 'label': 'Tendencia Potente - Mantener Posición', 'priority': 6},
+                        'BLUE_SKY_ATH': {'icon': '', 'color': 'success', 'label': 'Máximos Históricos - Sin Resistencia', 'priority': 7},
+                        'UNKNOWN': {'icon': '', 'color': 'info', 'label': 'Datos Incompletos', 'priority': 99},
+                        'ERROR': {'icon': '', 'color': 'error', 'label': 'Error en Análisis', 'priority': 100}
                     }
 
                     # Sort states by priority

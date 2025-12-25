@@ -322,14 +322,32 @@ class CachedFMPClient:
     def get_earnings_calendar(self, from_date=None, to_date=None):
         """Get earnings calendar (cached 12 hours)."""
         # For earnings calendar, use 'calendar' as symbol for cache key
+        # NOTE: earnings_calendar API doesn't take a symbol parameter,
+        # only from_date and to_date. We use 'calendar' for cache key only.
         symbol = 'calendar'
-        return self._fetch_with_cache(
-            'earnings_calendar',
-            self.fmp.get_earnings_calendar,
-            symbol,
-            from_date=from_date,
-            to_date=to_date
-        )
+
+        # Generate cache key
+        cache_key = self._get_cache_key('earnings_calendar', symbol, from_date=from_date, to_date=to_date)
+
+        # Check cache
+        if self._is_cache_valid('earnings_calendar', cache_key):
+            data = self._get_from_cache('earnings_calendar', cache_key)
+            if data is not None:
+                return data
+
+        # Cache miss - fetch from API
+        self.stats['misses'] += 1
+        logger.debug(f"Cache MISS for earnings_calendar (fetching from API...)")
+
+        try:
+            # Call API directly without symbol parameter
+            data = self.fmp.get_earnings_calendar(from_date=from_date, to_date=to_date)
+            self._save_to_cache('earnings_calendar', cache_key, data)
+            return data
+        except Exception as e:
+            self.stats['errors'] += 1
+            logger.error(f"Error fetching earnings_calendar: {e}")
+            raise
 
     # ===================================
     # Cache Management

@@ -640,7 +640,111 @@ def render_institutional_holders(symbol: str, fmp_client):
                     str(latest_date)[:10] if latest_date != "N/A" else "N/A",
                     help="Most recent filing date"
                 )
-        
+
+        # === BALANCE DE COMPRA/VENTA INSTITUCIONAL ===
+        st.markdown("---")
+        st.markdown("### Balance de Actividad Institucional")
+        st.caption("Resumen de cambios en posiciones institucionales (basado en últimos reportes)")
+
+        # Determine which column has the change data
+        change_col = None
+        if 'change' in df_holders.columns:
+            change_col = 'change'
+        elif 'sharesChange' in df_holders.columns:
+            change_col = 'sharesChange'
+
+        if change_col:
+            # Calculate buying/selling metrics
+            df_all = pd.DataFrame(holders_data)  # Use all holders, not just top 15
+
+            if change_col in df_all.columns:
+                # Clean data
+                df_all[change_col] = pd.to_numeric(df_all[change_col], errors='coerce').fillna(0)
+
+                # Separate buyers and sellers
+                buying = df_all[df_all[change_col] > 0]
+                selling = df_all[df_all[change_col] < 0]
+
+                total_bought = buying[change_col].sum()
+                total_sold = abs(selling[change_col].sum())
+                net_flow = total_bought - total_sold
+                num_buyers = len(buying)
+                num_sellers = len(selling)
+
+                # Display metrics
+                col1, col2, col3, col4 = st.columns(4)
+
+                with col1:
+                    st.metric(
+                        "Compradores",
+                        f"{num_buyers}",
+                        delta=f"+{total_bought:,.0f} acciones" if total_bought > 0 else "0",
+                        delta_color="normal",
+                        help="Instituciones que aumentaron posiciones"
+                    )
+
+                with col2:
+                    st.metric(
+                        "Vendedores",
+                        f"{num_sellers}",
+                        delta=f"-{total_sold:,.0f} acciones" if total_sold > 0 else "0",
+                        delta_color="inverse",
+                        help="Instituciones que redujeron posiciones"
+                    )
+
+                with col3:
+                    net_color = "normal" if net_flow > 0 else "inverse" if net_flow < 0 else "off"
+                    st.metric(
+                        "Balance Neto",
+                        f"{net_flow:+,.0f}",
+                        delta="Acumulación" if net_flow > 0 else "Distribución" if net_flow < 0 else "Neutral",
+                        delta_color=net_color,
+                        help="Diferencia entre compras y ventas"
+                    )
+
+                with col4:
+                    if num_buyers + num_sellers > 0:
+                        buy_ratio = (num_buyers / (num_buyers + num_sellers)) * 100
+                        st.metric(
+                            "Ratio Compra/Venta",
+                            f"{buy_ratio:.1f}% / {100-buy_ratio:.1f}%",
+                            delta="Positivo" if buy_ratio > 50 else "Negativo" if buy_ratio < 50 else "Neutral",
+                            delta_color="normal" if buy_ratio > 50 else "inverse" if buy_ratio < 50 else "off",
+                            help="Proporción de instituciones comprando vs vendiendo"
+                        )
+
+                # Summary message
+                if net_flow > 0:
+                    sentiment = "POSITIVO"
+                    emoji = ""
+                    color = "#10b981"
+                elif net_flow < 0:
+                    sentiment = "NEGATIVO"
+                    emoji = ""
+                    color = "#ef4444"
+                else:
+                    sentiment = "NEUTRAL"
+                    emoji = ""
+                    color = "#6b7280"
+
+                st.markdown(f"""
+                <div style='background: {color}15; padding: 1rem; border-radius: 8px;
+                            border-left: 4px solid {color}; margin-top: 1rem;'>
+                    <strong style='color: {color};'>{emoji} Sentimiento Institucional: {sentiment}</strong><br>
+                    <span style='font-size: 0.9rem; color: #374151;'>
+                        {num_buyers} instituciones comprando ({total_bought:,.0f} acciones) vs
+                        {num_sellers} instituciones vendiendo ({total_sold:,.0f} acciones).
+                        Balance neto: <strong>{net_flow:+,.0f} acciones</strong>
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("Datos de cambios en posiciones no disponibles para calcular balance")
+        else:
+            st.info("Datos de cambios en posiciones no disponibles en el reporte")
+
+        st.markdown("---")
+
         # Top holders table
         st.markdown("### Top 15 Institutional Holders")
         
