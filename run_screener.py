@@ -7731,73 +7731,75 @@ with tab7:
                     st.success(" Technical analysis complete!")
 
                     # === DATA QUALITY DIAGNOSTICS ===
-                    st.markdown("---")
-                    st.subheader("📊 Data Quality Diagnostics")
-                    st.caption("Breakdown of stocks with incomplete technical data")
+                    # Only show if error_reason column exists (new version)
+                    if 'error_reason' in df_tech.columns:
+                        st.markdown("---")
+                        st.subheader("📊 Data Quality Diagnostics")
+                        st.caption("Breakdown of stocks with incomplete technical data")
 
-                    # Count stocks with errors
-                    stocks_with_errors = df_tech[df_tech['error_reason'].notna()]
-                    total_stocks = len(df_tech)
-                    error_count = len(stocks_with_errors)
-                    error_pct = (error_count / total_stocks * 100) if total_stocks > 0 else 0
+                        # Count stocks with errors
+                        stocks_with_errors = df_tech[df_tech['error_reason'].notna()]
+                        total_stocks = len(df_tech)
+                        error_count = len(stocks_with_errors)
+                        error_pct = (error_count / total_stocks * 100) if total_stocks > 0 else 0
 
-                    # Summary metrics
-                    col_diag1, col_diag2, col_diag3 = st.columns(3)
-                    with col_diag1:
-                        st.markdown(f"""
-                        <div style='background: {"#fee2e2" if error_pct > 30 else "#dbeafe"}; padding: 1rem; border-radius: 8px; text-align: center;'>
-                            <div style='font-size: 2rem; font-weight: 700; color: {"#991b1b" if error_pct > 30 else "#1e40af"};'>{error_count}</div>
-                            <div style='font-size: 0.9rem; color: {"#7f1d1d" if error_pct > 30 else "#3b82f6"};'>stocks with errors</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        # Summary metrics
+                        col_diag1, col_diag2, col_diag3 = st.columns(3)
+                        with col_diag1:
+                            st.markdown(f"""
+                            <div style='background: {"#fee2e2" if error_pct > 30 else "#dbeafe"}; padding: 1rem; border-radius: 8px; text-align: center;'>
+                                <div style='font-size: 2rem; font-weight: 700; color: {"#991b1b" if error_pct > 30 else "#1e40af"};'>{error_count}</div>
+                                <div style='font-size: 0.9rem; color: {"#7f1d1d" if error_pct > 30 else "#3b82f6"};'>stocks with errors</div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
-                    with col_diag2:
-                        st.markdown(f"""
-                        <div style='background: {"#fef3c7" if error_pct > 30 else "#d1fae5"}; padding: 1rem; border-radius: 8px; text-align: center;'>
-                            <div style='font-size: 2rem; font-weight: 700; color: {"#92400e" if error_pct > 30 else "#065f46"};'>{error_pct:.1f}%</div>
-                            <div style='font-size: 0.9rem; color: {"#78350f" if error_pct > 30 else "#059669"};'>of universe</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        with col_diag2:
+                            st.markdown(f"""
+                            <div style='background: {"#fef3c7" if error_pct > 30 else "#d1fae5"}; padding: 1rem; border-radius: 8px; text-align: center;'>
+                                <div style='font-size: 2rem; font-weight: 700; color: {"#92400e" if error_pct > 30 else "#065f46"};'>{error_pct:.1f}%</div>
+                                <div style='font-size: 0.9rem; color: {"#78350f" if error_pct > 30 else "#059669"};'>of universe</div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
-                    with col_diag3:
-                        clean_count = total_stocks - error_count
-                        st.markdown(f"""
-                        <div style='background: #d1fae5; padding: 1rem; border-radius: 8px; text-align: center;'>
-                            <div style='font-size: 2rem; font-weight: 700; color: #065f46;'>{clean_count}</div>
-                            <div style='font-size: 0.9rem; color: #059669;'>stocks with complete data</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        with col_diag3:
+                            clean_count = total_stocks - error_count
+                            st.markdown(f"""
+                            <div style='background: #d1fae5; padding: 1rem; border-radius: 8px; text-align: center;'>
+                                <div style='font-size: 2rem; font-weight: 700; color: #065f46;'>{clean_count}</div>
+                                <div style='font-size: 0.9rem; color: #059669;'>stocks with complete data</div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
-                    if error_count > 0:
-                        # Group errors by reason
-                        error_groups = stocks_with_errors.groupby('error_reason').agg({
-                            'ticker': lambda x: list(x),
-                            'error_reason': 'count'
-                        }).rename(columns={'error_reason': 'count'})
-                        error_groups = error_groups.sort_values('count', ascending=False)
+                        if error_count > 0:
+                            # Group errors by reason
+                            error_groups = stocks_with_errors.groupby('error_reason').agg({
+                                'ticker': lambda x: list(x),
+                                'error_reason': 'count'
+                            }).rename(columns={'error_reason': 'count'})
+                            error_groups = error_groups.sort_values('count', ascending=False)
 
-                        st.markdown("### 🔍 Error Breakdown")
+                            st.markdown("### 🔍 Error Breakdown")
 
-                        for error_reason, row in error_groups.iterrows():
-                            count = row['count']
-                            pct = (count / error_count * 100)
-                            tickers = row['ticker'][:10]  # Show first 10 examples
-                            more_count = count - len(tickers)
+                            for error_reason, row in error_groups.iterrows():
+                                count = row['count']
+                                pct = (count / error_count * 100)
+                                tickers = row['ticker'][:10]  # Show first 10 examples
+                                more_count = count - len(tickers)
 
-                            with st.expander(f"**{error_reason}** ({count} stocks, {pct:.1f}% of errors)", expanded=False):
-                                st.markdown(f"**Examples:** {', '.join(tickers)}" + (f" ...and {more_count} more" if more_count > 0 else ""))
+                                with st.expander(f"**{error_reason}** ({count} stocks, {pct:.1f}% of errors)", expanded=False):
+                                    st.markdown(f"**Examples:** {', '.join(tickers)}" + (f" ...and {more_count} more" if more_count > 0 else ""))
 
-                                # Add specific recommendations based on error type
-                                if "No quote data" in error_reason:
-                                    st.info("💡 **Likely cause:** Delisted stocks, incorrect symbols, or stocks not available in FMP")
-                                elif "No historical data" in error_reason:
-                                    st.info("💡 **Likely cause:** New IPOs, low-liquidity stocks, or foreign symbols without data")
-                                elif "historical" in error_reason.lower() and "key" in error_reason.lower():
-                                    st.warning("⚠️ **Likely cause:** API response format changed or FMP data structure issue")
-                                else:
-                                    st.info("💡 **Recommendation:** Check symbol format and FMP availability")
-                    else:
-                        st.success("✅ All stocks have complete technical data!")
+                                    # Add specific recommendations based on error type
+                                    if "No quote data" in error_reason:
+                                        st.info("💡 **Likely cause:** Delisted stocks, incorrect symbols, or stocks not available in FMP")
+                                    elif "No historical data" in error_reason:
+                                        st.info("💡 **Likely cause:** New IPOs, low-liquidity stocks, or foreign symbols without data")
+                                    elif "historical" in error_reason.lower() and "key" in error_reason.lower():
+                                        st.warning("⚠️ **Likely cause:** API response format changed or FMP data structure issue")
+                                    else:
+                                        st.info("💡 **Recommendation:** Check symbol format and FMP availability")
+                        else:
+                            st.success("✅ All stocks have complete technical data!")
 
                     # === SMARTDYNAMICSTOPLOSS STATE SUMMARY ===
                     st.markdown("---")
@@ -7883,6 +7885,17 @@ with tab7:
             # Display results
             if 'technical_results' in st.session_state:
                 df_tech = st.session_state['technical_results']
+
+                # Check if results are from old version (before error_reason column was added)
+                if 'error_reason' not in df_tech.columns:
+                    st.warning("""
+                    ⚠️ **Outdated Results Detected**
+
+                    Your technical results were generated with an older version of the code.
+
+                    **Please click "Run Technical Analysis" again** to see the new **Data Quality Diagnostics** report.
+                    """)
+                    st.info("💡 **New in this version:** Detailed breakdown showing WHY each stock has UNKNOWN data (delisted, no history, API errors, etc.)")
 
                 # Summary metrics
                 col1, col2, col3, col4 = st.columns(4)
