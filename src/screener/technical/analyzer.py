@@ -1212,16 +1212,31 @@ class EnhancedTechnicalAnalyzer:
                     'message': f'Severe overextension: {distance_ma200:+.1f}% from MA200 (>50%). Expect 15-30% correction soon.'
                 })
         elif abs_distance > 40:
-            if not is_momentum_leader:
-                # Only warn for non-leaders
+            if is_momentum_leader:
+                # FIX: Momentum leaders still need visibility at 40%+
+                # Show informative warning but lower risk score
+                risk_score += 1
+                warnings.append({
+                    'type': 'LOW',
+                    'message': f'Extended momentum: {distance_ma200:+.1f}% from MA200. Strong trend confirmed - Monitor with trailing stop (EMA 20).'
+                })
+            else:
+                # Regular stocks: higher risk
                 risk_score += 2
                 warnings.append({
                     'type': 'MEDIUM',
                     'message': f'Significant overextension: {distance_ma200:+.1f}% from MA200 (>40%). Possible 10-20% pullback.'
                 })
         elif abs_distance > 30:
-            if not is_momentum_leader:
-                # Only warn for non-leaders
+            if is_momentum_leader:
+                # FIX: Show informative message even for leaders
+                risk_score += 1
+                warnings.append({
+                    'type': 'LOW',
+                    'message': f'Good momentum: {distance_ma200:+.1f}% from MA200. Quality Leader - Continue holding with trailing stop.'
+                })
+            else:
+                # Regular stocks: caution needed
                 risk_score += 1
                 warnings.append({
                     'type': 'LOW',
