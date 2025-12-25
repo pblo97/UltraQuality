@@ -210,19 +210,44 @@ class EnhancedTechnicalAnalyzer:
                 technical_score=total_score  # NEW: Quality Momentum Leaders exception
             )
 
-            # 13. Generate warnings (including overextension)
+            # 13. Calculate EMA20 for market state detection (FIX #7)
+            # We need this BEFORE signal generation to detect DOWNTREND state
+            ema_20 = self._calculate_ema_20(prices)
+
+            # 14. Detect market state EARLY (for signal veto logic - FIX #7)
+            # Quick detection without full stop loss calculation
+            # This prevents BUY signals on stocks with broken structure
+            week_52_high = q.get('yearHigh', 0)
+            beta = q.get('beta', None)
+            market_state_early, _, _ = self._detect_market_state(
+                prices=prices,
+                current_price=price,
+                entry_price=None,  # No entry yet (just analyzing)
+                days_in_position=0,
+                ma_50=ma_50,
+                ema_20=ema_20,
+                rsi=None,
+                week_52_high=week_52_high,
+                tier=2  # Default to tier 2 for detection
+            )
+
+            # 15. Generate warnings (including overextension)
             warnings = self._generate_warnings(
                 momentum_data, volume_data, sector_data, market_data, regime_data
             )
             warnings.extend(overext_warnings)  # Add overextension warnings
 
-            # 14. Generate signal (FIX #6: Pass overextension_risk for veto logic)
-            signal = self._generate_signal(total_score, trend_data, market_regime, overextension_risk)
+            # 16. Generate signal (FIX #6 + FIX #7: Pass overextension_risk AND market_state for veto logic)
+            signal = self._generate_signal(
+                total_score,
+                trend_data,
+                market_regime,
+                overextension_risk,
+                market_state=market_state_early  # FIX #7: Pass market state for DOWNTREND veto
+            )
 
-            # 15. Generate risk management recommendations (NEW)
-            # Get additional data for SmartDynamicStopLoss
-            week_52_high = q.get('yearHigh', 0)
-            beta = q.get('beta', None)
+            # 17. Generate risk management recommendations (NEW)
+            # Get additional data for SmartDynamicStopLoss (week_52_high, beta already defined above)
 
             # Calculate REAL ATR (14-day) as % of price
             # THIS IS DAILY VOLATILITY, NOT ANNUALIZED!
@@ -262,6 +287,62 @@ class EnhancedTechnicalAnalyzer:
                 guardrails_status=guardrails_status,
                 fundamental_decision=fundamental_decision
             )
+
+            # 18. Detect contradictions and add warnings (FIX #3)
+            # Check for inconsistencies between signal and components
+            market_state_final = risk_mgmt_recs.get('stop_loss', {}).get('market_state', 'UNKNOWN')
+            volume_profile = volume_data.get('profile', 'UNKNOWN')
+            momentum_consistency = momentum_data.get('consistency', 'N/A')
+
+            # CRITICAL contradictions
+            if signal == 'BUY' and market_state_final == 'DOWNTREND':
+                warnings.append({
+                    'type': 'CRITICAL',
+                    'message': '🚨 CONTRADICCIÓN CRÍTICA: BUY signal pero Stop Loss State = DOWNTREND. '
+                              'Estructura rota detectada (Price < EMA20 < MA50). NO comprar.',
+                    'action': 'DO NOT ENTER - Wait for structure to repair'
+                })
+
+            if signal == 'SELL' and market_state_final == 'POWER_TREND':
+                warnings.append({
+                    'type': 'CRITICAL',
+                    'message': '🚨 CONTRADICCIÓN CRÍTICA: SELL signal pero Stop Loss State = POWER_TREND. '
+                              'Tendencia fuerte activa. Revisar manualmente.',
+                    'action': 'MANUAL REVIEW REQUIRED - Strong trend contradicts sell signal'
+                })
+
+            # WARNING level contradictions
+            if signal == 'BUY' and volume_profile == 'DISTRIBUTION':
+                warnings.append({
+                    'type': 'WARNING',
+                    'message': '⚠️ ALERTA: BUY signal pero Volume Profile = DISTRIBUTION. '
+                              'Instituciones vendiendo. Proceder con cautela.',
+                    'action': 'Consider reduced position size'
+                })
+
+            if signal == 'BUY' and market_state_final == 'CHOPPY_SIDEWAYS':
+                warnings.append({
+                    'type': 'WARNING',
+                    'message': '⚠️ ALERTA: BUY signal pero Stop Loss State = CHOPPY/SIDEWAYS. '
+                              'Sin momentum direccional claro. Esperar confirmación.',
+                    'action': 'Wait for clearer trend development'
+                })
+
+            if signal == 'BUY' and momentum_consistency == 'WEAK':
+                warnings.append({
+                    'type': 'WARNING',
+                    'message': '⚠️ ALERTA: BUY signal con Momentum Consistency = WEAK. '
+                              'Momentum débil en múltiples timeframes. Score puede estar inflado artificialmente.',
+                    'action': 'Review component breakdown - check if score is artificially inflated'
+                })
+
+            if signal == 'SELL' and momentum_consistency == 'STRONG':
+                warnings.append({
+                    'type': 'WARNING',
+                    'message': '⚠️ ALERTA: SELL signal pero Momentum Consistency = STRONG. '
+                              'Momentum fuerte debería generar score ≥ 60. Revisar.',
+                    'action': 'Manual review - strong momentum contradicts low score'
+                })
 
             return {
                 'score': round(total_score, 1),
@@ -1001,11 +1082,14 @@ class EnhancedTechnicalAnalyzer:
     # SIGNAL GENERATION
     # ============================================================================
 
-    def _generate_signal(self, score: float, trend_data: Dict, regime: str, overextension_risk: int = 0) -> str:
+    def _generate_signal(self, score: float, trend_data: Dict, regime: str,
+                        overextension_risk: int = 0, market_state: str = None) -> str:
         """
         Generate BUY/HOLD/SELL signal.
 
-        Rules:
+        Rules (in priority order):
+        - VETO #1: market_state = DOWNTREND → SELL (broken structure - highest priority)
+        - VETO #2: overextension_risk > 6 AND score < 80 → HOLD (wait for pullback)
         - BUY: score >= 75 AND uptrend
         - HOLD: score 50-75 OR mixed signals
         - SELL: score < 50
@@ -1015,23 +1099,38 @@ class EnhancedTechnicalAnalyzer:
         - Only allow BUY with EXTREME overextension if score is exceptional (≥80)
         - Prevents buying into parabolic moves that are due for 20-40% correction
 
+        FIX #7: DOWNTREND State Veto (CRITICAL)
+        - IF market_state = DOWNTREND → Force SELL regardless of score
+        - Prevents BUY signals on stocks with broken structure (Price < EMA20 < MA50)
+        - Stop Loss State Machine is more sophisticated than basic MA200 trend check
+
         Args:
             score: Technical score 0-100
             trend_data: Trend analysis dictionary
             regime: Market regime (BULL/BEAR/SIDEWAYS)
             overextension_risk: Overextension risk score 0-10
+            market_state: SmartDynamicStopLoss state (DOWNTREND, POWER_TREND, etc.)
 
         Returns:
             'BUY' | 'HOLD' | 'SELL'
         """
+        # FIX #7: VETO #1 - DOWNTREND state (HIGHEST PRIORITY)
+        # If structure is broken (Price < EMA20 < MA50), DO NOT allow BUY
+        if market_state == 'DOWNTREND':
+            logger.warning(f"🚨 DOWNTREND VETO applied: Broken structure detected. "
+                          f"Forcing SELL even if score={score:.0f}/100 and trend=UPTREND. "
+                          f"State Machine detected: Price < EMA20 < MA50")
+            return 'SELL'
+
         is_uptrend = trend_data.get('status') == 'UPTREND'
 
-        # FIX #6: Overextension veto - Force HOLD if extreme overextension + non-exceptional score
+        # FIX #6: VETO #2 - Overextension veto - Force HOLD if extreme overextension + non-exceptional score
         if overextension_risk > 6 and score < 80:
             logger.info(f"⚠️ Overextension veto applied: risk={overextension_risk}/10, score={score:.0f}/100. "
                        f"Forcing HOLD instead of BUY (wait for pullback to MA200)")
             return 'HOLD'  # Wait for better entry
 
+        # Standard rules
         if score >= 75 and is_uptrend:
             return 'BUY'
         elif score >= 50:
