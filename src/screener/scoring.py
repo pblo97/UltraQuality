@@ -226,6 +226,11 @@ class ScoringEngine:
 
         Value: pe_ttm, pb_ttm, p_tangibleBook, dividendYield_%
         Quality: roa_%, roe_%, efficiency_ratio (lower=better), nim_%, cet1_or_leverage_ratio_%
+
+        FIX: Use universe-wide normalization instead of industry-level for financials.
+        Reason: Financial companies within same industry (e.g., "Banks - Regional") have very
+        similar metrics due to regulation, causing MAD=0 and identical 50/50/50 scores.
+        Universe-wide comparison (banks vs insurance vs asset managers) creates better differentiation.
         """
         # Check if REIT
         df_reit = df[df['is_REIT'] == True].copy()
@@ -243,10 +248,12 @@ class ScoringEngine:
             quality_metrics = ['roa_%', 'roe_%', 'nim_%', 'cet1_or_leverage_ratio_%']
             quality_lower_better = ['efficiency_ratio']
 
-            df_fin_only = self._normalize_by_industry(df_fin_only, value_metrics, higher_is_better=False)
-            df_fin_only = self._normalize_by_industry(df_fin_only, value_higher_better, higher_is_better=True)
-            df_fin_only = self._normalize_by_industry(df_fin_only, quality_metrics, higher_is_better=True)
-            df_fin_only = self._normalize_by_industry(df_fin_only, quality_lower_better, higher_is_better=False)
+            # FIX: Use universe-wide normalization for financials (not industry-level)
+            # This compares ALL financials together, creating better score differentiation
+            df_fin_only = self._normalize_universe_wide(df_fin_only, value_metrics, higher_is_better=False)
+            df_fin_only = self._normalize_universe_wide(df_fin_only, value_higher_better, higher_is_better=True)
+            df_fin_only = self._normalize_universe_wide(df_fin_only, quality_metrics, higher_is_better=True)
+            df_fin_only = self._normalize_universe_wide(df_fin_only, quality_lower_better, higher_is_better=False)
 
             all_value_cols = [f"{m}_zscore" for m in value_metrics + value_higher_better]
             all_quality_cols = [f"{m}_zscore" for m in quality_metrics + quality_lower_better]
@@ -399,6 +406,38 @@ class ScoringEngine:
 
                 # Replace failed z-scores with universe-wide scores
                 df.loc[failed_mask, f'{metric}_zscore'] = universe_zscore[failed_mask]
+
+        return df
+
+    def _normalize_universe_wide(
+        self,
+        df: pd.DataFrame,
+        metrics: List[str],
+        higher_is_better: bool
+    ) -> pd.DataFrame:
+        """
+        Normalize metrics across entire universe (not by industry).
+
+        Used for financial companies where industry-level normalization fails due to
+        high similarity within industries (e.g., all regional banks have similar ROE).
+
+        Args:
+            df: DataFrame with metrics
+            metrics: List of metric column names
+            higher_is_better: If True, higher values are better (positive z-score)
+                              If False, lower values are better (invert z-score)
+
+        Returns:
+            DataFrame with new columns: {metric}_zscore
+        """
+        for metric in metrics:
+            if metric not in df.columns:
+                logger.warning(f"Metric '{metric}' not found in DataFrame")
+                continue
+
+            # Calculate universe-wide z-scores (compare ALL companies in this universe)
+            universe_zscore = self._robust_zscore(df[metric], higher_is_better)
+            df[f'{metric}_zscore'] = universe_zscore
 
         return df
 
