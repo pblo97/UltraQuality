@@ -2649,7 +2649,17 @@ with tab1:
             st.success(f"**Latest results available** - Generated: {timestamp_existing.strftime('%Y-%m-%d %H:%M:%S')}")
 
         # Key metrics with enhanced visual design
-        st.markdown("### Screening Results Overview")
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
+            <h3 style='margin: 0; color: white; font-weight: 600;'>
+                📊 Screening Results Overview
+            </h3>
+            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                Summary metrics from latest screening run
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         col1, col2, col3, col4, col5 = st.columns(5)
 
         with col1:
@@ -2911,7 +2921,17 @@ with tab1:
             status_text.empty()
 
 with tab2:
-    st.markdown("### Screening Results")
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
+        <h3 style='margin: 0; color: white; font-weight: 600;'>
+            📊 Screening Results
+        </h3>
+        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+            Detailed analysis and filtering of all screened stocks
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
     if 'results' in st.session_state:
         # Get recalculated results with current slider values
