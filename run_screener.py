@@ -7859,7 +7859,7 @@ with tab7:
                 with preset_col4:
                     if st.button("Clear Filters", help="Reset all filters to defaults"):
                         # Clear all filter states
-                        for key in ['regime_filter', 'sector_filter', 'trend_filter', 'volume_filter', 'consistency_filter']:
+                        for key in ['regime_filter', 'sector_filter', 'trend_filter', 'volume_filter', 'consistency_filter', 'hide_incomplete_data']:
                             if key in st.session_state:
                                 del st.session_state[key]
 
@@ -7870,15 +7870,32 @@ with tab7:
 
                 st.markdown("---")
 
-                # Filters - Row 1: Basic Filters
-                st.markdown("**Quick Filters:**")
+                # ============================================================
+                # HIERARCHICAL FILTER STRUCTURE
+                # Level 1: Trading Signals (Outputs)
+                # Level 2: Market Context (External Factors)
+                # Level 3: Technical Components (Building Blocks)
+                # Level 4: Data Quality
+                # ============================================================
+
+                # LEVEL 1: TRADING SIGNALS (High-Level Decisions)
+                st.markdown("""
+                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            padding: 0.5rem 1rem; border-radius: 8px; margin-bottom: 0.5rem;'>
+                    <div style='color: white; font-weight: 600; font-size: 0.85rem;'>
+                        🎯 TRADING SIGNALS (Decision Outputs)
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
                 col1, col2, col3, col4 = st.columns(4)
 
                 with col1:
                     tech_signal_filter = st.multiselect(
                         "Technical Signal",
                         options=['BUY', 'HOLD', 'SELL'],
-                        default=['BUY', 'HOLD', 'SELL'],  # Show all by default
+                        default=['BUY', 'HOLD', 'SELL'],
+                        help="Final technical trading signal (BUY if score ≥75 AND uptrend)",
                         key='tech_signal_filter'
                     )
 
@@ -7887,95 +7904,182 @@ with tab7:
                         "Fundamental Decision",
                         options=['BUY', 'MONITOR'],
                         default=['BUY', 'MONITOR'],
+                        help="Fundamental quality+value decision",
                         key='fund_decision_filter'
                     )
 
                 with col3:
+                    min_tech_score = st.slider(
+                        "Min Technical Score",
+                        0, 100, 0,
+                        help="Composite technical score (0-100)",
+                        key='min_tech_score'
+                    )
+
+                with col4:
                     # Get unique stop loss states for filter
                     all_sl_states = sorted(df_tech['stop_loss_state'].unique().tolist())
                     sl_state_filter = st.multiselect(
                         "Stop Loss State",
                         options=all_sl_states,
-                        default=all_sl_states,  # Show all by default
+                        default=all_sl_states,
+                        help="SmartDynamicStopLoss state (execution layer)",
                         key='sl_state_filter'
                     )
 
-                with col4:
-                    min_tech_score = st.slider(
-                        "Min Technical Score",
-                        0, 100, 0,  # Start at 0 to show all results
-                        key='min_tech_score'
-                    )
+                # LEVEL 2: MARKET CONTEXT (External Factors)
+                st.markdown("""
+                <div style='background: #f8fafc; padding: 0.5rem 1rem; border-radius: 8px;
+                            margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #667eea;'>
+                    <div style='color: #475569; font-weight: 600; font-size: 0.85rem;'>
+                        🌐 MARKET CONTEXT (External Environment)
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
-                # Filters - Row 2: Advanced Parameter-Based Classification
-                st.markdown("**Advanced Filters (Parameter-Based Classification):**")
-                col5, col6, col7, col8, col9 = st.columns(5)
+                col5, col6 = st.columns(2)
 
                 with col5:
-                    # Market Regime Filter
                     all_regimes = sorted(df_tech['market_regime'].unique().tolist())
                     regime_filter = st.multiselect(
                         "Market Regime",
                         options=all_regimes,
                         default=all_regimes,
+                        help="Overall market state (BULL/BEAR/SIDEWAYS) - affects regime adjustment in score",
                         key='regime_filter'
                     )
 
                 with col6:
-                    # Sector Relative Strength Filter
                     all_sector_status = sorted(df_tech['sector_status'].unique().tolist())
                     sector_filter = st.multiselect(
                         "Sector Status",
                         options=all_sector_status,
                         default=all_sector_status,
+                        help="Sector relative strength vs market - contributes to sector_score component",
                         key='sector_filter'
                     )
 
+                # LEVEL 3: TECHNICAL COMPONENTS (Building Blocks)
+                st.markdown("""
+                <div style='background: #f8fafc; padding: 0.5rem 1rem; border-radius: 8px;
+                            margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #764ba2;'>
+                    <div style='color: #475569; font-weight: 600; font-size: 0.85rem;'>
+                        🔧 TECHNICAL COMPONENTS (Signal Building Blocks)
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                col7, col8, col9 = st.columns(3)
+
                 with col7:
-                    # Trend Filter
                     all_trends = sorted(df_tech['trend'].unique().tolist())
                     trend_filter = st.multiselect(
                         "Trend",
                         options=all_trends,
                         default=all_trends,
+                        help="Price trend status - REQUIRED for BUY signal (contributes +15 pts if UPTREND)",
                         key='trend_filter'
                     )
 
                 with col8:
-                    # Volume Profile Filter
                     all_volumes = sorted(df_tech['volume_profile'].unique().tolist())
                     volume_filter = st.multiselect(
                         "Volume Profile",
                         options=all_volumes,
                         default=all_volumes,
+                        help="Volume accumulation/distribution pattern - contributes to volume_score component",
                         key='volume_filter'
                     )
 
                 with col9:
-                    # Momentum Consistency Filter
                     all_consistency = sorted(df_tech['momentum_consistency'].unique().tolist())
                     consistency_filter = st.multiselect(
                         "Momentum Consistency",
                         options=all_consistency,
                         default=all_consistency,
+                        help="Multi-timeframe momentum consistency - affects momentum score quality",
                         key='consistency_filter'
                     )
 
-                # Apply filters (Basic + Advanced)
+                # LEVEL 4: DATA QUALITY FILTER
+                st.markdown("""
+                <div style='background: #fef3c7; padding: 0.5rem 1rem; border-radius: 8px;
+                            margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #f59e0b;'>
+                    <div style='color: #92400e; font-weight: 600; font-size: 0.85rem;'>
+                        ⚠️ DATA QUALITY
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                col_dq1, col_dq2, col_dq3 = st.columns([2, 2, 2])
+
+                with col_dq1:
+                    hide_incomplete_data = st.checkbox(
+                        "Hide stocks with incomplete data",
+                        value=False,
+                        help="Exclude stocks with UNKNOWN market regime, trend, or sector status (usually due to insufficient price history)",
+                        key='hide_incomplete_data'
+                    )
+
+                with col_dq2:
+                    # Count stocks with incomplete data
+                    incomplete_mask = (
+                        (df_tech['market_regime'] == 'UNKNOWN') |
+                        (df_tech['trend'] == 'UNKNOWN') |
+                        (df_tech['sector_status'] == 'UNKNOWN')
+                    )
+                    incomplete_count = incomplete_mask.sum()
+                    st.markdown(f"""
+                    <div style='background: #fee2e2; padding: 0.5rem; border-radius: 6px; text-align: center;'>
+                        <div style='font-size: 1.2rem; font-weight: 700; color: #991b1b;'>{incomplete_count}</div>
+                        <div style='font-size: 0.7rem; color: #7f1d1d;'>stocks with incomplete data</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col_dq3:
+                    # Show percentage
+                    pct_incomplete = (incomplete_count / len(df_tech) * 100) if len(df_tech) > 0 else 0
+                    st.markdown(f"""
+                    <div style='background: #fef3c7; padding: 0.5rem; border-radius: 6px; text-align: center;'>
+                        <div style='font-size: 1.2rem; font-weight: 700; color: #92400e;'>{pct_incomplete:.1f}%</div>
+                        <div style='font-size: 0.7rem; color: #78350f;'>of universe</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                # Apply filters
                 df_filtered = df_tech[
+                    # Level 1: Trading Signals
                     (df_tech['technical_signal'].isin(tech_signal_filter)) &
                     (df_tech['fundamental_decision'].isin(fund_decision_filter)) &
                     (df_tech['stop_loss_state'].isin(sl_state_filter)) &
                     (df_tech['technical_score'] >= min_tech_score) &
-                    # Advanced filters
+                    # Level 2: Market Context
                     (df_tech['market_regime'].isin(regime_filter)) &
                     (df_tech['sector_status'].isin(sector_filter)) &
+                    # Level 3: Technical Components
                     (df_tech['trend'].isin(trend_filter)) &
                     (df_tech['volume_profile'].isin(volume_filter)) &
                     (df_tech['momentum_consistency'].isin(consistency_filter))
                 ]
 
-                st.write(f"**{len(df_filtered)}** stocks match filters")
+                # Level 4: Data Quality Filter
+                if hide_incomplete_data:
+                    df_filtered = df_filtered[
+                        (df_filtered['market_regime'] != 'UNKNOWN') &
+                        (df_filtered['trend'] != 'UNKNOWN') &
+                        (df_filtered['sector_status'] != 'UNKNOWN')
+                    ]
+
+                st.markdown(f"""
+                <div style='background: #dbeafe; padding: 0.75rem; border-radius: 8px; margin-top: 0.75rem;'>
+                    <div style='font-size: 1.1rem; font-weight: 600; color: #1e40af;'>
+                        📊 {len(df_filtered)} stocks match filters
+                        <span style='font-size: 0.85rem; color: #3b82f6; font-weight: 400;'>
+                            (filtered from {len(df_tech)} total)
+                        </span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
 
                 # Main table
                 st.subheader("Technical Ranking (Enhanced)")
