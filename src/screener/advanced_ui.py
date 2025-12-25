@@ -671,47 +671,82 @@ def render_institutional_holders(symbol: str, fmp_client):
                 num_buyers = len(buying)
                 num_sellers = len(selling)
 
-                # Display metrics
+                # Display metrics with custom colors
                 col1, col2, col3, col4 = st.columns(4)
 
                 with col1:
-                    st.metric(
-                        "Compradores",
-                        f"{num_buyers}",
-                        delta=f"+{total_bought:,.0f} acciones" if total_bought > 0 else "0",
-                        delta_color="normal",
-                        help="Instituciones que aumentaron posiciones"
-                    )
+                    # Compradores - verde
+                    st.markdown(f"""
+                    <div style='background: #f0fdf4; padding: 1rem; border-radius: 8px; border: 1px solid #86efac;'>
+                        <div style='color: #6b7280; font-size: 0.875rem; margin-bottom: 0.25rem;'>Compradores</div>
+                        <div style='color: #10b981; font-size: 1.875rem; font-weight: 700;'>{num_buyers:,}</div>
+                        <div style='color: #10b981; font-size: 0.875rem; margin-top: 0.25rem;'>+{total_bought:,.0f} acciones</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                 with col2:
-                    st.metric(
-                        "Vendedores",
-                        f"{num_sellers}",
-                        delta=f"-{total_sold:,.0f} acciones" if total_sold > 0 else "0",
-                        delta_color="inverse",
-                        help="Instituciones que redujeron posiciones"
-                    )
+                    # Vendedores - rojo
+                    st.markdown(f"""
+                    <div style='background: #fef2f2; padding: 1rem; border-radius: 8px; border: 1px solid #fca5a5;'>
+                        <div style='color: #6b7280; font-size: 0.875rem; margin-bottom: 0.25rem;'>Vendedores</div>
+                        <div style='color: #ef4444; font-size: 1.875rem; font-weight: 700;'>{num_sellers:,}</div>
+                        <div style='color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem;'>-{total_sold:,.0f} acciones</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                 with col3:
-                    net_color = "normal" if net_flow > 0 else "inverse" if net_flow < 0 else "off"
-                    st.metric(
-                        "Balance Neto",
-                        f"{net_flow:+,.0f}",
-                        delta="Acumulación" if net_flow > 0 else "Distribución" if net_flow < 0 else "Neutral",
-                        delta_color=net_color,
-                        help="Diferencia entre compras y ventas"
-                    )
+                    # Balance Neto - color según signo
+                    if net_flow > 0:
+                        bg_color = "#f0fdf4"
+                        border_color = "#86efac"
+                        text_color = "#10b981"
+                        label = "Acumulación"
+                    elif net_flow < 0:
+                        bg_color = "#fef2f2"
+                        border_color = "#fca5a5"
+                        text_color = "#ef4444"
+                        label = "Distribución"
+                    else:
+                        bg_color = "#f9fafb"
+                        border_color = "#d1d5db"
+                        text_color = "#6b7280"
+                        label = "Neutral"
+
+                    st.markdown(f"""
+                    <div style='background: {bg_color}; padding: 1rem; border-radius: 8px; border: 1px solid {border_color};'>
+                        <div style='color: #6b7280; font-size: 0.875rem; margin-bottom: 0.25rem;'>Balance Neto</div>
+                        <div style='color: {text_color}; font-size: 1.875rem; font-weight: 700;'>{net_flow:+,}</div>
+                        <div style='color: {text_color}; font-size: 0.875rem; margin-top: 0.25rem;'>{label}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                 with col4:
                     if num_buyers + num_sellers > 0:
                         buy_ratio = (num_buyers / (num_buyers + num_sellers)) * 100
-                        st.metric(
-                            "Ratio Compra/Venta",
-                            f"{buy_ratio:.1f}% / {100-buy_ratio:.1f}%",
-                            delta="Positivo" if buy_ratio > 50 else "Negativo" if buy_ratio < 50 else "Neutral",
-                            delta_color="normal" if buy_ratio > 50 else "inverse" if buy_ratio < 50 else "off",
-                            help="Proporción de instituciones comprando vs vendiendo"
-                        )
+
+                        if buy_ratio > 50:
+                            bg_color = "#f0fdf4"
+                            border_color = "#86efac"
+                            text_color = "#10b981"
+                            label = "Positivo"
+                        elif buy_ratio < 50:
+                            bg_color = "#fef2f2"
+                            border_color = "#fca5a5"
+                            text_color = "#ef4444"
+                            label = "Negativo"
+                        else:
+                            bg_color = "#f9fafb"
+                            border_color = "#d1d5db"
+                            text_color = "#6b7280"
+                            label = "Neutral"
+
+                        st.markdown(f"""
+                        <div style='background: {bg_color}; padding: 1rem; border-radius: 8px; border: 1px solid {border_color};'>
+                            <div style='color: #6b7280; font-size: 0.875rem; margin-bottom: 0.25rem;'>Ratio Compra/Venta</div>
+                            <div style='color: {text_color}; font-size: 1.875rem; font-weight: 700;'>{buy_ratio:.1f}% / {100-buy_ratio:.1f}%</div>
+                            <div style='color: {text_color}; font-size: 0.875rem; margin-top: 0.25rem;'>{label}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
                 # Summary message
                 if net_flow > 0:
