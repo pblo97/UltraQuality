@@ -1161,19 +1161,25 @@ class FeatureCalculator:
 
     def _estimate_tax_rate(self, income_statements: List[Dict]) -> float:
         """
-        Estimate effective tax rate from income statement.
-        Tax Rate = Income Tax Expense / Income Before Tax
+        Estimate effective tax rate from income statement using TTM.
+        Tax Rate = Income Tax Expense (TTM) / Income Before Tax (TTM)
         Default to 21% if unable to calculate.
+
+        CRITICAL: Must use TTM for consistency with TTM EBIT in ROIC calculation.
+        Using a single quarter can distort ROIC if that quarter had abnormal tax events.
         """
         if not income_statements:
             return 0.21
 
-        inc = income_statements[0]
-        tax_expense = inc.get('incomeTaxExpense', 0)
-        income_before_tax = inc.get('incomeBeforeTax', 0)
+        # Calculate TTM tax rate (sum last 4 quarters)
+        tax_expense_ttm = self._sum_ttm(income_statements, 'incomeTaxExpense')
+        income_before_tax_ttm = self._sum_ttm(income_statements, 'incomeBeforeTax')
 
-        if income_before_tax and income_before_tax > 0:
-            return tax_expense / income_before_tax
+        if income_before_tax_ttm and income_before_tax_ttm > 0:
+            tax_rate = tax_expense_ttm / income_before_tax_ttm
+            # Sanity check: cap at reasonable range
+            if 0 <= tax_rate <= 1.0:
+                return tax_rate
 
         return 0.21  # US corporate rate default
 
