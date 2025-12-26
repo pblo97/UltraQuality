@@ -1683,9 +1683,21 @@ class EnhancedTechnicalAnalyzer:
                     bonuses.append(f"{market_state}: {state_penalty:+.1f}%")
 
         # B. Momentum Penalty (overheating risk)
+        # FIX #10: Don't double-penalize for Momentum + Pullback
+        # Logic: If in PULLBACK_FLAG state, the high momentum is ALREADY correcting
+        # Penalizing both is contradictory - the pullback IS the correction
         if momentum_12m is not None:
             mom_penalty = 0
-            if momentum_12m > 150:
+
+            # EXCEPTION: If in PULLBACK state, waive momentum penalty
+            # The pullback itself indicates healthy correction of overheating
+            is_pullback_state = market_state in ['PULLBACK_FLAG', 'CHOPPY_SIDEWAYS']
+
+            if is_pullback_state and momentum_12m > 50:
+                # Stock is correcting high momentum - this is GOOD timing, not risky
+                # No penalty applied
+                bonuses.append(f"Pullback after +{momentum_12m:.0f}% run: Perfect entry (penalty waived)")
+            elif momentum_12m > 150:
                 mom_penalty = -3
                 penalties.append(f"Momentum +{momentum_12m:.0f}%: -3%")
             elif momentum_12m > 100:
@@ -2723,23 +2735,42 @@ class EnhancedTechnicalAnalyzer:
                 return (stop_price, rationale)
 
             elif state == "PULLBACK_FLAG":
+                # FIX #11: Don't use too-tight stops for high volatility stocks
+                # Problem: MA50 might be very close to price, but volatility is high
+                # Solution: Use WIDEST of MA50, SwingLow20, or volatility-based minimum
+
+                # Calculate volatility-based minimum stop distance
+                # Rule: Min stop distance = 2.5x ATR for vol > 40%, 2.0x ATR for vol > 30%, 1.5x ATR otherwise
+                if volatility > 40:
+                    min_atr_multiplier = 2.5
+                elif volatility > 30:
+                    min_atr_multiplier = 2.0
+                else:
+                    min_atr_multiplier = 1.5
+
+                volatility_floor = current_price - (min_atr_multiplier * atr)
+
                 # Structure Hold: SMA 50 or Swing Low 20d
                 # Give it air - don't exit on healthy pullbacks
-                if ma_50 > 0 and swing_low_20 > 0:
-                    # Use whichever is lower (more conservative)
-                    structure_support = min(ma_50, swing_low_20)
-                elif ma_50 > 0:
-                    structure_support = ma_50
-                elif swing_low_20 > 0:
-                    structure_support = swing_low_20
-                else:
-                    # Fallback to 2.5x ATR
-                    structure_support = current_price - (2.5 * atr)
+                candidates = [volatility_floor]  # Always include volatility floor
+
+                if ma_50 > 0 and ma_50 < current_price:
+                    candidates.append(ma_50)
+                if swing_low_20 > 0 and swing_low_20 < current_price:
+                    candidates.append(swing_low_20)
+
+                # Use LOWEST (widest stop) to give stock breathing room
+                structure_support = min(candidates)
 
                 # Add 0.5% buffer
                 stop_price = structure_support * 0.995
 
-                rationale = f"Structure hold at ${stop_price:.2f} (MA50/SwingLow20). Give pullback air to breathe."
+                # Calculate actual distance for rationale
+                stop_distance_pct = ((current_price - stop_price) / current_price) * 100
+
+                rationale = f"Structure hold at ${stop_price:.2f} (-{stop_distance_pct:.1f}%). " \
+                           f"Using widest of MA50/SwingLow20/{min_atr_multiplier}xATR (vol={volatility:.0f}%). " \
+                           f"Give pullback air to breathe."
 
                 return (stop_price, rationale)
 
