@@ -683,6 +683,196 @@ def get_results_with_current_params():
     return recalculate_scores(df, w_quality, w_value, t_buy, t_monitor, t_quality_exc, excl_reds)
 
 
+def generate_positions_excel(df_filtered, portfolio_size=420000):
+    """
+    Generate Excel file with position sizing, staged entry, stop loss, and take profit details.
+
+    Args:
+        df_filtered: DataFrame with filtered technical results
+        portfolio_size: Total portfolio size in USD (default $420,000)
+
+    Returns:
+        BytesIO buffer with Excel file
+    """
+    from io import BytesIO
+
+    # Prepare data for Excel
+    excel_data = []
+
+    for _, row in df_filtered.iterrows():
+        try:
+            ticker = row['ticker']
+            full_analysis = row.get('full_analysis')
+
+            if not full_analysis:
+                continue
+
+            # Extract data from analysis
+            current_price = full_analysis.get('current_price', 0)
+            risk_mgmt = full_analysis.get('risk_management', {})
+
+            # Position sizing
+            pos_sizing = risk_mgmt.get('position_sizing', {})
+            recommended_pct = pos_sizing.get('final_pct', 0)
+            position_dollars = portfolio_size * (recommended_pct / 100)
+
+            # Convert currency if needed (same logic as UI)
+            current_price_usd = current_price
+            currency = 'USD'
+
+            # Extract exchange suffix for currency conversion
+            exchange_fx_rates = {
+                '.KQ': ('KRW', 0.000751), '.KS': ('KRW', 0.000751),
+                '.T': ('JPY', 0.00665), '.HK': ('HKD', 0.128),
+                '.SS': ('CNY', 0.137), '.SZ': ('CNY', 0.137),
+                '.SI': ('SGD', 0.742), '.BK': ('THB', 0.0275),
+                '.L': ('GBP', 1.27), '.PA': ('EUR', 1.08),
+                '.TO': ('CAD', 0.724), '.AX': ('AUD', 0.664),
+            }
+
+            for suffix, (curr, fx_rate) in exchange_fx_rates.items():
+                if ticker.endswith(suffix):
+                    current_price_usd = current_price * fx_rate
+                    currency = curr
+                    break
+
+            # Calculate shares
+            total_shares = int(position_dollars / current_price_usd) if current_price_usd > 0 else 0
+
+            # Staged entry (60% first, 40% second)
+            shares_first_entry = int(total_shares * 0.6)
+            shares_second_entry = total_shares - shares_first_entry
+
+            # Entry prices
+            price_first_entry = current_price  # Current price for first entry
+
+            # Second entry at support (use MA50 or swing low if available)
+            entry_strategy = risk_mgmt.get('entry_strategy', {})
+            price_second_entry = current_price * 0.96  # Default 4% lower
+
+            # Try to get actual support level from entry strategy
+            support_level = entry_strategy.get('support_level', 0)
+            if support_level and support_level > 0:
+                price_second_entry = support_level
+
+            # Average purchase price (weighted by shares)
+            if total_shares > 0:
+                total_cost = (shares_first_entry * price_first_entry) + (shares_second_entry * price_second_entry)
+                avg_purchase_price = total_cost / total_shares
+            else:
+                avg_purchase_price = current_price
+
+            # Stop loss
+            stop_loss_data = risk_mgmt.get('stop_loss', {})
+            stop_loss_price = stop_loss_data.get('stop_price', 0)
+            stop_loss_pct = stop_loss_data.get('stop_loss_pct', 0)
+
+            # If stop_loss_pct is relative to current price, recalculate relative to avg price
+            if avg_purchase_price > 0 and stop_loss_price > 0:
+                stop_loss_pct_avg = ((stop_loss_price - avg_purchase_price) / avg_purchase_price) * 100
+            else:
+                stop_loss_pct_avg = stop_loss_pct
+
+            # Take profit
+            profit_taking = risk_mgmt.get('profit_taking', {})
+            take_profit_price = 0
+
+            # Try to extract first target price
+            targets = profit_taking.get('targets', [])
+            if targets and len(targets) > 0:
+                first_target = targets[0]
+                if isinstance(first_target, dict):
+                    tp_price_str = first_target.get('price', '0')
+                    # Remove $ and , from price string
+                    tp_price_str = str(tp_price_str).replace('$', '').replace(',', '')
+                    try:
+                        take_profit_price = float(tp_price_str)
+                    except:
+                        take_profit_price = 0
+
+            # Potential loss
+            if stop_loss_price > 0 and total_shares > 0:
+                potential_loss = (avg_purchase_price - stop_loss_price) * total_shares
+            else:
+                potential_loss = 0
+
+            # Portfolio loss percentage
+            portfolio_loss_pct = (potential_loss / portfolio_size) * 100 if portfolio_size > 0 else 0
+
+            # Earnings date (if available)
+            earnings_date = full_analysis.get('next_earnings_date', 'N/A')
+
+            # Append row
+            excel_data.append({
+                'Stock': ticker,
+                'Industria': row.get('sector', 'N/A'),
+                'Precio Actual': current_price,
+                'Precio Actual USD': current_price_usd if currency != 'USD' else '',
+                'Moneda': currency if currency != 'USD' else '',
+
+                'Posición 1ª Entrada (60%)': shares_first_entry,
+                'Precio 1ª Entrada': price_first_entry,
+                'Costo 1ª Entrada': shares_first_entry * price_first_entry,
+
+                'Posición 2ª Entrada (40%)': shares_second_entry,
+                'Precio 2ª Entrada (Soporte)': price_second_entry,
+                'Costo 2ª Entrada': shares_second_entry * price_second_entry,
+
+                'Total Shares': total_shares,
+                'Precio Medio Compra': avg_purchase_price,
+                'Inversión Total': position_dollars,
+                '% Portfolio': recommended_pct,
+
+                'Stop Loss': stop_loss_price,
+                '% Stop Loss vs Precio Medio': stop_loss_pct_avg,
+
+                'Take Profit': take_profit_price if take_profit_price > 0 else 'N/A',
+
+                'Pérdida Potencial ($)': potential_loss,
+                '% Pérdida Cartera': portfolio_loss_pct,
+
+                'Fecha Earnings': earnings_date,
+
+                'Tech Score': row.get('technical_score', 0),
+                'Tech Signal': row.get('technical_signal', 'N/A'),
+                'Fund Score': row.get('fundamental_score', 0),
+                'Fund Decision': row.get('fundamental_decision', 'N/A'),
+                'Stop Loss State': row.get('stop_loss_state', 'N/A'),
+            })
+
+        except Exception as e:
+            # Skip stocks with errors
+            continue
+
+    # Create DataFrame
+    df_excel = pd.DataFrame(excel_data)
+
+    # Create Excel file in memory
+    output = BytesIO()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_excel.to_excel(writer, sheet_name='Posiciones', index=False)
+
+        # Get worksheet to apply formatting
+        worksheet = writer.sheets['Posiciones']
+
+        # Auto-adjust column widths
+        for column in worksheet.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+
+    output.seek(0)
+    return output
+
+
 def display_smart_stop_loss(stop_loss_data, current_price):
     """
     Display SmartDynamicStopLoss data in Streamlit.
@@ -8274,6 +8464,59 @@ with tab7:
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+                # Excel Export Button
+                if len(df_filtered) > 0:
+                    st.markdown("---")
+
+                    # Portfolio size input
+                    col_excel1, col_excel2, col_excel3 = st.columns([2, 2, 2])
+
+                    with col_excel1:
+                        portfolio_size = st.number_input(
+                            "Tamaño Portfolio ($)",
+                            min_value=1000,
+                            max_value=10000000,
+                            value=420000,
+                            step=10000,
+                            help="Tamaño total del portfolio para calcular position sizing"
+                        )
+
+                    with col_excel2:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.button("📥 Generar Excel de Posiciones", type="primary", use_container_width=True):
+                            with st.spinner("Generando Excel..."):
+                                try:
+                                    excel_buffer = generate_positions_excel(df_filtered, portfolio_size)
+
+                                    # Generate filename with timestamp
+                                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                    filename = f"posiciones_ultraquality_{timestamp}.xlsx"
+
+                                    st.download_button(
+                                        label="⬇️ Descargar Excel",
+                                        data=excel_buffer,
+                                        file_name=filename,
+                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        use_container_width=True
+                                    )
+
+                                    st.success(f"✅ Excel generado: {len(df_filtered)} posiciones")
+
+                                except Exception as e:
+                                    st.error(f"❌ Error generando Excel: {str(e)}")
+                                    st.exception(e)
+
+                    with col_excel3:
+                        st.info(f"""
+                        **Incluye:**
+                        - Entrada escalonada (60%/40%)
+                        - Stop Loss & Take Profit
+                        - Pérdida potencial
+                        - Fecha earnings
+                        """)
+
+                    st.markdown("---")
 
                 # Main table
                 st.subheader("Technical Ranking (Enhanced)")
