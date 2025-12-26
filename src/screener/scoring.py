@@ -209,6 +209,11 @@ class ScoringEngine:
         else:
             df['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
 
+        # FIX #8: Apply absolute quality floors (prevent garbage companies from scoring high)
+        # Problem: Relative normalization can make ROIC=3% look "average" in bad industries
+        # Solution: Hard caps based on absolute thresholds
+        df = self._apply_absolute_quality_floors(df)
+
         # FIX #3: Apply refined revenue penalty (reusable helper method)
         df = self._apply_revenue_penalty(df, company_type='non_financial')
 
@@ -280,6 +285,9 @@ class ScoringEngine:
                 df_fin_only['quality_score_0_100'] = self._zscore_to_percentile_vectorized(mean_quality_zscores)
             else:
                 df_fin_only['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
+
+            # FIX #8: Apply absolute quality floors for financials (ROE/ROA based)
+            df_fin_only = self._apply_absolute_quality_floors_financials(df_fin_only)
 
             # FIX #3: Apply refined revenue penalty (same logic as non-financials)
             df_fin_only = self._apply_revenue_penalty(df_fin_only, company_type='financial')
@@ -358,6 +366,9 @@ class ScoringEngine:
         else:
             df['quality_score_0_100'] = 50.0  # Neutral score if no quality metrics available
 
+        # FIX #8: Apply absolute quality floors for REITs (FFO/AFFO based)
+        df = self._apply_absolute_quality_floors_reits(df)
+
         # FIX #3: Apply refined revenue penalty (same logic as non-financials)
         df = self._apply_revenue_penalty(df, company_type='reit')
 
@@ -366,6 +377,238 @@ class ScoringEngine:
             self.w_quality * df['quality_score_0_100']
         )
 
+        return df
+
+    # =====================================
+    # ABSOLUTE QUALITY FLOORS (FIX #8)
+    # =====================================
+
+    def _apply_absolute_quality_floors(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        FIX #8: Apply absolute quality floors to prevent garbage companies from scoring high.
+
+        PROBLEM: Relative normalization by industry can make terrible absolute metrics
+        look "average" if the entire industry is bad.
+
+        Example bug:
+        - 300803.SZ: ROIC=3%, EV/FCF=200
+        - If entire Chinese tech sector has ROIC 2-5%, then ROIC=3% gets z-score ≈ 0 → percentile = 50
+        - If revenue growth = 25% (high relative to peers), compensates low ROIC
+        - Result: Quality score = 70-80/100 despite ROIC=3% ❌
+
+        SOLUTION: Apply hard caps based on absolute thresholds for critical metrics:
+        - ROIC < 8%: Cap quality_score at 40 (bottom quartile)
+        - ROIC < 5%: Cap quality_score at 25 (bottom decile)
+        - FCF Margin < 0%: Cap quality_score at 30 (negative cash generation)
+        - Gross Margin < 20%: Cap quality_score at 35 (commoditized business)
+
+        Evidence:
+        - Greenblatt (2006): "Magic Formula" requires ROIC > 15% minimum
+        - Piotroski (2000): Positive CFO required for quality
+        - Buffett: "A good business generates cash"
+
+        Args:
+            df: DataFrame with quality metrics and quality_score_0_100
+
+        Returns:
+            DataFrame with capped quality scores
+        """
+        if 'quality_score_0_100' not in df.columns:
+            return df
+
+        original_quality = df['quality_score_0_100'].copy()
+
+        # Initialize cap column (no cap = 100)
+        df['quality_cap_reason'] = None
+        quality_cap = pd.Series(100, index=df.index)
+
+        # CRITICAL FLOOR #1: ROIC (most important quality metric)
+        if 'roic_%' in df.columns:
+            roic = df['roic_%'].fillna(0)
+
+            # Terrible: ROIC < 5% → Cap at 25 (bottom 10%)
+            terrible_roic = roic < 5
+            quality_cap.loc[terrible_roic] = 25
+            df.loc[terrible_roic, 'quality_cap_reason'] = f'ROIC < 5% (destroys capital)'
+
+            # Poor: ROIC 5-8% → Cap at 40 (bottom 25%)
+            poor_roic = (roic >= 5) & (roic < 8)
+            quality_cap.loc[poor_roic] = 40
+            df.loc[poor_roic, 'quality_cap_reason'] = f'ROIC < 8% (mediocre returns)'
+
+            # Below average: ROIC 8-12% → Cap at 55 (slight penalty)
+            below_avg_roic = (roic >= 8) & (roic < 12)
+            quality_cap.loc[below_avg_roic] = 55
+            df.loc[below_avg_roic, 'quality_cap_reason'] = f'ROIC < 12% (below hurdle rate)'
+
+        # CRITICAL FLOOR #2: FCF Margin (cash generation)
+        if 'fcf_margin_%' in df.columns:
+            fcf_margin = df['fcf_margin_%'].fillna(0)
+
+            # Negative FCF → Cap at 30 (cash burner)
+            negative_fcf = fcf_margin < 0
+            current_cap = quality_cap.loc[negative_fcf]
+            quality_cap.loc[negative_fcf] = current_cap.clip(upper=30)
+            df.loc[negative_fcf & (current_cap > 30), 'quality_cap_reason'] = \
+                df.loc[negative_fcf & (current_cap > 30), 'quality_cap_reason'].fillna('') + ' | Negative FCF'
+
+            # Very low FCF margin 0-3% → Cap at 45
+            low_fcf = (fcf_margin >= 0) & (fcf_margin < 3)
+            current_cap = quality_cap.loc[low_fcf]
+            quality_cap.loc[low_fcf] = current_cap.clip(upper=45)
+            df.loc[low_fcf & (current_cap > 45), 'quality_cap_reason'] = \
+                df.loc[low_fcf & (current_cap > 45), 'quality_cap_reason'].fillna('') + ' | FCF margin < 3%'
+
+        # CRITICAL FLOOR #3: Gross Margin (pricing power proxy)
+        if 'grossProfits_to_assets' in df.columns:
+            gross_profit_asset = df['grossProfits_to_assets'].fillna(0)
+
+            # Very low gross margin → Commoditized business
+            # GrossProfit/Assets < 15% suggests low margins OR high asset intensity
+            low_gross = gross_profit_asset < 0.15
+            current_cap = quality_cap.loc[low_gross]
+            quality_cap.loc[low_gross] = current_cap.clip(upper=50)
+            df.loc[low_gross & (current_cap > 50), 'quality_cap_reason'] = \
+                df.loc[low_gross & (current_cap > 50), 'quality_cap_reason'].fillna('') + ' | Low gross profit/assets'
+
+        # Apply caps (take minimum of calculated score and cap)
+        capped = df['quality_score_0_100'].clip(upper=quality_cap)
+        cap_applied = (capped < original_quality)
+
+        if cap_applied.sum() > 0:
+            logger.warning(
+                f"⚠️ Applied absolute quality floors to {cap_applied.sum()} companies. "
+                f"Examples: {df.loc[cap_applied, 'ticker'].head(3).tolist()}"
+            )
+
+            # Log specific examples
+            for idx in df[cap_applied].head(3).index:
+                ticker = df.loc[idx, 'ticker']
+                orig = original_quality.loc[idx]
+                new = capped.loc[idx]
+                reason = df.loc[idx, 'quality_cap_reason']
+                roic = df.loc[idx, 'roic_%'] if 'roic_%' in df.columns else 'N/A'
+                logger.warning(
+                    f"  {ticker}: Quality {orig:.0f} → {new:.0f} "
+                    f"(ROIC={roic:.1f}%, Reason: {reason})"
+                )
+
+        df['quality_score_0_100'] = capped
+
+        return df
+
+    def _apply_absolute_quality_floors_financials(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply absolute quality floors for financial companies (banks, insurance, etc.).
+
+        Key metrics for financials:
+        - ROE (Return on Equity): Should be > 10%
+        - ROA (Return on Assets): Should be > 1%
+        - Efficiency Ratio: Should be < 60% (lower is better)
+        - NIM (Net Interest Margin): Should be > 2% for banks
+        """
+        if 'quality_score_0_100' not in df.columns:
+            return df
+
+        original_quality = df['quality_score_0_100'].copy()
+        df['quality_cap_reason'] = None
+        quality_cap = pd.Series(100, index=df.index)
+
+        # FLOOR #1: ROE (most important for financials)
+        if 'roe_%' in df.columns:
+            roe = df['roe_%'].fillna(0)
+
+            # Terrible: ROE < 5% → Cap at 25
+            terrible_roe = roe < 5
+            quality_cap.loc[terrible_roe] = 25
+            df.loc[terrible_roe, 'quality_cap_reason'] = 'ROE < 5% (poor returns)'
+
+            # Poor: ROE 5-10% → Cap at 40
+            poor_roe = (roe >= 5) & (roe < 10)
+            quality_cap.loc[poor_roe] = 40
+            df.loc[poor_roe, 'quality_cap_reason'] = 'ROE < 10% (below average)'
+
+        # FLOOR #2: ROA
+        if 'roa_%' in df.columns:
+            roa = df['roa_%'].fillna(0)
+
+            # Very low ROA < 0.5% → Cap at 35
+            low_roa = (roa < 0.5) & (roa >= 0)
+            current_cap = quality_cap.loc[low_roa]
+            quality_cap.loc[low_roa] = current_cap.clip(upper=35)
+
+        # FLOOR #3: Efficiency Ratio (lower is better)
+        if 'efficiency_ratio' in df.columns:
+            eff_ratio = df['efficiency_ratio'].fillna(100)
+
+            # Very inefficient > 70% → Cap at 40
+            inefficient = eff_ratio > 70
+            current_cap = quality_cap.loc[inefficient]
+            quality_cap.loc[inefficient] = current_cap.clip(upper=40)
+
+        # Apply caps
+        capped = df['quality_score_0_100'].clip(upper=quality_cap)
+        cap_applied = (capped < original_quality)
+
+        if cap_applied.sum() > 0:
+            logger.warning(
+                f"⚠️ Applied absolute quality floors to {cap_applied.sum()} financials. "
+                f"Examples: {df.loc[cap_applied, 'ticker'].head(3).tolist()}"
+            )
+
+        df['quality_score_0_100'] = capped
+        return df
+
+    def _apply_absolute_quality_floors_reits(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply absolute quality floors for REITs.
+
+        Key metrics for REITs:
+        - FFO/AFFO Payout Ratio: Should be < 90% (sustainability)
+        - Occupancy Rate: Should be > 85%
+        - Debt to Gross Assets: Should be < 60%
+        """
+        if 'quality_score_0_100' not in df.columns:
+            return df
+
+        original_quality = df['quality_score_0_100'].copy()
+        df['quality_cap_reason'] = None
+        quality_cap = pd.Series(100, index=df.index)
+
+        # FLOOR #1: FFO Payout Ratio (sustainability)
+        if 'ffo_payout_%' in df.columns:
+            ffo_payout = df['ffo_payout_%'].fillna(100)
+
+            # Unsustainable: > 95% → Cap at 30
+            unsustainable = ffo_payout > 95
+            quality_cap.loc[unsustainable] = 30
+            df.loc[unsustainable, 'quality_cap_reason'] = 'FFO payout > 95% (unsustainable)'
+
+            # Risky: 85-95% → Cap at 45
+            risky = (ffo_payout >= 85) & (ffo_payout <= 95)
+            quality_cap.loc[risky] = 45
+            df.loc[risky, 'quality_cap_reason'] = 'FFO payout > 85% (limited coverage)'
+
+        # FLOOR #2: Occupancy Rate
+        if 'occupancy_%' in df.columns:
+            occupancy = df['occupancy_%'].fillna(0)
+
+            # Very low occupancy < 80% → Cap at 40
+            low_occ = occupancy < 80
+            current_cap = quality_cap.loc[low_occ]
+            quality_cap.loc[low_occ] = current_cap.clip(upper=40)
+
+        # Apply caps
+        capped = df['quality_score_0_100'].clip(upper=quality_cap)
+        cap_applied = (capped < original_quality)
+
+        if cap_applied.sum() > 0:
+            logger.warning(
+                f"⚠️ Applied absolute quality floors to {cap_applied.sum()} REITs. "
+                f"Examples: {df.loc[cap_applied, 'ticker'].head(3).tolist()}"
+            )
+
+        df['quality_score_0_100'] = capped
         return df
 
     # =====================================
