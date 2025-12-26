@@ -2526,12 +2526,74 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     st.markdown("---")
     st.markdown("#### <i class='bi bi-card-checklist'></i> Execution Plan", unsafe_allow_html=True)
 
+    # FIX #9: Currency conversion helper for international stocks
+    def convert_to_usd(price_local: float, ticker: str) -> tuple:
+        """
+        Convert local currency price to USD based on exchange suffix.
+
+        Returns: (price_usd, currency_code, fx_rate)
+        """
+        # Exchange suffix to currency mapping (approximate FX rates as of 2024)
+        # TODO: Fetch live FX rates from API for production
+        exchange_fx_rates = {
+            # Asia
+            '.KS': ('KRW', 0.000751),  # Korea Stock Exchange (Seoul) - 1 KRW ≈ $0.000751
+            '.KQ': ('KRW', 0.000751),  # KOSDAQ (Korea)
+            '.T': ('JPY', 0.00665),    # Tokyo Stock Exchange - 1 JPY ≈ $0.00665
+            '.HK': ('HKD', 0.128),     # Hong Kong - 1 HKD ≈ $0.128
+            '.SS': ('CNY', 0.137),     # Shanghai - 1 CNY ≈ $0.137
+            '.SZ': ('CNY', 0.137),     # Shenzhen - 1 CNY ≈ $0.137
+            '.SI': ('SGD', 0.742),     # Singapore - 1 SGD ≈ $0.742
+            '.BK': ('THB', 0.0275),    # Thailand - 1 THB ≈ $0.0275
+            '.JK': ('IDR', 0.0000615), # Jakarta - 1 IDR ≈ $0.0000615
+
+            # Europe
+            '.L': ('GBP', 1.27),       # London - 1 GBP ≈ $1.27
+            '.PA': ('EUR', 1.08),      # Paris - 1 EUR ≈ $1.08
+            '.DE': ('EUR', 1.08),      # Germany - 1 EUR ≈ $1.08
+            '.MI': ('EUR', 1.08),      # Milan - 1 EUR ≈ $1.08
+            '.MC': ('EUR', 1.08),      # Madrid - 1 EUR ≈ $1.08
+            '.AS': ('EUR', 1.08),      # Amsterdam - 1 EUR ≈ $1.08
+            '.SW': ('CHF', 1.13),      # Switzerland - 1 CHF ≈ $1.13
+            '.ST': ('SEK', 0.0919),    # Stockholm - 1 SEK ≈ $0.0919
+            '.OL': ('NOK', 0.0911),    # Oslo - 1 NOK ≈ $0.0911
+            '.CO': ('DKK', 0.145),     # Copenhagen - 1 DKK ≈ $0.145
+
+            # Americas (non-USD)
+            '.TO': ('CAD', 0.724),     # Toronto - 1 CAD ≈ $0.724
+            '.V': ('CAD', 0.724),      # TSX Venture (Canada)
+            '.MX': ('MXN', 0.0499),    # Mexico - 1 MXN ≈ $0.0499
+            '.SA': ('BRL', 0.168),     # Brazil - 1 BRL ≈ $0.168
+
+            # Oceania
+            '.AX': ('AUD', 0.664),     # Australia - 1 AUD ≈ $0.664
+            '.NZ': ('NZD', 0.606),     # New Zealand - 1 NZD ≈ $0.606
+
+            # Middle East/Africa
+            '.SAU': ('SAR', 0.267),    # Saudi Arabia - 1 SAR ≈ $0.267
+            '.TA': ('ILS', 0.271),     # Tel Aviv - 1 ILS ≈ $0.271
+        }
+
+        # Extract exchange suffix
+        for suffix, (currency, fx_rate) in exchange_fx_rates.items():
+            if ticker.endswith(suffix):
+                price_usd = price_local * fx_rate
+                return (price_usd, currency, fx_rate)
+
+        # Default: assume USD (NYSE, NASDAQ, etc.)
+        return (price_local, 'USD', 1.0)
+
     # Calculate shares (assuming we have current price in stop_loss_data)
     if stop_loss_data and stop_loss_data.get('current_price'):
-        current_price = stop_loss_data.get('current_price', 0)
-        if current_price > 0:
-            shares = int(final_dollars / current_price)
-            actual_cost = shares * current_price
+        current_price_local = stop_loss_data.get('current_price', 0)
+
+        if current_price_local > 0:
+            # FIX #9: Convert to USD if international stock
+            current_price_usd, currency, fx_rate = convert_to_usd(current_price_local, selected_ticker)
+
+            # Calculate shares using USD price
+            shares = int(final_dollars / current_price_usd)
+            actual_cost_usd = shares * current_price_usd
 
             # Visual execution card
             st.markdown(f"""
@@ -2544,18 +2606,23 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
                     </div>
                     <div>
                         <div style='font-size: 0.8rem; color: #6c757d;'>PRICE PER SHARE</div>
-                        <div style='font-size: 1.8rem; font-weight: 600; color: #495057;'>${current_price:.2f}</div>
+                        <div style='font-size: 1.8rem; font-weight: 600; color: #495057;'>${current_price_usd:.2f}</div>
+                        <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>{current_price_local:,.2f} {currency}</div>
                     </div>
                     <div>
                         <div style='font-size: 0.8rem; color: #6c757d;'>TOTAL INVESTMENT</div>
-                        <div style='font-size: 1.8rem; font-weight: 600; color: #667eea;'>${actual_cost:,.0f}</div>
+                        <div style='font-size: 1.8rem; font-weight: 600; color: #667eea;'>${actual_cost_usd:,.0f}</div>
                     </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-            # Trading fee estimate
-            estimated_fee = actual_cost * 0.001  # 0.1% typical commission
+            # Currency conversion notice (if not USD)
+            if currency != 'USD':
+                st.caption(f"💱 FX Rate: 1 {currency} ≈ ${fx_rate:.6f} USD (approximate)")
+
+            # Trading fee estimate (use USD cost)
+            estimated_fee = actual_cost_usd * 0.001  # 0.1% typical commission
             st.caption(f"Estimated trading fees: ${estimated_fee:.2f} (0.1% assumption)")
     else:
         st.info("Current price not available. Use recommended dollar amount: **${:,.0f}**".format(final_dollars))
