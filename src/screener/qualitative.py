@@ -139,15 +139,31 @@ class QualitativeAnalyzer:
             )
 
             # 11. Revenue Geographic Segmentation (Geopolitical Risk)
+            logger.info(f"Analyzing revenue geographic for {symbol}")
             summary['revenue_geographic'] = self._analyze_revenue_geographic(symbol)
+            if summary['revenue_geographic']:
+                logger.info(f"Revenue geographic data found for {symbol}")
+            else:
+                logger.info(f"No revenue geographic data for {symbol}")
 
             # 12. Government Trading (Senate/House Smart Money)
+            logger.info(f"Analyzing government trading for {symbol}")
             summary['government_trading'] = self._analyze_government_trading(symbol)
+            if summary['government_trading']:
+                logger.info(f"Government trading data found for {symbol}: {summary['government_trading'].get('total_trades', 0)} trades")
+            else:
+                logger.info(f"No government trading data for {symbol}")
 
             # 13. Earnings Surprises Track Record
+            logger.info(f"Analyzing earnings surprises for {symbol}")
             summary['earnings_surprises'] = self._analyze_earnings_surprises(symbol)
+            if summary['earnings_surprises']:
+                logger.info(f"Earnings surprises data found for {symbol}: {summary['earnings_surprises'].get('total_quarters', 0)} quarters")
+            else:
+                logger.info(f"No earnings surprises data for {symbol}")
 
             # 14. Analyst Consensus (Wall Street Opinion)
+            logger.info(f"Analyzing analyst consensus for {symbol}")
             # Get current price for upside calculation
             current_price = None
             try:
@@ -157,6 +173,10 @@ class QualitativeAnalyzer:
             except:
                 pass
             summary['analyst_consensus'] = self._analyze_analyst_consensus(symbol, current_price)
+            if summary['analyst_consensus']:
+                logger.info(f"Analyst consensus data found for {symbol}")
+            else:
+                logger.info(f"No analyst consensus data for {symbol}")
 
         except Exception as e:
             logger.error(f"Error in qualitative analysis for {symbol}: {e}")
