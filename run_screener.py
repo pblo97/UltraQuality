@@ -4187,10 +4187,15 @@ with tab5:
                         moats = analysis.get('moats', [])
                         if moats:
                             for moat in moats:
-                                # Moats already come with checkmarks/emojis from analyzer
+                                # Clean all emojis from moat text
+                                import re
+                                moat_clean = re.sub(r'[✓✗💪📝🟡🟢🔴⚠️👍🏆]', '', moat).strip()
+                                # Remove duplicate checkmarks/symbols at start
+                                moat_clean = re.sub(r'^[\s✓✗💪]+', '', moat_clean)
+
                                 st.markdown(f"""
-                                <div style='background: #d1fae5; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 3px solid #10b981;'>
-                                    <div style='color: #065f46; font-size: 0.95rem;'>{moat}</div>
+                                <div style='background: #f8fafc; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 3px solid #10b981;'>
+                                    <div style='color: #1e293b; font-size: 0.9rem; line-height: 1.5;'>{moat_clean}</div>
                                 </div>
                                 """, unsafe_allow_html=True)
                         else:
@@ -4207,14 +4212,28 @@ with tab5:
                         risks = analysis.get('risks', [])
                         if risks:
                             for risk in risks:
-                                # Risks already come with emojis from analyzer
+                                # Clean all emojis from risk text
+                                import re
+                                risk_clean = re.sub(r'[✓✗💪📝🟡🟢🔴⚠️👍🏆]', '', risk).strip()
+                                # Remove severity prefix if present
+                                risk_clean = re.sub(r'^(Med|High|Low)\s+Severity:\s*', '', risk_clean)
+
                                 st.markdown(f"""
-                                <div style='background: #fef3c7; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 3px solid #f59e0b;'>
-                                    <div style='color: #92400e; font-size: 0.95rem;'>{risk}</div>
+                                <div style='background: #fef9f3; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 3px solid #f59e0b;'>
+                                    <div style='color: #78350f; font-size: 0.9rem; line-height: 1.5;'>{risk_clean}</div>
                                 </div>
                                 """, unsafe_allow_html=True)
                         else:
                             st.info("No major risks identified")
+
+                    # Summary row
+                    st.markdown(f"""
+                    <div style='background: #f1f5f9; padding: 0.75rem 1rem; border-radius: 6px; margin-top: 1rem;'>
+                        <div style='color: #475569; font-size: 0.85rem;'>
+                            <strong>Analysis Summary:</strong> {len(moats)} competitive advantages identified • {len(risks)} key risks flagged
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                     st.markdown("---")
 
@@ -4252,11 +4271,35 @@ with tab5:
                                 st.metric("Insider Ownership", "N/A")
 
                         with col2:
-                            inst_own = insider.get('institutional_ownership_pct')
-                            if inst_own is not None:
-                                st.metric("Institutional Own.", f"{inst_own:.1f}%")
-                            else:
-                                st.metric("Institutional Own.", "N/A")
+                            # Get institutional ownership from FMP directly
+                            try:
+                                institutional_holders = fmp_client.get_institutional_holders(selected_ticker)
+                                if institutional_holders and len(institutional_holders) > 0:
+                                    # Sum up total shares held by institutions
+                                    total_inst_shares = sum(h.get('shares', 0) for h in institutional_holders)
+                                    # Get shares outstanding from stock data
+                                    shares_outstanding = df_filtered[df_filtered['ticker'] == selected_ticker]['shares_outstanding'].iloc[0]
+                                    if shares_outstanding and shares_outstanding > 0:
+                                        inst_own_pct = (total_inst_shares / shares_outstanding) * 100
+                                        st.metric("Institutional Own.", f"{inst_own_pct:.1f}%")
+                                    else:
+                                        inst_own = insider.get('institutional_ownership_pct')
+                                        if inst_own is not None:
+                                            st.metric("Institutional Own.", f"{inst_own:.1f}%")
+                                        else:
+                                            st.metric("Institutional Own.", "N/A")
+                                else:
+                                    inst_own = insider.get('institutional_ownership_pct')
+                                    if inst_own is not None:
+                                        st.metric("Institutional Own.", f"{inst_own:.1f}%")
+                                    else:
+                                        st.metric("Institutional Own.", "N/A")
+                            except Exception as e:
+                                inst_own = insider.get('institutional_ownership_pct')
+                                if inst_own is not None:
+                                    st.metric("Institutional Own.", f"{inst_own:.1f}%")
+                                else:
+                                    st.metric("Institutional Own.", "N/A")
 
                         with col3:
                             dilution = insider.get('net_share_issuance_12m_%')
@@ -5094,9 +5137,67 @@ with tab5:
 
                                 st.metric(f"Spread ({metric_name} - WACC)", f"{spread:+.1f}%", delta=trend)
 
-                            # Show 5-year history
+                            # Show 5-year history with chart
                             history_5y = capital_efficiency.get('history_5y', [])
-                            if history_5y:
+                            if history_5y and len(history_5y) >= 3:
+                                try:
+                                    import plotly.graph_objects as go
+                                    from datetime import datetime
+
+                                    # Create years array (reversed to show oldest to newest)
+                                    current_year = datetime.now().year
+                                    years = list(range(current_year - len(history_5y) + 1, current_year + 1))
+                                    roic_values = list(reversed(history_5y)) if len(history_5y) > 1 and history_5y[0] > history_5y[-1] else history_5y
+
+                                    fig_roic = go.Figure()
+
+                                    # ROIC line
+                                    fig_roic.add_trace(go.Scatter(
+                                        x=years,
+                                        y=roic_values,
+                                        name=metric_name,
+                                        mode='lines+markers',
+                                        line=dict(color='#667eea', width=3),
+                                        marker=dict(size=10, color='#667eea'),
+                                        fill='tonexty',
+                                        fillcolor='rgba(102, 126, 234, 0.1)'
+                                    ))
+
+                                    # WACC reference line
+                                    wacc_val = capital_efficiency.get('wacc', 0)
+                                    fig_roic.add_trace(go.Scatter(
+                                        x=years,
+                                        y=[wacc_val] * len(years),
+                                        name='WACC (Cost of Capital)',
+                                        mode='lines',
+                                        line=dict(color='#ef4444', width=2, dash='dash'),
+                                        hovertemplate='WACC: %{y:.1f}%<extra></extra>'
+                                    ))
+
+                                    fig_roic.update_layout(
+                                        height=300,
+                                        showlegend=True,
+                                        hovermode='x unified',
+                                        template='plotly_white',
+                                        xaxis_title='Year',
+                                        yaxis_title='Percentage (%)',
+                                        margin=dict(t=30, b=40, l=50, r=20),
+                                        legend=dict(
+                                            orientation="h",
+                                            yanchor="bottom",
+                                            y=1.02,
+                                            xanchor="right",
+                                            x=1
+                                        )
+                                    )
+
+                                    st.plotly_chart(fig_roic, use_container_width=True)
+
+                                except Exception as e:
+                                    # Fallback to text if chart fails
+                                    st.caption(f"**{metric_name} History (last {len(history_5y)} years):** " +
+                                             ", ".join([f"{h:.1f}%" for h in history_5y]))
+                            elif history_5y:
                                 st.caption(f"**{metric_name} History (last {len(history_5y)} years):** " +
                                          ", ".join([f"{h:.1f}%" for h in history_5y]))
 
@@ -5183,6 +5284,95 @@ with tab5:
                                              delta=f"{fcf.get('current', 0) - fcf.get('avg_3y', 0):.1f}% vs 3Y avg")
                                     st.caption(fcf.get('trend', '→ stable'))
 
+                            # Margins evolution chart
+                            try:
+                                import plotly.graph_objects as go
+
+                                # Try to get historical margin data from income statements
+                                income_history = fmp_client.get_income_statement(selected_ticker, period='annual', limit=5)
+
+                                if income_history and len(income_history) >= 3:
+                                    years_margins = [item.get('calendarYear', 'N/A') for item in reversed(income_history)]
+                                    gross_margins = []
+                                    operating_margins = []
+                                    fcf_margins_calc = []
+
+                                    cash_flow_history = fmp_client.get_cash_flow(selected_ticker, period='annual', limit=5)
+                                    fcf_by_year = {}
+                                    if cash_flow_history:
+                                        for cf_item in cash_flow_history:
+                                            year = cf_item.get('calendarYear')
+                                            ocf = cf_item.get('operatingCashFlow', 0)
+                                            capex = cf_item.get('capitalExpenditure', 0)
+                                            fcf = ocf + capex  # capex is negative
+                                            fcf_by_year[year] = fcf
+
+                                    for item in reversed(income_history):
+                                        revenue = item.get('revenue', 1)
+                                        if revenue and revenue > 0:
+                                            gross_profit = item.get('grossProfit', 0)
+                                            operating_income = item.get('operatingIncome', 0)
+                                            gross_margins.append((gross_profit / revenue) * 100)
+                                            operating_margins.append((operating_income / revenue) * 100)
+
+                                            year = item.get('calendarYear')
+                                            if year in fcf_by_year:
+                                                fcf_margins_calc.append((fcf_by_year[year] / revenue) * 100)
+                                            else:
+                                                fcf_margins_calc.append(None)
+
+                                    fig_margins = go.Figure()
+
+                                    fig_margins.add_trace(go.Scatter(
+                                        x=years_margins,
+                                        y=gross_margins,
+                                        name='Gross Margin',
+                                        mode='lines+markers',
+                                        line=dict(color='#10b981', width=2),
+                                        marker=dict(size=8)
+                                    ))
+
+                                    fig_margins.add_trace(go.Scatter(
+                                        x=years_margins,
+                                        y=operating_margins,
+                                        name='Operating Margin',
+                                        mode='lines+markers',
+                                        line=dict(color='#667eea', width=2),
+                                        marker=dict(size=8)
+                                    ))
+
+                                    if any(m is not None for m in fcf_margins_calc):
+                                        fig_margins.add_trace(go.Scatter(
+                                            x=years_margins,
+                                            y=fcf_margins_calc,
+                                            name='FCF Margin',
+                                            mode='lines+markers',
+                                            line=dict(color='#f59e0b', width=2),
+                                            marker=dict(size=8)
+                                        ))
+
+                                    fig_margins.update_layout(
+                                        height=350,
+                                        showlegend=True,
+                                        hovermode='x unified',
+                                        template='plotly_white',
+                                        xaxis_title='Year',
+                                        yaxis_title='Margin (%)',
+                                        margin=dict(t=30, b=40, l=50, r=20),
+                                        legend=dict(
+                                            orientation="h",
+                                            yanchor="bottom",
+                                            y=1.02,
+                                            xanchor="right",
+                                            x=1
+                                        )
+                                    )
+
+                                    st.plotly_chart(fig_margins, use_container_width=True)
+
+                            except Exception as e:
+                                pass  # Silent fail - metrics already shown above
+
                             # ===========================================================
                             # HISTORICAL CHARTS: Revenue, EBIT, FCF Evolution
                             # ===========================================================
@@ -5231,7 +5421,7 @@ with tab5:
                                     net_income = [item.get('netIncome', 0) / 1e6 for item in reversed(income_stmt)]
 
                                     # Fetch cash flow statement for FCF
-                                    cash_flow = fmp_client.get_cash_flow_statement(selected_ticker, period='annual', limit=10)
+                                    cash_flow = fmp_client.get_cash_flow(selected_ticker, period='annual', limit=10)
                                     fcf_values = []
                                     if cash_flow and len(cash_flow) > 0:
                                         for item in reversed(cash_flow):
@@ -5433,7 +5623,7 @@ with tab5:
                                 import plotly.graph_objects as go
 
                                 # Fetch balance sheet history
-                                balance_sheet_history = fmp_client.get_balance_sheet_statement(selected_ticker, period='annual', limit=10)
+                                balance_sheet_history = fmp_client.get_balance_sheet(selected_ticker, period='annual', limit=10)
 
                                 if balance_sheet_history and len(balance_sheet_history) > 0:
                                     # Extract data
