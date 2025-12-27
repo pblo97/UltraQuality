@@ -138,6 +138,26 @@ class QualitativeAnalyzer:
                 summary['transcript_TLDR']
             )
 
+            # 11. Revenue Geographic Segmentation (Geopolitical Risk)
+            summary['revenue_geographic'] = self._analyze_revenue_geographic(symbol)
+
+            # 12. Government Trading (Senate/House Smart Money)
+            summary['government_trading'] = self._analyze_government_trading(symbol)
+
+            # 13. Earnings Surprises Track Record
+            summary['earnings_surprises'] = self._analyze_earnings_surprises(symbol)
+
+            # 14. Analyst Consensus (Wall Street Opinion)
+            # Get current price for upside calculation
+            current_price = None
+            try:
+                quote = self.fmp.get_quote(symbol)
+                if quote and len(quote) > 0:
+                    current_price = quote[0].get('price', None)
+            except:
+                pass
+            summary['analyst_consensus'] = self._analyze_analyst_consensus(symbol, current_price)
+
         except Exception as e:
             logger.error(f"Error in qualitative analysis for {symbol}: {e}")
             summary['error'] = str(e)
