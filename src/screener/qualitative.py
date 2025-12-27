@@ -138,6 +138,26 @@ class QualitativeAnalyzer:
                 summary['transcript_TLDR']
             )
 
+            # 11. Revenue Geographic Segmentation (Geopolitical Risk)
+            summary['revenue_geographic'] = self._analyze_revenue_geographic(symbol)
+
+            # 12. Government Trading (Senate/House Smart Money)
+            summary['government_trading'] = self._analyze_government_trading(symbol)
+
+            # 13. Earnings Surprises Track Record
+            summary['earnings_surprises'] = self._analyze_earnings_surprises(symbol)
+
+            # 14. Analyst Consensus (Wall Street Opinion)
+            # Get current price for upside calculation
+            current_price = None
+            try:
+                quote = self.fmp.get_quote(symbol)
+                if quote and len(quote) > 0:
+                    current_price = quote[0].get('price', None)
+            except:
+                pass
+            summary['analyst_consensus'] = self._analyze_analyst_consensus(symbol, current_price)
+
         except Exception as e:
             logger.error(f"Error in qualitative analysis for {symbol}: {e}")
             summary['error'] = str(e)
@@ -1608,6 +1628,324 @@ class QualitativeAnalyzer:
             logger.warning(f"Error analyzing geographic exposure for {symbol}: {e}")
 
         return None
+
+    def _analyze_revenue_geographic(self, symbol: str) -> Optional[Dict]:
+        """
+        Analyze revenue geographic segmentation using FMP endpoint.
+        Returns detailed breakdown of revenue by region with risk assessment.
+        """
+        try:
+            geo_data = self.fmp.get_revenue_geographic_segmentation(symbol, period='annual')
+            if not geo_data or len(geo_data) == 0:
+                return None
+
+            # Get most recent year
+            latest = geo_data[0] if isinstance(geo_data, list) else geo_data
+
+            # Extract geographic breakdown
+            segments = {}
+            total_revenue = 0
+
+            for key, value in latest.items():
+                if key.lower() in ['date', 'symbol', 'cik']:
+                    continue
+                if isinstance(value, (int, float)) and value > 0:
+                    segments[key] = value
+                    total_revenue += value
+
+            if total_revenue == 0 or len(segments) == 0:
+                return None
+
+            # Calculate percentages
+            geo_breakdown = []
+            for region, revenue in segments.items():
+                pct = (revenue / total_revenue) * 100
+                geo_breakdown.append({
+                    'region': region,
+                    'revenue': revenue,
+                    'percentage': pct
+                })
+
+            # Sort by percentage
+            geo_breakdown.sort(key=lambda x: x['percentage'], reverse=True)
+
+            # Assess risk
+            high_risk_keywords = ['china', 'chinese', 'russia', 'russian']
+            medium_risk_keywords = ['middle east', 'latin america', 'africa']
+
+            risk_level = 'Low'
+            risk_regions = []
+
+            for item in geo_breakdown:
+                region_lower = item['region'].lower()
+
+                # Check high risk
+                if any(keyword in region_lower for keyword in high_risk_keywords):
+                    if item['percentage'] > 20:
+                        risk_level = 'High'
+                        risk_regions.append(f"{item['region']} ({item['percentage']:.1f}%)")
+                    elif item['percentage'] > 10:
+                        if risk_level != 'High':
+                            risk_level = 'Medium'
+                        risk_regions.append(f"{item['region']} ({item['percentage']:.1f}%)")
+
+                # Check medium risk
+                elif any(keyword in region_lower for keyword in medium_risk_keywords):
+                    if item['percentage'] > 25:
+                        if risk_level == 'Low':
+                            risk_level = 'Medium'
+                        risk_regions.append(f"{item['region']} ({item['percentage']:.1f}%)")
+
+            return {
+                'breakdown': geo_breakdown,
+                'risk_level': risk_level,
+                'risk_regions': risk_regions,
+                'total_revenue': total_revenue
+            }
+
+        except Exception as e:
+            logger.warning(f"Error analyzing revenue geographic for {symbol}: {e}")
+            return None
+
+    def _analyze_government_trading(self, symbol: str) -> Optional[Dict]:
+        """
+        Analyze Senate/House trading activity for smart money signals.
+        """
+        try:
+            senate_trades = self.fmp.get_senate_trading(symbol)
+            if not senate_trades or len(senate_trades) == 0:
+                return None
+
+            # Only consider trades from last 180 days
+            from datetime import datetime, timedelta
+            cutoff_date = datetime.now() - timedelta(days=180)
+
+            recent_trades = []
+            for trade in senate_trades:
+                try:
+                    trade_date_str = trade.get('transactionDate', '')
+                    if trade_date_str:
+                        trade_date = datetime.strptime(trade_date_str, '%Y-%m-%d')
+                        if trade_date >= cutoff_date:
+                            recent_trades.append(trade)
+                except:
+                    continue
+
+            if len(recent_trades) == 0:
+                return None
+
+            # Analyze buy/sell balance
+            buys = []
+            sells = []
+
+            for trade in recent_trades:
+                transaction_type = trade.get('type', '').lower()
+                senator = trade.get('firstName', '') + ' ' + trade.get('lastName', '')
+                amount = trade.get('amount', 'Unknown')
+                date = trade.get('transactionDate', '')
+
+                trade_info = {
+                    'senator': senator.strip(),
+                    'amount': amount,
+                    'date': date,
+                    'type': transaction_type
+                }
+
+                if 'purchase' in transaction_type or 'buy' in transaction_type:
+                    buys.append(trade_info)
+                elif 'sale' in transaction_type or 'sell' in transaction_type:
+                    sells.append(trade_info)
+
+            # Determine signal
+            net_balance = len(buys) - len(sells)
+
+            if net_balance > 2:
+                signal = 'Bullish'
+                signal_color = 'green'
+            elif net_balance < -2:
+                signal = 'Bearish'
+                signal_color = 'red'
+            else:
+                signal = 'Neutral'
+                signal_color = 'gray'
+
+            return {
+                'total_trades': len(recent_trades),
+                'buys': buys,
+                'sells': sells,
+                'net_balance': net_balance,
+                'signal': signal,
+                'signal_color': signal_color
+            }
+
+        except Exception as e:
+            logger.warning(f"Error analyzing government trading for {symbol}: {e}")
+            return None
+
+    def _analyze_earnings_surprises(self, symbol: str) -> Optional[Dict]:
+        """
+        Analyze historical earnings surprises for quality assessment.
+        """
+        try:
+            surprises = self.fmp.get_earnings_surprises(symbol)
+            if not surprises or len(surprises) == 0:
+                return None
+
+            # Take last 8 quarters (2 years)
+            recent_surprises = surprises[:8] if len(surprises) >= 8 else surprises
+
+            beats = 0
+            misses = 0
+            meets = 0
+            total_surprise_pct = 0
+
+            surprise_details = []
+
+            for surprise in recent_surprises:
+                actual_eps = surprise.get('actualEarningResult', 0)
+                estimated_eps = surprise.get('estimatedEarning', 0)
+                date = surprise.get('date', '')
+
+                if estimated_eps and estimated_eps != 0:
+                    surprise_pct = ((actual_eps - estimated_eps) / abs(estimated_eps)) * 100
+                    total_surprise_pct += surprise_pct
+
+                    if surprise_pct > 2:  # Beat by >2%
+                        beats += 1
+                        result = 'Beat'
+                    elif surprise_pct < -2:  # Miss by >2%
+                        misses += 1
+                        result = 'Miss'
+                    else:
+                        meets += 1
+                        result = 'Meet'
+
+                    surprise_details.append({
+                        'date': date,
+                        'actual': actual_eps,
+                        'estimated': estimated_eps,
+                        'surprise_pct': surprise_pct,
+                        'result': result
+                    })
+
+            if len(recent_surprises) == 0:
+                return None
+
+            avg_surprise = total_surprise_pct / len(recent_surprises)
+
+            # Determine track record quality
+            if beats >= len(recent_surprises) * 0.75:  # 75%+ beats
+                track_record = 'Excellent'
+                track_record_color = 'green'
+            elif beats >= len(recent_surprises) * 0.5:  # 50%+ beats
+                track_record = 'Good'
+                track_record_color = 'blue'
+            elif misses >= len(recent_surprises) * 0.5:  # 50%+ misses
+                track_record = 'Poor'
+                track_record_color = 'red'
+            else:
+                track_record = 'Mixed'
+                track_record_color = 'yellow'
+
+            return {
+                'total_quarters': len(recent_surprises),
+                'beats': beats,
+                'misses': misses,
+                'meets': meets,
+                'avg_surprise_pct': avg_surprise,
+                'track_record': track_record,
+                'track_record_color': track_record_color,
+                'details': surprise_details
+            }
+
+        except Exception as e:
+            logger.warning(f"Error analyzing earnings surprises for {symbol}: {e}")
+            return None
+
+    def _analyze_analyst_consensus(self, symbol: str, current_price: float = None) -> Optional[Dict]:
+        """
+        Analyze Wall Street analyst consensus for price targets and recommendations.
+        """
+        try:
+            # Get price target consensus
+            price_targets = self.fmp.get_price_target_consensus(symbol)
+            upgrades = self.fmp.get_upgrades_downgrades_consensus(symbol)
+
+            result = {}
+
+            # Process price targets
+            if price_targets and len(price_targets) > 0:
+                pt = price_targets[0]
+
+                target_high = pt.get('targetHigh', 0)
+                target_low = pt.get('targetLow', 0)
+                target_avg = pt.get('targetMedian', 0) or pt.get('targetAverage', 0)
+                target_consensus = pt.get('targetConsensus', 0)
+
+                result['target_high'] = target_high
+                result['target_low'] = target_low
+                result['target_avg'] = target_avg
+                result['target_consensus'] = target_consensus
+
+                # Calculate upside if we have current price
+                if current_price and current_price > 0 and target_consensus > 0:
+                    upside_pct = ((target_consensus - current_price) / current_price) * 100
+                    result['upside_pct'] = upside_pct
+
+                    if upside_pct > 30:
+                        result['upside_signal'] = 'Strong Upside'
+                    elif upside_pct > 15:
+                        result['upside_signal'] = 'Moderate Upside'
+                    elif upside_pct > 0:
+                        result['upside_signal'] = 'Limited Upside'
+                    else:
+                        result['upside_signal'] = 'Overvalued'
+
+            # Process upgrades/downgrades
+            if upgrades and len(upgrades) > 0:
+                ug = upgrades[0]
+
+                strong_buy = ug.get('strongBuy', 0)
+                buy = ug.get('buy', 0)
+                hold = ug.get('hold', 0)
+                sell = ug.get('sell', 0)
+                strong_sell = ug.get('strongSell', 0)
+
+                total_analysts = strong_buy + buy + hold + sell + strong_sell
+
+                result['strong_buy'] = strong_buy
+                result['buy'] = buy
+                result['hold'] = hold
+                result['sell'] = sell
+                result['strong_sell'] = strong_sell
+                result['total_analysts'] = total_analysts
+
+                # Determine consensus
+                if total_analysts > 0:
+                    bullish_pct = ((strong_buy + buy) / total_analysts) * 100
+                    bearish_pct = ((sell + strong_sell) / total_analysts) * 100
+
+                    if bullish_pct >= 70:
+                        result['consensus'] = 'Strong Buy'
+                        result['consensus_color'] = 'green'
+                    elif bullish_pct >= 50:
+                        result['consensus'] = 'Buy'
+                        result['consensus_color'] = 'lightgreen'
+                    elif bearish_pct >= 50:
+                        result['consensus'] = 'Sell'
+                        result['consensus_color'] = 'red'
+                    elif bearish_pct >= 30:
+                        result['consensus'] = 'Underperform'
+                        result['consensus_color'] = 'orange'
+                    else:
+                        result['consensus'] = 'Hold'
+                        result['consensus_color'] = 'yellow'
+
+            return result if result else None
+
+        except Exception as e:
+            logger.warning(f"Error analyzing analyst consensus for {symbol}: {e}")
+            return None
 
     def _analyze_rd_efficiency(self, symbol: str, industry: str) -> Optional[Dict]:
         """

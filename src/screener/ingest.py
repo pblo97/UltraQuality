@@ -501,6 +501,65 @@ class FMPClient:
 
         return self._request('earning_calendar', params=params, cache=self.cache_symbol)
 
+    def get_senate_trading(self, symbol: str = None) -> List[Dict]:
+        """
+        Endpoint: /v4/senate-trading
+        Returns Senate stock trading disclosures.
+        If symbol provided, filters by that stock.
+        """
+        if symbol:
+            return self._request(f'v4/senate-trading', params={'symbol': symbol}, cache=self.cache_qualitative)
+        return self._request('v4/senate-trading', cache=self.cache_qualitative)
+
+    def get_senate_disclosure_rss(self, symbol: str = None) -> List[Dict]:
+        """
+        Endpoint: /v4/senate-disclosure-rss
+        Returns Senate disclosure RSS feed.
+        If symbol provided, filters by that stock.
+        """
+        if symbol:
+            return self._request(f'v4/senate-disclosure-rss', params={'symbol': symbol}, cache=self.cache_qualitative)
+        return self._request('v4/senate-disclosure-rss', cache=self.cache_qualitative)
+
+    def get_revenue_geographic_segmentation(self, symbol: str, period: str = 'annual') -> List[Dict]:
+        """
+        Endpoint: /v4/revenue-geographic-segmentation
+        Returns revenue breakdown by geographic region.
+        """
+        return self._request(f'v4/revenue-geographic-segmentation',
+                           params={'symbol': symbol, 'period': period, 'structure': 'flat'},
+                           cache=self.cache_qualitative)
+
+    def get_earnings_surprises(self, symbol: str) -> List[Dict]:
+        """
+        Endpoint: /v3/earnings-surprises/{symbol}
+        Returns historical earnings surprises (actual vs estimated).
+        """
+        return self._request(f'v3/earnings-surprises/{symbol}', cache=self.cache_qualitative)
+
+    def get_price_target_consensus(self, symbol: str) -> List[Dict]:
+        """
+        Endpoint: /v4/price-target-consensus
+        Returns analyst price target consensus.
+        """
+        return self._request(f'v4/price-target-consensus', params={'symbol': symbol}, cache=self.cache_qualitative)
+
+    def get_upgrades_downgrades_consensus(self, symbol: str) -> List[Dict]:
+        """
+        Endpoint: /v4/upgrades-downgrades-consensus
+        Returns analyst upgrades/downgrades consensus.
+        """
+        return self._request(f'v4/upgrades-downgrades-consensus', params={'symbol': symbol}, cache=self.cache_qualitative)
+
+    def get_analyst_estimates(self, symbol: str, period: str = 'quarter', limit: int = 4) -> List[Dict]:
+        """
+        Endpoint: /v3/analyst-estimates/{symbol}
+        Returns analyst estimates for revenue and earnings.
+        """
+        return self._request(f'v3/analyst-estimates/{symbol}',
+                           params={'period': period, 'limit': limit},
+                           cache=self.cache_qualitative)
+
     # ========================
     # Metrics & Stats
     # ========================

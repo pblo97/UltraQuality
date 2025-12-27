@@ -4756,6 +4756,465 @@ with tab5:
                     st.markdown("---")
 
                     # ============================================================
+                    # SECTION 5: GOVERNMENT TRACKER (Capitol Hill Trading)
+                    # ============================================================
+                    government_trading = analysis.get('government_trading')
+                    if government_trading:
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+                                    padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
+                            <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                    SECTION 5
+                                </span>
+                                <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                    🏛️ Capitol Hill Activity
+                                </h3>
+                            </div>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
+                                Senate & House trading - Following the smart money político
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        signal = government_trading.get('signal', 'Neutral')
+                        signal_color_map = {'Bullish': '#10b981', 'Bearish': '#ef4444', 'Neutral': '#6b7280'}
+                        signal_color = signal_color_map.get(signal, '#6b7280')
+
+                        # Summary metrics
+                        col1, col2, col3, col4 = st.columns(4)
+
+                        with col1:
+                            total_trades = government_trading.get('total_trades', 0)
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                    TOTAL TRADES (6M)
+                                </div>
+                                <div style='font-size: 2rem; font-weight: 700; color: #667eea;'>
+                                    {total_trades}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        with col2:
+                            buys_count = len(government_trading.get('buys', []))
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                    COMPRAS
+                                </div>
+                                <div style='font-size: 2rem; font-weight: 700; color: #10b981;'>
+                                    {buys_count}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        with col3:
+                            sells_count = len(government_trading.get('sells', []))
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                    VENTAS
+                                </div>
+                                <div style='font-size: 2rem; font-weight: 700; color: #ef4444;'>
+                                    {sells_count}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        with col4:
+                            st.markdown(f"""
+                            <div style='background: {signal_color}; padding: 1rem; border-radius: 8px; text-align: center;'>
+                                <div style='font-size: 0.75rem; color: white; margin-bottom: 0.5rem; font-weight: 600; opacity: 0.9;'>
+                                    SEÑAL
+                                </div>
+                                <div style='font-size: 1.3rem; font-weight: 700; color: white;'>
+                                    {signal.upper()}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        # Recent trades details
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        st.markdown("**Recent Activity:**")
+
+                        buys = government_trading.get('buys', [])
+                        sells = government_trading.get('sells', [])
+
+                        # Show top 5 recent trades
+                        all_trades = []
+                        for buy in buys[:3]:
+                            all_trades.append({**buy, 'action': 'BUY'})
+                        for sell in sells[:3]:
+                            all_trades.append({**sell, 'action': 'SELL'})
+
+                        # Sort by date
+                        all_trades.sort(key=lambda x: x.get('date', ''), reverse=True)
+
+                        for trade in all_trades[:5]:
+                            action = trade.get('action', 'UNKNOWN')
+                            action_color = '#10b981' if action == 'BUY' else '#ef4444'
+                            action_bg = '#d1fae5' if action == 'BUY' else '#fee2e2'
+
+                            senator = trade.get('senator', 'Unknown')
+                            amount = trade.get('amount', 'Unknown')
+                            date = trade.get('date', 'N/A')
+
+                            st.markdown(f"""
+                            <div style='background: {action_bg}; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 0.5rem; border-left: 3px solid {action_color};'>
+                                <div style='display: flex; justify-content: space-between; align-items: center;'>
+                                    <div>
+                                        <div style='font-weight: 600; color: #1e293b; font-size: 0.9rem;'>
+                                            {senator}
+                                        </div>
+                                        <div style='color: #64748b; font-size: 0.8rem;'>
+                                            {amount} • {date}
+                                        </div>
+                                    </div>
+                                    <span style='background: {action_color}; color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700;'>
+                                        {action}
+                                    </span>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        if len(all_trades) == 0:
+                            st.info("No recent government trading activity found")
+
+                        st.markdown("---")
+
+                    # ============================================================
+                    # SECTION 6: GEOGRAPHIC REVENUE RISK MAP
+                    # ============================================================
+                    revenue_geo = analysis.get('revenue_geographic')
+                    if revenue_geo:
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                                    padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
+                            <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                    SECTION 6
+                                </span>
+                                <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                    🗺️ Geographic Revenue Exposure
+                                </h3>
+                            </div>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
+                                Geopolitical risk assessment - China, Taiwan, emerging markets
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        risk_level = revenue_geo.get('risk_level', 'Low')
+                        risk_level_colors = {
+                            'High': ('#ef4444', '#fee2e2'),
+                            'Medium': ('#f59e0b', '#fef3c7'),
+                            'Low': ('#10b981', '#d1fae5')
+                        }
+                        risk_color, risk_bg = risk_level_colors.get(risk_level, ('#6b7280', '#f3f4f6'))
+
+                        # Risk level card
+                        st.markdown(f"""
+                        <div style='background: {risk_bg}; padding: 1.5rem; border-radius: 8px; border: 2px solid {risk_color}; margin-bottom: 1rem; text-align: center;'>
+                            <div style='font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                GEOPOLITICAL RISK LEVEL
+                            </div>
+                            <div style='font-size: 2.5rem; font-weight: 700; color: {risk_color};'>
+                                {risk_level.upper()}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Geographic breakdown
+                        st.markdown("**Revenue by Region:**")
+
+                        breakdown = revenue_geo.get('breakdown', [])
+                        for item in breakdown[:8]:  # Show top 8 regions
+                            region = item['region']
+                            pct = item['percentage']
+                            revenue = item['revenue']
+
+                            # Bar visualization
+                            bar_width = pct
+                            bar_color = '#667eea'
+
+                            # Check if it's a risk region
+                            risk_regions = revenue_geo.get('risk_regions', [])
+                            is_risk = any(region in risk_region for risk_region in risk_regions)
+                            if is_risk:
+                                bar_color = '#ef4444' if risk_level == 'High' else '#f59e0b'
+
+                            st.markdown(f"""
+                            <div style='margin-bottom: 1rem;'>
+                                <div style='display: flex; justify-content: space-between; margin-bottom: 0.25rem;'>
+                                    <span style='font-weight: 600; font-size: 0.9rem; color: #1e293b;'>{region}</span>
+                                    <span style='font-weight: 700; color: {bar_color};'>{pct:.1f}%</span>
+                                </div>
+                                <div style='background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden;'>
+                                    <div style='background: {bar_color}; height: 100%; width: {bar_width}%; transition: width 0.3s ease;'></div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        # Risk regions warning
+                        if risk_regions and len(risk_regions) > 0:
+                            st.warning(f"**High-risk exposure detected:** {', '.join(risk_regions)}")
+
+                        st.markdown("---")
+
+                    # ============================================================
+                    # SECTION 7: EARNINGS SURPRISES TRACK RECORD
+                    # ============================================================
+                    earnings_surprises = analysis.get('earnings_surprises')
+                    if earnings_surprises:
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                                    padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
+                            <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                    SECTION 7
+                                </span>
+                                <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                    🎁 Earnings Surprises Track Record
+                                </h3>
+                            </div>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
+                                Historical earnings beats vs misses - Management credibility
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        track_record = earnings_surprises.get('track_record', 'Mixed')
+                        track_record_colors = {
+                            'Excellent': ('#10b981', '#d1fae5'),
+                            'Good': ('#3b82f6', '#dbeafe'),
+                            'Mixed': ('#f59e0b', '#fef3c7'),
+                            'Poor': ('#ef4444', '#fee2e2')
+                        }
+                        tr_color, tr_bg = track_record_colors.get(track_record, ('#6b7280', '#f3f4f6'))
+
+                        # Summary metrics
+                        col1, col2, col3, col4 = st.columns(4)
+
+                        with col1:
+                            beats = earnings_surprises.get('beats', 0)
+                            st.markdown(f"""
+                            <div style='background: #d1fae5; padding: 1rem; border-radius: 8px; border: 1px solid #10b981; text-align: center;'>
+                                <div style='font-size: 0.75rem; color: #064e3b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                    BEATS
+                                </div>
+                                <div style='font-size: 2.5rem; font-weight: 700; color: #10b981;'>
+                                    {beats}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        with col2:
+                            misses = earnings_surprises.get('misses', 0)
+                            st.markdown(f"""
+                            <div style='background: #fee2e2; padding: 1rem; border-radius: 8px; border: 1px solid #ef4444; text-align: center;'>
+                                <div style='font-size: 0.75rem; color: #7f1d1d; margin-bottom: 0.5rem; font-weight: 600;'>
+                                    MISSES
+                                </div>
+                                <div style='font-size: 2.5rem; font-weight: 700; color: #ef4444;'>
+                                    {misses}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        with col3:
+                            avg_surprise = earnings_surprises.get('avg_surprise_pct', 0)
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                    AVG SURPRISE
+                                </div>
+                                <div style='font-size: 2rem; font-weight: 700; color: {"#10b981" if avg_surprise > 0 else "#ef4444"};'>
+                                    {avg_surprise:+.1f}%
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        with col4:
+                            st.markdown(f"""
+                            <div style='background: {tr_bg}; padding: 1rem; border-radius: 8px; border: 2px solid {tr_color}; text-align: center;'>
+                                <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                    TRACK RECORD
+                                </div>
+                                <div style='font-size: 1.3rem; font-weight: 700; color: {tr_color};'>
+                                    {track_record.upper()}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        # Historical details
+                        details = earnings_surprises.get('details', [])
+                        if details:
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            st.markdown("**Last 8 Quarters:**")
+
+                            for detail in details[:8]:
+                                result = detail.get('result', 'Meet')
+                                date = detail.get('date', 'N/A')
+                                surprise_pct = detail.get('surprise_pct', 0)
+
+                                result_colors = {
+                                    'Beat': ('#10b981', '✓'),
+                                    'Miss': ('#ef4444', '✗'),
+                                    'Meet': ('#6b7280', '=')
+                                }
+                                result_color, result_icon = result_colors.get(result, ('#6b7280', '?'))
+
+                                st.markdown(f"""
+                                <div style='display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #e2e8f0;'>
+                                    <span style='font-weight: 600; color: {result_color};'>{result_icon} {result}</span>
+                                    <span style='color: #64748b; font-size: 0.85rem;'>{date}</span>
+                                    <span style='color: {result_color}; font-weight: 700;'>{surprise_pct:+.1f}%</span>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                        st.markdown("---")
+
+                    # ============================================================
+                    # SECTION 8: WALL STREET CONSENSUS
+                    # ============================================================
+                    analyst_consensus = analysis.get('analyst_consensus')
+                    if analyst_consensus:
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
+                            <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                    SECTION 8
+                                </span>
+                                <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                    👔 Wall Street Consensus
+                                </h3>
+                            </div>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
+                                Analyst price targets and recommendations
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Price targets
+                        target_consensus = analyst_consensus.get('target_consensus', 0)
+                        target_high = analyst_consensus.get('target_high', 0)
+                        target_low = analyst_consensus.get('target_low', 0)
+                        upside_pct = analyst_consensus.get('upside_pct')
+
+                        if target_consensus and target_consensus > 0:
+                            st.markdown("**Price Targets:**")
+
+                            col1, col2, col3, col4 = st.columns(4)
+
+                            with col1:
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                    <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                        TARGET LOW
+                                    </div>
+                                    <div style='font-size: 1.5rem; font-weight: 700; color: #ef4444;'>
+                                        ${target_low:.2f}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                            with col2:
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                    <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                        CONSENSUS
+                                    </div>
+                                    <div style='font-size: 1.5rem; font-weight: 700; color: #667eea;'>
+                                        ${target_consensus:.2f}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                            with col3:
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                    <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                        TARGET HIGH
+                                    </div>
+                                    <div style='font-size: 1.5rem; font-weight: 700; color: #10b981;'>
+                                        ${target_high:.2f}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                            with col4:
+                                if upside_pct is not None:
+                                    upside_color = '#10b981' if upside_pct > 0 else '#ef4444'
+                                    st.markdown(f"""
+                                    <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                        <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                            UPSIDE
+                                        </div>
+                                        <div style='font-size: 1.5rem; font-weight: 700; color: {upside_color};'>
+                                            {upside_pct:+.1f}%
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                        # Analyst recommendations
+                        total_analysts = analyst_consensus.get('total_analysts', 0)
+                        if total_analysts > 0:
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            st.markdown("**Analyst Recommendations:**")
+
+                            strong_buy = analyst_consensus.get('strong_buy', 0)
+                            buy = analyst_consensus.get('buy', 0)
+                            hold = analyst_consensus.get('hold', 0)
+                            sell = analyst_consensus.get('sell', 0)
+                            strong_sell = analyst_consensus.get('strong_sell', 0)
+
+                            consensus = analyst_consensus.get('consensus', 'Hold')
+                            consensus_color = analyst_consensus.get('consensus_color', 'yellow')
+
+                            # Consensus card
+                            consensus_color_map = {
+                                'green': '#10b981',
+                                'lightgreen': '#3b82f6',
+                                'yellow': '#f59e0b',
+                                'orange': '#f97316',
+                                'red': '#ef4444'
+                            }
+                            consensus_hex = consensus_color_map.get(consensus_color, '#6b7280')
+
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1.5rem; border-radius: 8px; border: 2px solid {consensus_hex}; margin-bottom: 1rem; text-align: center;'>
+                                <div style='font-size: 0.85rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                    CONSENSUS
+                                </div>
+                                <div style='font-size: 2rem; font-weight: 700; color: {consensus_hex};'>
+                                    {consensus.upper()}
+                                </div>
+                                <div style='font-size: 0.85rem; color: #64748b; margin-top: 0.5rem;'>
+                                    Based on {total_analysts} analysts
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Breakdown
+                            col1, col2, col3, col4, col5 = st.columns(5)
+
+                            with col1:
+                                st.metric("Strong Buy", strong_buy)
+                            with col2:
+                                st.metric("Buy", buy)
+                            with col3:
+                                st.metric("Hold", hold)
+                            with col4:
+                                st.metric("Sell", sell)
+                            with col5:
+                                st.metric("Strong Sell", strong_sell)
+
+                        st.markdown("---")
+
+                    # ============================================================
                     # INTRINSIC VALUE & VALUATION
                     # ============================================================
                     st.markdown("""
