@@ -4196,6 +4196,14 @@ with tab5:
                                 moat_clean = re.sub(r'[✓✗💪📝🟡🟢🔴⚠️👍🏆]', '', moat).strip()
                                 moat_clean = re.sub(r'^[\s✓✗💪]+', '', moat_clean)
 
+                                # Skip metadata lines (not actual moats)
+                                if any(skip_text in moat_clean.lower() for skip_text in [
+                                    'analysis confidence',
+                                    'moats identified',
+                                    'confidence:',
+                                ]):
+                                    continue
+
                                 # Parse format: "**Name**: Description (**Evidence**)"
                                 match = re.match(r'\*\*([^:]+)\*\*:\s*([^(]+)(?:\(\*\*([^)]+)\*\*\))?', moat_clean)
 
@@ -4204,8 +4212,12 @@ with tab5:
                                     moat_desc = match.group(2).strip()
                                     moat_evidence = match.group(3).strip() if match.group(3) else "Unknown"
 
-                                    # Skip if "Not evident"
+                                    # Skip if "Not evident" or metadata
                                     if "not evident" in moat_evidence.lower():
+                                        continue
+
+                                    # Skip if it's actually metadata disguised as moat
+                                    if any(metadata in moat_name.lower() for metadata in ['confidence', 'identified']):
                                         continue
 
                                     moat_count += 1
@@ -4371,35 +4383,37 @@ with tab5:
                                 st.metric("Insider Ownership", "N/A")
 
                         with col2:
-                            # Get institutional ownership from FMP directly
-                            try:
-                                institutional_holders = fmp_client.get_institutional_holders(selected_ticker)
-                                if institutional_holders and len(institutional_holders) > 0:
-                                    # Sum up total shares held by institutions
-                                    total_inst_shares = sum(h.get('shares', 0) for h in institutional_holders)
-                                    # Get shares outstanding from stock data
-                                    shares_outstanding = df_filtered[df_filtered['ticker'] == selected_ticker]['shares_outstanding'].iloc[0]
-                                    if shares_outstanding and shares_outstanding > 0:
-                                        inst_own_pct = (total_inst_shares / shares_outstanding) * 100
-                                        st.metric("Institutional Own.", f"{inst_own_pct:.1f}%")
-                                    else:
-                                        inst_own = insider.get('institutional_ownership_pct')
-                                        if inst_own is not None:
-                                            st.metric("Institutional Own.", f"{inst_own:.1f}%")
-                                        else:
-                                            st.metric("Institutional Own.", "N/A")
-                                else:
-                                    inst_own = insider.get('institutional_ownership_pct')
-                                    if inst_own is not None:
-                                        st.metric("Institutional Own.", f"{inst_own:.1f}%")
-                                    else:
-                                        st.metric("Institutional Own.", "N/A")
-                            except Exception as e:
-                                inst_own = insider.get('institutional_ownership_pct')
-                                if inst_own is not None:
-                                    st.metric("Institutional Own.", f"{inst_own:.1f}%")
-                                else:
-                                    st.metric("Institutional Own.", "N/A")
+                            # Try to get institutional ownership
+                            inst_own_value = None
+
+                            # First try from insider dict (should have it from qualitative analyzer)
+                            inst_own_value = insider.get('institutional_ownership_pct')
+
+                            # If not available, try FMP directly
+                            if inst_own_value is None:
+                                try:
+                                    if 'fmp_client' in st.session_state:
+                                        fmp_client = st.session_state['fmp_client']
+                                        institutional_holders = fmp_client.get_institutional_holders(selected_ticker)
+                                        if institutional_holders and len(institutional_holders) > 0:
+                                            # Sum up total shares held
+                                            total_inst_shares = sum(h.get('shares', 0) for h in institutional_holders)
+                                            # Try to get shares outstanding
+                                            if 'df_filtered' in locals() and len(df_filtered) > 0:
+                                                ticker_row = df_filtered[df_filtered['ticker'] == selected_ticker]
+                                                if not ticker_row.empty and 'shares_outstanding' in ticker_row.columns:
+                                                    shares_out = ticker_row['shares_outstanding'].iloc[0]
+                                                    if shares_out and shares_out > 0:
+                                                        inst_own_value = (total_inst_shares / shares_out) * 100
+                                except:
+                                    pass  # Keep inst_own_value as None
+
+                            # Display the value
+                            if inst_own_value is not None and inst_own_value > 0:
+                                st.metric("Institutional Own.", f"{inst_own_value:.1f}%")
+                            else:
+                                st.metric("Institutional Own.", "N/A")
+                                st.caption("Data unavailable")
 
                         with col3:
                             dilution = insider.get('net_share_issuance_12m_%')
@@ -4546,26 +4560,49 @@ with tab5:
                                 card_border = '#9ca3af'
                                 badge = '<span style="background: #6b7280; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.3px;">NEWS</span>'
 
-                            # Create expander title with HTML (st.expander doesn't support HTML, so we use date prefix)
-                            expander_title = f"{date}: {headline[:75]}{'...' if len(headline) > 75 else ''}"
+                            # Create expander title - show date and truncated headline
+                            expander_title = f"{date}: {headline[:70]}{'...' if len(headline) > 70 else ''}"
 
                             with st.expander(expander_title, expanded=(i==0)):
-                                # Add badge at the top
+                                # Full headline inside
                                 st.markdown(f"""
-                                <div style='margin-bottom: 0.75rem;'>
-                                    {badge}
-                                </div>
-                                <div style='background: {card_bg}; padding: 1rem; border-radius: 8px; border-left: 3px solid {card_border}; margin-bottom: 0.5rem;'>
-                                    <div style='font-size: 0.95rem; line-height: 1.6;'>
-                                        {summary if summary else 'No summary available'}
+                                <div style='margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: start;'>
+                                    <div style='font-weight: 600; font-size: 1rem; color: #1e293b; flex: 1; margin-right: 1rem;'>
+                                        {headline}
                                     </div>
+                                    {badge}
                                 </div>
                                 """, unsafe_allow_html=True)
 
-                                if url:
-                                    st.markdown(f"[→ Read full article]({url})")
+                                # Summary - clean up truncated text
+                                if summary and len(summary) > 20:
+                                    # Remove trailing ellipsis or incomplete sentences
+                                    summary_clean = summary.strip()
+                                    if summary_clean.endswith('...'):
+                                        summary_clean = summary_clean[:-3].strip()
+                                    # If ends mid-sentence (lowercase), add ellipsis
+                                    if summary_clean and not summary_clean[-1] in '.!?' and summary_clean[-1].islower():
+                                        summary_clean += '...'
+
+                                    st.markdown(f"""
+                                    <div style='background: {card_bg}; padding: 1rem; border-radius: 8px; border-left: 3px solid {card_border}; margin-bottom: 1rem;'>
+                                        <div style='font-size: 0.9rem; line-height: 1.7; color: #334155;'>
+                                            {summary_clean}
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
                                 else:
-                                    st.caption("Link not available")
+                                    st.info("Summary not available for this article")
+
+                                # Source and link
+                                col_date, col_link = st.columns([1, 1])
+                                with col_date:
+                                    st.caption(f"📅 Published: {date}")
+                                with col_link:
+                                    if url:
+                                        st.markdown(f"[→ Read full article]({url})")
+                                    else:
+                                        st.caption("Link not available")
                     else:
                         st.info("No recent news available")
 
