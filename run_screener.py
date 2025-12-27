@@ -4554,64 +4554,71 @@ with tab5:
                                     buying_count = sum(1 for h in institutional_holders if h.get('change', 0) > 0)
                                     selling_count = sum(1 for h in institutional_holders if h.get('change', 0) < 0)
 
-                                    st.markdown("---")
+                                    # Debug: Show if we have change data
+                                    changes_available = any(h.get('change') is not None for h in institutional_holders)
 
-                                    col_buy, col_sell, col_net = st.columns(3)
+                                    if changes_available:
+                                        st.markdown("---")
+                                        st.markdown("**Balance de Compra/Venta Institucional**")
 
-                                    with col_buy:
-                                        st.markdown(f"""
-                                        <div style='text-align: center; padding: 0.75rem;'>
-                                            <div style='font-size: 1.5rem; font-weight: 700; color: #10b981;'>
-                                                {buying_count}
-                                            </div>
-                                            <div style='font-size: 0.8rem; color: #64748b;'>
-                                                COMPRANDO
-                                            </div>
-                                        </div>
-                                        """, unsafe_allow_html=True)
+                                        col_buy, col_sell, col_net = st.columns(3)
 
-                                    with col_sell:
-                                        st.markdown(f"""
-                                        <div style='text-align: center; padding: 0.75rem;'>
-                                            <div style='font-size: 1.5rem; font-weight: 700; color: #ef4444;'>
-                                                {selling_count}
+                                        with col_buy:
+                                            st.markdown(f"""
+                                            <div style='text-align: center; padding: 0.75rem;'>
+                                                <div style='font-size: 1.5rem; font-weight: 700; color: #10b981;'>
+                                                    {buying_count}
+                                                </div>
+                                                <div style='font-size: 0.8rem; color: #64748b;'>
+                                                    COMPRANDO
+                                                </div>
                                             </div>
-                                            <div style='font-size: 0.8rem; color: #64748b;'>
-                                                VENDIENDO
-                                            </div>
-                                        </div>
-                                        """, unsafe_allow_html=True)
+                                            """, unsafe_allow_html=True)
 
-                                    with col_net:
-                                        net_inst_balance = buying_count - selling_count
-                                        if net_inst_balance > 0:
-                                            net_color = '#10b981'
-                                            net_text = 'NET COMPRA'
-                                        elif net_inst_balance < 0:
-                                            net_color = '#ef4444'
-                                            net_text = 'NET VENTA'
+                                        with col_sell:
+                                            st.markdown(f"""
+                                            <div style='text-align: center; padding: 0.75rem;'>
+                                                <div style='font-size: 1.5rem; font-weight: 700; color: #ef4444;'>
+                                                    {selling_count}
+                                                </div>
+                                                <div style='font-size: 0.8rem; color: #64748b;'>
+                                                    VENDIENDO
+                                                </div>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+
+                                        with col_net:
+                                            net_inst_balance = buying_count - selling_count
+                                            if net_inst_balance > 0:
+                                                net_color = '#10b981'
+                                                net_text = 'NET COMPRA'
+                                            elif net_inst_balance < 0:
+                                                net_color = '#ef4444'
+                                                net_text = 'NET VENTA'
+                                            else:
+                                                net_color = '#6b7280'
+                                                net_text = 'NEUTRAL'
+
+                                            st.markdown(f"""
+                                            <div style='text-align: center; padding: 0.75rem;'>
+                                                <div style='font-size: 1.5rem; font-weight: 700; color: {net_color};'>
+                                                    {net_inst_balance:+d}
+                                                </div>
+                                                <div style='font-size: 0.8rem; color: #64748b;'>
+                                                    {net_text}
+                                                </div>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+
+                                        # Interpretation
+                                        if net_inst_balance > 5:
+                                            st.success(f"Smart money comprando: Más instituciones aumentando posiciones que reduciéndolas. Señal de confianza institucional.")
+                                        elif net_inst_balance < -5:
+                                            st.warning(f"Smart money vendiendo: Más instituciones reduciendo posiciones. Puede indicar preocupaciones o rotación sectorial.")
                                         else:
-                                            net_color = '#6b7280'
-                                            net_text = 'NEUTRAL'
-
-                                        st.markdown(f"""
-                                        <div style='text-align: center; padding: 0.75rem;'>
-                                            <div style='font-size: 1.5rem; font-weight: 700; color: {net_color};'>
-                                                {net_inst_balance:+d}
-                                            </div>
-                                            <div style='font-size: 0.8rem; color: #64748b;'>
-                                                {net_text}
-                                            </div>
-                                        </div>
-                                        """, unsafe_allow_html=True)
-
-                                    # Interpretation
-                                    if net_inst_balance > 5:
-                                        st.success(f"Smart money comprando: Más instituciones aumentando posiciones que reduciéndolas. Señal de confianza institucional.")
-                                    elif net_inst_balance < -5:
-                                        st.warning(f"Smart money vendiendo: Más instituciones reduciendo posiciones. Puede indicar preocupaciones o rotación sectorial.")
+                                            st.info(f"Balance neutral: Actividad institucional balanceada.")
                                     else:
-                                        st.info(f"Balance neutral: Actividad institucional balanceada.")
+                                        st.info("⚠️ Datos de cambio (compra/venta) no disponibles en la API. Solo se muestran las posiciones actuales.")
 
                                 else:
                                     st.info("No hay datos de institutional holdings disponibles")
