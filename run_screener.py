@@ -4129,37 +4129,78 @@ with tab5:
                     # Don't show anything else - wait for user to click button again
                 elif f'qual_{selected_ticker}' in st.session_state:
                     # Only show analysis if it's valid (no DEBUG messages)
-                    # Business Summary
-                    st.subheader("Business Summary")
+
+                    # ============================================================
+                    # BUSINESS OVERVIEW
+                    # ============================================================
+                    st.markdown("""
+                    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
+                        <h3 style='margin: 0; color: white; font-weight: 600;'>
+                            📄 Business Overview
+                        </h3>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                            Core business model and operations
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                     st.write(analysis.get('business_summary', 'Not available'))
 
                     st.markdown("---")
 
-                    # Moats
+                    # ============================================================
+                    # COMPETITIVE ADVANTAGES & RISKS
+                    # ============================================================
+                    st.markdown("""
+                    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
+                        <h3 style='margin: 0; color: white; font-weight: 600;'>
+                            🏰 Competitive Position
+                        </h3>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                            Sustainable competitive advantages and key business risks
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                     col1, col2 = st.columns(2)
 
                     with col1:
-                        st.subheader("Competitive Moats")
+                        st.markdown("**🛡️ Competitive Moats:**")
                         moats = analysis.get('moats', [])
                         if moats:
                             for moat in moats:
-                                st.markdown(f"- {moat}")
+                                st.success(f"✓ {moat}")
                         else:
                             st.info("No clear moats identified")
 
                     with col2:
-                        st.subheader("Key Risks")
+                        st.markdown("**⚠️ Key Risks:**")
                         risks = analysis.get('risks', [])
                         if risks:
                             for risk in risks:
-                                st.markdown(f"- {risk}")
+                                st.warning(f"• {risk}")
                         else:
                             st.info("No major risks identified")
 
                     st.markdown("---")
 
-                    # Insider Activity & Ownership
-                    st.subheader("Insider Activity & Ownership")
+                    # ============================================================
+                    # INSIDER ACTIVITY & OWNERSHIP
+                    # ============================================================
+                    st.markdown("""
+                    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
+                        <h3 style='margin: 0; color: white; font-weight: 600;'>
+                            👥 Ownership & Insider Activity
+                        </h3>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                            Smart money signals - insider ownership, institutional holdings, and share buybacks
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                     insider = analysis.get('insider_trading', {})
 
                     if insider:
@@ -4210,8 +4251,21 @@ with tab5:
 
                     st.markdown("---")
 
-                    # Recent News
-                    st.subheader("Recent News & Events")
+                    # ============================================================
+                    # RECENT NEWS & EVENTS
+                    # ============================================================
+                    st.markdown("""
+                    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
+                        <h3 style='margin: 0; color: white; font-weight: 600;'>
+                            📰 Recent News & Market Catalysts
+                        </h3>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                            Latest developments and market-moving events
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                     news = analysis.get('recent_news', [])
 
                     if news:
@@ -4223,8 +4277,21 @@ with tab5:
 
                     st.markdown("---")
 
-                    # Intrinsic Value Estimation
-                    st.subheader("Intrinsic Value Estimation")
+                    # ============================================================
+                    # INTRINSIC VALUE & VALUATION
+                    # ============================================================
+                    st.markdown("""
+                    <div style='background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                                padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+                        <h3 style='margin: 0; color: white; font-weight: 600;'>
+                            💰 Intrinsic Value & Fair Price Estimation
+                        </h3>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                            DCF modeling, forward multiples, and PEG analysis to estimate fair value
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                     intrinsic = analysis.get('intrinsic_value', {})
 
                     # Show section if we have intrinsic_value dict (even if current_price is missing)
@@ -4557,9 +4624,40 @@ with tab5:
                             else:
                                 upside_text = 'upside' if upside > 0 else 'downside'
 
-                            st.markdown(f"### {emoji} {display_assessment}: {upside:+.1f}% {upside_text}")
-                            st.caption(f"**Industry Profile:** {industry_profile} | **Primary Metric:** {primary_metric}")
-                            st.caption(f"**Confidence:** {confidence}")
+                            # Create professional card for valuation summary
+                            if color == 'green':
+                                bg_color = '#d1fae5'
+                                text_color = '#065f46'
+                                border_color = '#10b981'
+                            elif color == 'red':
+                                bg_color = '#fee2e2'
+                                text_color = '#991b1b'
+                                border_color = '#ef4444'
+                            else:
+                                bg_color = '#fef3c7'
+                                text_color = '#92400e'
+                                border_color = '#f59e0b'
+
+                            st.markdown(f"""
+                            <div style='background: {bg_color};
+                                        padding: 1.5rem;
+                                        border-radius: 12px;
+                                        border-left: 5px solid {border_color};
+                                        margin: 1rem 0;
+                                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+                                <div style='font-size: 1.8rem; font-weight: 700; color: {text_color}; margin-bottom: 0.5rem;'>
+                                    {emoji} {display_assessment}
+                                </div>
+                                <div style='font-size: 2.5rem; font-weight: 800; color: {text_color};'>
+                                    {upside:+.1f}% {upside_text}
+                                </div>
+                                <div style='margin-top: 0.75rem; color: {text_color}; opacity: 0.85; font-size: 0.95rem;'>
+                                    <strong>Industry:</strong> {industry_profile} |
+                                    <strong>Primary Metric:</strong> {primary_metric} |
+                                    <strong>Confidence:</strong> {confidence}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # Show PEG Hammer explanation if applied
                             if growth_override_applied and growth_override_reason:
@@ -4626,7 +4724,17 @@ with tab5:
                         projections = intrinsic.get('price_projections', {})
                         if projections and 'scenarios' in projections:
                             st.markdown("---")
-                            st.markdown("###  Price Projections by Scenario")
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        padding: 0.75rem 1.25rem; border-radius: 10px; margin-bottom: 1rem;'>
+                                <h4 style='margin: 0; color: white; font-weight: 600;'>
+                                    🎯 Price Projections by Scenario
+                                </h4>
+                                <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Bear, Base, and Bull case scenarios based on fundamental growth assumptions
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             scenarios = projections.get('scenarios', {})
 
@@ -4670,11 +4778,27 @@ with tab5:
 
                         st.markdown("---")
 
+                        # ============================================================
+                        # ADVANCED FUNDAMENTAL METRICS
+                        # ============================================================
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
+                            <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                📊 Advanced Fundamental Analysis
+                            </h3>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                Deep-dive into capital efficiency, earnings quality, profitability, and balance sheet strength
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
                         # 1. ROIC vs WACC (Capital Efficiency) - or ROE for financials
                         capital_efficiency = intrinsic.get('capital_efficiency', {})
                         if capital_efficiency:
                             metric_name = capital_efficiency.get('metric_name', 'ROIC')
-                            st.markdown(f"###  Capital Efficiency ({metric_name} vs WACC)")
+                            st.markdown(f"#### 💎 Capital Efficiency ({metric_name} vs WACC)")
+                            st.caption("Is the company creating or destroying value? ROIC > WACC = value creation")
 
                             col1, col2, col3 = st.columns(3)
 
@@ -4719,7 +4843,8 @@ with tab5:
                         # 2. Quality of Earnings
                         earnings_quality = intrinsic.get('earnings_quality', {})
                         if earnings_quality:
-                            st.markdown("###  Quality of Earnings")
+                            st.markdown("#### 🔍 Quality of Earnings")
+                            st.caption("Are earnings backed by real cash flow or accounting tricks? OCF/NI > 1.0 is excellent")
 
                             col1, col2, col3, col4 = st.columns(4)
 
@@ -4761,7 +4886,8 @@ with tab5:
                         # 3. Profitability Analysis (Margins and Trends)
                         profitability = intrinsic.get('profitability_analysis', {})
                         if profitability:
-                            st.markdown("###  Profitability Margins & Trends")
+                            st.markdown("#### 📈 Profitability Margins & Trends")
+                            st.caption("Are margins expanding (good) or contracting (warning)? Compare current vs 3-year average")
 
                             col1, col2, col3 = st.columns(3)
 
@@ -4793,18 +4919,42 @@ with tab5:
                         balance_sheet = intrinsic.get('balance_sheet_strength', {})
                         if balance_sheet:
                             st.markdown("---")
-                            st.markdown("### 🏦 Balance Sheet Health")
+                            st.markdown("#### 🏦 Balance Sheet Health")
+                            st.caption("Financial fortress or house of cards? Debt/Equity, liquidity, and interest coverage analysis")
 
-                            # Overall assessment banner
+                            # Overall assessment banner with professional card
                             overall = balance_sheet.get('overall_assessment', 'Unknown')
                             warnings_list = balance_sheet.get('warnings', [])
 
                             if overall == 'Strong':
-                                st.success(f"**Overall: {overall}** - Solid financial position")
+                                banner_color = '#d1fae5'
+                                banner_text_color = '#065f46'
+                                banner_emoji = '✅'
+                                banner_msg = 'Solid financial fortress - Strong liquidity and manageable debt'
                             elif overall == 'Concerning':
-                                st.error(f"**Overall: {overall}** - {', '.join(warnings_list)}")
+                                banner_color = '#fee2e2'
+                                banner_text_color = '#991b1b'
+                                banner_emoji = '⚠️'
+                                banner_msg = ', '.join(warnings_list) if warnings_list else 'Financial stress detected'
                             else:
-                                st.warning(f"**Overall: {overall}**")
+                                banner_color = '#fef3c7'
+                                banner_text_color = '#92400e'
+                                banner_emoji = 'ℹ️'
+                                banner_msg = 'Moderate financial position'
+
+                            st.markdown(f"""
+                            <div style='background: {banner_color};
+                                        padding: 1rem 1.5rem;
+                                        border-radius: 10px;
+                                        margin-bottom: 1.5rem;'>
+                                <div style='font-size: 1.2rem; font-weight: 600; color: {banner_text_color};'>
+                                    {banner_emoji} Overall Assessment: {overall}
+                                </div>
+                                <div style='font-size: 0.9rem; color: {banner_text_color}; opacity: 0.85; margin-top: 0.25rem;'>
+                                    {banner_msg}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             col1, col2, col3, col4 = st.columns(4)
 
@@ -4882,7 +5032,8 @@ with tab5:
                         valuation_multiples = intrinsic.get('valuation_multiples', {})
                         if valuation_multiples:
                             st.markdown("---")
-                            st.markdown("###  Valuation Multiples vs Peers")
+                            st.markdown("#### 📊 Valuation Multiples vs Peers")
+                            st.caption("Is this stock trading at a premium or discount compared to similar companies?")
 
                             company_vals = valuation_multiples.get('company', {})
                             peers_avg = valuation_multiples.get('peers_avg', {})
@@ -4979,15 +5130,35 @@ with tab5:
                         growth_consistency = intrinsic.get('growth_consistency', {})
                         if growth_consistency:
                             st.markdown("---")
-                            st.markdown("###  Growth Consistency & Historical Trends")
+                            st.markdown("#### 📉 Growth Consistency & Historical Trends")
+                            st.caption("Steady compounding or volatile roller coaster? 5-year revenue and earnings track record")
 
+                            # Professional card for overall growth assessment
                             overall_assess = growth_consistency.get('overall_assessment', '')
+
                             if 'Highly Consistent' in overall_assess:
-                                st.success(f"**{overall_assess}**")
+                                growth_bg = '#d1fae5'
+                                growth_text = '#065f46'
+                                growth_emoji = '📈'
                             elif 'Volatile' in overall_assess:
-                                st.error(f"**{overall_assess}**")
+                                growth_bg = '#fee2e2'
+                                growth_text = '#991b1b'
+                                growth_emoji = '📉'
                             else:
-                                st.info(f"**{overall_assess}**")
+                                growth_bg = '#fef3c7'
+                                growth_text = '#92400e'
+                                growth_emoji = '📊'
+
+                            st.markdown(f"""
+                            <div style='background: {growth_bg};
+                                        padding: 0.75rem 1.25rem;
+                                        border-radius: 10px;
+                                        margin-bottom: 1rem;'>
+                                <div style='font-size: 1.1rem; font-weight: 600; color: {growth_text};'>
+                                    {growth_emoji} {overall_assess}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # Revenue
                             revenue_data = growth_consistency.get('revenue', {})
