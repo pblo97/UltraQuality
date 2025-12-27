@@ -4171,7 +4171,12 @@ with tab5:
                         moats = analysis.get('moats', [])
                         if moats:
                             for moat in moats:
-                                st.success(f"✓ {moat}")
+                                # Moats already come with checkmarks/emojis from analyzer
+                                st.markdown(f"""
+                                <div style='background: #d1fae5; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 3px solid #10b981;'>
+                                    <div style='color: #065f46; font-size: 0.95rem;'>{moat}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
                         else:
                             st.info("No clear moats identified")
 
@@ -4180,7 +4185,12 @@ with tab5:
                         risks = analysis.get('risks', [])
                         if risks:
                             for risk in risks:
-                                st.warning(f"• {risk}")
+                                # Risks already come with emojis from analyzer
+                                st.markdown(f"""
+                                <div style='background: #fef3c7; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 3px solid #f59e0b;'>
+                                    <div style='color: #92400e; font-size: 0.95rem;'>{risk}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
                         else:
                             st.info("No major risks identified")
 
@@ -4237,14 +4247,85 @@ with tab5:
                             emoji = emoji_map.get(assessment, '')
                             st.metric("Assessment", f"{emoji} {assessment.title()}")
 
-                        # Additional context
+                        # Enhanced context with detailed explanation
+                        st.markdown("---")
+
                         if insider_own is not None:
+                            # Create visual interpretation card
                             if insider_own >= 15:
-                                st.success("✓ Strong insider ownership (≥15%) indicates good alignment with shareholders")
+                                context_bg = '#d1fae5'
+                                context_text = '#065f46'
+                                context_title = '🎯 Excellent Alignment'
+                                context_msg = f"""
+                                Con **{insider_own:.2f}%** de ownership, los insiders tienen "skin in the game" significativo.
+
+                                **Por qué importa:**
+                                - Directivos actúan como dueños, no empleados
+                                - Decisiones alineadas con largo plazo (no bonus trimestral)
+                                - Menor riesgo de conflictos de agencia
+
+                                **Comparable a:** Berkshire Hathaway (Buffett ~16%), Tesla (Musk ~13%)
+                                """
                             elif insider_own >= 5:
-                                st.info("✓ Moderate insider ownership (5-15%)")
-                            elif insider_own < 1:
-                                st.warning(" Low insider ownership (<1%) - weak alignment signal")
+                                context_bg = '#dbeafe'
+                                context_text = '#1e40af'
+                                context_title = '👍 Moderate Alignment'
+                                context_msg = f"""
+                                Con **{insider_own:.2f}%** de ownership, hay cierta alineación pero no excepcional.
+
+                                **Por qué importa:**
+                                - Insiders tienen incentivo moderado
+                                - Típico en empresas grandes y maduras
+                                - Complementar con análisis de comp compensation
+
+                                **Comparable a:** Apple (~0.1% individual pero fuerte equity comp), Microsoft
+                                """
+                            elif insider_own >= 1:
+                                context_bg = '#fef3c7'
+                                context_text = '#92400e'
+                                context_title = '⚠️ Low Alignment'
+                                context_msg = f"""
+                                Con **{insider_own:.2f}%** de ownership, la alineación es limitada.
+
+                                **Por qué puede ser problema:**
+                                - Directivos optimizan para bonus/stock options, no shareholder value
+                                - Riesgo de decisiones cortoplacistas
+                                - Menor penalización por mal desempeño
+
+                                **Mitigantes:** Buscar buybacks agresivos, compensation ligada a TSR (Total Shareholder Return)
+                                """
+                            else:  # < 1%
+                                context_bg = '#fee2e2'
+                                context_text = '#991b1b'
+                                context_title = '🚨 Weak Alignment'
+                                context_msg = f"""
+                                Con solo **{insider_own:.2f}%** de ownership, prácticamente no hay "skin in the game".
+
+                                **Red flags a vigilar:**
+                                - CEO/CFO vendiendo acciones regularmente
+                                - Compensation packages desalineados (garantizados, no performance-based)
+                                - Uso de equity como "funny money" (dilución constante)
+
+                                **Empresas con bajo insider ownership pero buenos resultados:**
+                                - Necesitan governance excepcional (board independiente)
+                                - Compensation 100% variable (ej: stock options con cliff)
+                                - Cultura de ownership (ej: Amazon "Day 1" philosophy)
+                                """
+
+                            st.markdown(f"""
+                            <div style='background: {context_bg};
+                                        padding: 1rem 1.5rem;
+                                        border-radius: 10px;
+                                        margin-top: 1rem;
+                                        border-left: 4px solid {context_text};'>
+                                <div style='font-size: 1.1rem; font-weight: 600; color: {context_text}; margin-bottom: 0.5rem;'>
+                                    {context_title}
+                                </div>
+                                <div style='color: {context_text}; font-size: 0.9rem; white-space: pre-line;'>
+                                    {context_msg}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                     else:
                         st.info("Ownership data not available")
@@ -4269,9 +4350,40 @@ with tab5:
                     news = analysis.get('recent_news', [])
 
                     if news:
-                        for item in news[:5]:
-                            st.markdown(f"**{item.get('date', 'N/A')}**: {item.get('headline', 'No headline')}")
-                            st.caption(item.get('summary', '')[:200])
+                        for i, item in enumerate(news[:5]):
+                            date = item.get('date', 'N/A')
+                            headline = item.get('headline', 'No headline')
+                            summary = item.get('summary', '')
+                            url = item.get('url', '')
+
+                            # Color code based on sentiment if available
+                            sentiment = item.get('sentiment', 'neutral')
+                            if sentiment == 'positive':
+                                card_bg = '#d1fae5'
+                                card_border = '#10b981'
+                                emoji = '📈'
+                            elif sentiment == 'negative':
+                                card_bg = '#fee2e2'
+                                card_border = '#ef4444'
+                                emoji = '📉'
+                            else:
+                                card_bg = '#f3f4f6'
+                                card_border = '#9ca3af'
+                                emoji = '📰'
+
+                            with st.expander(f"{emoji} {date}: {headline[:80]}{'...' if len(headline) > 80 else ''}", expanded=(i==0)):
+                                st.markdown(f"""
+                                <div style='background: {card_bg}; padding: 1rem; border-radius: 8px; border-left: 3px solid {card_border}; margin-bottom: 0.5rem;'>
+                                    <div style='font-size: 0.95rem; line-height: 1.6;'>
+                                        {summary if summary else 'No summary available'}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                                if url:
+                                    st.markdown(f"🔗 [Read full article]({url})")
+                                else:
+                                    st.caption("Link not available")
                     else:
                         st.info("No recent news available")
 
@@ -4739,38 +4851,140 @@ with tab5:
                             scenarios = projections.get('scenarios', {})
 
                             if scenarios:
-                                # Display as table
-                                scenario_names = list(scenarios.keys())
+                                # ===========================================================
+                                # INTERACTIVE PRICE PROJECTIONS CHART
+                                # ===========================================================
+                                try:
+                                    import plotly.graph_objects as go
 
-                                # Create columns for each scenario
-                                cols = st.columns(len(scenario_names))
+                                    # Get current price
+                                    current_price = intrinsic.get('current_price', 100)
 
-                                for i, (scenario_name, data) in enumerate(scenarios.items()):
-                                    with cols[i]:
-                                        # Emoji based on scenario
+                                    # Prepare data for chart
+                                    timeframes = ['Today', '1 Year', '3 Year', '5 Year']
+                                    years_numeric = [0, 1, 3, 5]
+
+                                    fig_proj = go.Figure()
+
+                                    for scenario_name, data in scenarios.items():
+                                        # Emoji and color based on scenario
                                         if 'Bear' in scenario_name:
-                                            emoji = '🐻'
-                                            color = '#ff6b6b'
+                                            color = '#ef4444'
+                                            dash = 'dot'
                                         elif 'Bull' in scenario_name:
-                                            emoji = '🐂'
-                                            color = '#51cf66'
-                                        else:
-                                            emoji = ''
-                                            color = '#ffd43b'
+                                            color = '#10b981'
+                                            dash = 'solid'
+                                        else:  # Base
+                                            color = '#f59e0b'
+                                            dash = 'dash'
 
-                                        st.markdown(f"**{emoji} {scenario_name}**")
-                                        st.caption(data.get('description', ''))
-                                        st.caption(f"Growth: {data.get('growth_assumption', 'N/A')}")
+                                        # Build price path
+                                        prices = [
+                                            current_price,
+                                            data.get('1Y_target', current_price),
+                                            data.get('3Y_target', current_price),
+                                            data.get('5Y_target', current_price)
+                                        ]
 
-                                        st.markdown("**Price Targets:**")
-                                        st.metric("1 Year", f"${data.get('1Y_target', 0):.2f}",
-                                                 delta=data.get('1Y_return', 'N/A'))
-                                        st.metric("3 Year", f"${data.get('3Y_target', 0):.2f}",
-                                                 delta=data.get('3Y_cagr', 'N/A') + " CAGR")
-                                        st.metric("5 Year", f"${data.get('5Y_target', 0):.2f}",
-                                                 delta=data.get('5Y_cagr', 'N/A') + " CAGR")
+                                        fig_proj.add_trace(go.Scatter(
+                                            x=years_numeric,
+                                            y=prices,
+                                            name=scenario_name,
+                                            mode='lines+markers',
+                                            line=dict(color=color, width=3, dash=dash),
+                                            marker=dict(size=10),
+                                            hovertemplate=f'<b>{scenario_name}</b><br>Price: $%{{y:.2f}}<br>Year: %{{x}}<extra></extra>'
+                                        ))
 
-                                st.caption("**Note:** Projections based on fundamental growth. Not investment advice.")
+                                    # Add current price horizontal line
+                                    fig_proj.add_hline(
+                                        y=current_price,
+                                        line_dash="dash",
+                                        line_color="gray",
+                                        opacity=0.5,
+                                        annotation_text=f"Current: ${current_price:.2f}",
+                                        annotation_position="right"
+                                    )
+
+                                    fig_proj.update_layout(
+                                        height=500,
+                                        title=dict(
+                                            text='Price Evolution Under Different Growth Scenarios',
+                                            font=dict(size=16)
+                                        ),
+                                        xaxis=dict(
+                                            title='Years from Today',
+                                            tickmode='array',
+                                            tickvals=years_numeric,
+                                            ticktext=timeframes
+                                        ),
+                                        yaxis=dict(
+                                            title='Stock Price ($)',
+                                            tickformat='$,.0f'
+                                        ),
+                                        hovermode='x unified',
+                                        template='plotly_white',
+                                        showlegend=True,
+                                        legend=dict(
+                                            orientation="h",
+                                            yanchor="bottom",
+                                            y=1.02,
+                                            xanchor="right",
+                                            x=1
+                                        ),
+                                        margin=dict(t=100, b=50, l=50, r=50)
+                                    )
+
+                                    st.plotly_chart(fig_proj, use_container_width=True)
+
+                                    # Display scenario details in columns below chart
+                                    st.markdown("---")
+                                    scenario_names = list(scenarios.keys())
+                                    cols = st.columns(len(scenario_names))
+
+                                    for i, (scenario_name, data) in enumerate(scenarios.items()):
+                                        with cols[i]:
+                                            # Emoji based on scenario
+                                            if 'Bear' in scenario_name:
+                                                emoji = '🐻'
+                                                bg_color = '#fee2e2'
+                                                text_color = '#991b1b'
+                                            elif 'Bull' in scenario_name:
+                                                emoji = '🐂'
+                                                bg_color = '#d1fae5'
+                                                text_color = '#065f46'
+                                            else:
+                                                emoji = '📊'
+                                                bg_color = '#fef3c7'
+                                                text_color = '#92400e'
+
+                                            st.markdown(f"""
+                                            <div style='background: {bg_color}; padding: 1rem; border-radius: 10px; margin-bottom: 0.5rem;'>
+                                                <div style='font-size: 1.1rem; font-weight: 600; color: {text_color}; margin-bottom: 0.5rem;'>
+                                                    {emoji} {scenario_name}
+                                                </div>
+                                                <div style='font-size: 0.85rem; color: {text_color}; opacity: 0.9;'>
+                                                    {data.get('description', '')}
+                                                </div>
+                                                <div style='font-size: 0.8rem; color: {text_color}; opacity: 0.8; margin-top: 0.5rem;'>
+                                                    Growth: {data.get('growth_assumption', 'N/A')}
+                                                </div>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+
+                                            # Metrics
+                                            st.metric("1Y Target", f"${data.get('1Y_target', 0):.2f}",
+                                                     delta=data.get('1Y_return', 'N/A'))
+                                            st.metric("5Y Target", f"${data.get('5Y_target', 0):.2f}",
+                                                     delta=data.get('5Y_cagr', 'N/A') + " CAGR")
+
+                                    st.caption("**⚠️ Important:** Projections based on fundamental growth assumptions. Not investment advice.")
+
+                                except Exception as e:
+                                    st.warning(f"Could not generate price projections chart: {str(e)}")
+                                    # Fallback to text display
+                                    for scenario_name, data in scenarios.items():
+                                        st.markdown(f"**{scenario_name}:** {data.get('description', '')}")
 
                         # ==========================
                         # NEW ADVANCED METRICS
@@ -4915,6 +5129,132 @@ with tab5:
                                              delta=f"{fcf.get('current', 0) - fcf.get('avg_3y', 0):.1f}% vs 3Y avg")
                                     st.caption(fcf.get('trend', '→ stable'))
 
+                            # ===========================================================
+                            # HISTORICAL CHARTS: Revenue, EBIT, FCF Evolution
+                            # ===========================================================
+                            st.markdown("---")
+                            st.markdown("#### 📊 Historical Financials (5-10 Year Evolution)")
+                            st.caption("Visual evolution of key metrics - Revenue growth, profitability, and cash generation")
+
+                            # Try to get historical data from FMP client
+                            try:
+                                import plotly.graph_objects as go
+                                from plotly.subplots import make_subplots
+
+                                # Get FMP client from session or create new one
+                                if 'fmp_client' not in st.session_state:
+                                    # Create FMP client (should exist from qualitative analyzer)
+                                    from screener.ingest import FMPClient
+                                    import os
+                                    import yaml
+
+                                    config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+                                    with open(config_file, 'r') as f:
+                                        config = yaml.safe_load(f)
+
+                                    api_key = None
+                                    if 'FMP_API_KEY' in st.secrets:
+                                        api_key = st.secrets['FMP_API_KEY']
+                                    elif 'FMP' in st.secrets:
+                                        api_key = st.secrets['FMP']
+                                    if not api_key:
+                                        api_key = os.getenv('FMP_API_KEY')
+                                    if not api_key:
+                                        api_key = config['fmp'].get('api_key')
+
+                                    fmp_client = FMPClient(api_key, config)
+                                else:
+                                    fmp_client = st.session_state['fmp_client']
+
+                                # Fetch income statement history (annual, last 10 years)
+                                income_stmt = fmp_client.get_income_statement(selected_ticker, period='annual', limit=10)
+
+                                if income_stmt and len(income_stmt) > 0:
+                                    # Extract data
+                                    years = [item.get('calendarYear', 'N/A') for item in reversed(income_stmt)]
+                                    revenue = [item.get('revenue', 0) / 1e6 for item in reversed(income_stmt)]  # In millions
+                                    operating_income = [item.get('operatingIncome', 0) / 1e6 for item in reversed(income_stmt)]
+                                    net_income = [item.get('netIncome', 0) / 1e6 for item in reversed(income_stmt)]
+
+                                    # Fetch cash flow statement for FCF
+                                    cash_flow = fmp_client.get_cash_flow_statement(selected_ticker, period='annual', limit=10)
+                                    fcf_values = []
+                                    if cash_flow and len(cash_flow) > 0:
+                                        for item in reversed(cash_flow):
+                                            ocf = item.get('operatingCashFlow', 0)
+                                            capex = item.get('capitalExpenditure', 0)
+                                            fcf = (ocf + capex) / 1e6  # capex is negative, so we add
+                                            fcf_values.append(fcf)
+
+                                    # Create subplots (2 rows)
+                                    fig = make_subplots(
+                                        rows=2, cols=1,
+                                        subplot_titles=('Revenue & Operating Income Evolution', 'Free Cash Flow Evolution'),
+                                        vertical_spacing=0.15,
+                                        row_heights=[0.55, 0.45]
+                                    )
+
+                                    # Row 1: Revenue & Operating Income
+                                    fig.add_trace(
+                                        go.Bar(x=years, y=revenue, name='Revenue', marker_color='#667eea', opacity=0.8),
+                                        row=1, col=1
+                                    )
+                                    fig.add_trace(
+                                        go.Scatter(x=years, y=operating_income, name='Operating Income', mode='lines+markers',
+                                                  line=dict(color='#10b981', width=3), marker=dict(size=8)),
+                                        row=1, col=1
+                                    )
+
+                                    # Row 2: FCF
+                                    if fcf_values and len(fcf_values) == len(years):
+                                        fig.add_trace(
+                                            go.Bar(x=years, y=fcf_values, name='Free Cash Flow',
+                                                  marker_color=['#10b981' if v > 0 else '#ef4444' for v in fcf_values]),
+                                            row=2, col=1
+                                        )
+
+                                    # Update layout
+                                    fig.update_xaxes(title_text="Year", row=2, col=1)
+                                    fig.update_yaxes(title_text="$ Millions", row=1, col=1)
+                                    fig.update_yaxes(title_text="$ Millions", row=2, col=1)
+
+                                    fig.update_layout(
+                                        height=700,
+                                        showlegend=True,
+                                        hovermode='x unified',
+                                        template='plotly_white',
+                                        margin=dict(t=80, b=50, l=50, r=50)
+                                    )
+
+                                    st.plotly_chart(fig, use_container_width=True)
+
+                                    # Add quick stats
+                                    if len(revenue) >= 5:
+                                        revenue_cagr_5y = (((revenue[-1] / revenue[-5]) ** (1/5)) - 1) * 100
+                                        col_stat1, col_stat2, col_stat3 = st.columns(3)
+
+                                        with col_stat1:
+                                            st.metric("Revenue CAGR (5Y)", f"{revenue_cagr_5y:+.1f}%")
+                                        with col_stat2:
+                                            if fcf_values and len(fcf_values) >= 2:
+                                                fcf_change = ((fcf_values[-1] / fcf_values[-2]) - 1) * 100 if fcf_values[-2] != 0 else 0
+                                                st.metric("FCF Growth (YoY)", f"{fcf_change:+.1f}%")
+                                        with col_stat3:
+                                            if operating_income and len(operating_income) >= 2:
+                                                oi_margin_current = (operating_income[-1] / revenue[-1]) * 100 if revenue[-1] != 0 else 0
+                                                oi_margin_prev = (operating_income[-2] / revenue[-2]) * 100 if revenue[-2] != 0 else 0
+                                                margin_expansion = oi_margin_current - oi_margin_prev
+                                                st.metric("Operating Margin Change", f"{margin_expansion:+.1f}pp",
+                                                         help=f"Current: {oi_margin_current:.1f}% vs Prior: {oi_margin_prev:.1f}%")
+
+                                else:
+                                    st.info("📊 Historical financial data not available for this ticker")
+
+                            except Exception as e:
+                                st.warning(f"⚠️ Could not generate historical charts: {str(e)}")
+                                with st.expander("Show error details"):
+                                    st.code(str(e))
+
                         # 4. Balance Sheet Strength
                         balance_sheet = intrinsic.get('balance_sheet_strength', {})
                         if balance_sheet:
@@ -5027,6 +5367,102 @@ with tab5:
                                             f"{quick_r.get('value', 0):.2f}x",
                                             help="(Current Assets - Inventory) / Current Liabilities")
                                     st.caption(quick_r.get('assessment', ''))
+
+                            # ===========================================================
+                            # BALANCE SHEET EVOLUTION CHART
+                            # ===========================================================
+                            st.markdown("---")
+                            st.markdown("#### 📈 Balance Sheet Evolution (5-10 Years)")
+                            st.caption("How has the company's financial position evolved? Assets, liabilities, equity, and debt trends")
+
+                            try:
+                                import plotly.graph_objects as go
+
+                                # Fetch balance sheet history
+                                balance_sheet_history = fmp_client.get_balance_sheet_statement(selected_ticker, period='annual', limit=10)
+
+                                if balance_sheet_history and len(balance_sheet_history) > 0:
+                                    # Extract data
+                                    years_bs = [item.get('calendarYear', 'N/A') for item in reversed(balance_sheet_history)]
+                                    total_assets = [item.get('totalAssets', 0) / 1e6 for item in reversed(balance_sheet_history)]
+                                    total_liabilities = [item.get('totalLiabilities', 0) / 1e6 for item in reversed(balance_sheet_history)]
+                                    total_equity = [item.get('totalStockholdersEquity', 0) / 1e6 for item in reversed(balance_sheet_history)]
+                                    total_debt = [item.get('totalDebt', 0) / 1e6 for item in reversed(balance_sheet_history)]
+                                    cash = [item.get('cashAndCashEquivalents', 0) / 1e6 for item in reversed(balance_sheet_history)]
+
+                                    # Create figure with stacked area chart
+                                    fig_bs = go.Figure()
+
+                                    # Assets, Liabilities, Equity as stacked bars
+                                    fig_bs.add_trace(go.Bar(
+                                        x=years_bs, y=total_assets, name='Total Assets',
+                                        marker_color='#667eea', opacity=0.7
+                                    ))
+                                    fig_bs.add_trace(go.Bar(
+                                        x=years_bs, y=total_liabilities, name='Total Liabilities',
+                                        marker_color='#ef4444', opacity=0.7
+                                    ))
+                                    fig_bs.add_trace(go.Bar(
+                                        x=years_bs, y=total_equity, name='Total Equity',
+                                        marker_color='#10b981', opacity=0.7
+                                    ))
+
+                                    # Add debt and cash as lines
+                                    fig_bs.add_trace(go.Scatter(
+                                        x=years_bs, y=total_debt, name='Total Debt',
+                                        mode='lines+markers', line=dict(color='#f59e0b', width=3),
+                                        marker=dict(size=8)
+                                    ))
+                                    fig_bs.add_trace(go.Scatter(
+                                        x=years_bs, y=cash, name='Cash & Equivalents',
+                                        mode='lines+markers', line=dict(color='#06b6d4', width=3),
+                                        marker=dict(size=8)
+                                    ))
+
+                                    fig_bs.update_layout(
+                                        height=500,
+                                        showlegend=True,
+                                        hovermode='x unified',
+                                        template='plotly_white',
+                                        barmode='group',
+                                        xaxis_title='Year',
+                                        yaxis_title='$ Millions',
+                                        margin=dict(t=50, b=50, l=50, r=50)
+                                    )
+
+                                    st.plotly_chart(fig_bs, use_container_width=True)
+
+                                    # Key balance sheet metrics
+                                    if len(total_assets) >= 2 and len(total_debt) >= 2:
+                                        col_bs1, col_bs2, col_bs3 = st.columns(3)
+
+                                        with col_bs1:
+                                            debt_to_equity_current = (total_debt[-1] / total_equity[-1]) if total_equity[-1] != 0 else 0
+                                            debt_to_equity_prev = (total_debt[-2] / total_equity[-2]) if total_equity[-2] != 0 else 0
+                                            debt_trend = debt_to_equity_current - debt_to_equity_prev
+                                            st.metric("Debt/Equity Trend",
+                                                     f"{debt_to_equity_current:.2f}x",
+                                                     delta=f"{debt_trend:+.2f}x vs prior year",
+                                                     delta_color="inverse")
+
+                                        with col_bs2:
+                                            asset_growth = ((total_assets[-1] / total_assets[-2]) - 1) * 100 if total_assets[-2] != 0 else 0
+                                            st.metric("Total Assets Growth (YoY)", f"{asset_growth:+.1f}%")
+
+                                        with col_bs3:
+                                            net_debt_current = total_debt[-1] - cash[-1]
+                                            net_debt_prev = total_debt[-2] - cash[-2]
+                                            net_debt_change = ((net_debt_current - net_debt_prev) / abs(net_debt_prev)) * 100 if net_debt_prev != 0 else 0
+                                            st.metric("Net Debt Change (YoY)",
+                                                     f"{net_debt_change:+.1f}%",
+                                                     help=f"Net Debt: ${net_debt_current:.0f}M",
+                                                     delta_color="inverse")
+
+                                else:
+                                    st.info("📊 Balance sheet historical data not available")
+
+                            except Exception as e:
+                                st.warning(f"⚠️ Could not generate balance sheet chart: {str(e)}")
 
                         # 5. Valuation Multiples vs Peers
                         valuation_multiples = intrinsic.get('valuation_multiples', {})
