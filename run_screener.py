@@ -5493,48 +5493,379 @@ with tab5:
                             else:
                                 st.error(f" {assessment} - {metric_name} below WACC, may be destroying value")
 
-                        # 2. Quality of Earnings
+                        # 2. Quality of Earnings (Enhanced with Historical Charts)
                         earnings_quality = intrinsic.get('earnings_quality', {})
                         if earnings_quality:
-                            st.markdown("#### Quality of Earnings")
-                            st.caption("Are earnings backed by real cash flow or accounting tricks? OCF/NI > 1.0 is excellent")
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem; margin-top: 2rem;'>
+                                <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                    <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                        EARNINGS QUALITY
+                                    </span>
+                                    <h4 style='margin: 0; color: white; font-weight: 600;'>
+                                        Quality of Earnings
+                                    </h4>
+                                </div>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
+                                    Are earnings backed by real cash flow or accounting tricks?
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
+                            # Current metrics in cards
                             col1, col2, col3, col4 = st.columns(4)
 
                             with col1:
                                 cf_to_ni = earnings_quality.get('cash_flow_to_net_income', 0)
-                                st.metric("OCF / Net Income", f"{cf_to_ni:.2f}")
+
+                                # Determine color based on quality
+                                if cf_to_ni >= 1.0:
+                                    metric_color = '#10b981'
+                                    quality_label = 'EXCELLENT'
+                                elif cf_to_ni >= 0.8:
+                                    metric_color = '#3b82f6'
+                                    quality_label = 'GOOD'
+                                elif cf_to_ni >= 0.6:
+                                    metric_color = '#f59e0b'
+                                    quality_label = 'FAIR'
+                                else:
+                                    metric_color = '#ef4444'
+                                    quality_label = 'POOR'
+
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                    <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                        OCF / NET INCOME
+                                    </div>
+                                    <div style='font-size: 2rem; font-weight: 700; color: {metric_color}; margin-bottom: 0.25rem;'>
+                                        {cf_to_ni:.2f}
+                                    </div>
+                                    <div style='font-size: 0.7rem; padding: 0.25rem 0.5rem; background: {metric_color}; color: white; border-radius: 3px; display: inline-block;'>
+                                        {quality_label}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
                                 st.caption(">1.0 is excellent")
 
                             with col2:
                                 accruals = earnings_quality.get('accruals_ratio', 0)
-                                st.metric("Accruals Ratio", f"{accruals:.2f}%")
+
+                                # Determine color (lower is better for accruals)
+                                if accruals < 5:
+                                    acc_color = '#10b981'
+                                    acc_label = 'GOOD'
+                                elif accruals < 10:
+                                    acc_color = '#f59e0b'
+                                    acc_label = 'MODERATE'
+                                else:
+                                    acc_color = '#ef4444'
+                                    acc_label = 'HIGH'
+
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                    <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                        ACCRUALS RATIO
+                                    </div>
+                                    <div style='font-size: 2rem; font-weight: 700; color: {acc_color}; margin-bottom: 0.25rem;'>
+                                        {accruals:.1f}%
+                                    </div>
+                                    <div style='font-size: 0.7rem; padding: 0.25rem 0.5rem; background: {acc_color}; color: white; border-radius: 3px; display: inline-block;'>
+                                        {acc_label}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
                                 st.caption("<5% is good")
 
                             with col3:
                                 wc_trend = earnings_quality.get('working_capital_trend', 'unknown')
-                                st.metric("Working Capital", wc_trend.title())
+
+                                # Determine color based on trend
+                                if wc_trend.lower() == 'improving':
+                                    wc_color = '#10b981'
+                                    wc_icon = '↗'
+                                elif wc_trend.lower() == 'stable':
+                                    wc_color = '#3b82f6'
+                                    wc_icon = '→'
+                                elif wc_trend.lower() == 'deteriorating':
+                                    wc_color = '#ef4444'
+                                    wc_icon = '↘'
+                                else:
+                                    wc_color = '#6b7280'
+                                    wc_icon = '?'
+
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                    <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                        WORKING CAPITAL
+                                    </div>
+                                    <div style='font-size: 2rem; font-weight: 700; color: {wc_color}; margin-bottom: 0.25rem;'>
+                                        {wc_icon}
+                                    </div>
+                                    <div style='font-size: 0.8rem; color: {wc_color}; font-weight: 600;'>
+                                        {wc_trend.title()}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
 
                             with col4:
                                 grade = earnings_quality.get('grade', 'C')
                                 assessment_eq = earnings_quality.get('assessment', '')
 
                                 # Color grade
-                                if grade in ['A', 'B']:
-                                    st.success(f"**Grade: {grade}**")
+                                if grade == 'A':
+                                    grade_color = '#10b981'
+                                    grade_bg = '#d1fae5'
+                                elif grade == 'B':
+                                    grade_color = '#3b82f6'
+                                    grade_bg = '#dbeafe'
                                 elif grade == 'C':
-                                    st.warning(f"**Grade: {grade}**")
+                                    grade_color = '#f59e0b'
+                                    grade_bg = '#fef3c7'
                                 else:
-                                    st.error(f"**Grade: {grade}**")
+                                    grade_color = '#ef4444'
+                                    grade_bg = '#fee2e2'
 
-                                st.caption(assessment_eq)
+                                st.markdown(f"""
+                                <div style='background: {grade_bg}; padding: 1rem; border-radius: 8px; border: 2px solid {grade_color}; text-align: center;'>
+                                    <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                        OVERALL GRADE
+                                    </div>
+                                    <div style='font-size: 3rem; font-weight: 700; color: {grade_color}; line-height: 1;'>
+                                        {grade}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                if assessment_eq:
+                                    st.caption(assessment_eq)
 
                             # Show issues if any
                             issues = earnings_quality.get('issues', [])
                             if issues:
-                                with st.expander(" Quality Issues Detected"):
+                                st.markdown("<br>", unsafe_allow_html=True)
+                                with st.expander("⚠️ Quality Issues Detected", expanded=True):
                                     for issue in issues:
                                         st.warning(f"• {issue}")
+
+                            # Historical Charts
+                            st.markdown("---")
+                            st.markdown("**📊 Historical Earnings Quality Trends (5 Years)**")
+
+                            try:
+                                # Get historical financial data
+                                if 'fmp_client' in st.session_state:
+                                    fmp_client_eq = st.session_state['fmp_client']
+                                else:
+                                    # Create FMP client on the fly
+                                    from screener.ingest import FMPClient
+                                    import yaml
+                                    config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+                                    with open(config_file, 'r') as f:
+                                        config = yaml.safe_load(f)
+                                    api_key = None
+                                    if 'FMP_API_KEY' in st.secrets:
+                                        api_key = st.secrets['FMP_API_KEY']
+                                    elif 'FMP' in st.secrets:
+                                        api_key = st.secrets['FMP']
+                                    if not api_key:
+                                        api_key = os.getenv('FMP_API_KEY')
+                                    if not api_key:
+                                        api_key = config['fmp'].get('api_key')
+                                    if api_key and not api_key.startswith('${'):
+                                        fmp_client_eq = FMPClient(api_key, config)
+                                    else:
+                                        fmp_client_eq = None
+
+                                if fmp_client_eq:
+                                    # Fetch income statement and cash flow
+                                    income_statements = fmp_client_eq.get_income_statement(selected_ticker, limit=5)
+                                    cash_flows = fmp_client_eq.get_cash_flow(selected_ticker, limit=5)
+                                    balance_sheets = fmp_client_eq.get_balance_sheet(selected_ticker, limit=5)
+
+                                    if income_statements and cash_flows and len(income_statements) > 0 and len(cash_flows) > 0:
+                                        # Reverse to get chronological order
+                                        income_statements.reverse()
+                                        cash_flows.reverse()
+                                        balance_sheets.reverse()
+
+                                        # Extract data
+                                        years_eq = [is_item.get('calendarYear', 'N/A') for is_item in income_statements]
+                                        net_incomes = [is_item.get('netIncome', 0) for is_item in income_statements]
+                                        ocfs = [cf_item.get('operatingCashFlow', 0) for cf_item in cash_flows]
+
+                                        # Calculate OCF/NI ratio
+                                        ocf_ni_ratios = []
+                                        for ni, ocf in zip(net_incomes, ocfs):
+                                            if ni and ni != 0:
+                                                ocf_ni_ratios.append(ocf / ni)
+                                            else:
+                                                ocf_ni_ratios.append(0)
+
+                                        # Calculate accruals (simplified: (NI - OCF) / Total Assets)
+                                        accruals_ratios = []
+                                        for i, (ni, ocf) in enumerate(zip(net_incomes, ocfs)):
+                                            if i < len(balance_sheets):
+                                                total_assets = balance_sheets[i].get('totalAssets', 1)
+                                                if total_assets and total_assets > 0:
+                                                    accrual = ((ni - ocf) / total_assets) * 100
+                                                    accruals_ratios.append(abs(accrual))
+                                                else:
+                                                    accruals_ratios.append(0)
+                                            else:
+                                                accruals_ratios.append(0)
+
+                                        # Chart 1: OCF/NI Ratio Evolution
+                                        import plotly.graph_objects as go
+
+                                        fig_ocf_ni = go.Figure()
+                                        fig_ocf_ni.add_trace(go.Scatter(
+                                            x=years_eq,
+                                            y=ocf_ni_ratios,
+                                            mode='lines+markers',
+                                            name='OCF/NI Ratio',
+                                            line=dict(color='#667eea', width=3),
+                                            marker=dict(size=10, color='#667eea'),
+                                            fill='tonexty',
+                                            fillcolor='rgba(102, 126, 234, 0.1)'
+                                        ))
+
+                                        # Add reference line at 1.0
+                                        fig_ocf_ni.add_hline(
+                                            y=1.0,
+                                            line_dash="dash",
+                                            line_color="#10b981",
+                                            annotation_text="Excellent (1.0)",
+                                            annotation_position="right"
+                                        )
+
+                                        fig_ocf_ni.update_layout(
+                                            title="OCF / Net Income Ratio Evolution",
+                                            xaxis_title="Year",
+                                            yaxis_title="Ratio",
+                                            height=400,
+                                            hovermode='x unified',
+                                            plot_bgcolor='white',
+                                            paper_bgcolor='white',
+                                            font=dict(size=12)
+                                        )
+
+                                        fig_ocf_ni.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#f0f0f0')
+                                        fig_ocf_ni.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#f0f0f0')
+
+                                        st.plotly_chart(fig_ocf_ni, use_container_width=True)
+
+                                        # Chart 2: Accruals Ratio Evolution
+                                        fig_accruals = go.Figure()
+                                        fig_accruals.add_trace(go.Bar(
+                                            x=years_eq,
+                                            y=accruals_ratios,
+                                            name='Accruals Ratio',
+                                            marker=dict(
+                                                color=accruals_ratios,
+                                                colorscale=[[0, '#10b981'], [0.5, '#f59e0b'], [1, '#ef4444']],
+                                                showscale=False
+                                            )
+                                        ))
+
+                                        # Add reference line at 5%
+                                        fig_accruals.add_hline(
+                                            y=5,
+                                            line_dash="dash",
+                                            line_color="#10b981",
+                                            annotation_text="Good (<5%)",
+                                            annotation_position="right"
+                                        )
+
+                                        fig_accruals.update_layout(
+                                            title="Accruals Ratio Evolution (Lower is Better)",
+                                            xaxis_title="Year",
+                                            yaxis_title="Accruals %",
+                                            height=400,
+                                            hovermode='x unified',
+                                            plot_bgcolor='white',
+                                            paper_bgcolor='white',
+                                            font=dict(size=12)
+                                        )
+
+                                        fig_accruals.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#f0f0f0')
+                                        fig_accruals.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#f0f0f0')
+
+                                        st.plotly_chart(fig_accruals, use_container_width=True)
+
+                                        # Chart 3: OCF vs Net Income Comparison
+                                        fig_comparison = go.Figure()
+
+                                        fig_comparison.add_trace(go.Bar(
+                                            x=years_eq,
+                                            y=[ocf/1e6 for ocf in ocfs],
+                                            name='Operating Cash Flow',
+                                            marker_color='#10b981'
+                                        ))
+
+                                        fig_comparison.add_trace(go.Bar(
+                                            x=years_eq,
+                                            y=[ni/1e6 for ni in net_incomes],
+                                            name='Net Income',
+                                            marker_color='#667eea'
+                                        ))
+
+                                        fig_comparison.update_layout(
+                                            title="Operating Cash Flow vs Net Income (in millions)",
+                                            xaxis_title="Year",
+                                            yaxis_title="Amount ($M)",
+                                            height=400,
+                                            barmode='group',
+                                            hovermode='x unified',
+                                            plot_bgcolor='white',
+                                            paper_bgcolor='white',
+                                            font=dict(size=12),
+                                            legend=dict(
+                                                orientation="h",
+                                                yanchor="bottom",
+                                                y=1.02,
+                                                xanchor="right",
+                                                x=1
+                                            )
+                                        )
+
+                                        fig_comparison.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#f0f0f0')
+                                        fig_comparison.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#f0f0f0')
+
+                                        st.plotly_chart(fig_comparison, use_container_width=True)
+
+                                        # Summary interpretation
+                                        st.markdown("---")
+                                        avg_ocf_ni = sum(ocf_ni_ratios) / len(ocf_ni_ratios) if ocf_ni_ratios else 0
+                                        avg_accruals = sum(accruals_ratios) / len(accruals_ratios) if accruals_ratios else 0
+
+                                        st.markdown("**📈 5-Year Earnings Quality Summary:**")
+
+                                        col_sum1, col_sum2 = st.columns(2)
+                                        with col_sum1:
+                                            if avg_ocf_ni >= 1.0:
+                                                st.success(f"✅ **Excellent cash conversion:** Average OCF/NI of {avg_ocf_ni:.2f} shows earnings are consistently backed by strong cash flow.")
+                                            elif avg_ocf_ni >= 0.8:
+                                                st.info(f"ℹ️ **Good cash conversion:** Average OCF/NI of {avg_ocf_ni:.2f} indicates solid earnings quality.")
+                                            else:
+                                                st.warning(f"⚠️ **Weak cash conversion:** Average OCF/NI of {avg_ocf_ni:.2f} suggests earnings may include non-cash items or aggressive accounting.")
+
+                                        with col_sum2:
+                                            if avg_accruals < 5:
+                                                st.success(f"✅ **Low accruals:** Average of {avg_accruals:.1f}% indicates conservative accounting practices.")
+                                            elif avg_accruals < 10:
+                                                st.info(f"ℹ️ **Moderate accruals:** Average of {avg_accruals:.1f}% is within acceptable range.")
+                                            else:
+                                                st.warning(f"⚠️ **High accruals:** Average of {avg_accruals:.1f}% may indicate aggressive accounting or earnings management.")
+
+                                    else:
+                                        st.info("Insufficient historical data for charts (need at least 2 years)")
+                                else:
+                                    st.info("FMP client not available for historical charts")
+
+                            except Exception as e:
+                                st.warning(f"Could not generate historical charts: {str(e)}")
+                                if st.checkbox("Show error details", key=f"eq_chart_error_{selected_ticker}"):
+                                    st.error(traceback.format_exc())
 
                         # 3. Profitability Analysis (Margins and Trends)
                         profitability = intrinsic.get('profitability_analysis', {})
