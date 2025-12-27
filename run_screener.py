@@ -1019,7 +1019,7 @@ def display_smart_stop_loss(stop_loss_data, current_price):
 
             # Show additional details for PARABOLIC_CLIMAX
             if market_state == 'PARABOLIC_CLIMAX' and 'details' in state_info:
-                with st.expander("⚠️ Ver Detalles Críticos"):
+                with st.expander("Ver Detalles Críticos"):
                     for detail in state_info['details']:
                         st.markdown(f"• {detail}")
                     st.caption('Regla: "No compres cohetes en el aire"')
@@ -1049,7 +1049,7 @@ def display_smart_stop_loss(stop_loss_data, current_price):
             status_icon = "⚠"
         elif market_state == 'POWER_TREND':
             status_display = "Tendencia Fuerte"
-            status_icon = "↑"
+            status_icon = ""
         elif market_state == 'BLUE_SKY_ATH':
             status_display = "All-Time High"
             status_icon = "★"
@@ -1192,7 +1192,7 @@ def display_smart_stop_loss(stop_loss_data, current_price):
             with col3:
                 slope_val = params.get('sma_slope', 'N/A')
                 if slope_val != 'N/A':
-                    slope_dir = "↗️ Alcista" if float(slope_val) > 0.05 else "↘️ Bajista" if float(slope_val) < -0.05 else "➡️ Lateral"
+                    slope_dir = "Alcista" if float(slope_val) > 0.05 else "Bajista" if float(slope_val) < -0.05 else "Lateral"
                     st.metric("SMA Slope", f"{slope_val}%",
                              delta=slope_dir,
                              help="Dirección de MA50")
@@ -1384,7 +1384,7 @@ def display_entry_strategy(entry_strategy):
         )
 
         # Individual tranche details (expandable)
-        with st.expander("📊 Details by Tranche"):
+        with st.expander("Details by Tranche"):
             for t in tranches:
                 tranche_icon = '<i class="bi bi-1-circle-fill"></i>' if t['number'] == 1 else \
                               '<i class="bi bi-2-circle-fill"></i>' if t['number'] == 2 else \
@@ -1719,7 +1719,7 @@ def display_take_profit(profit_taking):
 
 st.set_page_config(
     page_title="UltraQuality",
-    page_icon="📈",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -2018,7 +2018,7 @@ if st.session_state.get('global_elite_active', False):
     <div style='background: #d1fae5; border-left: 4px solid #10b981; padding: 0.75rem;
                 border-radius: 6px; margin: 0.5rem 0;'>
         <div style='color: #065f46; font-weight: 600; font-size: 0.85rem;'>
-            <span style='margin-right: 0.5rem;'>✓</span>Global Elite Active
+            <span style='margin-right: 0.5rem;'></span>Global Elite Active
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -2433,7 +2433,7 @@ with st.sidebar.expander("API Status", expanded=False):
             <div style='background: #d1fae5; border-left: 4px solid #10b981; padding: 0.75rem;
                         border-radius: 6px;'>
                 <div style='color: #065f46; font-weight: 600; font-size: 0.85rem;'>
-                    ✓ API Key Active
+                    API Key Active
                 </div>
                 <div style='color: #047857; font-size: 0.75rem; margin-top: 0.25rem;'>
                     {api_key[:10]}...
@@ -2529,7 +2529,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         stop_loss_pct = stop_loss_data.get('stop_loss_pct')
 
         if stop_loss_pct and stop_loss_pct != 0:
-            # Convert to positive distance (e.g., -5.0 → 5.0)
+            # Convert to positive distance (e.g., -5.0 5.0)
             stop_distance = abs(stop_loss_pct)
 
             # Risk-Based Position Size = Max Risk $ / (Stop Distance / 100)
@@ -2600,14 +2600,14 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
             risk_progress = min(risk_pct / 10, 1.0)
             st.progress(risk_progress)
         else:
-            st.warning("⚠️ N/A")
+            st.warning("N/A")
             st.caption("No stop loss data available")
 
     with col_final:
         st.markdown("""
         <div style='background: #e8f5e9; padding: 1rem; border-radius: 8px;
                     border: 2px solid #4caf50; margin-bottom: 0.5rem;'>
-            <div style='font-size: 0.85rem; color: #388e3c; font-weight: 600;'>✓ FINAL (MIN)</div>
+            <div style='font-size: 0.85rem; color: #388e3c; font-weight: 600;'>FINAL (MIN)</div>
         </div>
         """, unsafe_allow_html=True)
         st.metric("Position Size", f"{final_pct_adjusted:.1f}%", delta=f"${final_dollars:,.0f}")
@@ -3041,7 +3041,7 @@ with tab1:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Methodology explanation with interactive cards
-    with st.expander("📊 Screening Methodology - How It Works", expanded=False):
+    with st.expander("Screening Methodology - How It Works", expanded=False):
         col1, col2 = st.columns(2)
 
         with col1:
@@ -3172,7 +3172,7 @@ with tab1:
                 st.rerun()
 
         except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
+            st.error(f"Error: {str(e)}")
             st.exception(e)
             progress_bar.empty()
             status_text.empty()
@@ -3418,7 +3418,7 @@ with tab2:
                                 st.metric("Net Debt/EBITDA", f"{net_debt_ebitda:.1f}x")
 
                         # Full data table (expandable)
-                        with st.expander("📊 View All Metrics"):
+                        with st.expander("View All Metrics"):
                             detail_cols = ['ticker', 'roic_%', 'moat_score', 'earnings_yield', 'earnings_yield_adj',
                                           'value_score_0_100', 'quality_score_0_100', 'composite_0_100',
                                           'guardrail_status', 'decision', 'decision_reason',
@@ -3599,8 +3599,8 @@ with tab2:
                                 st.exception(e)
 
                 else:
-                    st.warning(f"❌ No results found for: {ticker}")
-                    st.info("💡 Tip: Make sure the ticker exists in the screener results above.")
+                    st.warning(f"No results found for: {ticker}")
+                    st.info("Tip: Make sure the ticker exists in the screener results above.")
 
         # Download buttons
         st.markdown("### 📥 Download Results")
@@ -3831,7 +3831,7 @@ with tab3:
                 st.plotly_chart(fig, use_container_width=True)
 
             except Exception as e:
-                st.error(f"❌ Error generating analytics: {str(e)}")
+                st.error(f"Error generating analytics: {str(e)}")
                 st.info(" Try running the screener again with different parameters.")
 
     else:
@@ -3943,10 +3943,10 @@ with tab4:
                 st.dataframe(reasons_df, use_container_width=True)
 
         except ImportError as e:
-            st.error(f"❌ Error loading analysis tool: {str(e)}")
+            st.error(f"Error loading analysis tool: {str(e)}")
             st.info("Make sure analyze_guardrails.py is in the project directory")
         except Exception as e:
-            st.error(f"❌ Error during analysis: {str(e)}")
+            st.error(f"Error during analysis: {str(e)}")
 
     else:
         st.info("👈 Run the screener first to analyze guardrails")
@@ -4079,10 +4079,10 @@ with tab5:
                                 st.success(" Analysis complete!")
                                 st.rerun()  # Rerun to show the new results
                             else:
-                                st.error(f"❌ Analysis failed: {analysis.get('error', 'Unknown error')}")
+                                st.error(f"Analysis failed: {analysis.get('error', 'Unknown error')}")
 
                         except Exception as e:
-                            st.error(f"❌ Error: {str(e)}")
+                            st.error(f"Error: {str(e)}")
                             st.code(traceback.format_exc())
 
             with col_btn2:
@@ -4193,8 +4193,8 @@ with tab5:
                             moat_count = 0
                             for moat in moats:
                                 # Clean emojis
-                                moat_clean = re.sub(r'[✓✗💪📝🟡🟢🔴⚠️👍🏆]', '', moat).strip()
-                                moat_clean = re.sub(r'^[\s✓✗💪]+', '', moat_clean)
+                                moat_clean = re.sub(r'[]', '', moat).strip()
+                                moat_clean = re.sub(r'^[\s]+', '', moat_clean)
 
                                 # Skip metadata lines (not actual moats)
                                 if any(skip_text in moat_clean.lower() for skip_text in [
@@ -4277,7 +4277,7 @@ with tab5:
                             risk_count = 0
                             for risk in risks:
                                 # Clean emojis
-                                risk_clean = re.sub(r'[✓✗💪📝🟡🟢🔴⚠️👍🏆]', '', risk).strip()
+                                risk_clean = re.sub(r'[]', '', risk).strip()
 
                                 # Filter out invalid risks (conference call transcripts, etc.)
                                 if any(skip_word in risk_clean.lower() for skip_word in ['operator:', 'welcome everyone', 'thank you for standing', 'good afternoon', 'good morning']):
@@ -4647,7 +4647,7 @@ with tab5:
                                         else:
                                             st.info(f"Balance neutral: Actividad institucional balanceada.")
                                     else:
-                                        st.info("⚠️ Datos de cambio (compra/venta) no disponibles en la API. Solo se muestran las posiciones actuales.")
+                                        st.info("Datos de cambio (compra/venta) no disponibles en la API. Solo se muestran las posiciones actuales.")
 
                                 else:
                                     st.info("No hay datos de institutional holdings disponibles")
@@ -4744,10 +4744,10 @@ with tab5:
                                 # Source and link
                                 col_date, col_link = st.columns([1, 1])
                                 with col_date:
-                                    st.caption(f"📅 Published: {date}")
+                                    st.caption(f"Published: {date}")
                                 with col_link:
                                     if url:
-                                        st.markdown(f"[→ Read full article]({url})")
+                                        st.markdown(f"[Read full article]({url})")
                                     else:
                                         st.caption("Link not available")
                     else:
@@ -4767,7 +4767,7 @@ with tab5:
                                 SECTION 5
                             </span>
                             <h3 style='margin: 0; color: white; font-weight: 600;'>
-                                🏛️ Capitol Hill Activity
+                                Capitol Hill Activity
                             </h3>
                         </div>
                         <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
@@ -4883,7 +4883,7 @@ with tab5:
                         if len(all_trades) == 0:
                             st.info("No recent government trading activity found")
                     else:
-                        st.info("ℹ️ No hay datos de trading de senators/congresistas para este símbolo. Puede que no sea ampliamente traded por políticos o los datos no están disponibles en FMP.")
+                        st.info("No hay datos de trading de senators/congresistas para este símbolo. Puede que no sea ampliamente traded por políticos o los datos no están disponibles en FMP.")
 
                     st.markdown("---")
 
@@ -4900,7 +4900,7 @@ with tab5:
                                     SECTION 6
                                 </span>
                                 <h3 style='margin: 0; color: white; font-weight: 600;'>
-                                    🗺️ Geographic Revenue Exposure
+                                    Geographic Revenue Exposure
                                 </h3>
                             </div>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
@@ -4965,7 +4965,7 @@ with tab5:
                             st.warning(f"**High-risk exposure detected:** {', '.join(risk_regions)}")
 
                     else:
-                        st.info("ℹ️ No hay datos de revenue geográfico para este símbolo. FMP puede no tener segmentación geográfica disponible para esta empresa.")
+                        st.info("No hay datos de revenue geográfico para este símbolo. FMP puede no tener segmentación geográfica disponible para esta empresa.")
 
                         st.markdown("---")
 
@@ -4982,7 +4982,7 @@ with tab5:
                                     SECTION 7
                                 </span>
                                 <h3 style='margin: 0; color: white; font-weight: 600;'>
-                                    🎁 Earnings Surprises Track Record
+                                    Earnings Surprises Track Record
                                 </h3>
                             </div>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
@@ -5066,8 +5066,8 @@ with tab5:
                                 surprise_pct = detail.get('surprise_pct', 0)
 
                                 result_colors = {
-                                    'Beat': ('#10b981', '✓'),
-                                    'Miss': ('#ef4444', '✗'),
+                                    'Beat': ('#10b981', ''),
+                                    'Miss': ('#ef4444', ''),
                                     'Meet': ('#6b7280', '=')
                                 }
                                 result_color, result_icon = result_colors.get(result, ('#6b7280', '?'))
@@ -5081,7 +5081,7 @@ with tab5:
                                 """, unsafe_allow_html=True)
 
                     else:
-                        st.info("ℹ️ No hay datos de earnings surprises para este símbolo. Puede ser una empresa sin historial público de earnings o datos no disponibles en FMP.")
+                        st.info("No hay datos de earnings surprises para este símbolo. Puede ser una empresa sin historial público de earnings o datos no disponibles en FMP.")
 
                         st.markdown("---")
 
@@ -5098,7 +5098,7 @@ with tab5:
                                     SECTION 8
                                 </span>
                                 <h3 style='margin: 0; color: white; font-weight: 600;'>
-                                    👔 Wall Street Consensus
+                                    Wall Street Consensus
                                 </h3>
                             </div>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
@@ -5222,7 +5222,7 @@ with tab5:
                                 st.metric("Strong Sell", strong_sell)
 
                     else:
-                        st.info("ℹ️ No hay datos de consenso de analistas para este símbolo. Puede tener poca cobertura de Wall Street o datos no disponibles en FMP.")
+                        st.info("No hay datos de consenso de analistas para este símbolo. Puede tener poca cobertura de Wall Street o datos no disponibles en FMP.")
 
                         st.markdown("---")
 
@@ -5384,7 +5384,7 @@ with tab5:
 - Revenue Growth: {revenue_growth:.1f}% (Mature/stable)
 - DCF es ideal para empresas maduras porque:
   - Cash flows predecibles y estables
-  - Growth limitado → PEG pierde relevancia
+  - Growth limitado PEG pierde relevancia
   - Mejor para dividendos y buybacks
 - **DCF captura el valor intrínseco de FCF estable**
 - Empresas similares: Johnson & Johnson, Procter & Gamble, Coca-Cola
@@ -5421,9 +5421,9 @@ with tab5:
                         if notes:
                             with st.expander(" Calculation Details & Debug Info"):
                                 for note in notes:
-                                    if note.startswith('✓'):
+                                    if note.startswith(''):
                                         st.success(note)
-                                    elif note.startswith('✗') or 'ERROR' in note or 'failed' in note.lower():
+                                    elif note.startswith('') or 'ERROR' in note or 'failed' in note.lower():
                                         st.error(note)
                                     elif note.startswith('') or 'WARNING' in note:
                                         st.warning(note)
@@ -5438,7 +5438,7 @@ with tab5:
 
                             # === EL MARTILLO DEL PEG: Veto power sobre DCF en Growth Stocks ===
                             # Para empresas de crecimiento, PEG > DCF porque captura optionality
-                            # Si PEG < 1.5 y Growth > 10% → VERDE, sin importar DCF
+                            # Si PEG < 1.5 y Growth > 10% VERDE, sin importar DCF
 
                             growth_override_applied = False
                             growth_override_reason = None
@@ -5464,7 +5464,7 @@ with tab5:
                                 # If PEG exists and P/E exists, we can infer growth
                                 pe_ttm = stock_data.get('pe_ttm', None)
                                 if peg_ratio and pe_ttm and peg_ratio > 0:
-                                    # PEG = P/E / Growth → Growth = P/E / PEG
+                                    # PEG = P/E / Growth Growth = P/E / PEG
                                     revenue_growth = (pe_ttm / peg_ratio) if peg_ratio > 0 else None
 
                             # Determine if it's a growth stock
@@ -5482,9 +5482,9 @@ with tab5:
                                     reverse_dcf_signal = 'UNDERVALUED'
 
                             # === MARTILLO DEL PEG: Override Logic ===
-                            #Quality Tier 1: PEG excelente (< 1.2) + Growth Stock → VERDE inmediato
-                            #Quality Tier 2: PEG bueno (< 1.5) + Reverse DCF UNDERVALUED → VERDE
-                            #Quality Tier 3: PEG razonable (< 2.0) + High Growth (>15%) → VERDE
+                            #Quality Tier 1: PEG excelente (< 1.2) + Growth Stock VERDE inmediato
+                            #Quality Tier 2: PEG bueno (< 1.5) + Reverse DCF UNDERVALUED VERDE
+                            #Quality Tier 3: PEG razonable (< 2.0) + High Growth (>15%) VERDE
 
                             peg_hammer_triggered = False
 
@@ -5520,8 +5520,8 @@ with tab5:
                                     **Veredicto: COMPRA (Doble confirmación PEG + Reverse DCF)**
 
                                     2 señales independientes confirman undervaluation:
-                                    1. PEG < 1.5 → Crecimiento a precio razonable
-                                    2. Reverse DCF → Mercado espera menos crecimiento del real
+                                    1. PEG < 1.5 Crecimiento a precio razonable
+                                    2. Reverse DCF Mercado espera menos crecimiento del real
                                     """
 
                                 #Quality Tier 3: PEG razonable (< 2.0) en high growth (>15%)
@@ -5536,7 +5536,7 @@ with tab5:
                                     **Veredicto: COMPRA (High growth justifica valuación)**
 
                                     Para empresas con crecimiento >15%, PEG < 2.0 es razonable.
-                                    Regla: "Never short a dull market" → Never sell high growth at PEG < 2.0
+                                    Regla: "Never short a dull market" Never sell high growth at PEG < 2.0
                                     """
 
                             # Apply override if PEG Hammer triggered
@@ -6057,7 +6057,7 @@ with tab5:
                                     wc_icon = '↗'
                                 elif wc_trend.lower() == 'stable':
                                     wc_color = '#3b82f6'
-                                    wc_icon = '→'
+                                    wc_icon = ''
                                 elif wc_trend.lower() == 'deteriorating':
                                     wc_color = '#ef4444'
                                     wc_icon = '↘'
@@ -6114,13 +6114,13 @@ with tab5:
                             issues = earnings_quality.get('issues', [])
                             if issues:
                                 st.markdown("<br>", unsafe_allow_html=True)
-                                with st.expander("⚠️ Quality Issues Detected", expanded=True):
+                                with st.expander("Quality Issues Detected", expanded=True):
                                     for issue in issues:
                                         st.warning(f"• {issue}")
 
                             # Historical Charts
                             st.markdown("---")
-                            st.markdown("**📊 Historical Earnings Quality Trends (5 Years)**")
+                            st.markdown("**Historical Earnings Quality Trends (5 Years)**")
 
                             try:
                                 # Get historical financial data
@@ -6309,24 +6309,24 @@ with tab5:
                                         avg_ocf_ni = sum(ocf_ni_ratios) / len(ocf_ni_ratios) if ocf_ni_ratios else 0
                                         avg_accruals = sum(accruals_ratios) / len(accruals_ratios) if accruals_ratios else 0
 
-                                        st.markdown("**📈 5-Year Earnings Quality Summary:**")
+                                        st.markdown("**5-Year Earnings Quality Summary:**")
 
                                         col_sum1, col_sum2 = st.columns(2)
                                         with col_sum1:
                                             if avg_ocf_ni >= 1.0:
-                                                st.success(f"✅ **Excellent cash conversion:** Average OCF/NI of {avg_ocf_ni:.2f} shows earnings are consistently backed by strong cash flow.")
+                                                st.success(f"**Excellent cash conversion:** Average OCF/NI of {avg_ocf_ni:.2f} shows earnings are consistently backed by strong cash flow.")
                                             elif avg_ocf_ni >= 0.8:
-                                                st.info(f"ℹ️ **Good cash conversion:** Average OCF/NI of {avg_ocf_ni:.2f} indicates solid earnings quality.")
+                                                st.info(f"**Good cash conversion:** Average OCF/NI of {avg_ocf_ni:.2f} indicates solid earnings quality.")
                                             else:
-                                                st.warning(f"⚠️ **Weak cash conversion:** Average OCF/NI of {avg_ocf_ni:.2f} suggests earnings may include non-cash items or aggressive accounting.")
+                                                st.warning(f"**Weak cash conversion:** Average OCF/NI of {avg_ocf_ni:.2f} suggests earnings may include non-cash items or aggressive accounting.")
 
                                         with col_sum2:
                                             if avg_accruals < 5:
-                                                st.success(f"✅ **Low accruals:** Average of {avg_accruals:.1f}% indicates conservative accounting practices.")
+                                                st.success(f"**Low accruals:** Average of {avg_accruals:.1f}% indicates conservative accounting practices.")
                                             elif avg_accruals < 10:
-                                                st.info(f"ℹ️ **Moderate accruals:** Average of {avg_accruals:.1f}% is within acceptable range.")
+                                                st.info(f"**Moderate accruals:** Average of {avg_accruals:.1f}% is within acceptable range.")
                                             else:
-                                                st.warning(f"⚠️ **High accruals:** Average of {avg_accruals:.1f}% may indicate aggressive accounting or earnings management.")
+                                                st.warning(f"**High accruals:** Average of {avg_accruals:.1f}% may indicate aggressive accounting or earnings management.")
 
                                     else:
                                         st.info("Insufficient historical data for charts (need at least 2 years)")
@@ -6352,7 +6352,7 @@ with tab5:
                                     st.metric("Gross Margin",
                                              f"{gross.get('current', 0):.1f}%",
                                              delta=f"{gross.get('current', 0) - gross.get('avg_3y', 0):.1f}% vs 3Y avg")
-                                    st.caption(gross.get('trend', '→ stable'))
+                                    st.caption(gross.get('trend', 'stable'))
 
                             with col2:
                                 operating = profitability.get('operating_margin', {})
@@ -6360,7 +6360,7 @@ with tab5:
                                     st.metric("Operating Margin",
                                              f"{operating.get('current', 0):.1f}%",
                                              delta=f"{operating.get('current', 0) - operating.get('avg_3y', 0):.1f}% vs 3Y avg")
-                                    st.caption(operating.get('trend', '→ stable'))
+                                    st.caption(operating.get('trend', 'stable'))
 
                             with col3:
                                 fcf = profitability.get('fcf_margin', {})
@@ -6368,7 +6368,7 @@ with tab5:
                                     st.metric("FCF Margin",
                                              f"{fcf.get('current', 0):.1f}%",
                                              delta=f"{fcf.get('current', 0) - fcf.get('avg_3y', 0):.1f}% vs 3Y avg")
-                                    st.caption(fcf.get('trend', '→ stable'))
+                                    st.caption(fcf.get('trend', 'stable'))
 
                             # Margins evolution chart
                             try:
@@ -6578,10 +6578,10 @@ with tab5:
                                                          help=f"Current: {oi_margin_current:.1f}% vs Prior: {oi_margin_prev:.1f}%")
 
                                 else:
-                                    st.info("📊 Historical financial data not available for this ticker")
+                                    st.info("Historical financial data not available for this ticker")
 
                             except Exception as e:
-                                st.warning(f"⚠️ Could not generate historical charts: {str(e)}")
+                                st.warning(f"Could not generate historical charts: {str(e)}")
                                 with st.expander("Show error details"):
                                     st.code(str(e))
 
@@ -6599,17 +6599,17 @@ with tab5:
                             if overall == 'Strong':
                                 banner_color = '#d1fae5'
                                 banner_text_color = '#065f46'
-                                banner_emoji = '✅'
+                                banner_emoji = ''
                                 banner_msg = 'Solid financial fortress - Strong liquidity and manageable debt'
                             elif overall == 'Concerning':
                                 banner_color = '#fee2e2'
                                 banner_text_color = '#991b1b'
-                                banner_emoji = '⚠️'
+                                banner_emoji = ''
                                 banner_msg = ', '.join(warnings_list) if warnings_list else 'Financial stress detected'
                             else:
                                 banner_color = '#fef3c7'
                                 banner_text_color = '#92400e'
-                                banner_emoji = 'ℹ️'
+                                banner_emoji = ''
                                 banner_msg = 'Moderate financial position'
 
                             st.markdown(f"""
@@ -6789,10 +6789,10 @@ with tab5:
                                                      delta_color="inverse")
 
                                 else:
-                                    st.info("📊 Balance sheet historical data not available")
+                                    st.info("Balance sheet historical data not available")
 
                             except Exception as e:
-                                st.warning(f"⚠️ Could not generate balance sheet chart: {str(e)}")
+                                st.warning(f"Could not generate balance sheet chart: {str(e)}")
 
                         # 5. Valuation Multiples vs Peers
                         valuation_multiples = intrinsic.get('valuation_multiples', {})
@@ -7075,9 +7075,9 @@ with tab5:
                                 if trend == 'improving':
                                     st.metric("YoY Trend", " Improving", delta=f"{yoy_change:.0f} days")
                                 elif trend == 'deteriorating':
-                                    st.metric("YoY Trend", "📉 Worsening", delta=f"{yoy_change:+.0f} days")
+                                    st.metric("YoY Trend", "Worsening", delta=f"{yoy_change:+.0f} days")
                                 else:
-                                    st.metric("YoY Trend", "→ Stable", delta=f"{yoy_change:+.0f} days")
+                                    st.metric("YoY Trend", "Stable", delta=f"{yoy_change:+.0f} days")
 
                             st.caption(" Lower CCC = Better working capital efficiency. Negative CCC means suppliers finance operations.")
 
@@ -7166,7 +7166,7 @@ with tab5:
                                 elif growth_roic > 0.5:
                                     st.caption(" Moderate")
                                 else:
-                                    st.caption("❌ Poor")
+                                    st.caption("Poor")
 
                             with col4:
                                 net_capex = reinvestment.get('net_capex', 0)
@@ -7222,9 +7222,9 @@ with tab5:
                                 if trend == 'improving':
                                     st.metric("5Y Avg EVA", avg_eva, delta=" Improving")
                                 elif trend == 'deteriorating':
-                                    st.metric("5Y Avg EVA", avg_eva, delta="📉 Declining")
+                                    st.metric("5Y Avg EVA", avg_eva, delta="Declining")
                                 else:
-                                    st.metric("5Y Avg EVA", avg_eva, delta="→ Stable")
+                                    st.metric("5Y Avg EVA", avg_eva, delta="Stable")
 
                             st.caption(" EVA = NOPAT - (WACC × Invested Capital). Positive EVA = Value creation above cost of capital.")
 
@@ -7263,7 +7263,7 @@ with tab5:
                             with col3:
                                 buyback_pct = cap_alloc.get('buyback_%_fcf', 0)
                                 share_trend = cap_alloc.get('share_count_trend', 'stable')
-                                emoji = "↓" if share_trend == 'decreasing' else "↑" if share_trend == 'increasing' else "→"
+                                emoji = "" if share_trend == 'decreasing' else "" if share_trend == 'increasing' else ""
                                 st.metric("Buybacks", f"{buyback_pct:.1f}% of FCF", delta=f"Shares {emoji}")
 
                             with col4:
@@ -7307,9 +7307,9 @@ with tab5:
                                 if trend == 'expanding':
                                     st.metric("NIM Trend", " Expanding", delta=f"+{yoy:.2f}% YoY")
                                 elif trend == 'compressing':
-                                    st.metric("NIM Trend", "📉 Compressing", delta=f"{yoy:.2f}% YoY")
+                                    st.metric("NIM Trend", "Compressing", delta=f"{yoy:.2f}% YoY")
                                 else:
-                                    st.metric("NIM Trend", "→ Stable", delta=f"{yoy:+.2f}% YoY")
+                                    st.metric("NIM Trend", "Stable", delta=f"{yoy:+.2f}% YoY")
 
                             with col3:
                                 nii = rate_sens.get('nii_formatted', 'N/A')
@@ -7488,7 +7488,7 @@ with tab5:
                             elif "continuation" in interpretation.lower():
                                 st.success(f" {interpretation}")
                             else:
-                                st.error(f"📉 {interpretation}")
+                                st.error(f"{interpretation}")
 
                         # 6. DCF Sensitivity Analysis
                         dcf_sensitivity = intrinsic.get('dcf_sensitivity', {})
@@ -7584,7 +7584,7 @@ with tab5:
                         st.markdown("### Premium Features Configuration & Output")
 
                         # Show config being used
-                        st.markdown("#### 1️⃣ Configuration Loaded")
+                        st.markdown("#### Configuration Loaded")
                         st.code(f"Config file: {config_file if 'config_file' in locals() else 'settings.yaml'}")
 
                         # Show premium config
@@ -7602,19 +7602,19 @@ with tab5:
                                 if insider_enabled:
                                     st.success(f" Insider Trading: **ENABLED**")
                                 else:
-                                    st.error(f"❌ Insider Trading: **DISABLED**")
+                                    st.error(f"Insider Trading: **DISABLED**")
 
                             with col2:
                                 transcripts_enabled = premium_config.get('enable_earnings_transcripts', False)
                                 if transcripts_enabled:
                                     st.success(f" Earnings Transcripts: **ENABLED**")
                                 else:
-                                    st.error(f"❌ Earnings Transcripts: **DISABLED**")
+                                    st.error(f"Earnings Transcripts: **DISABLED**")
                         except Exception as e:
                             st.error(f"Could not load config: {e}")
 
                         # Check where features are in the analysis result
-                        st.markdown("#### 2️⃣ Features in Analysis Result")
+                        st.markdown("#### Features in Analysis Result")
 
                         # Check root level (WRONG location)
                         has_insider_root = 'insider_trading' in analysis
@@ -7626,12 +7626,12 @@ with tab5:
                             if has_insider_root:
                                 st.warning(" insider_trading found at ROOT (deprecated)")
                             else:
-                                st.info("❌ insider_trading NOT at root")
+                                st.info("insider_trading NOT at root")
                         with col2:
                             if has_sentiment_root:
                                 st.warning(" earnings_sentiment found at ROOT")
                             else:
-                                st.info("❌ earnings_sentiment NOT at root")
+                                st.info("earnings_sentiment NOT at root")
 
                         # Check intrinsic_value level (CORRECT location)
                         intrinsic = analysis.get('intrinsic_value', {})
@@ -7644,15 +7644,15 @@ with tab5:
                             if has_insider_iv:
                                 st.success(" insider_trading FOUND in intrinsic_value!")
                             else:
-                                st.error("❌ insider_trading NOT in intrinsic_value")
+                                st.error("insider_trading NOT in intrinsic_value")
                         with col2:
                             if has_sentiment_iv:
                                 st.success(" earnings_sentiment FOUND in intrinsic_value!")
                             else:
-                                st.error("❌ earnings_sentiment NOT in intrinsic_value")
+                                st.error("earnings_sentiment NOT in intrinsic_value")
 
                         # Show actual data if present
-                        st.markdown("#### 3️⃣ Actual Premium Features Data")
+                        st.markdown("#### Actual Premium Features Data")
 
                         if has_insider_iv:
                             st.markdown("** Insider Trading Data:**")
@@ -7669,7 +7669,7 @@ with tab5:
                             st.warning("No earnings sentiment data in intrinsic_value")
 
                         # Show what keys ARE in intrinsic_value
-                        st.markdown("#### 4️⃣ All Keys in intrinsic_value Dict")
+                        st.markdown("#### All Keys in intrinsic_value Dict")
                         st.code(f"Keys: {list(intrinsic.keys())}")
 
                         st.markdown("""
@@ -7680,7 +7680,7 @@ with tab5:
                         analysis['intrinsic_value']['insider_trading']
                         analysis['intrinsic_value']['earnings_sentiment']
 
-                        # ❌ WRONG
+                        # WRONG
                         analysis['insider_trading']  # Not here!
                         analysis['earnings_sentiment']  # Not here!
                         ```
@@ -7932,11 +7932,11 @@ with tab6:
                     st.rerun()
                 else:
                     error_msg = qual_analysis.get('error', 'Unknown error') if qual_analysis else 'Failed to retrieve data'
-                    st.error(f"❌ Analysis failed: {error_msg}")
+                    st.error(f"Analysis failed: {error_msg}")
                     st.info(f" Troubleshooting tips:\n- Ticker: {formatted_custom_ticker}\n- Market suffix has been added automatically\n- Some tickers may have limited data availability\n- Try selecting a different market if the ticker is listed on multiple exchanges")
 
             except Exception as e:
-                st.error(f"❌ Analysis failed: {str(e)}")
+                st.error(f"Analysis failed: {str(e)}")
                 st.info(f" Please check:\n- Ticker symbol is correct for {custom_market}\n- Stock is publicly traded and has financial data\n- API connection is working properly")
 
     # Display cached analysis if available
@@ -8109,7 +8109,7 @@ with tab6:
 - Revenue Growth: {revenue_growth:.1f}% (Mature/stable)
 - DCF es ideal para empresas maduras porque:
   - Cash flows predecibles y estables
-  - Growth limitado → PEG pierde relevancia
+  - Growth limitado PEG pierde relevancia
   - Mejor para dividendos y buybacks
 - **DCF captura el valor intrínseco de FCF estable**
 - Empresas similares: Johnson & Johnson, Procter & Gamble, Coca-Cola
@@ -8146,9 +8146,9 @@ with tab6:
             if notes:
                 with st.expander(" Calculation Details & Debug Info"):
                     for note in notes:
-                        if note.startswith('✓'):
+                        if note.startswith(''):
                             st.success(note)
-                        elif note.startswith('✗') or 'ERROR' in note or 'failed' in note.lower():
+                        elif note.startswith('') or 'ERROR' in note or 'failed' in note.lower():
                             st.error(note)
                         elif note.startswith('') or 'WARNING' in note:
                             st.warning(note)
@@ -8163,7 +8163,7 @@ with tab6:
 
                 # === EL MARTILLO DEL PEG: Veto power sobre DCF en Growth Stocks ===
                 # Para empresas de crecimiento, PEG > DCF porque captura optionality
-                # Si PEG < 1.5 y Growth > 10% → VERDE, sin importar DCF
+                # Si PEG < 1.5 y Growth > 10% VERDE, sin importar DCF
 
                 growth_override_applied = False
                 growth_override_reason = None
@@ -8189,7 +8189,7 @@ with tab6:
                     # If PEG exists and P/E exists, we can infer growth
                     pe_ttm = analysis.get('pe_ttm', None)
                     if peg_ratio and pe_ttm and peg_ratio > 0:
-                        # PEG = P/E / Growth → Growth = P/E / PEG
+                        # PEG = P/E / Growth Growth = P/E / PEG
                         revenue_growth = (pe_ttm / peg_ratio) if peg_ratio > 0 else None
 
                 # Determine if it's a growth stock
@@ -8207,9 +8207,9 @@ with tab6:
                         reverse_dcf_signal = 'UNDERVALUED'
 
                 # === MARTILLO DEL PEG: Override Logic ===
-                #Quality Tier 1: PEG excelente (< 1.2) + Growth Stock → VERDE inmediato
-                #Quality Tier 2: PEG bueno (< 1.5) + Reverse DCF UNDERVALUED → VERDE
-                #Quality Tier 3: PEG razonable (< 2.0) + High Growth (>15%) → VERDE
+                #Quality Tier 1: PEG excelente (< 1.2) + Growth Stock VERDE inmediato
+                #Quality Tier 2: PEG bueno (< 1.5) + Reverse DCF UNDERVALUED VERDE
+                #Quality Tier 3: PEG razonable (< 2.0) + High Growth (>15%) VERDE
 
                 peg_hammer_triggered = False
 
@@ -8245,8 +8245,8 @@ with tab6:
                         **Veredicto: COMPRA (Doble confirmación PEG + Reverse DCF)**
 
                         2 señales independientes confirman undervaluation:
-                        1. PEG < 1.5 → Crecimiento a precio razonable
-                        2. Reverse DCF → Mercado espera menos crecimiento del real
+                        1. PEG < 1.5 Crecimiento a precio razonable
+                        2. Reverse DCF Mercado espera menos crecimiento del real
                         """
 
                     #Quality Tier 3: PEG razonable (< 2.0) en high growth (>15%)
@@ -8261,7 +8261,7 @@ with tab6:
                         **Veredicto: COMPRA (High growth justifica valuación)**
 
                         Para empresas con crecimiento >15%, PEG < 2.0 es razonable.
-                        Regla: "Never short a dull market" → Never sell high growth at PEG < 2.0
+                        Regla: "Never short a dull market" Never sell high growth at PEG < 2.0
                         """
 
                 # Apply override if PEG Hammer triggered
@@ -8377,21 +8377,21 @@ with tab6:
                     if gross:
                         st.metric("Gross Margin", f"{gross.get('current', 0):.1f}%",
                                  delta=f"{gross.get('current', 0) - gross.get('avg_3y', 0):.1f}% vs 3Y avg")
-                        st.caption(gross.get('trend', '→ stable'))
+                        st.caption(gross.get('trend', 'stable'))
 
                 with col2:
                     operating = profitability.get('operating_margin', {})
                     if operating:
                         st.metric("Operating Margin", f"{operating.get('current', 0):.1f}%",
                                  delta=f"{operating.get('current', 0) - operating.get('avg_3y', 0):.1f}% vs 3Y avg")
-                        st.caption(operating.get('trend', '→ stable'))
+                        st.caption(operating.get('trend', 'stable'))
 
                 with col3:
                     fcf = profitability.get('fcf_margin', {})
                     if fcf:
                         st.metric("FCF Margin", f"{fcf.get('current', 0):.1f}%",
                                  delta=f"{fcf.get('current', 0) - fcf.get('avg_3y', 0):.1f}% vs 3Y avg")
-                        st.caption(fcf.get('trend', '→ stable'))
+                        st.caption(fcf.get('trend', 'stable'))
 
             # 4. Balance Sheet Strength
             balance_sheet = intrinsic.get('balance_sheet_strength', {})
@@ -8734,9 +8734,9 @@ with tab6:
                     if trend == 'improving':
                         st.metric("YoY Trend", " Improving", delta=f"{yoy_change:.0f} days")
                     elif trend == 'deteriorating':
-                        st.metric("YoY Trend", "📉 Worsening", delta=f"{yoy_change:+.0f} days")
+                        st.metric("YoY Trend", "Worsening", delta=f"{yoy_change:+.0f} days")
                     else:
-                        st.metric("YoY Trend", "→ Stable", delta=f"{yoy_change:+.0f} days")
+                        st.metric("YoY Trend", "Stable", delta=f"{yoy_change:+.0f} days")
 
                 st.caption(" Lower CCC = Better working capital efficiency. Negative CCC means suppliers finance operations.")
 
@@ -8825,7 +8825,7 @@ with tab6:
                     elif growth_roic > 0.5:
                         st.caption(" Moderate")
                     else:
-                        st.caption("❌ Poor")
+                        st.caption("Poor")
 
                 with col4:
                     net_capex = reinvestment.get('net_capex', 0)
@@ -8881,9 +8881,9 @@ with tab6:
                     if trend == 'improving':
                         st.metric("5Y Avg EVA", avg_eva, delta=" Improving")
                     elif trend == 'deteriorating':
-                        st.metric("5Y Avg EVA", avg_eva, delta="📉 Declining")
+                        st.metric("5Y Avg EVA", avg_eva, delta="Declining")
                     else:
-                        st.metric("5Y Avg EVA", avg_eva, delta="→ Stable")
+                        st.metric("5Y Avg EVA", avg_eva, delta="Stable")
 
                 st.caption(" EVA = NOPAT - (WACC × Invested Capital). Positive EVA = Value creation above cost of capital.")
 
@@ -8922,7 +8922,7 @@ with tab6:
                 with col3:
                     buyback_pct = cap_alloc.get('buyback_%_fcf', 0)
                     share_trend = cap_alloc.get('share_count_trend', 'stable')
-                    emoji = "↓" if share_trend == 'decreasing' else "↑" if share_trend == 'increasing' else "→"
+                    emoji = "" if share_trend == 'decreasing' else "" if share_trend == 'increasing' else ""
                     st.metric("Buybacks", f"{buyback_pct:.1f}% of FCF", delta=f"Shares {emoji}")
 
                 with col4:
@@ -8966,9 +8966,9 @@ with tab6:
                     if trend == 'expanding':
                         st.metric("NIM Trend", " Expanding", delta=f"+{yoy:.2f}% YoY")
                     elif trend == 'compressing':
-                        st.metric("NIM Trend", "📉 Compressing", delta=f"{yoy:.2f}% YoY")
+                        st.metric("NIM Trend", "Compressing", delta=f"{yoy:.2f}% YoY")
                     else:
-                        st.metric("NIM Trend", "→ Stable", delta=f"{yoy:+.2f}% YoY")
+                        st.metric("NIM Trend", "Stable", delta=f"{yoy:+.2f}% YoY")
 
                 with col3:
                     nii = rate_sens.get('nii_formatted', 'N/A')
@@ -9191,7 +9191,7 @@ with tab6:
                     elif "continuation" in interpretation.lower():
                         st.success(f" {interpretation}")
                     else:
-                        st.error(f"📉 {interpretation}")
+                        st.error(f"{interpretation}")
 
             # ========== TECHNICAL ANALYSIS SECTION (NEW) ==========
             # Check if technical analysis is available
@@ -9265,7 +9265,7 @@ with tab6:
                     # Regime Adjustment
                     regime_adj = components.get('regime_adjustment', 0)
                     if regime_adj != 0:
-                        st.info(f"⚖️ Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
+                        st.info(f"Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
 
                     # Detailed Metrics
                     st.markdown("---")
@@ -9311,7 +9311,7 @@ with tab6:
                             st.markdown("**Trend Analysis:**")
                             st.write(f"- Trend: {tech_analysis.get('trend', 'N/A')}")
                             st.write(f"- Distance from MA200: {tech_analysis.get('distance_from_ma200', 0):+.1f}%")
-                            st.write(f"- Golden Cross: {'' if tech_analysis.get('golden_cross') else '❌'}")
+                            st.write(f"- Golden Cross: {'' if tech_analysis.get('golden_cross') else ''}")
 
                         with col2:
                             st.markdown("**Volume Analysis:**")
@@ -9525,7 +9525,7 @@ with tab8:
     **Combined Signals:**
     -  **Strong BUY**: Fundamental BUY + Technical BUY (quality + timing aligned)
     -  **BUY**: Fundamental BUY + Technical HOLD (good company, wait for entry)
-    - ⏸️ **WAIT**: Fundamental BUY + Technical SELL (great company, bad timing)
+    - **WAIT**: Fundamental BUY + Technical SELL (great company, bad timing)
 
     ---
 
@@ -9588,7 +9588,7 @@ with tab8:
 
     ### Phase 1: Universe Building
     1. **Screening**: Filter by market cap, volume, country
-    2. **Top-K Selection**: Preliminary ranking (2000+ → 100 deep analysis)
+    2. **Top-K Selection**: Preliminary ranking (2000+ 100 deep analysis)
 
     ### Phase 2: Fundamental Analysis
     3. **Feature Calculation**: Value & Quality metrics (asset-type specific)
@@ -9606,16 +9606,16 @@ with tab8:
 
     ---
 
-    ## ⚖️ Scoring Formula
+    ## Scoring Formula
 
     ### Fundamental Score (0-100)
     ```
     Composite = (Value Weight × Value Score) + (Quality Weight × Quality Score)
 
     Decision:
-    - Score ≥ 75 + VERDE → BUY
-    - Score 60-75 or AMBAR → MONITOR
-    - Score < 60 or ROJO → AVOID
+    - Score ≥ 75 + VERDE BUY
+    - Score 60-75 or AMBAR MONITOR
+    - Score < 60 or ROJO AVOID
     ```
 
     ### Technical Score (0-100)
@@ -9623,9 +9623,9 @@ with tab8:
     Score = Momentum(35) + Sector(25) + Trend(25) + Volume(15)
 
     Signal:
-    - Score ≥ 75 → BUY
-    - Score 50-75 → HOLD
-    - Score < 50 → SELL
+    - Score ≥ 75 BUY
+    - Score 50-75 HOLD
+    - Score < 50 SELL
     ```
 
     ### Combined Score
@@ -9663,7 +9663,7 @@ with tab8:
 
     ---
 
-    ## 🛠️ Technical Stack
+    ## Technical Stack
 
     - **Data Source**: Financial Modeling Prep (FMP) API
     - **Backend**: Python 3.9+ (pandas, numpy, scipy)
@@ -9708,9 +9708,9 @@ with tab8:
 
     **IMPORTANT:** This tool is for **educational and research purposes only**.
 
-    - ❌ **NOT** investment advice
-    - ❌ **NOT** a recommendation to buy or sell securities
-    - ❌ **NOT** a substitute for professional financial advice
+    - **NOT** investment advice
+    - **NOT** a recommendation to buy or sell securities
+    - **NOT** a substitute for professional financial advice
 
     **You must:**
     -  Conduct your own due diligence
@@ -9736,7 +9736,7 @@ with tab8:
     - **v2.0** - Added advanced guardrails (Working Capital, Margins, Debt, Cash Conversion)
     - **v2.5** - Qualitative analysis (Backlog, Contextual warnings, R&D, Insider)
     - **v3.0** - TOP 3 Enhancements (Caching, Historical, Peer Comparison)
-    - **v4.0** - **Technical Analysis** (Evidence-based timing) ⬅️ **Current**
+    - **v4.0** - **Technical Analysis** (Evidence-based timing) **Current**
 
     ---
 
@@ -9761,20 +9761,20 @@ with tab7:
 
         with col1:
             st.markdown("""
-            **✅ Evidence-Based Indicators:**
+            **Evidence-Based Indicators:**
             - **12-Month Momentum** (Jegadeesh & Titman 1993, Moskowitz 2021)
-              → Strongest predictor of future returns
+              Strongest predictor of future returns
             - **Sector Relative Strength** (Bretscher 2023, Arnott 2024)
-              → Industry leadership indicates structural advantages
+              Industry leadership indicates structural advantages
             - **Trend Following (MA200)** (Brock et al. 1992, updated 2023)
-              → Long-term trend identification
+              Long-term trend identification
             - **Volume Confirmation** (Lo & Wang 2000)
-              → Institutional accumulation/distribution
+              Institutional accumulation/distribution
             """)
 
         with col2:
             st.markdown("""
-            **❌ Excluded (No Post-2010 Evidence):**
+            **Excluded (No Post-2010 Evidence):**
             - RSI (Relative Strength Index)
             - MACD (Moving Average Convergence Divergence)
             - Stochastic Oscillator
@@ -9821,7 +9821,7 @@ with tab7:
 
                     # Validate API key
                     if not api_key or api_key.startswith('${') or api_key == 'your_api_key_here':
-                        st.error("❌ **FMP API Key not configured!**")
+                        st.error("**FMP API Key not configured!**")
                         st.markdown("""
                         Please configure your Financial Modeling Prep API key:
 
@@ -9932,7 +9932,7 @@ with tab7:
                                 'warnings_count': 1,
                                 'warnings': [{'type': 'ERROR', 'message': str(e)}],
                                 'stop_loss_state': 'ERROR',
-                                'stop_loss_emoji': '❌',
+                                'stop_loss_emoji': '',
                                 'full_analysis': None
                             })
 
@@ -10013,15 +10013,15 @@ with tab7:
 
                                     # Add specific recommendations based on error type
                                     if "No quote data" in error_reason:
-                                        st.info("💡 **Likely cause:** Delisted stocks, incorrect symbols, or stocks not available in FMP")
+                                        st.info("**Likely cause:** Delisted stocks, incorrect symbols, or stocks not available in FMP")
                                     elif "No historical data" in error_reason:
-                                        st.info("💡 **Likely cause:** New IPOs, low-liquidity stocks, or foreign symbols without data")
+                                        st.info("**Likely cause:** New IPOs, low-liquidity stocks, or foreign symbols without data")
                                     elif "historical" in error_reason.lower() and "key" in error_reason.lower():
-                                        st.warning("⚠️ **Likely cause:** API response format changed or FMP data structure issue")
+                                        st.warning("**Likely cause:** API response format changed or FMP data structure issue")
                                     else:
-                                        st.info("💡 **Recommendation:** Check symbol format and FMP availability")
+                                        st.info("**Recommendation:** Check symbol format and FMP availability")
                         else:
-                            st.success("✅ All stocks have complete technical data!")
+                            st.success("All stocks have complete technical data!")
 
                     # === SMARTDYNAMICSTOPLOSS STATE SUMMARY ===
                     st.markdown("---")
@@ -10110,7 +10110,7 @@ with tab7:
                                 st.write(f"- {row['ticker']}: {row['technical_score']:.0f} ({row['technical_signal']})")
 
                 except Exception as e:
-                    st.error(f"❌ Error initializing technical analysis: {str(e)}")
+                    st.error(f"Error initializing technical analysis: {str(e)}")
                     st.exception(e)
 
             # Display results
@@ -10120,13 +10120,13 @@ with tab7:
                 # Check if results are from old version (before error_reason column was added)
                 if 'error_reason' not in df_tech.columns:
                     st.warning("""
-                    ⚠️ **Outdated Results Detected**
+                    **Outdated Results Detected**
 
                     Your technical results were generated with an older version of the code.
 
                     **Please click "Run Technical Analysis" again** to see the new **Data Quality Diagnostics** report.
                     """)
-                    st.info("💡 **New in this version:** Detailed breakdown showing WHY each stock has UNKNOWN data (delisted, no history, API errors, etc.)")
+                    st.info("**New in this version:** Detailed breakdown showing WHY each stock has UNKNOWN data (delisted, no history, API errors, etc.)")
 
                 # Summary metrics
                 col1, col2, col3, col4 = st.columns(4)
@@ -10198,7 +10198,7 @@ with tab7:
                 <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                             padding: 0.5rem 1rem; border-radius: 8px; margin-bottom: 0.5rem;'>
                     <div style='color: white; font-weight: 600; font-size: 0.85rem;'>
-                        🎯 TRADING SIGNALS (Decision Outputs)
+                        TRADING SIGNALS (Decision Outputs)
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -10284,15 +10284,15 @@ with tab7:
                         ⚙️ ADVANCED: Diagnostic Component Filters
                     </div>
                     <div style='color: #856404; font-size: 0.75rem; margin-top: 0.25rem;'>
-                        💡 <strong>TIP:</strong> These components are ALREADY included in Technical Score and Signal.
+                        <strong>TIP:</strong> These components are ALREADY included in Technical Score and Signal.
                         Use these filters only for advanced diagnostic analysis to understand WHY a stock has a certain score.
                         Filtering by both Score ≥75 AND Trend=UPTREND is redundant (Trend already contributes 10-15 pts to Score).
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-                with st.expander("🔍 Show Component Filters (Advanced - Usually Not Needed)", expanded=False):
-                    st.caption("⚠️ WARNING: Filtering by components AND score filters the same data twice. "
+                with st.expander("Show Component Filters (Advanced - Usually Not Needed)", expanded=False):
+                    st.caption("WARNING: Filtering by components AND score filters the same data twice. "
                               "These filters are for diagnosing WHY a score is high/low, not for primary filtering.")
 
                     col7, col8, col9 = st.columns(3)
@@ -10303,7 +10303,7 @@ with tab7:
                             "Trend (Contributes ~15pts)",
                             options=all_trends,
                             default=all_trends,
-                            help="⚠️ REDUNDANT with Technical Score. Trend status already contributes +15 pts if UPTREND. "
+                            help="REDUNDANT with Technical Score. Trend status already contributes +15 pts if UPTREND. "
                                 "Use this ONLY to diagnose why stocks have certain scores, not for primary filtering.",
                             key='trend_filter'
                         )
@@ -10314,7 +10314,7 @@ with tab7:
                             "Volume (Contributes ~5pts)",
                             options=all_volumes,
                             default=all_volumes,
-                            help="⚠️ REDUNDANT with Technical Score. Volume pattern already contributes ~5 pts to score. "
+                            help="REDUNDANT with Technical Score. Volume pattern already contributes ~5 pts to score. "
                                 "Use this ONLY to diagnose why stocks have certain scores.",
                             key='volume_filter'
                         )
@@ -10325,7 +10325,7 @@ with tab7:
                             "Momentum (Contributes ~35pts)",
                             options=all_consistency,
                             default=all_consistency,
-                            help="⚠️ REDUNDANT with Technical Score. Momentum consistency already contributes ~35-40 pts to score. "
+                            help="REDUNDANT with Technical Score. Momentum consistency already contributes ~35-40 pts to score. "
                                 "Use this ONLY to diagnose why stocks have certain scores.",
                             key='consistency_filter'
                         )
@@ -10335,7 +10335,7 @@ with tab7:
                 <div style='background: #fef3c7; padding: 0.5rem 1rem; border-radius: 8px;
                             margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #f59e0b;'>
                     <div style='color: #92400e; font-weight: 600; font-size: 0.85rem;'>
-                        ⚠️ DATA QUALITY
+                        DATA QUALITY
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -10402,7 +10402,7 @@ with tab7:
                 st.markdown(f"""
                 <div style='background: #dbeafe; padding: 0.75rem; border-radius: 8px; margin-top: 0.75rem;'>
                     <div style='font-size: 1.1rem; font-weight: 600; color: #1e40af;'>
-                        📊 {len(df_filtered)} stocks match filters
+                        {len(df_filtered)} stocks match filters
                         <span style='font-size: 0.85rem; color: #3b82f6; font-weight: 400;'>
                             (filtered from {len(df_tech)} total)
                         </span>
@@ -10439,17 +10439,17 @@ with tab7:
                                     filename = f"posiciones_ultraquality_{timestamp}.xlsx"
 
                                     st.download_button(
-                                        label="⬇️ Descargar Excel",
+                                        label="Descargar Excel",
                                         data=excel_buffer,
                                         file_name=filename,
                                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                         use_container_width=True
                                     )
 
-                                    st.success(f"✅ Excel generado: {len(df_filtered)} posiciones")
+                                    st.success(f"Excel generado: {len(df_filtered)} posiciones")
 
                                 except Exception as e:
-                                    st.error(f"❌ Error generando Excel: {str(e)}")
+                                    st.error(f"Error generando Excel: {str(e)}")
                                     st.exception(e)
 
                     with col_excel3:
@@ -11381,7 +11381,7 @@ with tab7:
                                         else:
                                             st.info(f"Balance neutral: Actividad institucional balanceada.")
                                     else:
-                                        st.info("⚠️ Datos de cambio (compra/venta) no disponibles en la API. Solo se muestran las posiciones actuales.")
+                                        st.info("Datos de cambio (compra/venta) no disponibles en la API. Solo se muestran las posiciones actuales.")
 
                                 else:
                                     st.info("No hay datos de institutional holdings disponibles")
@@ -11389,7 +11389,7 @@ with tab7:
                             except Exception as e:
                                 st.warning(f"No se pudo obtener información de institutional holdings: {str(e)}")
                         else:
-                            st.info("💡 Para ver Insider Trading e Institutional Holdings, primero ejecuta el análisis cualitativo (tab 5) para este ticker.")
+                            st.info("Para ver Insider Trading e Institutional Holdings, primero ejecuta el análisis cualitativo (tab 5) para este ticker.")
 
                         # ========== EARNINGS CALENDAR ==========
                         st.markdown("---")
@@ -11418,7 +11418,7 @@ with tab7:
                             st.markdown("""
                             <div style='background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
                                         padding: 1.5rem; border-radius: 12px; color: white; margin-bottom: 1rem;'>
-                                <div style='font-size: 1.3rem; font-weight: 600; margin-bottom: 0.5rem;'>❌ Analysis Error</div>
+                                <div style='font-size: 1.3rem; font-weight: 600; margin-bottom: 0.5rem;'>Analysis Error</div>
                                 <div style='font-size: 0.95rem; opacity: 0.95;'>{}</div>
                             </div>
                             """.format(full_analysis['error']), unsafe_allow_html=True)
@@ -11478,7 +11478,7 @@ with tab7:
                             st.markdown("""
                             <div style='background: #d4edda; padding: 1rem; border-radius: 8px;
                                         border-left: 4px solid #28a745; margin-bottom: 1rem;'>
-                                <div style='font-size: 0.95rem; color: #155724; font-weight: 600;'>✅ No technical warnings detected</div>
+                                <div style='font-size: 0.95rem; color: #155724; font-weight: 600;'>No technical warnings detected</div>
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -11515,9 +11515,9 @@ with tab7:
                             - Si **NO** tienes la acción: **NO COMPRAR** (espera recuperación)
                             - Si **YA** tienes la acción: **SALIR** en próximo rebote
 
-                            **📉 Por qué esto anula los scores históricos**:
-                            - Technical Score ({tech_score}/100) mira 12 meses atrás ← PASADO
-                            - State Machine mira estructura actual ← PRESENTE
+                            **Por qué esto anula los scores históricos**:
+                            - Technical Score ({tech_score}/100) mira 12 meses atrás PASADO
+                            - State Machine mira estructura actual PRESENTE
                             - "Una tortuga corriendo cuesta abajo sigue siendo rápida... hasta que se estrella"
 
                             ** Para re-considerar compra**:
@@ -11541,8 +11541,8 @@ with tab7:
                             - Si **YA** tienes la acción: **ASEGURAR GANANCIAS** (trailing stop o vender parcial)
 
                             ** Por qué NO comprar en clímax parabólico**:
-                            - Technical Score ({tech_score}/100) dice "excelente momentum" ← VERDAD
-                            - State Machine dice "movimiento insostenible" ← TAMBIÉN VERDAD
+                            - Technical Score ({tech_score}/100) dice "excelente momentum" VERDAD
+                            - State Machine dice "movimiento insostenible" TAMBIÉN VERDAD
                             - Score alto = "La fiesta fue genial", NO = "La fiesta seguirá siendo genial"
 
                             ** Evidencia empírica**:
@@ -11649,7 +11649,7 @@ with tab7:
                                     strategy_desc = "(70% now, 30% on pullback)"
 
                                 st.warning(f"""
-                                **⏸️ STRONG COMPANY, WAIT FOR PULLBACK**: Excellent fundamentals but stock is overextended ({distance_ma200:+.1f}% from MA200).
+                                **STRONG COMPANY, WAIT FOR PULLBACK**: Excellent fundamentals but stock is overextended ({distance_ma200:+.1f}% from MA200).
                                 **Expected pullback**: {pullback_range}
                                 **Action**: Set alerts or use scale-in strategy {strategy_desc}.
                                 Consider cash-secured puts to enter at discount.
@@ -11658,7 +11658,7 @@ with tab7:
                             # STRONG fundamentals but poor tech score (not due to overextension)
                             elif fund_score >= 75 and tech_score < 50:
                                 st.warning("""
-                                **⏸️ WAIT**: Great company but poor technical timing.
+                                **WAIT**: Great company but poor technical timing.
                                 Consider waiting for pullback or better entry point.
                                 Set price alerts around MA200 support levels.
                                 """)
@@ -11899,8 +11899,7 @@ with tab7:
                                - Calcula estrategia óptima (covered call si overextended, protective put si high risk)
                                - Revisa Greeks para entender sensibilidad
 
-                            4. **Market Timing** 🌡️
-                               - Verifica condiciones macro antes de entrar
+                            4. **Market Timing** - Verifica condiciones macro antes de entrar
                                - Si DEFENSIVE (risk 7+), espera mejor momento
 
                             5. **Portfolio** 💼
@@ -11910,18 +11909,18 @@ with tab7:
                             ### Casos de Uso
 
                             **Stock Overextendido (ej: +58% sobre MA200)**
-                            1. Visualizations → Confirma zona overextension
-                            2. Backtesting → Valida que correcciones históricas fueron -25% avg
-                            3. Options → Covered call para income mientras esperas pullback
-                            4. Market Timing → Si CAUTIOUS/DEFENSIVE, no entres full position
-                            5. Portfolio → Scale-in 3 tranches (25% now, 35% @MA50, 40% @MA200)
+                            1. Visualizations Confirma zona overextension
+                            2. Backtesting Valida que correcciones históricas fueron -25% avg
+                            3. Options Covered call para income mientras esperas pullback
+                            4. Market Timing Si CAUTIOUS/DEFENSIVE, no entres full position
+                            5. Portfolio Scale-in 3 tranches (25% now, 35% @MA50, 40% @MA200)
 
                             **Stock con Pullback (ej: -15% en 2 semanas)**
-                            1. Visualizations → Confirma que salió de zona overextension
-                            2. Backtesting → Valida que rebotes desde MA50 son +18% avg
-                            3. Options → Cash-secured put para entry at discount
-                            4. Market Timing → Si NEUTRAL/BULLISH, OK para agregar
-                            5. Portfolio → Add tranche 2 cuando alerta dice "near MA50"
+                            1. Visualizations Confirma que salió de zona overextension
+                            2. Backtesting Valida que rebotes desde MA50 son +18% avg
+                            3. Options Cash-secured put para entry at discount
+                            4. Market Timing Si NEUTRAL/BULLISH, OK para agregar
+                            5. Portfolio Add tranche 2 cuando alerta dice "near MA50"
 
                             ### Documentación Completa
 
