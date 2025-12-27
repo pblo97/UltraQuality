@@ -4504,11 +4504,11 @@ with tab5:
                                         </div>
                                         """, unsafe_allow_html=True)
 
-                                    # Show top 10 institutional holders
-                                    st.caption(f"**Top 10 Institutional Holders** (Total: {len(institutional_holders)} instituciones)")
+                                    # Show top 15 institutional holders
+                                    st.caption(f"**Top 15 Institutional Holders** (Total: {len(institutional_holders)} instituciones)")
 
                                     # Sort by shares held
-                                    top_holders = sorted(institutional_holders, key=lambda x: x.get('shares', 0), reverse=True)[:10]
+                                    top_holders = sorted(institutional_holders, key=lambda x: x.get('shares', 0), reverse=True)[:15]
 
                                     for i, holder in enumerate(top_holders, 1):
                                         holder_name = holder.get('holder', 'Unknown')
