@@ -4174,66 +4174,166 @@ with tab5:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    col1, col2 = st.columns(2)
+                    # Parse and display moats/risks in a cleaner format
+                    col1, col2 = st.columns([1, 1])
 
                     with col1:
                         st.markdown("""
-                        <div style='margin-bottom: 0.5rem;'>
+                        <div style='margin-bottom: 1rem;'>
                             <span style='background: #10b981; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;'>
                                 COMPETITIVE MOATS
                             </span>
                         </div>
                         """, unsafe_allow_html=True)
+
                         moats = analysis.get('moats', [])
                         if moats:
+                            import re
+
+                            moat_count = 0
                             for moat in moats:
-                                # Clean all emojis from moat text
-                                import re
+                                # Clean emojis
                                 moat_clean = re.sub(r'[✓✗💪📝🟡🟢🔴⚠️👍🏆]', '', moat).strip()
-                                # Remove duplicate checkmarks/symbols at start
                                 moat_clean = re.sub(r'^[\s✓✗💪]+', '', moat_clean)
 
-                                st.markdown(f"""
-                                <div style='background: #f8fafc; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 3px solid #10b981;'>
-                                    <div style='color: #1e293b; font-size: 0.9rem; line-height: 1.5;'>{moat_clean}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                # Parse format: "**Name**: Description (**Evidence**)"
+                                match = re.match(r'\*\*([^:]+)\*\*:\s*([^(]+)(?:\(\*\*([^)]+)\*\*\))?', moat_clean)
+
+                                if match:
+                                    moat_name = match.group(1).strip()
+                                    moat_desc = match.group(2).strip()
+                                    moat_evidence = match.group(3).strip() if match.group(3) else "Unknown"
+
+                                    # Skip if "Not evident"
+                                    if "not evident" in moat_evidence.lower():
+                                        continue
+
+                                    moat_count += 1
+
+                                    # Determine badge color based on evidence
+                                    if "strong" in moat_evidence.lower():
+                                        badge_color = "#10b981"
+                                        badge_text = "STRONG"
+                                    elif "probable" in moat_evidence.lower() or "moderate" in moat_evidence.lower():
+                                        badge_color = "#3b82f6"
+                                        badge_text = "MODERATE"
+                                    else:
+                                        badge_color = "#6b7280"
+                                        badge_text = "WEAK"
+
+                                    st.markdown(f"""
+                                    <div style='background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;
+                                                border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
+                                        <div style='display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;'>
+                                            <div style='font-weight: 600; color: #1e293b; font-size: 0.95rem;'>{moat_name}</div>
+                                            <span style='background: {badge_color}; color: white; padding: 0.15rem 0.5rem;
+                                                         border-radius: 3px; font-size: 0.65rem; font-weight: 700;
+                                                         letter-spacing: 0.3px; white-space: nowrap;'>{badge_text}</span>
+                                        </div>
+                                        <div style='color: #64748b; font-size: 0.85rem; line-height: 1.5;'>{moat_desc}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    # Fallback for unparsed moats
+                                    if moat_clean and "not evident" not in moat_clean.lower():
+                                        moat_count += 1
+                                        st.markdown(f"""
+                                        <div style='background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;
+                                                    border: 1px solid #e2e8f0;'>
+                                            <div style='color: #1e293b; font-size: 0.9rem; line-height: 1.5;'>{moat_clean}</div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                            if moat_count == 0:
+                                st.info("No clear moats identified")
                         else:
                             st.info("No clear moats identified")
 
                     with col2:
                         st.markdown("""
-                        <div style='margin-bottom: 0.5rem;'>
+                        <div style='margin-bottom: 1rem;'>
                             <span style='background: #f59e0b; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;'>
                                 KEY RISKS
                             </span>
                         </div>
                         """, unsafe_allow_html=True)
+
                         risks = analysis.get('risks', [])
                         if risks:
-                            for risk in risks:
-                                # Clean all emojis from risk text
-                                import re
-                                risk_clean = re.sub(r'[✓✗💪📝🟡🟢🔴⚠️👍🏆]', '', risk).strip()
-                                # Remove severity prefix if present
-                                risk_clean = re.sub(r'^(Med|High|Low)\s+Severity:\s*', '', risk_clean)
+                            import re
 
-                                st.markdown(f"""
-                                <div style='background: #fef9f3; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.5rem; border-left: 3px solid #f59e0b;'>
-                                    <div style='color: #78350f; font-size: 0.9rem; line-height: 1.5;'>{risk_clean}</div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                            risk_count = 0
+                            for risk in risks:
+                                # Clean emojis
+                                risk_clean = re.sub(r'[✓✗💪📝🟡🟢🔴⚠️👍🏆]', '', risk).strip()
+
+                                # Filter out invalid risks (conference call transcripts, etc.)
+                                if any(skip_word in risk_clean.lower() for skip_word in ['operator:', 'welcome everyone', 'thank you for standing', 'good afternoon', 'good morning']):
+                                    continue
+
+                                # Parse severity if present
+                                severity_match = re.match(r'(Med|High|Low)\s+Severity:\s*(.+)', risk_clean, re.IGNORECASE)
+
+                                if severity_match:
+                                    severity = severity_match.group(1).strip()
+                                    risk_desc = severity_match.group(2).strip()
+
+                                    # Determine badge color
+                                    if severity.lower() == 'high':
+                                        badge_color = "#ef4444"
+                                        badge_text = "HIGH"
+                                    elif severity.lower() == 'med':
+                                        badge_color = "#f59e0b"
+                                        badge_text = "MEDIUM"
+                                    else:
+                                        badge_color = "#3b82f6"
+                                        badge_text = "LOW"
+
+                                    risk_count += 1
+                                    st.markdown(f"""
+                                    <div style='background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;
+                                                border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
+                                        <div style='display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;'>
+                                            <span style='background: {badge_color}; color: white; padding: 0.15rem 0.5rem;
+                                                         border-radius: 3px; font-size: 0.65rem; font-weight: 700;
+                                                         letter-spacing: 0.3px;'>{badge_text} RISK</span>
+                                        </div>
+                                        <div style='color: #64748b; font-size: 0.85rem; line-height: 1.5;'>{risk_desc}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    # Risk without severity
+                                    if risk_clean and len(risk_clean) > 10:  # Filter very short/empty
+                                        risk_count += 1
+                                        st.markdown(f"""
+                                        <div style='background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;
+                                                    border: 1px solid #e2e8f0;'>
+                                            <div style='color: #64748b; font-size: 0.85rem; line-height: 1.5;'>{risk_clean}</div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                            if risk_count == 0:
+                                st.info("No major risks identified")
                         else:
                             st.info("No major risks identified")
 
-                    # Summary row
-                    st.markdown(f"""
-                    <div style='background: #f1f5f9; padding: 0.75rem 1rem; border-radius: 6px; margin-top: 1rem;'>
-                        <div style='color: #475569; font-size: 0.85rem;'>
-                            <strong>Analysis Summary:</strong> {len(moats)} competitive advantages identified • {len(risks)} key risks flagged
+                    # Clean summary row - only count valid moats/risks
+                    if moats or risks:
+                        st.markdown(f"""
+                        <div style='background: #f8fafc; padding: 0.75rem 1.25rem; border-radius: 8px; margin-top: 1rem; border: 1px solid #e2e8f0;'>
+                            <div style='display: flex; justify-content: center; align-items: center; gap: 2rem;'>
+                                <div style='text-align: center;'>
+                                    <div style='font-size: 1.5rem; font-weight: 700; color: #10b981;'>{moat_count}</div>
+                                    <div style='font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;'>Moats</div>
+                                </div>
+                                <div style='height: 30px; width: 1px; background: #cbd5e1;'></div>
+                                <div style='text-align: center;'>
+                                    <div style='font-size: 1.5rem; font-weight: 700; color: #f59e0b;'>{risk_count}</div>
+                                    <div style='font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;'>Risks</div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
 
                     st.markdown("---")
 
