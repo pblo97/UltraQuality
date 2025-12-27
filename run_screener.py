@@ -5506,50 +5506,69 @@ with tab5:
                                 if peg_ratio < 1.2 and is_growth_stock:
                                     peg_hammer_triggered = True
                                     growth_override_reason = f"""
-                                    **🔨 EL MARTILLO DEL PEG -Quality Tier 1: Ganga Absoluta**
-                                    - PEG Ratio: {peg_ratio:.2f} (< 1.2 = Excelente)
-                                    - Growth Stock: Sí (crecimiento sostenible)
-                                    - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                                    <div style='font-size: 0.85rem;'>
+                                    <div style='font-weight: 600; color: #0f172a; margin-bottom: 0.5rem;'>PEG OVERRIDE - Tier 1: Absolute Bargain</div>
+                                    <div style='color: #475569; line-height: 1.6;'>
+                                    • PEG Ratio: {peg_ratio:.2f} (< 1.2 = Excellent)<br>
+                                    • Growth Stock: Yes (sustainable growth)<br>
+                                    • DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                                    </div>
 
-                                    **Veredicto: COMPRA CLARA (PEG tiene veto sobre DCF)**
+                                    <div style='font-weight: 600; color: #0f172a; margin: 0.75rem 0 0.5rem 0;'>Verdict: STRONG BUY (PEG overrides DCF)</div>
 
-                                    DCF undervalues growth porque:
-                                    • No captura AI/platform optionality
-                                    • Assumptions conservadoras (3% terminal growth)
-                                    • PEG < 1.2 = "Pagando menos de lo que el crecimiento vale"
+                                    <div style='color: #475569; line-height: 1.6;'>
+                                    DCF undervalues growth because:<br>
+                                    • Doesn't capture AI/platform optionality<br>
+                                    • Conservative assumptions (3% terminal growth)<br>
+                                    • PEG < 1.2 = "Paying less than growth is worth"
+                                    </div>
 
-                                    **Empresas similares con PEG < 1.2:** Amazon 2015 (PEG 0.8), Google 2018 (PEG 1.0), Meta 2023 (PEG 0.9)
+                                    <div style='color: #64748b; margin-top: 0.75rem; font-size: 0.8rem;'>
+                                    Similar companies with PEG < 1.2: Amazon 2015 (0.8), Google 2018 (1.0), Meta 2023 (0.9)
+                                    </div>
+                                    </div>
                                     """
 
                                 #Quality Tier 2: PEG bueno (< 1.5) + Reverse DCF confirma
                                 elif peg_ratio < 1.5 and reverse_dcf_signal == 'UNDERVALUED':
                                     peg_hammer_triggered = True
                                     growth_override_reason = f"""
-                                    **🔨 EL MARTILLO DEL PEG -Quality Tier 2: Growth at Reasonable Price**
-                                    - PEG Ratio: {peg_ratio:.2f} (< 1.5 = GARP territory)
-                                    - Reverse DCF: UNDERVALUED (mercado pesimista sobre futuro)
-                                    - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                                    <div style='font-size: 0.85rem;'>
+                                    <div style='font-weight: 600; color: #0f172a; margin-bottom: 0.5rem;'>PEG OVERRIDE - Tier 2: Growth at Reasonable Price</div>
+                                    <div style='color: #475569; line-height: 1.6;'>
+                                    • PEG Ratio: {peg_ratio:.2f} (< 1.5 = GARP territory)<br>
+                                    • Reverse DCF: UNDERVALUED (market pessimistic on future)<br>
+                                    • DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                                    </div>
 
-                                    **Veredicto: COMPRA (Doble confirmación PEG + Reverse DCF)**
+                                    <div style='font-weight: 600; color: #0f172a; margin: 0.75rem 0 0.5rem 0;'>Verdict: BUY (Double confirmation: PEG + Reverse DCF)</div>
 
-                                    2 señales independientes confirman undervaluation:
-                                    1. PEG < 1.5 Crecimiento a precio razonable
-                                    2. Reverse DCF Mercado espera menos crecimiento del real
+                                    <div style='color: #475569; line-height: 1.6;'>
+                                    Two independent signals confirm undervaluation:<br>
+                                    1. PEG < 1.5 - Growth at reasonable price<br>
+                                    2. Reverse DCF - Market expects less growth than actual
+                                    </div>
+                                    </div>
                                     """
 
                                 #Quality Tier 3: PEG razonable (< 2.0) en high growth (>15%)
                                 elif peg_ratio < 2.0 and revenue_growth and revenue_growth > 15:
                                     peg_hammer_triggered = True
                                     growth_override_reason = f"""
-                                    **🔨 EL MARTILLO DEL PEG -Quality Tier 3: High Growth Premium**
-                                    - PEG Ratio: {peg_ratio:.2f} (< 2.0 aceptable para growth >15%)
-                                    - Revenue Growth: {revenue_growth:.1f}% (High growth justifica premium)
-                                    - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                                    <div style='font-size: 0.85rem;'>
+                                    <div style='font-weight: 600; color: #0f172a; margin-bottom: 0.5rem;'>PEG OVERRIDE - Tier 3: High Growth Premium</div>
+                                    <div style='color: #475569; line-height: 1.6;'>
+                                    • PEG Ratio: {peg_ratio:.2f} (< 2.0 acceptable for growth >15%)<br>
+                                    • Revenue Growth: {revenue_growth:.1f}% (High growth justifies premium)<br>
+                                    • DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                                    </div>
 
-                                    **Veredicto: COMPRA (High growth justifica valuación)**
+                                    <div style='font-weight: 600; color: #0f172a; margin: 0.75rem 0 0.5rem 0;'>Verdict: BUY (High growth justifies valuation)</div>
 
-                                    Para empresas con crecimiento >15%, PEG < 2.0 es razonable.
-                                    Regla: "Never short a dull market" Never sell high growth at PEG < 2.0
+                                    <div style='color: #64748b; font-size: 0.8rem;'>
+                                    For companies with >15% growth, PEG < 2.0 is reasonable. Rule: "Never sell high growth at PEG < 2.0"
+                                    </div>
+                                    </div>
                                     """
 
                             # Apply override if PEG Hammer triggered
@@ -5628,7 +5647,13 @@ with tab5:
 
                             # Show PEG Hammer explanation if applied
                             if growth_override_applied and growth_override_reason:
-                                st.success(growth_override_reason)  # Use success (green box) instead of info
+                                st.markdown(f"""
+                                <div style='background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+                                            padding: 1.25rem; border-radius: 10px; margin: 1rem 0;
+                                            border-left: 4px solid #10b981; box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
+                                    {growth_override_reason}
+                                </div>
+                                """, unsafe_allow_html=True)
 
                             # Explanation
                             with st.expander("📖 Research-Based Valuation Methodology"):
@@ -8443,50 +8468,69 @@ with tab6:
                     if peg_ratio < 1.2 and is_growth_stock:
                         peg_hammer_triggered = True
                         growth_override_reason = f"""
-                        **🔨 EL MARTILLO DEL PEG -Quality Tier 1: Ganga Absoluta**
-                        - PEG Ratio: {peg_ratio:.2f} (< 1.2 = Excelente)
-                        - Growth Stock: Sí (crecimiento sostenible)
-                        - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                        <div style='font-size: 0.85rem;'>
+                        <div style='font-weight: 600; color: #0f172a; margin-bottom: 0.5rem;'>PEG OVERRIDE - Tier 1: Absolute Bargain</div>
+                        <div style='color: #475569; line-height: 1.6;'>
+                        • PEG Ratio: {peg_ratio:.2f} (< 1.2 = Excellent)<br>
+                        • Growth Stock: Yes (sustainable growth)<br>
+                        • DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                        </div>
 
-                        **Veredicto: COMPRA CLARA (PEG tiene veto sobre DCF)**
+                        <div style='font-weight: 600; color: #0f172a; margin: 0.75rem 0 0.5rem 0;'>Verdict: STRONG BUY (PEG overrides DCF)</div>
 
-                        DCF undervalues growth porque:
-                        • No captura AI/platform optionality
-                        • Assumptions conservadoras (3% terminal growth)
-                        • PEG < 1.2 = "Pagando menos de lo que el crecimiento vale"
+                        <div style='color: #475569; line-height: 1.6;'>
+                        DCF undervalues growth because:<br>
+                        • Doesn't capture AI/platform optionality<br>
+                        • Conservative assumptions (3% terminal growth)<br>
+                        • PEG < 1.2 = "Paying less than growth is worth"
+                        </div>
 
-                        **Empresas similares con PEG < 1.2:** Amazon 2015 (PEG 0.8), Google 2018 (PEG 1.0), Meta 2023 (PEG 0.9)
+                        <div style='color: #64748b; margin-top: 0.75rem; font-size: 0.8rem;'>
+                        Similar companies with PEG < 1.2: Amazon 2015 (0.8), Google 2018 (1.0), Meta 2023 (0.9)
+                        </div>
+                        </div>
                         """
 
                     #Quality Tier 2: PEG bueno (< 1.5) + Reverse DCF confirma
                     elif peg_ratio < 1.5 and reverse_dcf_signal == 'UNDERVALUED':
                         peg_hammer_triggered = True
                         growth_override_reason = f"""
-                        **🔨 EL MARTILLO DEL PEG -Quality Tier 2: Growth at Reasonable Price**
-                        - PEG Ratio: {peg_ratio:.2f} (< 1.5 = GARP territory)
-                        - Reverse DCF: UNDERVALUED (mercado pesimista sobre futuro)
-                        - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                        <div style='font-size: 0.85rem;'>
+                        <div style='font-weight: 600; color: #0f172a; margin-bottom: 0.5rem;'>PEG OVERRIDE - Tier 2: Growth at Reasonable Price</div>
+                        <div style='color: #475569; line-height: 1.6;'>
+                        • PEG Ratio: {peg_ratio:.2f} (< 1.5 = GARP territory)<br>
+                        • Reverse DCF: UNDERVALUED (market pessimistic on future)<br>
+                        • DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                        </div>
 
-                        **Veredicto: COMPRA (Doble confirmación PEG + Reverse DCF)**
+                        <div style='font-weight: 600; color: #0f172a; margin: 0.75rem 0 0.5rem 0;'>Verdict: BUY (Double confirmation: PEG + Reverse DCF)</div>
 
-                        2 señales independientes confirman undervaluation:
-                        1. PEG < 1.5 Crecimiento a precio razonable
-                        2. Reverse DCF Mercado espera menos crecimiento del real
+                        <div style='color: #475569; line-height: 1.6;'>
+                        Two independent signals confirm undervaluation:<br>
+                        1. PEG < 1.5 - Growth at reasonable price<br>
+                        2. Reverse DCF - Market expects less growth than actual
+                        </div>
+                        </div>
                         """
 
                     #Quality Tier 3: PEG razonable (< 2.0) en high growth (>15%)
                     elif peg_ratio < 2.0 and revenue_growth and revenue_growth > 15:
                         peg_hammer_triggered = True
                         growth_override_reason = f"""
-                        **🔨 EL MARTILLO DEL PEG -Quality Tier 3: High Growth Premium**
-                        - PEG Ratio: {peg_ratio:.2f} (< 2.0 aceptable para growth >15%)
-                        - Revenue Growth: {revenue_growth:.1f}% (High growth justifica premium)
-                        - DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                        <div style='font-size: 0.85rem;'>
+                        <div style='font-weight: 600; color: #0f172a; margin-bottom: 0.5rem;'>PEG OVERRIDE - Tier 3: High Growth Premium</div>
+                        <div style='color: #475569; line-height: 1.6;'>
+                        • PEG Ratio: {peg_ratio:.2f} (< 2.0 acceptable for growth >15%)<br>
+                        • Revenue Growth: {revenue_growth:.1f}% (High growth justifies premium)<br>
+                        • DCF Fair Value: ${intrinsic.get('weighted_value', 0):.0f} vs Price: ${intrinsic.get('current_price', 0):.0f}
+                        </div>
 
-                        **Veredicto: COMPRA (High growth justifica valuación)**
+                        <div style='font-weight: 600; color: #0f172a; margin: 0.75rem 0 0.5rem 0;'>Verdict: BUY (High growth justifies valuation)</div>
 
-                        Para empresas con crecimiento >15%, PEG < 2.0 es razonable.
-                        Regla: "Never short a dull market" Never sell high growth at PEG < 2.0
+                        <div style='color: #64748b; font-size: 0.8rem;'>
+                        For companies with >15% growth, PEG < 2.0 is reasonable. Rule: "Never sell high growth at PEG < 2.0"
+                        </div>
+                        </div>
                         """
 
                 # Apply override if PEG Hammer triggered
