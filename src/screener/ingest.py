@@ -158,7 +158,16 @@ class FMPClient:
         Returns:
             JSON response data
         """
-        url = f"{self.base_url}/{endpoint}"
+        # Handle v4 endpoints properly
+        # If endpoint starts with v3/ or v4/, use the base domain without version
+        if endpoint.startswith('v3/') or endpoint.startswith('v4/'):
+            # Extract base domain (e.g., https://financialmodelingprep.com/api)
+            base_domain = self.base_url.rsplit('/v', 1)[0]  # Remove /v3 or /v4
+            url = f"{base_domain}/{endpoint}"
+        else:
+            # Standard endpoint (no version prefix) - use base_url as-is
+            url = f"{self.base_url}/{endpoint}"
+
         params = params or {}
         params['apikey'] = self.api_key
 

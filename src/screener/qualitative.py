@@ -1656,7 +1656,11 @@ class QualitativeAnalyzer:
         """
         try:
             geo_data = self.fmp.get_revenue_geographic_segmentation(symbol, period='annual')
+            logger.info(f"[REV GEO] Raw API response for {symbol}: Type={type(geo_data)}, Length={len(geo_data) if geo_data else 0}")
+            if geo_data and len(geo_data) > 0:
+                logger.info(f"[REV GEO] First item keys: {geo_data[0].keys() if isinstance(geo_data, list) else geo_data.keys()}")
             if not geo_data or len(geo_data) == 0:
+                logger.info(f"[REV GEO] No data returned for {symbol}")
                 return None
 
             # Get most recent year
@@ -1733,7 +1737,11 @@ class QualitativeAnalyzer:
         """
         try:
             senate_trades = self.fmp.get_senate_trading(symbol)
+            logger.info(f"[GOV TRADING] Raw API response for {symbol}: Type={type(senate_trades)}, Length={len(senate_trades) if senate_trades else 0}")
+            if senate_trades and len(senate_trades) > 0:
+                logger.info(f"[GOV TRADING] First item: {senate_trades[0]}")
             if not senate_trades or len(senate_trades) == 0:
+                logger.info(f"[GOV TRADING] No data returned for {symbol}")
                 return None
 
             # Only consider trades from last 180 days
@@ -1808,7 +1816,11 @@ class QualitativeAnalyzer:
         """
         try:
             surprises = self.fmp.get_earnings_surprises(symbol)
+            logger.info(f"[EARNINGS SURPRISES] Raw API response for {symbol}: Type={type(surprises)}, Length={len(surprises) if surprises else 0}")
+            if surprises and len(surprises) > 0:
+                logger.info(f"[EARNINGS SURPRISES] First item: {surprises[0]}")
             if not surprises or len(surprises) == 0:
+                logger.info(f"[EARNINGS SURPRISES] No data returned for {symbol}")
                 return None
 
             # Take last 8 quarters (2 years)
@@ -1890,6 +1902,13 @@ class QualitativeAnalyzer:
             # Get price target consensus
             price_targets = self.fmp.get_price_target_consensus(symbol)
             upgrades = self.fmp.get_upgrades_downgrades_consensus(symbol)
+
+            logger.info(f"[ANALYST CONSENSUS] Price targets for {symbol}: Type={type(price_targets)}, Length={len(price_targets) if price_targets else 0}")
+            if price_targets and len(price_targets) > 0:
+                logger.info(f"[ANALYST CONSENSUS] First price target item: {price_targets[0]}")
+            logger.info(f"[ANALYST CONSENSUS] Upgrades/downgrades for {symbol}: Type={type(upgrades)}, Length={len(upgrades) if upgrades else 0}")
+            if upgrades and len(upgrades) > 0:
+                logger.info(f"[ANALYST CONSENSUS] First upgrade item: {upgrades[0]}")
 
             result = {}
 
