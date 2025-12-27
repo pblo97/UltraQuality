@@ -6341,8 +6341,18 @@ with tab5:
                         # 3. Profitability Analysis (Margins and Trends)
                         profitability = intrinsic.get('profitability_analysis', {})
                         if profitability:
-                            st.markdown("#### Profitability Margins & Trends")
-                            st.caption("Are margins expanding (good) or contracting (warning)? Compare current vs 3-year average")
+                            # SECTION: Profitability Margins
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Profitability Margins Analysis
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Margin expansion indicates pricing power and operational efficiency
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             col1, col2, col3 = st.columns(3)
 
@@ -6462,9 +6472,17 @@ with tab5:
                             # ===========================================================
                             # HISTORICAL CHARTS: Revenue, EBIT, FCF Evolution
                             # ===========================================================
-                            st.markdown("---")
-                            st.markdown("#### Historical Financials (5-10 Year Evolution)")
-                            st.caption("Visual evolution of key metrics - Revenue growth, profitability, and cash generation")
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Historical Financial Performance
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    5-year evolution of revenue, profitability, and cash generation
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # Try to get historical data from FMP client
                             try:
@@ -6588,9 +6606,18 @@ with tab5:
                         # 4. Balance Sheet Strength
                         balance_sheet = intrinsic.get('balance_sheet_strength', {})
                         if balance_sheet:
-                            st.markdown("---")
-                            st.markdown("#### Balance Sheet Health")
-                            st.caption("Financial fortress or house of cards? Debt/Equity, liquidity, and interest coverage analysis")
+                            # SECTION: Balance Sheet Health
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Balance Sheet Strength
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Financial fortress or house of cards? Debt, liquidity, and solvency analysis
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # Overall assessment banner with professional card
                             overall = balance_sheet.get('overall_assessment', 'Unknown')
@@ -6797,9 +6824,18 @@ with tab5:
                         # 5. Valuation Multiples vs Peers
                         valuation_multiples = intrinsic.get('valuation_multiples', {})
                         if valuation_multiples:
-                            st.markdown("---")
-                            st.markdown("#### Valuation Multiples vs Peers")
-                            st.caption("Is this stock trading at a premium or discount compared to similar companies?")
+                            # SECTION: Valuation Multiples
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Valuation Multiples vs Peers
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Trading at a premium or discount compared to industry peers?
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             company_vals = valuation_multiples.get('company', {})
                             peers_avg = valuation_multiples.get('peers_avg', {})
@@ -6880,6 +6916,65 @@ with tab5:
                                             st.metric("PEG Ratio", f"{peg:.2f}")
                                             st.caption(f"Growth: {eps_growth:.1f}%")
 
+                                # Comparative chart: Company vs Peers
+                                try:
+                                    import plotly.graph_objects as go
+                                    from plotly.subplots import make_subplots
+
+                                    metrics_names = []
+                                    company_values = []
+                                    peer_values = []
+
+                                    for metric_key, metric_name in [('pe', 'P/E'), ('pb', 'P/B'), ('ps', 'P/S'), ('ev_ebitda', 'EV/EBITDA')]:
+                                        comp_val = company_vals.get(metric_key)
+                                        peer_val = peers_avg.get(metric_key)
+                                        if comp_val and peer_val:
+                                            metrics_names.append(metric_name)
+                                            company_values.append(comp_val)
+                                            peer_values.append(peer_val)
+
+                                    if metrics_names:
+                                        fig_val = go.Figure()
+
+                                        fig_val.add_trace(go.Bar(
+                                            name='Company',
+                                            x=metrics_names,
+                                            y=company_values,
+                                            marker_color='#667eea',
+                                            text=[f"{v:.1f}x" for v in company_values],
+                                            textposition='outside'
+                                        ))
+
+                                        fig_val.add_trace(go.Bar(
+                                            name='Peer Average',
+                                            x=metrics_names,
+                                            y=peer_values,
+                                            marker_color='#10b981',
+                                            text=[f"{v:.1f}x" for v in peer_values],
+                                            textposition='outside'
+                                        ))
+
+                                        fig_val.update_layout(
+                                            height=300,
+                                            barmode='group',
+                                            template='plotly_white',
+                                            xaxis_title='Valuation Metric',
+                                            yaxis_title='Multiple (x)',
+                                            margin=dict(t=30, b=40, l=50, r=20),
+                                            showlegend=True,
+                                            legend=dict(
+                                                orientation="h",
+                                                yanchor="bottom",
+                                                y=1.02,
+                                                xanchor="right",
+                                                x=1
+                                            )
+                                        )
+
+                                        st.plotly_chart(fig_val, use_container_width=True)
+                                except:
+                                    pass  # Silent fail
+
                                 # Summary assessment
                                 premium_count = sum(1 for m in vs_peers.values() if m.get('assessment') == 'Premium')
                                 discount_count = sum(1 for m in vs_peers.values() if m.get('assessment') == 'Discount')
@@ -6895,9 +6990,18 @@ with tab5:
                         # 6. Growth Consistency (Historical Trends)
                         growth_consistency = intrinsic.get('growth_consistency', {})
                         if growth_consistency:
-                            st.markdown("---")
-                            st.markdown("#### Growth Consistency & Historical Trends")
-                            st.caption("Steady compounding or volatile roller coaster? 5-year revenue and earnings track record")
+                            # SECTION: Growth Consistency
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: #1f2937; font-weight: 600; font-size: 1.3rem;'>
+                                    Growth Consistency Analysis
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: #374151; opacity: 0.9; font-size: 0.85rem;'>
+                                    Steady compounding or volatile roller coaster? 5-year track record
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # Professional card for overall growth assessment
                             overall_assess = growth_consistency.get('overall_assessment', '')
@@ -7001,7 +7105,7 @@ with tab5:
                             # FCF
                             fcf_data = growth_consistency.get('fcf', {})
                             if fcf_data:
-                                st.markdown("#### 💸 Free Cash Flow Growth")
+                                st.markdown("#### Free Cash Flow Growth")
                                 col1, col2, col3, col4 = st.columns(4)
 
                                 with col1:
@@ -7034,7 +7138,18 @@ with tab5:
                         cash_cycle = intrinsic.get('cash_conversion_cycle', {})
                         if cash_cycle:
                             st.markdown("---")
-                            st.markdown("###  Cash Conversion Cycle (Working Capital Efficiency)")
+                            # SECTION: Cash Conversion Cycle
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Cash Conversion Cycle
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Working capital efficiency - How quickly cash flows through operations
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # Overall assessment
                             assessment = cash_cycle.get('assessment', 'Unknown')
@@ -7085,7 +7200,18 @@ with tab5:
                         operating_lev = intrinsic.get('operating_leverage', {})
                         if operating_lev:
                             st.markdown("---")
-                            st.markdown("###  Operating Leverage (Cost Structure)")
+                            # SECTION: Operating Leverage
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #ffa751 0%, #ffe259 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Operating Leverage
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Cost structure - How profits amplify with revenue changes
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             ol_val = operating_lev.get('operating_leverage', 0)
                             risk_level = operating_lev.get('risk_level', 'Unknown')
@@ -7123,7 +7249,18 @@ with tab5:
                         reinvestment = intrinsic.get('reinvestment_quality', {})
                         if reinvestment:
                             st.markdown("---")
-                            st.markdown("###  Reinvestment Quality (Capital Efficiency of Growth)")
+                            # SECTION: Reinvestment Quality
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #c471f5 0%, #fa71cd 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Reinvestment Quality
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Capital efficiency - How effectively reinvestments drive growth
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             quality = reinvestment.get('quality', 'Unknown')
                             assessment = reinvestment.get('assessment', '')
@@ -7181,7 +7318,18 @@ with tab5:
                         eva = intrinsic.get('economic_profit', {})
                         if eva:
                             st.markdown("---")
-                            st.markdown("###  Economic Profit (EVA - Economic Value Added)")
+                            # SECTION: Economic Profit (EVA)
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #13547a 0%, #80d0c7 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Economic Profit (EVA)
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Value creation above cost of capital - True economic profit
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             grade = eva.get('grade', 'C')
                             assessment = eva.get('assessment', '')
@@ -7232,7 +7380,18 @@ with tab5:
                         cap_alloc = intrinsic.get('capital_allocation', {})
                         if cap_alloc:
                             st.markdown("---")
-                            st.markdown("###  Capital Allocation Scorecard")
+                            # SECTION: Capital Allocation
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #3f5efb 0%, #fc466b 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Capital Allocation Scorecard
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Management effectiveness - How cash is deployed and value returned
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             score = cap_alloc.get('score', 0)
                             grade = cap_alloc.get('grade', 'C')
@@ -7391,7 +7550,18 @@ with tab5:
                         sentiment = intrinsic.get('earnings_sentiment', {})
                         if sentiment and sentiment.get('available', False):
                             st.markdown("---")
-                            st.markdown("### 🎤 Earnings Call Sentiment Analysis")
+                            # SECTION: Earnings Call Sentiment
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Earnings Call Sentiment Analysis
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Management tone and confidence - What the language reveals
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             tone = sentiment.get('tone', 'Neutral')
                             grade = sentiment.get('grade', 'C')
@@ -7449,19 +7619,50 @@ with tab5:
                         # 15. Red Flags
                         red_flags = intrinsic.get('red_flags', [])
                         if red_flags:
-                            st.markdown("### 🚩 Red Flags Detected")
+                            # SECTION: Red Flags
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Red Flags Detected
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    Warning signals - Financial health concerns identified
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
                             for flag in red_flags:
                                 st.error(flag)
                         else:
                             # Only show "no red flags" if we actually ran the analysis
                             if 'red_flags' in intrinsic:
-                                st.markdown("###  No Red Flags Detected")
-                                st.success("All financial health checks passed")
+                                st.markdown("""
+                                <div style='background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                                            padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                    <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                        No Red Flags Detected
+                                    </h3>
+                                    <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                        All financial health checks passed
+                                    </p>
+                                </div>
+                                """, unsafe_allow_html=True)
 
                         # 5. Reverse DCF (What the market is pricing in)
                         reverse_dcf = intrinsic.get('reverse_dcf', {})
                         if reverse_dcf:
-                            st.markdown("###  Reverse DCF: What Does the Price Imply?")
+                            # SECTION: Reverse DCF
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #0ba360 0%, #3cba92 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    Reverse DCF Analysis
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    What growth rate does the current price imply?
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             col1, col2, col3 = st.columns(3)
 
@@ -7493,7 +7694,18 @@ with tab5:
                         # 6. DCF Sensitivity Analysis
                         dcf_sensitivity = intrinsic.get('dcf_sensitivity', {})
                         if dcf_sensitivity:
-                            st.markdown("### 📐 DCF Sensitivity Analysis")
+                            # SECTION: DCF Sensitivity
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%);
+                                        padding: 1rem 1.5rem; border-radius: 12px; margin: 1.5rem 0 1rem 0;'>
+                                <h3 style='margin: 0; color: white; font-weight: 600; font-size: 1.3rem;'>
+                                    DCF Sensitivity Analysis
+                                </h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                    How valuation changes with different assumptions
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # Base assumptions
                             base_assumptions = dcf_sensitivity.get('base_assumptions', {})
@@ -8660,7 +8872,7 @@ with tab6:
                 # FCF
                 fcf_data = growth_consistency.get('fcf', {})
                 if fcf_data:
-                    st.markdown("#### 💸 Free Cash Flow Growth")
+                    st.markdown("#### Free Cash Flow Growth")
                     col1, col2, col3, col4 = st.columns(4)
 
                     with col1:
