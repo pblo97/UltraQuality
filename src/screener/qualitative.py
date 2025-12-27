@@ -1667,17 +1667,29 @@ class QualitativeAnalyzer:
             latest = geo_data[0] if isinstance(geo_data, list) else geo_data
 
             # Extract geographic breakdown
+            # Handle nested structure: {'2024-12-31': {'Asia Pacific': 123, 'Europe': 456, ...}}
             segments = {}
             total_revenue = 0
 
             for key, value in latest.items():
                 if key.lower() in ['date', 'symbol', 'cik']:
                     continue
-                if isinstance(value, (int, float)) and value > 0:
+
+                # If value is a dict (nested structure), extract from it
+                if isinstance(value, dict):
+                    for region, amount in value.items():
+                        if isinstance(amount, (int, float)) and amount > 0:
+                            segments[region] = amount
+                            total_revenue += amount
+                # If value is a number (flat structure)
+                elif isinstance(value, (int, float)) and value > 0:
                     segments[key] = value
                     total_revenue += value
 
+            logger.info(f"[REV GEO] Extracted {len(segments)} segments, total revenue: ${total_revenue:,.0f}")
+
             if total_revenue == 0 or len(segments) == 0:
+                logger.info(f"[REV GEO] No valid segments found for {symbol}")
                 return None
 
             # Calculate percentages
