@@ -4136,10 +4136,15 @@ with tab5:
                     st.markdown("""
                     <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                 padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
-                        <h3 style='margin: 0; color: white; font-weight: 600;'>
-                            📄 Business Overview
-                        </h3>
-                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                SECTION 1
+                            </span>
+                            <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                Business Overview
+                            </h3>
+                        </div>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem; padding-left: 0.5rem;'>
                             Core business model and operations
                         </p>
                     </div>
@@ -4155,10 +4160,15 @@ with tab5:
                     st.markdown("""
                     <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                 padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
-                        <h3 style='margin: 0; color: white; font-weight: 600;'>
-                            🏰 Competitive Position
-                        </h3>
-                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                SECTION 2
+                            </span>
+                            <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                Competitive Position
+                            </h3>
+                        </div>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem; padding-left: 0.5rem;'>
                             Sustainable competitive advantages and key business risks
                         </p>
                     </div>
@@ -4167,7 +4177,13 @@ with tab5:
                     col1, col2 = st.columns(2)
 
                     with col1:
-                        st.markdown("**🛡️ Competitive Moats:**")
+                        st.markdown("""
+                        <div style='margin-bottom: 0.5rem;'>
+                            <span style='background: #10b981; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;'>
+                                COMPETITIVE MOATS
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
                         moats = analysis.get('moats', [])
                         if moats:
                             for moat in moats:
@@ -4181,7 +4197,13 @@ with tab5:
                             st.info("No clear moats identified")
 
                     with col2:
-                        st.markdown("**⚠️ Key Risks:**")
+                        st.markdown("""
+                        <div style='margin-bottom: 0.5rem;'>
+                            <span style='background: #f59e0b; color: white; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;'>
+                                KEY RISKS
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
                         risks = analysis.get('risks', [])
                         if risks:
                             for risk in risks:
@@ -4202,10 +4224,15 @@ with tab5:
                     st.markdown("""
                     <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                 padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
-                        <h3 style='margin: 0; color: white; font-weight: 600;'>
-                            👥 Ownership & Insider Activity
-                        </h3>
-                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                SECTION 3
+                            </span>
+                            <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                Ownership & Insider Activity
+                            </h3>
+                        </div>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem; padding-left: 0.5rem;'>
                             Smart money signals - insider ownership, institutional holdings, and share buybacks
                         </p>
                     </div>
@@ -4255,7 +4282,7 @@ with tab5:
                             if insider_own >= 15:
                                 context_bg = '#d1fae5'
                                 context_text = '#065f46'
-                                context_title = '🎯 Excellent Alignment'
+                                context_title = '<span style="background: #10b981; color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-right: 0.5rem;">EXCELLENT</span> Alignment'
                                 context_msg = f"""
                                 Con **{insider_own:.2f}%** de ownership, los insiders tienen "skin in the game" significativo.
 
@@ -4269,7 +4296,7 @@ with tab5:
                             elif insider_own >= 5:
                                 context_bg = '#dbeafe'
                                 context_text = '#1e40af'
-                                context_title = '👍 Moderate Alignment'
+                                context_title = '<span style="background: #3b82f6; color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-right: 0.5rem;">MODERATE</span> Alignment'
                                 context_msg = f"""
                                 Con **{insider_own:.2f}%** de ownership, hay cierta alineación pero no excepcional.
 
@@ -4283,7 +4310,7 @@ with tab5:
                             elif insider_own >= 1:
                                 context_bg = '#fef3c7'
                                 context_text = '#92400e'
-                                context_title = '⚠️ Low Alignment'
+                                context_title = '<span style="background: #f59e0b; color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-right: 0.5rem;">LOW</span> Alignment'
                                 context_msg = f"""
                                 Con **{insider_own:.2f}%** de ownership, la alineación es limitada.
 
@@ -4297,7 +4324,7 @@ with tab5:
                             else:  # < 1%
                                 context_bg = '#fee2e2'
                                 context_text = '#991b1b'
-                                context_title = '🚨 Weak Alignment'
+                                context_title = '<span style="background: #ef4444; color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-right: 0.5rem;">WEAK</span> Alignment'
                                 context_msg = f"""
                                 Con solo **{insider_own:.2f}%** de ownership, prácticamente no hay "skin in the game".
 
@@ -4338,10 +4365,15 @@ with tab5:
                     st.markdown("""
                     <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                 padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
-                        <h3 style='margin: 0; color: white; font-weight: 600;'>
-                            📰 Recent News & Market Catalysts
-                        </h3>
-                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                SECTION 4
+                            </span>
+                            <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                Recent News & Market Catalysts
+                            </h3>
+                        </div>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem; padding-left: 0.5rem;'>
                             Latest developments and market-moving events
                         </p>
                     </div>
@@ -4361,18 +4393,25 @@ with tab5:
                             if sentiment == 'positive':
                                 card_bg = '#d1fae5'
                                 card_border = '#10b981'
-                                emoji = '📈'
+                                badge = '<span style="background: #10b981; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.3px;">POSITIVE</span>'
                             elif sentiment == 'negative':
                                 card_bg = '#fee2e2'
                                 card_border = '#ef4444'
-                                emoji = '📉'
+                                badge = '<span style="background: #ef4444; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.3px;">NEGATIVE</span>'
                             else:
                                 card_bg = '#f3f4f6'
                                 card_border = '#9ca3af'
-                                emoji = '📰'
+                                badge = '<span style="background: #6b7280; color: white; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.3px;">NEWS</span>'
 
-                            with st.expander(f"{emoji} {date}: {headline[:80]}{'...' if len(headline) > 80 else ''}", expanded=(i==0)):
+                            # Create expander title with HTML (st.expander doesn't support HTML, so we use date prefix)
+                            expander_title = f"{date}: {headline[:75]}{'...' if len(headline) > 75 else ''}"
+
+                            with st.expander(expander_title, expanded=(i==0)):
+                                # Add badge at the top
                                 st.markdown(f"""
+                                <div style='margin-bottom: 0.75rem;'>
+                                    {badge}
+                                </div>
                                 <div style='background: {card_bg}; padding: 1rem; border-radius: 8px; border-left: 3px solid {card_border}; margin-bottom: 0.5rem;'>
                                     <div style='font-size: 0.95rem; line-height: 1.6;'>
                                         {summary if summary else 'No summary available'}
@@ -4381,7 +4420,7 @@ with tab5:
                                 """, unsafe_allow_html=True)
 
                                 if url:
-                                    st.markdown(f"🔗 [Read full article]({url})")
+                                    st.markdown(f"[→ Read full article]({url})")
                                 else:
                                     st.caption("Link not available")
                     else:
@@ -4395,10 +4434,15 @@ with tab5:
                     st.markdown("""
                     <div style='background: linear-gradient(135deg, #10b981 0%, #059669 100%);
                                 padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-                        <h3 style='margin: 0; color: white; font-weight: 600;'>
-                            💰 Intrinsic Value & Fair Price Estimation
-                        </h3>
-                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <span style='background: rgba(255,255,255,0.25); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                VALUATION
+                            </span>
+                            <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                Intrinsic Value & Fair Price Estimation
+                            </h3>
+                        </div>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem; padding-left: 0.5rem;'>
                             DCF modeling, forward multiples, and PEG analysis to estimate fair value
                         </p>
                     </div>
@@ -4839,10 +4883,15 @@ with tab5:
                             st.markdown("""
                             <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                         padding: 0.75rem 1.25rem; border-radius: 10px; margin-bottom: 1rem;'>
-                                <h4 style='margin: 0; color: white; font-weight: 600;'>
-                                    🎯 Price Projections by Scenario
-                                </h4>
-                                <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                    <span style='background: rgba(255,255,255,0.2); padding: 0.25rem 0.65rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                        PROJECTIONS
+                                    </span>
+                                    <h4 style='margin: 0; color: white; font-weight: 600;'>
+                                        Price Projections by Scenario
+                                    </h4>
+                                </div>
+                                <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
                                     Bear, Base, and Bull case scenarios based on fundamental growth assumptions
                                 </p>
                             </div>
@@ -4944,26 +4993,26 @@ with tab5:
 
                                     for i, (scenario_name, data) in enumerate(scenarios.items()):
                                         with cols[i]:
-                                            # Emoji based on scenario
+                                            # Badge based on scenario
                                             if 'Bear' in scenario_name:
-                                                emoji = '🐻'
+                                                badge = '<span style="background: #ef4444; color: white; padding: 0.25rem 0.65rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;">BEAR CASE</span>'
                                                 bg_color = '#fee2e2'
                                                 text_color = '#991b1b'
                                             elif 'Bull' in scenario_name:
-                                                emoji = '🐂'
+                                                badge = '<span style="background: #10b981; color: white; padding: 0.25rem 0.65rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;">BULL CASE</span>'
                                                 bg_color = '#d1fae5'
                                                 text_color = '#065f46'
                                             else:
-                                                emoji = '📊'
+                                                badge = '<span style="background: #f59e0b; color: white; padding: 0.25rem 0.65rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;">BASE CASE</span>'
                                                 bg_color = '#fef3c7'
                                                 text_color = '#92400e'
 
                                             st.markdown(f"""
                                             <div style='background: {bg_color}; padding: 1rem; border-radius: 10px; margin-bottom: 0.5rem;'>
-                                                <div style='font-size: 1.1rem; font-weight: 600; color: {text_color}; margin-bottom: 0.5rem;'>
-                                                    {emoji} {scenario_name}
+                                                <div style='margin-bottom: 0.75rem;'>
+                                                    {badge}
                                                 </div>
-                                                <div style='font-size: 0.85rem; color: {text_color}; opacity: 0.9;'>
+                                                <div style='font-size: 0.85rem; color: {text_color}; opacity: 0.9; font-weight: 500;'>
                                                     {data.get('description', '')}
                                                 </div>
                                                 <div style='font-size: 0.8rem; color: {text_color}; opacity: 0.8; margin-top: 0.5rem;'>
@@ -4978,7 +5027,7 @@ with tab5:
                                             st.metric("5Y Target", f"${data.get('5Y_target', 0):.2f}",
                                                      delta=data.get('5Y_cagr', 'N/A') + " CAGR")
 
-                                    st.caption("**⚠️ Important:** Projections based on fundamental growth assumptions. Not investment advice.")
+                                    st.caption("**Important:** Projections based on fundamental growth assumptions. Not investment advice.")
 
                                 except Exception as e:
                                     st.warning(f"Could not generate price projections chart: {str(e)}")
@@ -4998,10 +5047,15 @@ with tab5:
                         st.markdown("""
                         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                     padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
-                            <h3 style='margin: 0; color: white; font-weight: 600;'>
-                                📊 Advanced Fundamental Analysis
-                            </h3>
-                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                            <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                    SECTION 5
+                                </span>
+                                <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                    Advanced Fundamental Analysis
+                                </h3>
+                            </div>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem; padding-left: 0.5rem;'>
                                 Deep-dive into capital efficiency, earnings quality, profitability, and balance sheet strength
                             </p>
                         </div>
@@ -5011,7 +5065,7 @@ with tab5:
                         capital_efficiency = intrinsic.get('capital_efficiency', {})
                         if capital_efficiency:
                             metric_name = capital_efficiency.get('metric_name', 'ROIC')
-                            st.markdown(f"#### 💎 Capital Efficiency ({metric_name} vs WACC)")
+                            st.markdown(f"#### Capital Efficiency — {metric_name} vs WACC")
                             st.caption("Is the company creating or destroying value? ROIC > WACC = value creation")
 
                             col1, col2, col3 = st.columns(3)
@@ -5057,7 +5111,7 @@ with tab5:
                         # 2. Quality of Earnings
                         earnings_quality = intrinsic.get('earnings_quality', {})
                         if earnings_quality:
-                            st.markdown("#### 🔍 Quality of Earnings")
+                            st.markdown("#### Quality of Earnings")
                             st.caption("Are earnings backed by real cash flow or accounting tricks? OCF/NI > 1.0 is excellent")
 
                             col1, col2, col3, col4 = st.columns(4)
@@ -5100,7 +5154,7 @@ with tab5:
                         # 3. Profitability Analysis (Margins and Trends)
                         profitability = intrinsic.get('profitability_analysis', {})
                         if profitability:
-                            st.markdown("#### 📈 Profitability Margins & Trends")
+                            st.markdown("#### Profitability Margins & Trends")
                             st.caption("Are margins expanding (good) or contracting (warning)? Compare current vs 3-year average")
 
                             col1, col2, col3 = st.columns(3)
@@ -5133,7 +5187,7 @@ with tab5:
                             # HISTORICAL CHARTS: Revenue, EBIT, FCF Evolution
                             # ===========================================================
                             st.markdown("---")
-                            st.markdown("#### 📊 Historical Financials (5-10 Year Evolution)")
+                            st.markdown("#### Historical Financials (5-10 Year Evolution)")
                             st.caption("Visual evolution of key metrics - Revenue growth, profitability, and cash generation")
 
                             # Try to get historical data from FMP client
@@ -5259,7 +5313,7 @@ with tab5:
                         balance_sheet = intrinsic.get('balance_sheet_strength', {})
                         if balance_sheet:
                             st.markdown("---")
-                            st.markdown("#### 🏦 Balance Sheet Health")
+                            st.markdown("#### Balance Sheet Health")
                             st.caption("Financial fortress or house of cards? Debt/Equity, liquidity, and interest coverage analysis")
 
                             # Overall assessment banner with professional card
@@ -5372,7 +5426,7 @@ with tab5:
                             # BALANCE SHEET EVOLUTION CHART
                             # ===========================================================
                             st.markdown("---")
-                            st.markdown("#### 📈 Balance Sheet Evolution (5-10 Years)")
+                            st.markdown("#### Balance Sheet Evolution (5-10 Years)")
                             st.caption("How has the company's financial position evolved? Assets, liabilities, equity, and debt trends")
 
                             try:
@@ -5468,7 +5522,7 @@ with tab5:
                         valuation_multiples = intrinsic.get('valuation_multiples', {})
                         if valuation_multiples:
                             st.markdown("---")
-                            st.markdown("#### 📊 Valuation Multiples vs Peers")
+                            st.markdown("#### Valuation Multiples vs Peers")
                             st.caption("Is this stock trading at a premium or discount compared to similar companies?")
 
                             company_vals = valuation_multiples.get('company', {})
@@ -5566,7 +5620,7 @@ with tab5:
                         growth_consistency = intrinsic.get('growth_consistency', {})
                         if growth_consistency:
                             st.markdown("---")
-                            st.markdown("#### 📉 Growth Consistency & Historical Trends")
+                            st.markdown("#### Growth Consistency & Historical Trends")
                             st.caption("Steady compounding or volatile roller coaster? 5-year revenue and earnings track record")
 
                             # Professional card for overall growth assessment
@@ -5575,23 +5629,31 @@ with tab5:
                             if 'Highly Consistent' in overall_assess:
                                 growth_bg = '#d1fae5'
                                 growth_text = '#065f46'
-                                growth_emoji = '📈'
+                                growth_badge_bg = '#10b981'
+                                growth_badge_text = 'STRONG'
                             elif 'Volatile' in overall_assess:
                                 growth_bg = '#fee2e2'
                                 growth_text = '#991b1b'
-                                growth_emoji = '📉'
+                                growth_badge_bg = '#ef4444'
+                                growth_badge_text = 'VOLATILE'
                             else:
                                 growth_bg = '#fef3c7'
                                 growth_text = '#92400e'
-                                growth_emoji = '📊'
+                                growth_badge_bg = '#f59e0b'
+                                growth_badge_text = 'MODERATE'
 
                             st.markdown(f"""
                             <div style='background: {growth_bg};
                                         padding: 0.75rem 1.25rem;
                                         border-radius: 10px;
                                         margin-bottom: 1rem;'>
-                                <div style='font-size: 1.1rem; font-weight: 600; color: {growth_text};'>
-                                    {growth_emoji} {overall_assess}
+                                <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                    <span style='background: {growth_badge_bg}; color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px;'>
+                                        {growth_badge_text}
+                                    </span>
+                                    <span style='font-size: 1rem; font-weight: 600; color: {growth_text};'>
+                                        {overall_assess}
+                                    </span>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
