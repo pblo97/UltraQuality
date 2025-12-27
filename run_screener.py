@@ -4471,8 +4471,37 @@ with tab5:
 
                         # Try to get institutional ownership from FMP
                         try:
+                            # Initialize FMP client to fetch institutional data
+                            fmp_client = None
                             if 'fmp_client' in st.session_state:
                                 fmp_client = st.session_state['fmp_client']
+                            else:
+                                # Create FMP client on the fly
+                                try:
+                                    from screener.ingest import FMPClient
+                                    import yaml
+
+                                    config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+                                    with open(config_file, 'r') as f:
+                                        config = yaml.safe_load(f)
+
+                                    # Get API key
+                                    api_key = None
+                                    if 'FMP_API_KEY' in st.secrets:
+                                        api_key = st.secrets['FMP_API_KEY']
+                                    elif 'FMP' in st.secrets:
+                                        api_key = st.secrets['FMP']
+                                    if not api_key:
+                                        api_key = os.getenv('FMP_API_KEY')
+                                    if not api_key:
+                                        api_key = config['fmp'].get('api_key')
+
+                                    if api_key and not api_key.startswith('${'):
+                                        fmp_client = FMPClient(api_key, config)
+                                except:
+                                    pass  # Will show error message below
+
+                            if fmp_client:
                                 institutional_holders = fmp_client.get_institutional_holders(selected_ticker)
 
                                 if institutional_holders and len(institutional_holders) > 0:
@@ -4622,6 +4651,8 @@ with tab5:
 
                                 else:
                                     st.info("No hay datos de institutional holdings disponibles")
+                            else:
+                                st.warning("No se pudo inicializar el cliente FMP para obtener datos institucionales")
 
                         except Exception as e:
                             st.warning(f"No se pudo obtener información de institutional holdings: {str(e)}")
