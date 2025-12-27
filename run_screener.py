@@ -4758,25 +4758,26 @@ with tab5:
                     # ============================================================
                     # SECTION 5: GOVERNMENT TRACKER (Capitol Hill Trading)
                     # ============================================================
+                    # Always show section header
+                    st.markdown("""
+                    <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+                                padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
+                        <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                            <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                SECTION 5
+                            </span>
+                            <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                🏛️ Capitol Hill Activity
+                            </h3>
+                        </div>
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
+                            Senate & House trading - Following the smart money político
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                     government_trading = analysis.get('government_trading')
                     if government_trading:
-                        st.markdown("""
-                        <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-                                    padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
-                            <div style='display: flex; align-items: center; gap: 0.75rem;'>
-                                <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
-                                    SECTION 5
-                                </span>
-                                <h3 style='margin: 0; color: white; font-weight: 600;'>
-                                    🏛️ Capitol Hill Activity
-                                </h3>
-                            </div>
-                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
-                                Senate & House trading - Following the smart money político
-                            </p>
-                        </div>
-                        """, unsafe_allow_html=True)
-
                         signal = government_trading.get('signal', 'Neutral')
                         signal_color_map = {'Bullish': '#10b981', 'Bearish': '#ef4444', 'Neutral': '#6b7280'}
                         signal_color = signal_color_map.get(signal, '#6b7280')
@@ -4881,8 +4882,10 @@ with tab5:
 
                         if len(all_trades) == 0:
                             st.info("No recent government trading activity found")
+                    else:
+                        st.info("ℹ️ No hay datos de trading de senators/congresistas para este símbolo. Puede que no sea ampliamente traded por políticos o los datos no están disponibles en FMP.")
 
-                        st.markdown("---")
+                    st.markdown("---")
 
                     # ============================================================
                     # SECTION 6: GEOGRAPHIC REVENUE RISK MAP
@@ -4960,6 +4963,9 @@ with tab5:
                         # Risk regions warning
                         if risk_regions and len(risk_regions) > 0:
                             st.warning(f"**High-risk exposure detected:** {', '.join(risk_regions)}")
+
+                    else:
+                        st.info("ℹ️ No hay datos de revenue geográfico para este símbolo. FMP puede no tener segmentación geográfica disponible para esta empresa.")
 
                         st.markdown("---")
 
@@ -5073,6 +5079,9 @@ with tab5:
                                     <span style='color: {result_color}; font-weight: 700;'>{surprise_pct:+.1f}%</span>
                                 </div>
                                 """, unsafe_allow_html=True)
+
+                    else:
+                        st.info("ℹ️ No hay datos de earnings surprises para este símbolo. Puede ser una empresa sin historial público de earnings o datos no disponibles en FMP.")
 
                         st.markdown("---")
 
@@ -5211,6 +5220,9 @@ with tab5:
                                 st.metric("Sell", sell)
                             with col5:
                                 st.metric("Strong Sell", strong_sell)
+
+                    else:
+                        st.info("ℹ️ No hay datos de consenso de analistas para este símbolo. Puede tener poca cobertura de Wall Street o datos no disponibles en FMP.")
 
                         st.markdown("---")
 
