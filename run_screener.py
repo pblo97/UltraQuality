@@ -10277,7 +10277,7 @@ with tab7:
                         else:
                             st.warning("No risk management data available")
 
-                        # ========== SMART MONEY DETECTOR ==========
+                        # ========== INSIDER TRADING & INSTITUTIONAL HOLDINGS ==========
                         # Check if qualitative data is available
                         qual_data_for_smart_money = None
                         if 'results' in st.session_state:
@@ -10287,152 +10287,276 @@ with tab7:
                                 if qual_key in st.session_state:
                                     qual_data_for_smart_money = st.session_state[qual_key]
 
-                        # Only show Smart Money section if data is available
-                        if qual_data_for_smart_money and 'intrinsic_value' in qual_data_for_smart_money:
-                            intrinsic_sm = qual_data_for_smart_money['intrinsic_value']
-                            insider_data = intrinsic_sm.get('insider_trading', {})
+                        # Get insider data from qualitative analysis
+                        insider = None
+                        if qual_data_for_smart_money:
+                            insider = qual_data_for_smart_money.get('insider_trading', {})
 
-                            if insider_data and insider_data.get('available', False):
-                                # Show header only when data is available
-                                st.markdown("""
-                                <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-                                            padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
-                                    <h3 style='margin: 0; color: white;'><i class="bi bi-cash-stack"></i> SMART MONEY DETECTOR</h3>
-                                    <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
-                                        Insiders, Institucionales y Short Interest
-                                    </p>
+                        if insider:
+                            # Show header
+                            st.markdown("""
+                            <div style='background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+                                        padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
+                                <h3 style='margin: 0; color: white;'>Insider Trading & Institutional Holdings</h3>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                    Smart money signals and institutional activity
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # ============================================================
+                            # SUBSECTION: Insider Trading Activity (Last 12 Months)
+                            # ============================================================
+                            st.markdown("""
+                            <div style='background: #f8fafc; padding: 1rem; border-left: 4px solid #667eea; margin-bottom: 1rem;'>
+                                <h4 style='margin: 0 0 0.5rem 0; color: #1e293b; font-weight: 600;'>
+                                    Insider Trading Activity (Last 12 Months)
+                                </h4>
+                                <p style='margin: 0; color: #64748b; font-size: 0.85rem;'>
+                                    Compras vs ventas de ejecutivos y directores
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Get insider trading data
+                            buys = insider.get('insider_transactions', {}).get('buys', 0)
+                            sells = insider.get('insider_transactions', {}).get('sells', 0)
+                            trend = insider.get('insider_trend_90d', 'none')
+
+                            # Display in columns
+                            col1, col2, col3 = st.columns(3)
+
+                            with col1:
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                    <div style='font-size: 2rem; font-weight: 700; color: #10b981; margin-bottom: 0.25rem;'>
+                                        {buys}
+                                    </div>
+                                    <div style='font-size: 0.85rem; color: #64748b; font-weight: 600;'>
+                                        COMPRAS
+                                    </div>
                                 </div>
                                 """, unsafe_allow_html=True)
-                                # Display Smart Money in 3 columns
-                                col1, col2, col3 = st.columns(3)
 
-                                with col1:
-                                    # INSIDERS
-                                    st.markdown("""
-                                    <div style='background: white; padding: 1rem; border-radius: 10px;
-                                                box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
-                                        <div style='font-size: 0.9rem; color: #6c757d; font-weight: 600; margin-bottom: 0.75rem;'>INSIDERS</div>
+                            with col2:
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                    <div style='font-size: 2rem; font-weight: 700; color: #ef4444; margin-bottom: 0.25rem;'>
+                                        {sells}
                                     </div>
-                                    """, unsafe_allow_html=True)
-
-                                    signal = insider_data.get('signal', 'Neutral')
-                                    signal_colors = {
-                                        'Strong Buy': '#28a745',
-                                        'Buy': '#28a745',
-                                        'Neutral': '#ffc107',
-                                        'Sell': '#dc3545',
-                                        'Strong Sell': '#dc3545'
-                                    }
-                                    signal_color = signal_colors.get(signal, '#6c757d')
-
-                                    buy_count = insider_data.get('buy_count_12m', 0)
-                                    sell_count = insider_data.get('sell_count_12m', 0)
-                                    exec_buys = insider_data.get('executive_buys', 0)
-                                    recent_buys_3m = insider_data.get('recent_buys_3m', 0)
-
-                                    st.markdown(f"""
-                                    <div style='background: {signal_color}; padding: 1rem; border-radius: 8px;
-                                                text-align: center; color: white; margin-bottom: 0.75rem;'>
-                                        <div style='font-size: 1.8rem; font-weight: 700;'>{signal}</div>
-                                        <div style='font-size: 0.85rem; opacity: 0.9;'>Insider Signal</div>
+                                    <div style='font-size: 0.85rem; color: #64748b; font-weight: 600;'>
+                                        VENTAS
                                     </div>
-                                    """, unsafe_allow_html=True)
+                                </div>
+                                """, unsafe_allow_html=True)
 
-                                    st.metric("Buys (12M)", buy_count, delta=f"{exec_buys} executive")
-                                    st.metric("Sells (12M)", sell_count)
-                                    st.metric("Recent (3M)", recent_buys_3m)
+                            with col3:
+                                # Calculate net balance
+                                net_balance = buys - sells
+                                if net_balance > 0:
+                                    balance_color = '#10b981'
+                                    balance_text = 'NET COMPRA'
+                                    balance_badge = f'+{net_balance}'
+                                elif net_balance < 0:
+                                    balance_color = '#ef4444'
+                                    balance_text = 'NET VENTA'
+                                    balance_badge = f'{net_balance}'
+                                else:
+                                    balance_color = '#6b7280'
+                                    balance_text = 'NEUTRAL'
+                                    balance_badge = '0'
 
-                                with col2:
-                                    # INSTITUTIONAL
-                                    st.markdown("""
-                                    <div style='background: white; padding: 1rem; border-radius: 10px;
-                                                box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
-                                        <div style='font-size: 0.9rem; color: #6c757d; font-weight: 600; margin-bottom: 0.75rem;'>INSTITUCIONALES</div>
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                    <div style='font-size: 2rem; font-weight: 700; color: {balance_color}; margin-bottom: 0.25rem;'>
+                                        {balance_badge}
                                     </div>
-                                    """, unsafe_allow_html=True)
+                                    <div style='font-size: 0.85rem; color: #64748b; font-weight: 600;'>
+                                        {balance_text}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
 
-                                    inst_own = insider_data.get('institutional_ownership_pct', None)
+                            # Interpretation
+                            if net_balance > 3:
+                                st.success(f"Señal positiva: Los insiders están comprando más que vendiendo. Posible confianza en el futuro de la empresa.")
+                            elif net_balance < -3:
+                                st.warning(f"Señal de precaución: Los insiders están vendiendo más que comprando. Puede indicar preocupaciones o simplemente toma de ganancias.")
+                            else:
+                                st.info(f"Neutral: Actividad de insider trading balanceada o mínima.")
 
-                                    if inst_own is not None:
-                                        # Determine color based on ownership level
-                                        if inst_own >= 70:
-                                            inst_color = '#28a745'
-                                            inst_status = 'HIGH'
-                                        elif inst_own >= 40:
-                                            inst_color = '#17a2b8'
-                                            inst_status = 'MODERATE'
-                                        else:
-                                            inst_color = '#ffc107'
-                                            inst_status = 'LOW'
+                            st.markdown("---")
+
+                            # ============================================================
+                            # SUBSECTION: Institutional Holdings Balance
+                            # ============================================================
+                            st.markdown("""
+                            <div style='background: #f8fafc; padding: 1rem; border-left: 4px solid #764ba2; margin-bottom: 1rem;'>
+                                <h4 style='margin: 0 0 0.5rem 0; color: #1e293b; font-weight: 600;'>
+                                    Institutional Holdings Balance
+                                </h4>
+                                <p style='margin: 0; color: #64748b; font-size: 0.85rem;'>
+                                    Balance de compra/venta de fondos e instituciones
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Try to get institutional ownership from FMP
+                            try:
+                                institutional_holders = fmp.get_institutional_holders(selected_ticker)
+
+                                if institutional_holders and len(institutional_holders) > 0:
+                                    # Calculate total institutional ownership
+                                    total_inst_shares = sum(h.get('shares', 0) for h in institutional_holders)
+
+                                    # Get shares outstanding from df
+                                    shares_out = None
+                                    if 'results' in st.session_state:
+                                        df_results = st.session_state['results']
+                                        ticker_row = df_results[df_results['ticker'] == selected_ticker]
+                                        if not ticker_row.empty and 'shares_outstanding' in ticker_row.columns:
+                                            shares_out = ticker_row['shares_outstanding'].iloc[0]
+
+                                    # Display institutional ownership percentage
+                                    if shares_out and shares_out > 0:
+                                        inst_own_pct = (total_inst_shares / shares_out) * 100
 
                                         st.markdown(f"""
-                                        <div style='background: {inst_color}; padding: 1rem; border-radius: 8px;
-                                                    text-align: center; color: white; margin-bottom: 0.75rem;'>
-                                            <div style='font-size: 2.5rem; font-weight: 700;'>{inst_own:.1f}%</div>
-                                            <div style='font-size: 0.85rem; opacity: 0.9;'>{inst_status}</div>
+                                        <div style='background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1rem;'>
+                                            <div style='text-align: center;'>
+                                                <div style='font-size: 3rem; font-weight: 700; color: #667eea; margin-bottom: 0.5rem;'>
+                                                    {inst_own_pct:.1f}%
+                                                </div>
+                                                <div style='font-size: 1rem; color: #64748b; font-weight: 600;'>
+                                                    INSTITUTIONAL OWNERSHIP
+                                                </div>
+                                            </div>
                                         </div>
                                         """, unsafe_allow_html=True)
 
-                                        if inst_own >= 70:
-                                            st.success("Strong institutional support")
-                                        elif inst_own >= 40:
-                                            st.info("Moderate institutional presence")
+                                    # Show top 15 institutional holders
+                                    st.caption(f"**Top 15 Institutional Holders** (Total: {len(institutional_holders)} instituciones)")
+
+                                    # Sort by shares held
+                                    top_holders = sorted(institutional_holders, key=lambda x: x.get('shares', 0), reverse=True)[:15]
+
+                                    for i, holder in enumerate(top_holders, 1):
+                                        holder_name = holder.get('holder', 'Unknown')
+                                        shares = holder.get('shares', 0)
+                                        date = holder.get('dateReported', 'N/A')
+                                        change = holder.get('change', 0)
+
+                                        # Calculate percentage ownership if we have shares_out
+                                        if shares_out and shares_out > 0:
+                                            holder_pct = (shares / shares_out) * 100
+                                            shares_text = f"{shares:,} ({holder_pct:.2f}%)"
                                         else:
-                                            st.warning("Low institutional ownership")
-                                    else:
-                                        st.info("Institutional data not available")
+                                            shares_text = f"{shares:,}"
 
-                                with col3:
-                                    # SHORT INTEREST (placeholder - data may not be available)
-                                    st.markdown("""
-                                    <div style='background: white; padding: 1rem; border-radius: 10px;
-                                                box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
-                                        <div style='font-size: 0.9rem; color: #6c757d; font-weight: 600; margin-bottom: 0.75rem;'>SHORT INTEREST</div>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-
-                                    # Check if short interest data exists (may not be in current data structure)
-                                    short_interest = intrinsic_sm.get('short_interest_pct', None)
-
-                                    if short_interest is not None:
-                                        if short_interest > 10:
-                                            short_color = '#dc3545'
-                                            short_status = 'HIGH'
-                                        elif short_interest > 5:
-                                            short_color = '#ffc107'
-                                            short_status = 'MODERATE'
+                                        # Determine change badge
+                                        if change > 0:
+                                            change_badge = f'<span style="background: #10b981; color: white; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700;">+{change:,}</span>'
+                                        elif change < 0:
+                                            change_badge = f'<span style="background: #ef4444; color: white; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700;">{change:,}</span>'
                                         else:
-                                            short_color = '#28a745'
-                                            short_status = 'LOW'
+                                            change_badge = f'<span style="background: #6b7280; color: white; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700;">SIN CAMBIO</span>'
 
                                         st.markdown(f"""
-                                        <div style='background: {short_color}; padding: 1rem; border-radius: 8px;
-                                                    text-align: center; color: white; margin-bottom: 0.75rem;'>
-                                            <div style='font-size: 2.5rem; font-weight: 700;'>{short_interest:.1f}%</div>
-                                            <div style='font-size: 0.85rem; opacity: 0.9;'>{short_status}</div>
+                                        <div style='background: #f8fafc; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 0.5rem; border-left: 3px solid #667eea;'>
+                                            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                                                <div style='flex: 1;'>
+                                                    <div style='font-weight: 600; color: #1e293b; font-size: 0.9rem;'>
+                                                        {i}. {holder_name}
+                                                    </div>
+                                                    <div style='color: #64748b; font-size: 0.8rem; margin-top: 0.25rem;'>
+                                                        {shares_text} • Reported: {date}
+                                                    </div>
+                                                </div>
+                                                <div style='margin-left: 1rem;'>
+                                                    {change_badge}
+                                                </div>
+                                            </div>
                                         </div>
                                         """, unsafe_allow_html=True)
+
+                                    # Overall institutional balance interpretation
+                                    total_change = sum(h.get('change', 0) for h in institutional_holders)
+                                    buying_count = sum(1 for h in institutional_holders if h.get('change', 0) > 0)
+                                    selling_count = sum(1 for h in institutional_holders if h.get('change', 0) < 0)
+
+                                    # Debug: Show if we have change data
+                                    changes_available = any(h.get('change') is not None for h in institutional_holders)
+
+                                    if changes_available:
+                                        st.markdown("---")
+                                        st.markdown("**Balance de Compra/Venta Institucional**")
+
+                                        col_buy, col_sell, col_net = st.columns(3)
+
+                                        with col_buy:
+                                            st.markdown(f"""
+                                            <div style='text-align: center; padding: 0.75rem;'>
+                                                <div style='font-size: 1.5rem; font-weight: 700; color: #10b981;'>
+                                                    {buying_count}
+                                                </div>
+                                                <div style='font-size: 0.8rem; color: #64748b;'>
+                                                    COMPRANDO
+                                                </div>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+
+                                        with col_sell:
+                                            st.markdown(f"""
+                                            <div style='text-align: center; padding: 0.75rem;'>
+                                                <div style='font-size: 1.5rem; font-weight: 700; color: #ef4444;'>
+                                                    {selling_count}
+                                                </div>
+                                                <div style='font-size: 0.8rem; color: #64748b;'>
+                                                    VENDIENDO
+                                                </div>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+
+                                        with col_net:
+                                            net_inst_balance = buying_count - selling_count
+                                            if net_inst_balance > 0:
+                                                net_color = '#10b981'
+                                                net_text = 'NET COMPRA'
+                                            elif net_inst_balance < 0:
+                                                net_color = '#ef4444'
+                                                net_text = 'NET VENTA'
+                                            else:
+                                                net_color = '#6b7280'
+                                                net_text = 'NEUTRAL'
+
+                                            st.markdown(f"""
+                                            <div style='text-align: center; padding: 0.75rem;'>
+                                                <div style='font-size: 1.5rem; font-weight: 700; color: {net_color};'>
+                                                    {net_inst_balance:+d}
+                                                </div>
+                                                <div style='font-size: 0.8rem; color: #64748b;'>
+                                                    {net_text}
+                                                </div>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+
+                                        # Interpretation
+                                        if net_inst_balance > 5:
+                                            st.success(f"Smart money comprando: Más instituciones aumentando posiciones que reduciéndolas. Señal de confianza institucional.")
+                                        elif net_inst_balance < -5:
+                                            st.warning(f"Smart money vendiendo: Más instituciones reduciendo posiciones. Puede indicar preocupaciones o rotación sectorial.")
+                                        else:
+                                            st.info(f"Balance neutral: Actividad institucional balanceada.")
                                     else:
-                                        st.markdown("""
-                                        <div style='background: #6c757d; padding: 1rem; border-radius: 8px;
-                                                    text-align: center; color: white; margin-bottom: 0.75rem;'>
-                                            <div style='font-size: 1.5rem; font-weight: 600;'>N/A</div>
-                                            <div style='font-size: 0.85rem; opacity: 0.9;'>Data not available</div>
-                                        </div>
-                                        """, unsafe_allow_html=True)
-                                        st.caption("Short interest data requires premium API access")
+                                        st.info("⚠️ Datos de cambio (compra/venta) no disponibles en la API. Solo se muestran las posiciones actuales.")
 
-                                st.caption("Smart Money data from Qualitative Analysis (tab 5)")
+                                else:
+                                    st.info("No hay datos de institutional holdings disponibles")
 
-                        # ========== INSTITUTIONAL HOLDERS ==========
-                        st.markdown("---")
-                        try:
-                            from screener.advanced_ui import render_institutional_holders
-                            render_institutional_holders(selected_ticker, fmp)
-                        except Exception as e:
-                            st.info("Institutional holder data not available")
-                            if st.checkbox("Show error details", key=f"inst_error_{selected_ticker}"):
-                                st.error(str(e))
+                            except Exception as e:
+                                st.warning(f"No se pudo obtener información de institutional holdings: {str(e)}")
+                        else:
+                            st.info("💡 Para ver Insider Trading e Institutional Holdings, primero ejecuta el análisis cualitativo (tab 5) para este ticker.")
 
                         # ========== EARNINGS CALENDAR ==========
                         st.markdown("---")
