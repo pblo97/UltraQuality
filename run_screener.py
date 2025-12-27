@@ -4192,8 +4192,12 @@ with tab5:
 
                             moat_count = 0
                             for moat in moats:
-                                # Clean formatting
+                                # Clean formatting and emojis
                                 moat_clean = moat.strip()
+                                # Remove emojis
+                                moat_clean = re.sub(r'[💪🔒🏆⭐📱🌐💡🎯]', '', moat_clean)
+                                # Remove markdown bold markers
+                                moat_clean = re.sub(r'\*\*', '', moat_clean)
                                 moat_clean = re.sub(r'^[\s]+', '', moat_clean)
 
                                 # Skip metadata lines (not actual moats)
@@ -4204,8 +4208,8 @@ with tab5:
                                 ]):
                                     continue
 
-                                # Parse format: "**Name**: Description (**Evidence**)"
-                                match = re.match(r'\*\*([^:]+)\*\*:\s*([^(]+)(?:\(\*\*([^)]+)\*\*\))?', moat_clean)
+                                # Parse format: "Name: Description (Evidence)"
+                                match = re.match(r'([^:]+):\s*([^(]+)(?:\(([^)]+)\))?', moat_clean)
 
                                 if match:
                                     moat_name = match.group(1).strip()
@@ -4234,15 +4238,16 @@ with tab5:
                                         badge_text = "WEAK"
 
                                     st.markdown(f"""
-                                    <div style='background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;
-                                                border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
-                                        <div style='display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;'>
-                                            <div style='font-weight: 600; color: #1e293b; font-size: 0.95rem;'>{moat_name}</div>
-                                            <span style='background: {badge_color}; color: white; padding: 0.15rem 0.5rem;
-                                                         border-radius: 3px; font-size: 0.65rem; font-weight: 700;
-                                                         letter-spacing: 0.3px; white-space: nowrap;'>{badge_text}</span>
+                                    <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+                                                padding: 1.25rem; border-radius: 10px; margin-bottom: 0.75rem;
+                                                border-left: 4px solid {badge_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
+                                        <div style='display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;'>
+                                            <div style='font-weight: 600; color: #0f172a; font-size: 1rem;'>{moat_name}</div>
+                                            <span style='background: {badge_color}; color: white; padding: 0.25rem 0.65rem;
+                                                         border-radius: 4px; font-size: 0.7rem; font-weight: 700;
+                                                         letter-spacing: 0.5px; white-space: nowrap;'>{badge_text}</span>
                                         </div>
-                                        <div style='color: #64748b; font-size: 0.85rem; line-height: 1.5;'>{moat_desc}</div>
+                                        <div style='color: #475569; font-size: 0.9rem; line-height: 1.6;'>{moat_desc}</div>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 else:
@@ -4250,9 +4255,10 @@ with tab5:
                                     if moat_clean and "not evident" not in moat_clean.lower():
                                         moat_count += 1
                                         st.markdown(f"""
-                                        <div style='background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;
-                                                    border: 1px solid #e2e8f0;'>
-                                            <div style='color: #1e293b; font-size: 0.9rem; line-height: 1.5;'>{moat_clean}</div>
+                                        <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+                                                    padding: 1.25rem; border-radius: 10px; margin-bottom: 0.75rem;
+                                                    border-left: 4px solid #3b82f6; box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
+                                            <div style='color: #0f172a; font-size: 0.9rem; line-height: 1.6; font-weight: 500;'>{moat_clean}</div>
                                         </div>
                                         """, unsafe_allow_html=True)
 
@@ -4276,8 +4282,13 @@ with tab5:
 
                             risk_count = 0
                             for risk in risks:
-                                # Clean formatting
+                                # Clean formatting and emojis
                                 risk_clean = risk.strip()
+                                # Remove emojis
+                                risk_clean = re.sub(r'[⚠️🚨❗🔴⛔💀🔥📉❌]', '', risk_clean)
+                                # Remove markdown bold markers
+                                risk_clean = re.sub(r'\*\*', '', risk_clean)
+                                risk_clean = risk_clean.strip()
 
                                 # Filter out invalid risks (conference call transcripts, etc.)
                                 if any(skip_word in risk_clean.lower() for skip_word in ['operator:', 'welcome everyone', 'thank you for standing', 'good afternoon', 'good morning']):
@@ -4303,14 +4314,15 @@ with tab5:
 
                                     risk_count += 1
                                     st.markdown(f"""
-                                    <div style='background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;
-                                                border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
-                                        <div style='display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.5rem;'>
-                                            <span style='background: {badge_color}; color: white; padding: 0.15rem 0.5rem;
-                                                         border-radius: 3px; font-size: 0.65rem; font-weight: 700;
-                                                         letter-spacing: 0.3px;'>{badge_text} RISK</span>
+                                    <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+                                                padding: 1.25rem; border-radius: 10px; margin-bottom: 0.75rem;
+                                                border-left: 4px solid {badge_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
+                                        <div style='margin-bottom: 0.75rem;'>
+                                            <span style='background: {badge_color}; color: white; padding: 0.25rem 0.65rem;
+                                                         border-radius: 4px; font-size: 0.7rem; font-weight: 700;
+                                                         letter-spacing: 0.5px;'>{badge_text} RISK</span>
                                         </div>
-                                        <div style='color: #64748b; font-size: 0.85rem; line-height: 1.5;'>{risk_desc}</div>
+                                        <div style='color: #475569; font-size: 0.9rem; line-height: 1.6;'>{risk_desc}</div>
                                     </div>
                                     """, unsafe_allow_html=True)
                                 else:
@@ -4318,9 +4330,10 @@ with tab5:
                                     if risk_clean and len(risk_clean) > 10:  # Filter very short/empty
                                         risk_count += 1
                                         st.markdown(f"""
-                                        <div style='background: white; padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;
-                                                    border: 1px solid #e2e8f0;'>
-                                            <div style='color: #64748b; font-size: 0.85rem; line-height: 1.5;'>{risk_clean}</div>
+                                        <div style='background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+                                                    padding: 1.25rem; border-radius: 10px; margin-bottom: 0.75rem;
+                                                    border-left: 4px solid #f59e0b; box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
+                                            <div style='color: #0f172a; font-size: 0.9rem; line-height: 1.6; font-weight: 500;'>{risk_clean}</div>
                                         </div>
                                         """, unsafe_allow_html=True)
 
