@@ -1,0 +1,48 @@
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from screener.ingest import FMPClient
+import yaml
+
+config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+with open(config_file, 'r') as f:
+    config = yaml.safe_load(f)
+
+api_key = "qGDE52LhIJ9CQSyRwKpAzjLXeLP4Pwkt"
+fmp = FMPClient(api_key, config)
+
+# Test with META
+print("Testing META...")
+print("\n1. Senate Trading:")
+result = fmp.get_senate_trading('META')
+print(f"   Length: {len(result) if result else 0}")
+if result and len(result) > 0:
+    print(f"   First item: {result[0]}")
+
+print("\n2. Revenue Geographic:")
+result = fmp.get_revenue_geographic_segmentation('META', period='annual')
+print(f"   Length: {len(result) if result else 0}")
+if result and len(result) > 0:
+    print(f"   Keys: {result[0].keys()}")
+    print(f"   Data: {result[0]}")
+
+print("\n3. Earnings Surprises:")
+result = fmp.get_earnings_surprises('META')
+print(f"   Length: {len(result) if result else 0}")
+if result and len(result) > 0:
+    print(f"   First 3 items:")
+    for item in result[:3]:
+        print(f"      {item}")
+
+print("\n4. Price Target Consensus:")
+result = fmp.get_price_target_consensus('META')
+print(f"   Length: {len(result) if result else 0}")
+if result and len(result) > 0:
+    print(f"   Data: {result[0]}")
+
+print("\n5. Upgrades/Downgrades Consensus:")
+result = fmp.get_upgrades_downgrades_consensus('META')
+print(f"   Length: {len(result) if result else 0}")
+if result and len(result) > 0:
+    print(f"   Data: {result[0]}")

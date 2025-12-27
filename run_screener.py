@@ -5847,7 +5847,7 @@ with tab5:
                                     padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
                             <div style='display: flex; align-items: center; gap: 0.75rem;'>
                                 <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
-                                    SECTION 5
+                                    SECTION 9
                                 </span>
                                 <h3 style='margin: 0; color: white; font-weight: 600;'>
                                     Advanced Fundamental Analysis
