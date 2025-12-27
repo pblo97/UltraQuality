@@ -4372,147 +4372,256 @@ with tab5:
                     insider = analysis.get('insider_trading', {})
 
                     if insider:
-                        # Ownership metrics
-                        col1, col2, col3, col4 = st.columns(4)
+                        # ============================================================
+                        # SUBSECTION: Insider Trading Activity (Last 12 Months)
+                        # ============================================================
+                        st.markdown("""
+                        <div style='background: #f8fafc; padding: 1rem; border-left: 4px solid #667eea; margin-bottom: 1rem;'>
+                            <h4 style='margin: 0 0 0.5rem 0; color: #1e293b; font-weight: 600;'>
+                                Insider Trading Activity (Last 12 Months)
+                            </h4>
+                            <p style='margin: 0; color: #64748b; font-size: 0.85rem;'>
+                                Compras vs ventas de ejecutivos y directores
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Get insider trading data
+                        buys = insider.get('insider_transactions', {}).get('buys', 0)
+                        sells = insider.get('insider_transactions', {}).get('sells', 0)
+                        trend = insider.get('insider_trend_90d', 'none')
+
+                        # Display in columns
+                        col1, col2, col3 = st.columns(3)
 
                         with col1:
-                            insider_own = insider.get('insider_ownership_pct')
-                            if insider_own is not None:
-                                st.metric("Insider Ownership", f"{insider_own:.2f}%")
-                            else:
-                                st.metric("Insider Ownership", "N/A")
-
-                        with col2:
-                            # Try to get institutional ownership
-                            inst_own_value = None
-
-                            # First try from insider dict (should have it from qualitative analyzer)
-                            inst_own_value = insider.get('institutional_ownership_pct')
-
-                            # If not available, try FMP directly
-                            if inst_own_value is None:
-                                try:
-                                    if 'fmp_client' in st.session_state:
-                                        fmp_client = st.session_state['fmp_client']
-                                        institutional_holders = fmp_client.get_institutional_holders(selected_ticker)
-                                        if institutional_holders and len(institutional_holders) > 0:
-                                            # Sum up total shares held
-                                            total_inst_shares = sum(h.get('shares', 0) for h in institutional_holders)
-                                            # Try to get shares outstanding
-                                            if 'df_filtered' in locals() and len(df_filtered) > 0:
-                                                ticker_row = df_filtered[df_filtered['ticker'] == selected_ticker]
-                                                if not ticker_row.empty and 'shares_outstanding' in ticker_row.columns:
-                                                    shares_out = ticker_row['shares_outstanding'].iloc[0]
-                                                    if shares_out and shares_out > 0:
-                                                        inst_own_value = (total_inst_shares / shares_out) * 100
-                                except:
-                                    pass  # Keep inst_own_value as None
-
-                            # Display the value
-                            if inst_own_value is not None and inst_own_value > 0:
-                                st.metric("Institutional Own.", f"{inst_own_value:.1f}%")
-                            else:
-                                st.metric("Institutional Own.", "N/A")
-                                st.caption("Data unavailable")
-
-                        with col3:
-                            dilution = insider.get('net_share_issuance_12m_%')
-                            if dilution is not None:
-                                delta_color = "inverse" if dilution > 0 else "normal"
-                                st.metric("Share Change (12M)", f"{dilution:+.1f}%",
-                                         delta="Dilution" if dilution > 0 else "Buyback" if dilution < 0 else "Flat",
-                                         delta_color=delta_color)
-                            else:
-                                st.metric("Share Change (12M)", "N/A")
-
-                        with col4:
-                            assessment = insider.get('assessment', 'neutral')
-                            emoji_map = {'positive': '', 'neutral': '', 'negative': ''}
-                            emoji = emoji_map.get(assessment, '')
-                            st.metric("Assessment", f"{emoji} {assessment.title()}")
-
-                        # Enhanced context with detailed explanation
-                        st.markdown("---")
-
-                        if insider_own is not None:
-                            # Create visual interpretation card
-                            if insider_own >= 15:
-                                context_bg = '#d1fae5'
-                                context_text = '#065f46'
-                                context_title = '<span style="background: #10b981; color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-right: 0.5rem;">EXCELLENT</span> Alignment'
-                                context_msg = f"""
-                                Con **{insider_own:.2f}%** de ownership, los insiders tienen "skin in the game" significativo.
-
-                                **Por qué importa:**
-                                - Directivos actúan como dueños, no empleados
-                                - Decisiones alineadas con largo plazo (no bonus trimestral)
-                                - Menor riesgo de conflictos de agencia
-
-                                **Comparable a:** Berkshire Hathaway (Buffett ~16%), Tesla (Musk ~13%)
-                                """
-                            elif insider_own >= 5:
-                                context_bg = '#dbeafe'
-                                context_text = '#1e40af'
-                                context_title = '<span style="background: #3b82f6; color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-right: 0.5rem;">MODERATE</span> Alignment'
-                                context_msg = f"""
-                                Con **{insider_own:.2f}%** de ownership, hay cierta alineación pero no excepcional.
-
-                                **Por qué importa:**
-                                - Insiders tienen incentivo moderado
-                                - Típico en empresas grandes y maduras
-                                - Complementar con análisis de comp compensation
-
-                                **Comparable a:** Apple (~0.1% individual pero fuerte equity comp), Microsoft
-                                """
-                            elif insider_own >= 1:
-                                context_bg = '#fef3c7'
-                                context_text = '#92400e'
-                                context_title = '<span style="background: #f59e0b; color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-right: 0.5rem;">LOW</span> Alignment'
-                                context_msg = f"""
-                                Con **{insider_own:.2f}%** de ownership, la alineación es limitada.
-
-                                **Por qué puede ser problema:**
-                                - Directivos optimizan para bonus/stock options, no shareholder value
-                                - Riesgo de decisiones cortoplacistas
-                                - Menor penalización por mal desempeño
-
-                                **Mitigantes:** Buscar buybacks agresivos, compensation ligada a TSR (Total Shareholder Return)
-                                """
-                            else:  # < 1%
-                                context_bg = '#fee2e2'
-                                context_text = '#991b1b'
-                                context_title = '<span style="background: #ef4444; color: white; padding: 0.25rem 0.6rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-right: 0.5rem;">WEAK</span> Alignment'
-                                context_msg = f"""
-                                Con solo **{insider_own:.2f}%** de ownership, prácticamente no hay "skin in the game".
-
-                                **Red flags a vigilar:**
-                                - CEO/CFO vendiendo acciones regularmente
-                                - Compensation packages desalineados (garantizados, no performance-based)
-                                - Uso de equity como "funny money" (dilución constante)
-
-                                **Empresas con bajo insider ownership pero buenos resultados:**
-                                - Necesitan governance excepcional (board independiente)
-                                - Compensation 100% variable (ej: stock options con cliff)
-                                - Cultura de ownership (ej: Amazon "Day 1" philosophy)
-                                """
-
                             st.markdown(f"""
-                            <div style='background: {context_bg};
-                                        padding: 1rem 1.5rem;
-                                        border-radius: 10px;
-                                        margin-top: 1rem;
-                                        border-left: 4px solid {context_text};'>
-                                <div style='font-size: 1.1rem; font-weight: 600; color: {context_text}; margin-bottom: 0.5rem;'>
-                                    {context_title}
+                            <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                <div style='font-size: 2rem; font-weight: 700; color: #10b981; margin-bottom: 0.25rem;'>
+                                    {buys}
                                 </div>
-                                <div style='color: {context_text}; font-size: 0.9rem; white-space: pre-line;'>
-                                    {context_msg}
+                                <div style='font-size: 0.85rem; color: #64748b; font-weight: 600;'>
+                                    COMPRAS
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
 
+                        with col2:
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                <div style='font-size: 2rem; font-weight: 700; color: #ef4444; margin-bottom: 0.25rem;'>
+                                    {sells}
+                                </div>
+                                <div style='font-size: 0.85rem; color: #64748b; font-weight: 600;'>
+                                    VENTAS
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        with col3:
+                            # Calculate net balance
+                            net_balance = buys - sells
+                            if net_balance > 0:
+                                balance_color = '#10b981'
+                                balance_text = 'NET COMPRA'
+                                balance_badge = f'+{net_balance}'
+                            elif net_balance < 0:
+                                balance_color = '#ef4444'
+                                balance_text = 'NET VENTA'
+                                balance_badge = f'{net_balance}'
+                            else:
+                                balance_color = '#6b7280'
+                                balance_text = 'NEUTRAL'
+                                balance_badge = '0'
+
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;'>
+                                <div style='font-size: 2rem; font-weight: 700; color: {balance_color}; margin-bottom: 0.25rem;'>
+                                    {balance_badge}
+                                </div>
+                                <div style='font-size: 0.85rem; color: #64748b; font-weight: 600;'>
+                                    {balance_text}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        # Interpretation
+                        if net_balance > 3:
+                            st.success(f"Señal positiva: Los insiders están comprando más que vendiendo. Posible confianza en el futuro de la empresa.")
+                        elif net_balance < -3:
+                            st.warning(f"Señal de precaución: Los insiders están vendiendo más que comprando. Puede indicar preocupaciones o simplemente toma de ganancias.")
+                        else:
+                            st.info(f"Neutral: Actividad de insider trading balanceada o mínima.")
+
+                        st.markdown("---")
+
+                        # ============================================================
+                        # SUBSECTION: Institutional Holdings Balance
+                        # ============================================================
+                        st.markdown("""
+                        <div style='background: #f8fafc; padding: 1rem; border-left: 4px solid #764ba2; margin-bottom: 1rem;'>
+                            <h4 style='margin: 0 0 0.5rem 0; color: #1e293b; font-weight: 600;'>
+                                Institutional Holdings Balance
+                            </h4>
+                            <p style='margin: 0; color: #64748b; font-size: 0.85rem;'>
+                                Balance de compra/venta de fondos e instituciones
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Try to get institutional ownership from FMP
+                        try:
+                            if 'fmp_client' in st.session_state:
+                                fmp_client = st.session_state['fmp_client']
+                                institutional_holders = fmp_client.get_institutional_holders(selected_ticker)
+
+                                if institutional_holders and len(institutional_holders) > 0:
+                                    # Calculate total institutional ownership
+                                    total_inst_shares = sum(h.get('shares', 0) for h in institutional_holders)
+
+                                    # Get shares outstanding from df
+                                    shares_out = None
+                                    if 'results' in st.session_state:
+                                        df_results = st.session_state['results']
+                                        ticker_row = df_results[df_results['ticker'] == selected_ticker]
+                                        if not ticker_row.empty and 'shares_outstanding' in ticker_row.columns:
+                                            shares_out = ticker_row['shares_outstanding'].iloc[0]
+
+                                    # Display institutional ownership percentage
+                                    if shares_out and shares_out > 0:
+                                        inst_own_pct = (total_inst_shares / shares_out) * 100
+
+                                        st.markdown(f"""
+                                        <div style='background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1rem;'>
+                                            <div style='text-align: center;'>
+                                                <div style='font-size: 3rem; font-weight: 700; color: #667eea; margin-bottom: 0.5rem;'>
+                                                    {inst_own_pct:.1f}%
+                                                </div>
+                                                <div style='font-size: 1rem; color: #64748b; font-weight: 600;'>
+                                                    INSTITUTIONAL OWNERSHIP
+                                                </div>
+                                            </div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                                    # Show top 10 institutional holders
+                                    st.caption(f"**Top 10 Institutional Holders** (Total: {len(institutional_holders)} instituciones)")
+
+                                    # Sort by shares held
+                                    top_holders = sorted(institutional_holders, key=lambda x: x.get('shares', 0), reverse=True)[:10]
+
+                                    for i, holder in enumerate(top_holders, 1):
+                                        holder_name = holder.get('holder', 'Unknown')
+                                        shares = holder.get('shares', 0)
+                                        date = holder.get('dateReported', 'N/A')
+                                        change = holder.get('change', 0)
+
+                                        # Calculate percentage ownership if we have shares_out
+                                        if shares_out and shares_out > 0:
+                                            holder_pct = (shares / shares_out) * 100
+                                            shares_text = f"{shares:,} ({holder_pct:.2f}%)"
+                                        else:
+                                            shares_text = f"{shares:,}"
+
+                                        # Determine change badge
+                                        if change > 0:
+                                            change_badge = f'<span style="background: #10b981; color: white; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700;">+{change:,}</span>'
+                                        elif change < 0:
+                                            change_badge = f'<span style="background: #ef4444; color: white; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700;">{change:,}</span>'
+                                        else:
+                                            change_badge = f'<span style="background: #6b7280; color: white; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.7rem; font-weight: 700;">SIN CAMBIO</span>'
+
+                                        st.markdown(f"""
+                                        <div style='background: #f8fafc; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 0.5rem; border-left: 3px solid #667eea;'>
+                                            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                                                <div style='flex: 1;'>
+                                                    <div style='font-weight: 600; color: #1e293b; font-size: 0.9rem;'>
+                                                        {i}. {holder_name}
+                                                    </div>
+                                                    <div style='color: #64748b; font-size: 0.8rem; margin-top: 0.25rem;'>
+                                                        {shares_text} • Reported: {date}
+                                                    </div>
+                                                </div>
+                                                <div style='margin-left: 1rem;'>
+                                                    {change_badge}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                                    # Overall institutional balance interpretation
+                                    total_change = sum(h.get('change', 0) for h in institutional_holders)
+                                    buying_count = sum(1 for h in institutional_holders if h.get('change', 0) > 0)
+                                    selling_count = sum(1 for h in institutional_holders if h.get('change', 0) < 0)
+
+                                    st.markdown("---")
+
+                                    col_buy, col_sell, col_net = st.columns(3)
+
+                                    with col_buy:
+                                        st.markdown(f"""
+                                        <div style='text-align: center; padding: 0.75rem;'>
+                                            <div style='font-size: 1.5rem; font-weight: 700; color: #10b981;'>
+                                                {buying_count}
+                                            </div>
+                                            <div style='font-size: 0.8rem; color: #64748b;'>
+                                                COMPRANDO
+                                            </div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                                    with col_sell:
+                                        st.markdown(f"""
+                                        <div style='text-align: center; padding: 0.75rem;'>
+                                            <div style='font-size: 1.5rem; font-weight: 700; color: #ef4444;'>
+                                                {selling_count}
+                                            </div>
+                                            <div style='font-size: 0.8rem; color: #64748b;'>
+                                                VENDIENDO
+                                            </div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                                    with col_net:
+                                        net_inst_balance = buying_count - selling_count
+                                        if net_inst_balance > 0:
+                                            net_color = '#10b981'
+                                            net_text = 'NET COMPRA'
+                                        elif net_inst_balance < 0:
+                                            net_color = '#ef4444'
+                                            net_text = 'NET VENTA'
+                                        else:
+                                            net_color = '#6b7280'
+                                            net_text = 'NEUTRAL'
+
+                                        st.markdown(f"""
+                                        <div style='text-align: center; padding: 0.75rem;'>
+                                            <div style='font-size: 1.5rem; font-weight: 700; color: {net_color};'>
+                                                {net_inst_balance:+d}
+                                            </div>
+                                            <div style='font-size: 0.8rem; color: #64748b;'>
+                                                {net_text}
+                                            </div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                                    # Interpretation
+                                    if net_inst_balance > 5:
+                                        st.success(f"Smart money comprando: Más instituciones aumentando posiciones que reduciéndolas. Señal de confianza institucional.")
+                                    elif net_inst_balance < -5:
+                                        st.warning(f"Smart money vendiendo: Más instituciones reduciendo posiciones. Puede indicar preocupaciones o rotación sectorial.")
+                                    else:
+                                        st.info(f"Balance neutral: Actividad institucional balanceada.")
+
+                                else:
+                                    st.info("No hay datos de institutional holdings disponibles")
+
+                        except Exception as e:
+                            st.warning(f"No se pudo obtener información de institutional holdings: {str(e)}")
+
                     else:
                         st.info("Ownership data not available")
+
 
                     st.markdown("---")
 
