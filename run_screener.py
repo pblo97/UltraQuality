@@ -4192,8 +4192,8 @@ with tab5:
 
                             moat_count = 0
                             for moat in moats:
-                                # Clean emojis
-                                moat_clean = re.sub(r'[]', '', moat).strip()
+                                # Clean formatting
+                                moat_clean = moat.strip()
                                 moat_clean = re.sub(r'^[\s]+', '', moat_clean)
 
                                 # Skip metadata lines (not actual moats)
@@ -4276,8 +4276,8 @@ with tab5:
 
                             risk_count = 0
                             for risk in risks:
-                                # Clean emojis
-                                risk_clean = re.sub(r'[]', '', risk).strip()
+                                # Clean formatting
+                                risk_clean = risk.strip()
 
                                 # Filter out invalid risks (conference call transcripts, etc.)
                                 if any(skip_word in risk_clean.lower() for skip_word in ['operator:', 'welcome everyone', 'thank you for standing', 'good afternoon', 'good morning']):
