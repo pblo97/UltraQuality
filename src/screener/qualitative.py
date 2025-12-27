@@ -902,7 +902,7 @@ class QualitativeAnalyzer:
         """
         Summarize stock news from last N days.
 
-        Returns: (news_TLDR: List[str], news_tags: List[str])
+        Returns: (news_items: List[Dict], news_tags: List[str])
         """
         try:
             news = self.fmp.get_stock_news(symbol, limit=12)
@@ -917,18 +917,52 @@ class QualitativeAnalyzer:
                 if datetime.fromisoformat(n.get('publishedDate', '').replace('Z', '+00:00')) > cutoff
             ]
 
-            # Extract key points (simple heuristic: use title + first sentence)
-            tldr = []
+            # Extract key points with full summaries
+            news_items = []
             tags_set = set()
 
             for item in recent_news[:6]:  # Top 6
                 title = item.get('title', '')
                 text = item.get('text', '')
+                url = item.get('url', '')
+                published_date = item.get('publishedDate', '')
 
-                # Extract first sentence
-                summary = title + ': ' + text[:100] if text else title
+                # Extract a meaningful summary (first 2-3 sentences or 500 chars)
+                if text:
+                    # Try to get complete sentences
+                    sentences = text.split('. ')
+                    summary_text = ''
+                    for sentence in sentences[:3]:  # First 3 sentences
+                        if len(summary_text) + len(sentence) < 500:
+                            summary_text += sentence + '. '
+                        else:
+                            break
 
-                tldr.append(summary[:140])
+                    # If still empty or too short, just take first 500 chars
+                    if not summary_text or len(summary_text) < 50:
+                        summary_text = text[:500]
+                        # Try to end at a complete word
+                        if len(text) > 500:
+                            last_space = summary_text.rfind(' ')
+                            if last_space > 400:  # Only if we're not cutting too much
+                                summary_text = summary_text[:last_space] + '...'
+                else:
+                    summary_text = title
+
+                # Parse date
+                try:
+                    date_obj = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                    formatted_date = date_obj.strftime('%Y-%m-%d')
+                except:
+                    formatted_date = published_date[:10] if published_date else 'N/A'
+
+                news_items.append({
+                    'date': formatted_date,
+                    'headline': title,
+                    'summary': summary_text.strip(),
+                    'url': url,
+                    'sentiment': 'neutral'  # Could be enhanced with sentiment analysis
+                })
 
                 # Tag classification (keyword-based)
                 content_lower = (title + ' ' + text).lower()
@@ -948,7 +982,7 @@ class QualitativeAnalyzer:
                 if any(kw in content_lower for kw in ['esg', 'sustainability', 'environment', 'social']):
                     tags_set.add('ESG')
 
-            return tldr, list(tags_set)
+            return news_items, list(tags_set)
 
         except Exception as e:
             logger.warning(f"Failed to summarize news for {symbol}: {e}")
@@ -1813,37 +1847,18 @@ class QualitativeAnalyzer:
 
         return formatted if formatted else ["No clear moats identified"]
 
-    def _format_news(self, news_tldr: List[str], news_tags: List[str]) -> List[Dict]:
+    def _format_news(self, news_items: List[Dict], news_tags: List[str]) -> List[Dict]:
         """
         Format news for UI display.
 
-        Returns list of dicts with date, headline, summary, tags.
+        Since _summarize_news() already returns properly formatted dicts,
+        this function now just passes them through.
+
+        Returns list of dicts with date, headline, summary, url, sentiment.
         """
-        if not news_tldr:
-            return []
-
-        formatted_news = []
-        today = datetime.now()
-
-        for i, tldr in enumerate(news_tldr):
-            # Extract approximate date (news are ordered newest first)
-            days_ago = i * 15  # Rough estimate: 15 days apart
-            news_date = (today - timedelta(days=days_ago)).strftime('%Y-%m-%d')
-
-            # Split TLDR into headline and summary
-            if ':' in tldr:
-                headline, summary = tldr.split(':', 1)
-            else:
-                headline = tldr[:50]
-                summary = tldr[50:] if len(tldr) > 50 else ''
-
-            formatted_news.append({
-                'date': news_date,
-                'headline': headline.strip(),
-                'summary': summary.strip()
-            })
-
-        return formatted_news
+        # News items are already formatted by _summarize_news()
+        # Just return them directly
+        return news_items if news_items else []
 
     def _format_risks(self, top_risks: List[Dict]) -> List[str]:
         """
