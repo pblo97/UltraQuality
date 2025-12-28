@@ -196,6 +196,53 @@ class ScreenerPipeline:
         min_mcap = universe_config.get('min_market_cap', 500_000_000)
         min_vol = universe_config.get('min_avg_dollar_vol_3m', 5_000_000)
 
+        # MARKET-SPECIFIC FILTER ADJUSTMENTS
+        # Emerging markets have lower market caps and trading volumes
+        # Adjust filters to get adequate coverage in these markets
+        emerging_market_adjustments = {
+            # Asia Emerging
+            'VN': {'mcap_factor': 0.1, 'vol_factor': 0.2},   # Vietnam - very small market
+            'PH': {'mcap_factor': 0.2, 'vol_factor': 0.3},   # Philippines
+            'BD': {'mcap_factor': 0.15, 'vol_factor': 0.25}, # Bangladesh
+            'TH': {'mcap_factor': 0.3, 'vol_factor': 0.4},   # Thailand
+            'MY': {'mcap_factor': 0.3, 'vol_factor': 0.4},   # Malaysia
+            'ID': {'mcap_factor': 0.25, 'vol_factor': 0.35}, # Indonesia
+
+            # Latin America
+            'MX': {'mcap_factor': 0.4, 'vol_factor': 0.5},   # Mexico
+            'BR': {'mcap_factor': 0.4, 'vol_factor': 0.5},   # Brazil
+            'CL': {'mcap_factor': 0.25, 'vol_factor': 0.35}, # Chile
+            'AR': {'mcap_factor': 0.2, 'vol_factor': 0.3},   # Argentina
+            'CO': {'mcap_factor': 0.2, 'vol_factor': 0.3},   # Colombia
+
+            # Eastern Europe
+            'PL': {'mcap_factor': 0.3, 'vol_factor': 0.4},   # Poland
+            'CZ': {'mcap_factor': 0.25, 'vol_factor': 0.35}, # Czech Republic
+            'HU': {'mcap_factor': 0.2, 'vol_factor': 0.3},   # Hungary
+            'RU': {'mcap_factor': 0.3, 'vol_factor': 0.4},   # Russia
+
+            # Middle East & Africa
+            'ZA': {'mcap_factor': 0.35, 'vol_factor': 0.45}, # South Africa
+            'EG': {'mcap_factor': 0.2, 'vol_factor': 0.3},   # Egypt
+            'TR': {'mcap_factor': 0.35, 'vol_factor': 0.45}, # Turkey
+        }
+
+        # Apply adjustments if screening emerging markets
+        if countries and len(countries) > 0:
+            # Check if any selected country is an emerging market
+            for country in countries:
+                if country in emerging_market_adjustments:
+                    adjustment = emerging_market_adjustments[country]
+                    adjusted_mcap = int(min_mcap * adjustment['mcap_factor'])
+                    adjusted_vol = int(min_vol * adjustment['vol_factor'])
+                    logger.info(f"🌏 Emerging market detected: {country}")
+                    logger.info(f"   Adjusting filters for better coverage:")
+                    logger.info(f"   Market Cap: ${min_mcap:,.0f} → ${adjusted_mcap:,.0f} ({adjustment['mcap_factor']:.0%})")
+                    logger.info(f"   Volume: ${min_vol:,.0f} → ${adjusted_vol:,.0f} ({adjustment['vol_factor']:.0%})")
+                    min_mcap = adjusted_mcap
+                    min_vol = adjusted_vol
+                    break  # Only adjust once if multiple countries selected
+
         logger.info(f"Filters: min_mcap=${min_mcap:,.0f}, min_vol=${min_vol:,.0f}")
         logger.info(f"Countries: {countries}, Exchanges: {exchanges or 'All'}")
 
