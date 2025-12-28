@@ -196,6 +196,53 @@ class ScreenerPipeline:
         min_mcap = universe_config.get('min_market_cap', 500_000_000)
         min_vol = universe_config.get('min_avg_dollar_vol_3m', 5_000_000)
 
+        # MARKET-SPECIFIC FILTER ADJUSTMENTS
+        # Emerging markets have lower market caps and trading volumes
+        # Adjust filters to get adequate coverage in these markets
+        emerging_market_adjustments = {
+            # Asia Emerging
+            'VN': {'mcap_factor': 0.1, 'vol_factor': 0.2},   # Vietnam - very small market
+            'PH': {'mcap_factor': 0.2, 'vol_factor': 0.3},   # Philippines
+            'BD': {'mcap_factor': 0.15, 'vol_factor': 0.25}, # Bangladesh
+            'TH': {'mcap_factor': 0.3, 'vol_factor': 0.4},   # Thailand
+            'MY': {'mcap_factor': 0.3, 'vol_factor': 0.4},   # Malaysia
+            'ID': {'mcap_factor': 0.25, 'vol_factor': 0.35}, # Indonesia
+
+            # Latin America
+            'MX': {'mcap_factor': 0.4, 'vol_factor': 0.5},   # Mexico
+            'BR': {'mcap_factor': 0.4, 'vol_factor': 0.5},   # Brazil
+            'CL': {'mcap_factor': 0.25, 'vol_factor': 0.35}, # Chile
+            'AR': {'mcap_factor': 0.2, 'vol_factor': 0.3},   # Argentina
+            'CO': {'mcap_factor': 0.2, 'vol_factor': 0.3},   # Colombia
+
+            # Eastern Europe
+            'PL': {'mcap_factor': 0.3, 'vol_factor': 0.4},   # Poland
+            'CZ': {'mcap_factor': 0.25, 'vol_factor': 0.35}, # Czech Republic
+            'HU': {'mcap_factor': 0.2, 'vol_factor': 0.3},   # Hungary
+            'RU': {'mcap_factor': 0.3, 'vol_factor': 0.4},   # Russia
+
+            # Middle East & Africa
+            'ZA': {'mcap_factor': 0.35, 'vol_factor': 0.45}, # South Africa
+            'EG': {'mcap_factor': 0.2, 'vol_factor': 0.3},   # Egypt
+            'TR': {'mcap_factor': 0.35, 'vol_factor': 0.45}, # Turkey
+        }
+
+        # Apply adjustments if screening emerging markets
+        if countries and len(countries) > 0:
+            # Check if any selected country is an emerging market
+            for country in countries:
+                if country in emerging_market_adjustments:
+                    adjustment = emerging_market_adjustments[country]
+                    adjusted_mcap = int(min_mcap * adjustment['mcap_factor'])
+                    adjusted_vol = int(min_vol * adjustment['vol_factor'])
+                    logger.info(f"🌏 Emerging market detected: {country}")
+                    logger.info(f"   Adjusting filters for better coverage:")
+                    logger.info(f"   Market Cap: ${min_mcap:,.0f} → ${adjusted_mcap:,.0f} ({adjustment['mcap_factor']:.0%})")
+                    logger.info(f"   Volume: ${min_vol:,.0f} → ${adjusted_vol:,.0f} ({adjustment['vol_factor']:.0%})")
+                    min_mcap = adjusted_mcap
+                    min_vol = adjusted_vol
+                    break  # Only adjust once if multiple countries selected
+
         logger.info(f"Filters: min_mcap=${min_mcap:,.0f}, min_vol=${min_vol:,.0f}")
         logger.info(f"Countries: {countries}, Exchanges: {exchanges or 'All'}")
 
@@ -217,20 +264,50 @@ class ScreenerPipeline:
             if has_country_filter:
                 # Specific country/countries selected (e.g., US, UK, JP)
                 logger.info(f"Country filter active: {countries}")
+
+                # Map of countries that work better with exchange codes instead of country codes
+                # Some FMP endpoints don't support country codes well for certain markets
+                country_to_exchange_fallback = {
+                    'VN': ['HOSE'],  # Vietnam - Ho Chi Minh Stock Exchange (symbols use .VN suffix)
+                    'TH': ['SET'],   # Thailand
+                    'PH': ['PSE'],   # Philippines
+                }
+
                 for country in countries:
+                    # Try country code first
                     logger.info(f"Fetching from country: {country}")
                     profiles = self.fmp.get_stock_screener(
                         market_cap_more_than=min_mcap,
                         volume_more_than=min_vol // 1000,  # API expects volume in thousands
-                        country=country,  # Country code (US, CA, UK, IN, etc.)
+                        country=country,  # Country code (US, CA, GB, IN, etc.)
                         limit=10000  # Maximum results
                     )
 
-                    if profiles:
+                    if profiles and len(profiles) > 0:
                         all_profiles.extend(profiles)
                         logger.info(f"✓ Fetched {len(profiles)} profiles from country {country}")
                     else:
-                        logger.warning(f"Country {country} returned empty - trying to continue")
+                        # Country code failed - try exchange codes if available
+                        if country in country_to_exchange_fallback:
+                            logger.warning(f"Country code '{country}' returned empty")
+                            logger.info(f"Trying exchange codes instead: {country_to_exchange_fallback[country]}")
+
+                            for exchange in country_to_exchange_fallback[country]:
+                                logger.info(f"  Fetching from exchange: {exchange}")
+                                exchange_profiles = self.fmp.get_stock_screener(
+                                    market_cap_more_than=min_mcap,
+                                    volume_more_than=min_vol // 1000,
+                                    exchange=exchange,
+                                    limit=10000
+                                )
+
+                                if exchange_profiles:
+                                    all_profiles.extend(exchange_profiles)
+                                    logger.info(f"  ✓ Fetched {len(exchange_profiles)} profiles from {exchange}")
+                                else:
+                                    logger.warning(f"  Exchange {exchange} also returned empty")
+                        else:
+                            logger.warning(f"Country {country} returned empty - no fallback available")
 
             elif has_exchange_filter:
                 # Specific exchange filter (less common, but supported)
@@ -446,7 +523,7 @@ class ScreenerPipeline:
                 'IN': ['RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'BHARTIARTL.NS', 'HINDUNILVR.NS'],
                 'AU': ['BHP.AX', 'CSL.AX', 'CBA.AX', 'WBC.AX', 'NAB.AX', 'ANZ.AX', 'WES.AX', 'RIO.AX'],
                 'BR': ['PETR4.SA', 'VALE3.SA', 'ITUB4.SA', 'BBDC4.SA', 'ABEV3.SA', 'B3SA3.SA'],
-                'VN': ['VNM.HM', 'VCB.HM', 'HPG.HM', 'VIC.HM', 'VHM.HM', 'MSN.HM', 'GAS.HM', 'SAB.HM'],  # Vietnam major stocks
+                'VN': ['VNM.VN', 'VCB.VN', 'HPG.VN', 'VIC.VN', 'VHM.VN', 'MSN.VN', 'GAS.VN', 'SAB.VN', 'KDH.VN'],  # Vietnam (.VN suffix)
             }
 
             for country in countries:
