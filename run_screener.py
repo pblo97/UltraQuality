@@ -4186,11 +4186,14 @@ with tab5:
                         </div>
                         """, unsafe_allow_html=True)
 
+                        # Initialize counters
+                        moat_count = 0
+                        risk_count = 0
+
                         moats = analysis.get('moats', [])
                         if moats:
                             import re
 
-                            moat_count = 0
                             for moat in moats:
                                 # Clean formatting and emojis
                                 moat_clean = moat.strip()
@@ -4280,7 +4283,6 @@ with tab5:
                         if risks:
                             import re
 
-                            risk_count = 0
                             for risk in risks:
                                 # Clean formatting and emojis
                                 risk_clean = risk.strip()
