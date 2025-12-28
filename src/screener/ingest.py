@@ -255,7 +255,7 @@ class FMPClient:
                      Examples: 'TSX', 'LSE', 'NSE', 'HKSE', 'SSE', 'KRX', 'JPX', 'SNT', 'BMV', 'SAO'
                      Also supports: 'NYSE', 'NASDAQ', 'AMEX', 'EURONEXT', 'XETRA'
             country: Country code (NOT RECOMMENDED - FMP API implementation is unreliable)
-                    2-letter ISO codes like 'US', 'CA', 'UK', 'DE', 'IN' - may not work
+                    2-letter ISO codes like 'US', 'CA', 'GB', 'DE', 'IN', 'VN' - may not work
         """
         params = {'limit': limit}
         if market_cap_more_than:
