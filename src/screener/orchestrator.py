@@ -266,7 +266,7 @@ class ScreenerPipeline:
                     'AR',   # Argentina
 
                     # Europe - Western
-                    'UK',   # United Kingdom
+                    'GB',   # United Kingdom (ISO code is GB, not UK)
                     'DE',   # Germany
                     'FR',   # France
                     'CH',   # Switzerland
@@ -378,7 +378,7 @@ class ScreenerPipeline:
                     country_to_exchanges = {
                         'US': ['NYSE', 'NASDAQ', 'AMEX'],
                         'CA': ['TSX', 'TSXV', 'NEO'],
-                        'UK': ['LSE', 'LONDON', 'LON'],
+                        'GB': ['LSE', 'LONDON', 'LON'],  # United Kingdom
                         'IN': ['NSE', 'BSE'],
                         'AU': ['ASX'],
                         'BR': ['SAO', 'BVMF'],
@@ -397,7 +397,12 @@ class ScreenerPipeline:
                         'FI': ['HEL'],
                         'BE': ['BRU'],
                         'AT': ['VIE'],
-                        'PL': ['WSE']
+                        'PL': ['WSE'],
+                        'VN': ['HOSE', 'HNX', 'UPCOM'],  # Vietnam (Ho Chi Minh, Hanoi, Unlisted Public)
+                        'TH': ['SET'],  # Thailand
+                        'MY': ['KLSE'],  # Malaysia
+                        'PH': ['PSE'],  # Philippines
+                        'ID': ['IDX', 'JKT']  # Indonesia
                     }
 
                     # Determine which exchanges to filter by
@@ -436,11 +441,12 @@ class ScreenerPipeline:
 
             # Sample major stocks from various markets (for testing only)
             sample_symbols = {
-                'UK': ['SHEL.L', 'BP.L', 'HSBA.L', 'AZN.L', 'ULVR.L', 'GSK.L', 'RIO.L', 'DGE.L', 'BARC.L', 'VOD.L'],
+                'GB': ['SHEL.L', 'BP.L', 'HSBA.L', 'AZN.L', 'ULVR.L', 'GSK.L', 'RIO.L', 'DGE.L', 'BARC.L', 'VOD.L'],  # UK
                 'CA': ['SHOP.TO', 'CNR.TO', 'TD.TO', 'RY.TO', 'BMO.TO', 'ENB.TO', 'CP.TO', 'SU.TO', 'CNQ.TO', 'TRP.TO'],
                 'IN': ['RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'BHARTIARTL.NS', 'HINDUNILVR.NS'],
                 'AU': ['BHP.AX', 'CSL.AX', 'CBA.AX', 'WBC.AX', 'NAB.AX', 'ANZ.AX', 'WES.AX', 'RIO.AX'],
                 'BR': ['PETR4.SA', 'VALE3.SA', 'ITUB4.SA', 'BBDC4.SA', 'ABEV3.SA', 'B3SA3.SA'],
+                'VN': ['VNM.HM', 'VCB.HM', 'HPG.HM', 'VIC.HM', 'VHM.HM', 'MSN.HM', 'GAS.HM', 'SAB.HM'],  # Vietnam major stocks
             }
 
             for country in countries:
