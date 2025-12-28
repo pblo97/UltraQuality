@@ -191,6 +191,15 @@ class ScreenerPipeline:
         countries = universe_config.get('countries', ['US'])  # Default to US if not specified
         exchanges = universe_config.get('exchanges', [])
 
+        # IMPORTANT: Validate and correct country codes
+        # Common mistake: Using 'UK' instead of official ISO code 'GB'
+        if countries and 'UK' in countries:
+            logger.warning("⚠️ Country code 'UK' detected in configuration")
+            logger.warning("   The official ISO 3166-1 alpha-2 code for United Kingdom is 'GB', not 'UK'")
+            logger.warning("   Auto-correcting: 'UK' → 'GB'")
+            countries = ['GB' if c == 'UK' else c for c in countries]
+            logger.info(f"   Corrected countries list: {countries}")
+
         # IMPORTANT: Empty list [] means "All Regions" - fetch from all 54 markets
         # Non-empty list ['US'] means specific country - fetch only from that country
         min_mcap = universe_config.get('min_market_cap', 500_000_000)
@@ -541,22 +550,28 @@ class ScreenerPipeline:
                         logger.error(f"Even sample symbols failed: {sample_error}")
 
         if not all_profiles:
+            # Build helpful error message
+            country_str = ', '.join(countries) if countries else 'ALL'
+
             error_msg = (
-                "❌ No profiles fetched after trying multiple endpoints.\n\n"
-                f"**Attempted endpoints:**\n"
-                f"  1. stock-screener (country={countries})\n"
-                f"  2. profile-bulk (5 parts)\n"
-                f"  3. available-traded/list + profile-bulk\n\n"
+                f"❌ No stocks found for country/countries: {country_str}\n\n"
+                f"**Attempted:**\n"
+                f"  • Country codes: {countries}\n"
+                f"  • Market cap filter: ${min_mcap:,.0f}\n"
+                f"  • Volume filter: ${min_vol:,.0f}/day\n\n"
                 f"**Possible causes:**\n"
-                f"  • Your FMP API plan may not include international data (UK, etc.)\n"
-                f"  • These specific endpoints may be restricted on your plan\n"
-                f"  • The country '{countries}' may not have sufficient data in FMP\n\n"
+                f"  1. Your FMP API plan may not include data for {country_str}\n"
+                f"  2. The filters (market cap/volume) may be too restrictive for this market\n"
+                f"  3. FMP has limited coverage for this market\n\n"
                 f"**Solutions:**\n"
-                f"  1. Try running with 'United States' instead of '{countries}'\n"
-                f"  2. Check your FMP plan at: https://financialmodelingprep.com/developer/docs/pricing\n"
-                f"  3. Upgrade to a plan that includes international data\n"
-                f"  4. Contact FMP support: support@financialmodelingprep.com\n\n"
-                f"💡 **Free and Basic plans typically only include US stocks.**"
+                f"  1. Lower the filters in settings_premium.yaml:\n"
+                f"     - min_market_cap: Try 100_000_000 or 50_000_000\n"
+                f"     - min_avg_dollar_vol_3m: Try 500_000 or 100_000\n"
+                f"  2. Try a different market: ['US'] usually works on all plans\n"
+                f"  3. Check your FMP plan: https://financialmodelingprep.com/developer/docs/pricing\n"
+                f"  4. Contact FMP: support@financialmodelingprep.com\n\n"
+                f"💡 **Note:** Free/Basic plans typically only include US stocks.\n"
+                f"   Premium plans required for international markets."
             )
             raise ValueError(error_msg)
 
