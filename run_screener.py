@@ -10452,6 +10452,26 @@ with tab7:
                         st.session_state['tech_signal_filter'] = ['BUY']
                         st.session_state['min_tech_score'] = 75
 
+                # Second row of presets
+                st.markdown("")
+                preset2_col1, preset2_col2, preset2_col3, preset2_col4, preset2_col5 = st.columns(5)
+
+                with preset2_col1:
+                    if st.button("Buy Opportunities", help="Optimal buy setup: Bull market + Strong technicals + Good fundamentals", key='buy_opp_preset'):
+                        # Technical & Fundamental signals
+                        st.session_state['tech_signal_filter'] = ['BUY']
+                        st.session_state['fund_decision_filter'] = ['BUY', 'MONITOR']
+                        # Stop Loss States (favorable)
+                        st.session_state['sl_state_filter'] = ['BLUE_SKY_ATH', 'POWER_TREND', 'PULLBACK_FLAG']
+                        # Market Context
+                        st.session_state['regime_filter'] = ['BULL']
+                        st.session_state['sector_filter'] = ['LEADING', 'OUTPERFORMER', 'NEUTRAL']
+                        # Technical Components
+                        st.session_state['trend_filter'] = ['UPTREND', 'STRONG_UPTREND']
+                        st.session_state['volume_filter'] = ['ACCUMULATION', 'DISTRIBUTION', 'NEUTRAL']
+                        st.session_state['consistency_filter'] = ['VERY_CONSISTENT', 'CONSISTENT']
+                        st.rerun()
+
                 st.markdown("---")
 
                 # ============================================================
