@@ -264,20 +264,50 @@ class ScreenerPipeline:
             if has_country_filter:
                 # Specific country/countries selected (e.g., US, UK, JP)
                 logger.info(f"Country filter active: {countries}")
+
+                # Map of countries that work better with exchange codes instead of country codes
+                # Some FMP endpoints don't support country codes well for certain markets
+                country_to_exchange_fallback = {
+                    'VN': ['HOSE', 'HNX'],  # Vietnam - use exchange codes directly
+                    'TH': ['SET'],           # Thailand
+                    'PH': ['PSE'],           # Philippines
+                }
+
                 for country in countries:
+                    # Try country code first
                     logger.info(f"Fetching from country: {country}")
                     profiles = self.fmp.get_stock_screener(
                         market_cap_more_than=min_mcap,
                         volume_more_than=min_vol // 1000,  # API expects volume in thousands
-                        country=country,  # Country code (US, CA, UK, IN, etc.)
+                        country=country,  # Country code (US, CA, GB, IN, etc.)
                         limit=10000  # Maximum results
                     )
 
-                    if profiles:
+                    if profiles and len(profiles) > 0:
                         all_profiles.extend(profiles)
                         logger.info(f"✓ Fetched {len(profiles)} profiles from country {country}")
                     else:
-                        logger.warning(f"Country {country} returned empty - trying to continue")
+                        # Country code failed - try exchange codes if available
+                        if country in country_to_exchange_fallback:
+                            logger.warning(f"Country code '{country}' returned empty")
+                            logger.info(f"Trying exchange codes instead: {country_to_exchange_fallback[country]}")
+
+                            for exchange in country_to_exchange_fallback[country]:
+                                logger.info(f"  Fetching from exchange: {exchange}")
+                                exchange_profiles = self.fmp.get_stock_screener(
+                                    market_cap_more_than=min_mcap,
+                                    volume_more_than=min_vol // 1000,
+                                    exchange=exchange,
+                                    limit=10000
+                                )
+
+                                if exchange_profiles:
+                                    all_profiles.extend(exchange_profiles)
+                                    logger.info(f"  ✓ Fetched {len(exchange_profiles)} profiles from {exchange}")
+                                else:
+                                    logger.warning(f"  Exchange {exchange} also returned empty")
+                        else:
+                            logger.warning(f"Country {country} returned empty - no fallback available")
 
             elif has_exchange_filter:
                 # Specific exchange filter (less common, but supported)
