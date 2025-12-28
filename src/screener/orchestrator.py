@@ -268,9 +268,9 @@ class ScreenerPipeline:
                 # Map of countries that work better with exchange codes instead of country codes
                 # Some FMP endpoints don't support country codes well for certain markets
                 country_to_exchange_fallback = {
-                    'VN': ['HOSE', 'HNX'],  # Vietnam - use exchange codes directly
-                    'TH': ['SET'],           # Thailand
-                    'PH': ['PSE'],           # Philippines
+                    'VN': ['HOSE'],  # Vietnam - Ho Chi Minh Stock Exchange (symbols use .VN suffix)
+                    'TH': ['SET'],   # Thailand
+                    'PH': ['PSE'],   # Philippines
                 }
 
                 for country in countries:
@@ -523,7 +523,7 @@ class ScreenerPipeline:
                 'IN': ['RELIANCE.NS', 'TCS.NS', 'INFY.NS', 'HDFCBANK.NS', 'ICICIBANK.NS', 'BHARTIARTL.NS', 'HINDUNILVR.NS'],
                 'AU': ['BHP.AX', 'CSL.AX', 'CBA.AX', 'WBC.AX', 'NAB.AX', 'ANZ.AX', 'WES.AX', 'RIO.AX'],
                 'BR': ['PETR4.SA', 'VALE3.SA', 'ITUB4.SA', 'BBDC4.SA', 'ABEV3.SA', 'B3SA3.SA'],
-                'VN': ['VNM.HM', 'VCB.HM', 'HPG.HM', 'VIC.HM', 'VHM.HM', 'MSN.HM', 'GAS.HM', 'SAB.HM'],  # Vietnam major stocks
+                'VN': ['VNM.VN', 'VCB.VN', 'HPG.VN', 'VIC.VN', 'VHM.VN', 'MSN.VN', 'GAS.VN', 'SAB.VN', 'KDH.VN'],  # Vietnam (.VN suffix)
             }
 
             for country in countries:
