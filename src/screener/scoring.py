@@ -886,6 +886,24 @@ class ScoringEngine:
                     # Hard stop: FCF/NI < 50% = earnings quality concern
                     return 'AVOID'
 
+            # FIX #6: CRITICAL - Force AVOID if persistent revenue decline
+            # Multi-year revenue decline = structural business deterioration, NOT minor accounting concern
+            # EXCEPTION: Cyclical companies with intact margins (pricing power preserved)
+            revenue_growth_3y = row.get('revenue_growth_3y')
+            if revenue_growth_3y is not None and revenue_growth_3y < -5:
+                # Check if this is cyclical decline (margins stable) or structural decline (margins compressing)
+                margin_trajectory = row.get('margin_trajectory', {})
+                if isinstance(margin_trajectory, dict):
+                    margin_status = margin_trajectory.get('status', 'ROJO')
+                    # If margins are VERDE/AMBAR (stable), it's cyclical → allow
+                    # If margins are ROJO (compressing), it's structural → block
+                    if margin_status == 'ROJO':
+                        # Structural decline: Revenue down + margins compressing = dying business
+                        return 'AVOID'
+                else:
+                    # No margin data available, default to AVOID for safety
+                    return 'AVOID'
+
             # ROJO = Auto AVOID (accounting red flags)
             if self.exclude_reds and status == 'ROJO':
                 return 'AVOID'
