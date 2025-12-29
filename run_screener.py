@@ -3830,6 +3830,125 @@ with tab3:
                 
                 st.plotly_chart(fig, use_container_width=True)
 
+                st.markdown("---")
+
+                # Composite Score Tiers (Only viable candidates >60)
+                st.subheader("Quality Tiers - Viable Candidates (Composite Score > 60)")
+
+                # Filter only viable candidates (score > 60)
+                viable = df[df['composite_0_100'] > 60].copy()
+
+                if len(viable) >= 3:  # Need at least 3 stocks to create tiers
+                    # Calculate percentiles on the viable subset
+                    p33 = viable['composite_0_100'].quantile(0.33)
+                    p67 = viable['composite_0_100'].quantile(0.67)
+
+                    # Assign tier based on percentiles
+                    def assign_tier(score):
+                        if score >= p67:
+                            return 'Top Tier (Elite)'
+                        elif score >= p33:
+                            return 'Mid Tier (Good)'
+                        else:
+                            return 'Lower Tier (Marginal)'
+
+                    viable['tier'] = viable['composite_0_100'].apply(assign_tier)
+
+                    # Count by tier
+                    tier_counts = viable['tier'].value_counts()
+
+                    # Create bar chart with color coding
+                    tier_order = ['Top Tier (Elite)', 'Mid Tier (Good)', 'Lower Tier (Marginal)']
+                    tier_colors = ['#10b981', '#f59e0b', '#ef4444']  # Green, Yellow, Red
+
+                    # Ensure all tiers are present (fill with 0 if missing)
+                    tier_data = []
+                    color_data = []
+                    for tier, color in zip(tier_order, tier_colors):
+                        tier_data.append(tier_counts.get(tier, 0))
+                        color_data.append(color)
+
+                    col1, col2 = st.columns([2, 1])
+
+                    with col1:
+                        fig = go.Figure(data=[go.Bar(
+                            x=tier_order,
+                            y=tier_data,
+                            marker_color=color_data,
+                            text=tier_data,
+                            textposition='outside',
+                            texttemplate='<b>%{text}</b>'
+                        )])
+
+                        fig.update_layout(
+                            title=f"Quality Distribution (n={len(viable)} stocks with score >60)",
+                            xaxis_title="Tier",
+                            yaxis_title="Number of Stocks",
+                            height=400,
+                            showlegend=False
+                        )
+
+                        st.plotly_chart(fig, use_container_width=True)
+
+                    with col2:
+                        st.markdown("**Tier Definitions:**")
+                        st.markdown(f"""
+                        - **Top Tier (Elite):** Score ≥ {p67:.1f} (top 33%)
+                        - **Mid Tier (Good):** Score {p33:.1f} - {p67:.1f} (middle 33%)
+                        - **Lower Tier (Marginal):** Score 60 - {p33:.1f} (bottom 33%)
+                        """)
+
+                        st.markdown("---")
+
+                        st.markdown("**Interpretation:**")
+                        st.caption("""
+                        This analysis focuses on **viable candidates only** (score >60).
+                        Green = Best opportunities within viable set.
+                        Yellow = Solid companies worth monitoring.
+                        Red = Borderline candidates, need deeper review.
+                        """)
+
+                        # Show average scores by tier
+                        tier_avg = viable.groupby('tier')['composite_0_100'].mean().round(1)
+                        st.markdown("**Average Scores:**")
+                        for tier in tier_order:
+                            if tier in tier_avg.index:
+                                st.caption(f"{tier}: {tier_avg[tier]:.1f}")
+
+                    # Optional: Show top stocks in each tier
+                    st.markdown("---")
+                    st.markdown("**Top Stocks by Tier:**")
+
+                    col1, col2, col3 = st.columns(3)
+
+                    with col1:
+                        st.markdown("**🟢 Top Tier**")
+                        top_tier = viable[viable['tier'] == 'Top Tier (Elite)'].nlargest(5, 'composite_0_100')[['ticker', 'composite_0_100', 'decision']]
+                        if len(top_tier) > 0:
+                            st.dataframe(top_tier, use_container_width=True, hide_index=True)
+                        else:
+                            st.caption("No stocks in this tier")
+
+                    with col2:
+                        st.markdown("**🟡 Mid Tier**")
+                        mid_tier = viable[viable['tier'] == 'Mid Tier (Good)'].nlargest(5, 'composite_0_100')[['ticker', 'composite_0_100', 'decision']]
+                        if len(mid_tier) > 0:
+                            st.dataframe(mid_tier, use_container_width=True, hide_index=True)
+                        else:
+                            st.caption("No stocks in this tier")
+
+                    with col3:
+                        st.markdown("**🔴 Lower Tier**")
+                        lower_tier = viable[viable['tier'] == 'Lower Tier (Marginal)'].nlargest(5, 'composite_0_100')[['ticker', 'composite_0_100', 'decision']]
+                        if len(lower_tier) > 0:
+                            st.dataframe(lower_tier, use_container_width=True, hide_index=True)
+                        else:
+                            st.caption("No stocks in this tier")
+
+                else:
+                    st.info(f" Only {len(viable)} stocks with composite score > 60. Need at least 3 for tier analysis.")
+                    st.caption("Try lowering filters or expanding the universe to get more viable candidates.")
+
             except Exception as e:
                 st.error(f"Error generating analytics: {str(e)}")
                 st.info(" Try running the screener again with different parameters.")
