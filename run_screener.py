@@ -5471,6 +5471,10 @@ with tab5:
                             pb_upper = pb_bands.get('pb_upper_band')
                             pb_interpretation = pb_bands.get('interpretation', 'No data')
 
+                            # Format values for display
+                            pb_current_str = f"{pb_current:.2f}" if pb_current else "N/A"
+                            pb_avg_str = f"{pb_avg:.2f}" if pb_avg else "N/A"
+
                             # Color based on signal
                             if pb_signal == 'SELL':
                                 signal_color = '#ef4444'
@@ -5491,7 +5495,7 @@ with tab5:
                                                  letter-spacing: 0.5px;'>{pb_signal}</span>
                                 </div>
                                 <div style='font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;'>
-                                    Current: <strong>{pb_current:.2f if pb_current else 'N/A'}</strong> | Avg: <strong>{pb_avg:.2f if pb_avg else 'N/A'}</strong>
+                                    Current: <strong>{pb_current_str}</strong> | Avg: <strong>{pb_avg_str}</strong>
                                 </div>
                                 <div style='font-size: 0.8rem; color: #64748b; line-height: 1.4;'>
                                     {pb_interpretation}
@@ -5508,6 +5512,10 @@ with tab5:
                             dio_current = dio_analysis.get('dio_current')
                             dio_avg = dio_analysis.get('dio_avg_3y')
                             dio_interpretation = dio_analysis.get('interpretation', 'No data')
+
+                            # Format values for display
+                            dio_current_str = f"{dio_current:.1f}" if dio_current else "N/A"
+                            dio_avg_str = f"{dio_avg:.1f}" if dio_avg else "N/A"
 
                             # Color based on signal
                             if dio_signal == 'DANGER':
@@ -5529,7 +5537,7 @@ with tab5:
                                                  letter-spacing: 0.5px;'>{dio_signal}</span>
                                 </div>
                                 <div style='font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;'>
-                                    Current: <strong>{dio_current:.1f if dio_current else 'N/A'}</strong> days | 3Y Avg: <strong>{dio_avg:.1f if dio_avg else 'N/A'}</strong> days
+                                    Current: <strong>{dio_current_str}</strong> days | 3Y Avg: <strong>{dio_avg_str}</strong> days
                                 </div>
                                 <div style='font-size: 0.8rem; color: #64748b; line-height: 1.4;'>
                                     {dio_interpretation}
@@ -5544,6 +5552,10 @@ with tab5:
                             margin_current = margin_analysis.get('margin_current')
                             margin_avg = margin_analysis.get('margin_avg_5y')
                             margin_interpretation = margin_analysis.get('interpretation', 'No data')
+
+                            # Format values for display
+                            margin_current_str = f"{margin_current:.1f}" if margin_current else "N/A"
+                            margin_avg_str = f"{margin_avg:.1f}" if margin_avg else "N/A"
 
                             # Color based on signal
                             if margin_signal == 'DANGER':
@@ -5565,7 +5577,7 @@ with tab5:
                                                  letter-spacing: 0.5px;'>{margin_signal}</span>
                                 </div>
                                 <div style='font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;'>
-                                    Current: <strong>{margin_current:.1f if margin_current else 'N/A'}%</strong> | 5Y Avg: <strong>{margin_avg:.1f if margin_avg else 'N/A'}%</strong>
+                                    Current: <strong>{margin_current_str}%</strong> | 5Y Avg: <strong>{margin_avg_str}%</strong>
                                 </div>
                                 <div style='font-size: 0.8rem; color: #64748b; line-height: 1.4;'>
                                     {margin_interpretation}
