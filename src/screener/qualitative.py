@@ -2240,6 +2240,7 @@ class QualitativeAnalyzer:
 
             # EPS volatility check (need historical income statements)
             eps_volatile = False
+            eps_volatility_count = 0
             try:
                 income = self.fmp.get_income_statement(symbol, period='annual', limit=10)
                 if income and len(income) >= 3:
@@ -2258,6 +2259,7 @@ class QualitativeAnalyzer:
                                 if change_pct < -20:  # More than 20% drop
                                     drops_count += 1
 
+                        eps_volatility_count = drops_count
                         eps_volatile = drops_count >= 2
             except:
                 pass
@@ -2284,21 +2286,21 @@ class QualitativeAnalyzer:
                     if pe_ratio:
                         if pe_ratio < 8:
                             timing_tools['pe_paradox'] = {
-                                'pe': pe_ratio,
+                                'pe_ratio': pe_ratio,
                                 'signal': 'DANGER',
-                                'message': f'P/E is very low ({pe_ratio:.1f}x). For cyclicals, this often signals PEAK earnings. Consider selling.'
+                                'interpretation': f'P/E is very low ({pe_ratio:.1f}x). For cyclicals, this often signals PEAK earnings. Consider selling.'
                             }
                         elif pe_ratio > 25:
                             timing_tools['pe_paradox'] = {
-                                'pe': pe_ratio,
+                                'pe_ratio': pe_ratio,
                                 'signal': 'OPPORTUNITY',
-                                'message': f'P/E is high ({pe_ratio:.1f}x). For cyclicals, this may signal TROUGH earnings. Consider buying.'
+                                'interpretation': f'P/E is high ({pe_ratio:.1f}x). For cyclicals, this may signal TROUGH earnings. Consider buying.'
                             }
                         else:
                             timing_tools['pe_paradox'] = {
-                                'pe': pe_ratio,
+                                'pe_ratio': pe_ratio,
                                 'signal': 'NEUTRAL',
-                                'message': f'P/E is moderate ({pe_ratio:.1f}x). No clear cycle signal.'
+                                'interpretation': f'P/E is moderate ({pe_ratio:.1f}x). No clear cycle signal.'
                             }
             except:
                 pass
@@ -2329,13 +2331,13 @@ class QualitativeAnalyzer:
                             message = f'P/B ({pb_current:.2f}) within normal range vs 5Y avg ({pb_avg:.2f}).'
 
                         timing_tools['pb_bands'] = {
-                            'current': pb_current,
-                            'avg_5y': pb_avg,
-                            'std_dev': pb_std,
-                            'lower_band': lower_band,
-                            'upper_band': upper_band,
+                            'pb_current': pb_current,
+                            'pb_avg': pb_avg,
+                            'pb_std_dev': pb_std,
+                            'pb_lower_band': lower_band,
+                            'pb_upper_band': upper_band,
                             'signal': signal,
-                            'message': message
+                            'interpretation': message
                         }
             except:
                 pass
@@ -2364,11 +2366,11 @@ class QualitativeAnalyzer:
                             signal = 'NEUTRAL'
                             message = f'DIO ({dio_current:.0f} days) vs 3Y avg ({dio_avg_3y:.0f} days). Normal range.'
 
-                        timing_tools['inventory'] = {
-                            'current_dio': dio_current,
-                            'avg_3y': dio_avg_3y,
+                        timing_tools['inventory_dio'] = {
+                            'dio_current': dio_current,
+                            'dio_avg_3y': dio_avg_3y,
                             'signal': signal,
-                            'message': message
+                            'interpretation': message
                         }
             except:
                 pass
@@ -2402,11 +2404,11 @@ class QualitativeAnalyzer:
                             message = f'Operating margin ({margin_current:.1f}%) near historical avg ({margin_avg:.1f}%).'
 
                         timing_tools['operating_margin'] = {
-                            'current': margin_current,
-                            'avg_historical': margin_avg,
-                            'max': margin_max,
+                            'margin_current': margin_current,
+                            'margin_avg_5y': margin_avg,
+                            'margin_max': margin_max,
                             'signal': signal,
-                            'message': message
+                            'interpretation': message
                         }
             except:
                 pass
@@ -2416,7 +2418,10 @@ class QualitativeAnalyzer:
                 'sector': sector,
                 'industry': industry,
                 'beta': beta,
-                'eps_volatile': eps_volatile,
+                'sector_match': is_cyclical_sector,
+                'high_beta': high_beta,
+                'eps_volatility': eps_volatile,
+                'eps_volatility_count': eps_volatility_count,
                 'timing_tools': timing_tools
             }
 
