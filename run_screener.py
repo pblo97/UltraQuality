@@ -4219,8 +4219,8 @@ with tab5:
                                     moat_desc = match.group(2).strip()
                                     moat_evidence = match.group(3).strip() if match.group(3) else "Unknown"
 
-                                    # Skip if "Not evident" or metadata
-                                    if "not evident" in moat_evidence.lower():
+                                    # Skip if "Not evident" in description OR evidence
+                                    if "not evident" in moat_desc.lower() or "not evident" in moat_evidence.lower():
                                         continue
 
                                     # Skip if it's actually metadata disguised as moat
