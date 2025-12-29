@@ -5556,44 +5556,54 @@ with tab5:
                             eps_growth = company_vals.get('eps_growth_%', None)
 
                         if peg_ratio and peg_ratio > 0:
-                            # Calculate PEG-based Intrinsic Value
-                            # Formula: Fair Value = Current Price × (Fair PEG / Current PEG)
-                            # Fair PEG = 1.0 (conservative) or 1.5 (growth premium)
-                            fair_peg_conservative = 1.0
-                            fair_peg_growth = 1.5
+                            # PEG-based valuation ONLY makes sense for growth companies (growth >= 5%)
+                            # For low/no growth companies, PEG is meaningless
+                            # Example: Growth 0.4% → Fair PEG 1.0 would imply PE of 0.4x (absurd)
 
-                            peg_intrinsic_conservative = current_price * (fair_peg_conservative / peg_ratio) if current_price > 0 else None
-                            peg_intrinsic_growth = current_price * (fair_peg_growth / peg_ratio) if current_price > 0 else None
+                            if eps_growth and eps_growth >= 5:
+                                # Calculate PEG-based Intrinsic Value for GROWTH companies
+                                # Formula: Fair Value = Current Price × (Fair PEG / Current PEG)
+                                # Fair PEG = 1.0 (conservative) or 1.5 (growth premium)
+                                fair_peg_conservative = 1.0
+                                fair_peg_growth = 1.5
 
-                            # Color-coded PEG display
-                            if peg_ratio < 1.0:
-                                peg_color = ""
-                                peg_label = "Excelente"
-                            elif peg_ratio < 1.5:
-                                peg_color = ""
-                                peg_label = "Bueno (GARP)"
-                            elif peg_ratio < 2.0:
-                                peg_color = ""
-                                peg_label = "Aceptable"
+                                peg_intrinsic_conservative = current_price * (fair_peg_conservative / peg_ratio) if current_price > 0 else None
+                                peg_intrinsic_growth = current_price * (fair_peg_growth / peg_ratio) if current_price > 0 else None
+
+                                # Color-coded PEG display
+                                if peg_ratio < 1.0:
+                                    peg_color = ""
+                                    peg_label = "Excelente"
+                                elif peg_ratio < 1.5:
+                                    peg_color = ""
+                                    peg_label = "Bueno (GARP)"
+                                elif peg_ratio < 2.0:
+                                    peg_color = ""
+                                    peg_label = "Aceptable"
+                                else:
+                                    peg_color = ""
+                                    peg_label = "Caro para Growth"
+
+                                col_peg1, col_peg2, col_peg3 = st.columns([1, 2, 2])
+                                with col_peg1:
+                                    # Show Intrinsic Value as main metric, PEG in caption
+                                    if peg_intrinsic_conservative:
+                                        upside_conservative = ((peg_intrinsic_conservative - current_price) / current_price) * 100
+                                        st.metric("Valor PEG", f"${peg_intrinsic_conservative:.2f}", delta=f"{upside_conservative:+.1f}%")
+                                        st.caption(f"PEG: {peg_ratio:.2f} | EPS Growth: {eps_growth:.1f}%")
+                                with col_peg2:
+                                    st.markdown(f"### {peg_color} **{peg_label}**")
+                                    st.caption(f"*Fair PEG = 1.0 (conservador)*")
+                                with col_peg3:
+                                    if peg_intrinsic_growth:
+                                        upside_growth = ((peg_intrinsic_growth - current_price) / current_price) * 100
+                                        st.caption(f"**Growth PEG 1.5:** ${peg_intrinsic_growth:.2f} ({upside_growth:+.1f}%)")
+                                    st.caption("*Premium para empresas de alto crecimiento*")
                             else:
-                                peg_color = ""
-                                peg_label = "Caro para Growth"
-
-                            col_peg1, col_peg2, col_peg3 = st.columns([1, 2, 2])
-                            with col_peg1:
-                                # Show Intrinsic Value as main metric, PEG in caption
-                                if peg_intrinsic_conservative:
-                                    upside_conservative = ((peg_intrinsic_conservative - current_price) / current_price) * 100
-                                    st.metric("Valor PEG", f"${peg_intrinsic_conservative:.2f}", delta=f"{upside_conservative:+.1f}%")
-                                    st.caption(f"PEG: {peg_ratio:.2f} | EPS Growth: {eps_growth:.1f}%" if eps_growth else f"PEG: {peg_ratio:.2f}")
-                            with col_peg2:
-                                st.markdown(f"### {peg_color} **{peg_label}**")
-                                st.caption(f"*Fair PEG = 1.0 (conservador)*")
-                            with col_peg3:
-                                if peg_intrinsic_growth:
-                                    upside_growth = ((peg_intrinsic_growth - current_price) / current_price) * 100
-                                    st.caption(f"**Growth PEG 1.5:** ${peg_intrinsic_growth:.2f} ({upside_growth:+.1f}%)")
-                                st.caption("*Premium para empresas de alto crecimiento*")
+                                # Low/No growth company → PEG valuation not applicable
+                                st.warning(f" **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (< 5% threshold)")
+                                st.caption("PEG-based valuation only works for growth companies. For mature/declining companies, use DCF or P/E multiples.")
+                                st.caption(f"Current PEG: **{peg_ratio:.2f}** (High PEG with low growth = overvalued)")
                         else:
                             st.info(" **PEG Ratio:** N/A (Data not available)")
 
@@ -8521,44 +8531,54 @@ with tab6:
                 eps_growth = company_vals.get('eps_growth_%', None)
 
             if peg_ratio and peg_ratio > 0:
-                # Calculate PEG-based Intrinsic Value
-                # Formula: Fair Value = Current Price × (Fair PEG / Current PEG)
-                # Fair PEG = 1.0 (conservative) or 1.5 (growth premium)
-                fair_peg_conservative = 1.0
-                fair_peg_growth = 1.5
+                # PEG-based valuation ONLY makes sense for growth companies (growth >= 5%)
+                # For low/no growth companies, PEG is meaningless
+                # Example: Growth 0.4% → Fair PEG 1.0 would imply PE of 0.4x (absurd)
 
-                peg_intrinsic_conservative = current_price * (fair_peg_conservative / peg_ratio) if current_price > 0 else None
-                peg_intrinsic_growth = current_price * (fair_peg_growth / peg_ratio) if current_price > 0 else None
+                if eps_growth and eps_growth >= 5:
+                    # Calculate PEG-based Intrinsic Value for GROWTH companies
+                    # Formula: Fair Value = Current Price × (Fair PEG / Current PEG)
+                    # Fair PEG = 1.0 (conservative) or 1.5 (growth premium)
+                    fair_peg_conservative = 1.0
+                    fair_peg_growth = 1.5
 
-                # Color-coded PEG display
-                if peg_ratio < 1.0:
-                    peg_color = ""
-                    peg_label = "Excelente"
-                elif peg_ratio < 1.5:
-                    peg_color = ""
-                    peg_label = "Bueno (GARP)"
-                elif peg_ratio < 2.0:
-                    peg_color = ""
-                    peg_label = "Aceptable"
+                    peg_intrinsic_conservative = current_price * (fair_peg_conservative / peg_ratio) if current_price > 0 else None
+                    peg_intrinsic_growth = current_price * (fair_peg_growth / peg_ratio) if current_price > 0 else None
+
+                    # Color-coded PEG display
+                    if peg_ratio < 1.0:
+                        peg_color = ""
+                        peg_label = "Excelente"
+                    elif peg_ratio < 1.5:
+                        peg_color = ""
+                        peg_label = "Bueno (GARP)"
+                    elif peg_ratio < 2.0:
+                        peg_color = ""
+                        peg_label = "Aceptable"
+                    else:
+                        peg_color = ""
+                        peg_label = "Caro para Growth"
+
+                    col_peg1, col_peg2, col_peg3 = st.columns([1, 2, 2])
+                    with col_peg1:
+                        # Show Intrinsic Value as main metric, PEG in caption
+                        if peg_intrinsic_conservative:
+                            upside_conservative = ((peg_intrinsic_conservative - current_price) / current_price) * 100
+                            st.metric("Valor PEG", f"${peg_intrinsic_conservative:.2f}", delta=f"{upside_conservative:+.1f}%")
+                            st.caption(f"PEG: {peg_ratio:.2f} | EPS Growth: {eps_growth:.1f}%")
+                    with col_peg2:
+                        st.markdown(f"### {peg_color} **{peg_label}**")
+                        st.caption(f"*Fair PEG = 1.0 (conservador)*")
+                    with col_peg3:
+                        if peg_intrinsic_growth:
+                            upside_growth = ((peg_intrinsic_growth - current_price) / current_price) * 100
+                            st.caption(f"**Growth PEG 1.5:** ${peg_intrinsic_growth:.2f} ({upside_growth:+.1f}%)")
+                        st.caption("*Premium para empresas de alto crecimiento*")
                 else:
-                    peg_color = ""
-                    peg_label = "Caro para Growth"
-
-                col_peg1, col_peg2, col_peg3 = st.columns([1, 2, 2])
-                with col_peg1:
-                    # Show Intrinsic Value as main metric, PEG in caption
-                    if peg_intrinsic_conservative:
-                        upside_conservative = ((peg_intrinsic_conservative - current_price) / current_price) * 100
-                        st.metric("Valor PEG", f"${peg_intrinsic_conservative:.2f}", delta=f"{upside_conservative:+.1f}%")
-                        st.caption(f"PEG: {peg_ratio:.2f} | EPS Growth: {eps_growth:.1f}%" if eps_growth else f"PEG: {peg_ratio:.2f}")
-                with col_peg2:
-                    st.markdown(f"### {peg_color} **{peg_label}**")
-                    st.caption(f"*Fair PEG = 1.0 (conservador)*")
-                with col_peg3:
-                    if peg_intrinsic_growth:
-                        upside_growth = ((peg_intrinsic_growth - current_price) / current_price) * 100
-                        st.caption(f"**Growth PEG 1.5:** ${peg_intrinsic_growth:.2f} ({upside_growth:+.1f}%)")
-                    st.caption("*Premium para empresas de alto crecimiento*")
+                    # Low/No growth company → PEG valuation not applicable
+                    st.warning(f" **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (< 5% threshold)")
+                    st.caption("PEG-based valuation only works for growth companies. For mature/declining companies, use DCF or P/E multiples.")
+                    st.caption(f"Current PEG: **{peg_ratio:.2f}** (High PEG with low growth = overvalued)")
             else:
                 st.info(" **PEG Ratio:** N/A (Data not available)")
 
