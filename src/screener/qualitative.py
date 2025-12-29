@@ -178,6 +178,14 @@ class QualitativeAnalyzer:
             else:
                 logger.info(f"No analyst consensus data for {symbol}")
 
+            # 15. Cyclical Asset Analysis (Timing indicators for cyclicals)
+            logger.info(f"Analyzing cyclical asset characteristics for {symbol}")
+            summary['cyclical_analysis'] = self._analyze_cyclical_asset(symbol)
+            if summary['cyclical_analysis'] and summary['cyclical_analysis'].get('is_cyclical'):
+                logger.info(f"CYCLICAL ASSET detected: {symbol}")
+            else:
+                logger.info(f"Not classified as cyclical: {symbol}")
+
         except Exception as e:
             logger.error(f"Error in qualitative analysis for {symbol}: {e}")
             summary['error'] = str(e)
@@ -2180,6 +2188,241 @@ class QualitativeAnalyzer:
 
         # Limit to top 3
         return risks[:3]
+
+    # ===================================
+    # Cyclical Asset Analysis
+    # ===================================
+
+    def _analyze_cyclical_asset(self, symbol: str) -> Optional[Dict]:
+        """
+        Detect if asset is cyclical and provide timing indicators.
+
+        Cyclical Detection Criteria:
+        1. Sector: Basic Materials, Energy, Industrials, Consumer Discretionary, Tech Hardware
+        2. Beta > 1.3
+        3. EPS Volatility: >20% drop in 2+ of last 10 years
+
+        Timing Tools (if cyclical):
+        1. P/E Paradox: Warn about inversión (low P/E at peak, high P/E at trough)
+        2. P/B Bands: Compare current P/B vs 5Y average +/- 1 std dev
+        3. Inventory (DIO): Rising inventory = warning signal
+        4. Operating Margin: Check if at historical peaks (mean reversion risk)
+        """
+        try:
+            # Get profile data
+            profile = self.fmp.get_profile(symbol)
+            if not profile or len(profile) == 0:
+                return None
+
+            prof = profile[0]
+            sector = prof.get('sector', '')
+            industry = prof.get('industry', '')
+            beta = prof.get('beta', 0)
+
+            # === STEP 1: DETECT IF CYCLICAL ===
+
+            cyclical_sectors = [
+                'Basic Materials', 'Energy', 'Industrials',
+                'Consumer Cyclical', 'Consumer Discretionary',
+                'Technology'  # Only hardware/semiconductors
+            ]
+
+            # Sector check
+            is_cyclical_sector = sector in cyclical_sectors
+
+            # Tech hardware/semiconductors check
+            if sector == 'Technology':
+                cyclical_tech_keywords = ['semiconductor', 'hardware', 'chip', 'equipment']
+                is_cyclical_sector = any(kw in industry.lower() for kw in cyclical_tech_keywords)
+
+            # Beta check
+            high_beta = beta > 1.3 if beta else False
+
+            # EPS volatility check (need historical income statements)
+            eps_volatile = False
+            try:
+                income = self.fmp.get_income_statement(symbol, period='annual', limit=10)
+                if income and len(income) >= 3:
+                    eps_values = []
+                    for stmt in income:
+                        eps = stmt.get('eps', None) or stmt.get('epsdiluted', None)
+                        if eps is not None:
+                            eps_values.append(eps)
+
+                    # Check for 20%+ drops
+                    if len(eps_values) >= 3:
+                        drops_count = 0
+                        for i in range(len(eps_values) - 1):
+                            if eps_values[i] != 0 and eps_values[i+1] != 0:
+                                change_pct = ((eps_values[i] - eps_values[i+1]) / abs(eps_values[i+1])) * 100
+                                if change_pct < -20:  # More than 20% drop
+                                    drops_count += 1
+
+                        eps_volatile = drops_count >= 2
+            except:
+                pass
+
+            # Classify as cyclical if meets criteria
+            is_cyclical = is_cyclical_sector and (high_beta or eps_volatile)
+
+            if not is_cyclical:
+                return {
+                    'is_cyclical': False,
+                    'sector': sector,
+                    'beta': beta
+                }
+
+            # === STEP 2: TIMING TOOLS (for cyclical assets) ===
+
+            timing_tools = {}
+
+            # Tool 1: P/E Paradox Warning
+            try:
+                key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
+                if key_metrics and len(key_metrics) > 0:
+                    pe_ratio = key_metrics[0].get('peRatio', None)
+                    if pe_ratio:
+                        if pe_ratio < 8:
+                            timing_tools['pe_paradox'] = {
+                                'pe': pe_ratio,
+                                'signal': 'DANGER',
+                                'message': f'P/E is very low ({pe_ratio:.1f}x). For cyclicals, this often signals PEAK earnings. Consider selling.'
+                            }
+                        elif pe_ratio > 25:
+                            timing_tools['pe_paradox'] = {
+                                'pe': pe_ratio,
+                                'signal': 'OPPORTUNITY',
+                                'message': f'P/E is high ({pe_ratio:.1f}x). For cyclicals, this may signal TROUGH earnings. Consider buying.'
+                            }
+                        else:
+                            timing_tools['pe_paradox'] = {
+                                'pe': pe_ratio,
+                                'signal': 'NEUTRAL',
+                                'message': f'P/E is moderate ({pe_ratio:.1f}x). No clear cycle signal.'
+                            }
+            except:
+                pass
+
+            # Tool 2: P/B Bands (Centauro)
+            try:
+                key_metrics_hist = self.fmp.get_key_metrics(symbol, period='annual', limit=5)
+                if key_metrics_hist and len(key_metrics_hist) >= 3:
+                    pb_values = [m.get('pbRatio', None) for m in key_metrics_hist if m.get('pbRatio')]
+
+                    if len(pb_values) >= 3:
+                        import statistics
+                        pb_avg = statistics.mean(pb_values)
+                        pb_std = statistics.stdev(pb_values) if len(pb_values) > 1 else 0
+                        pb_current = pb_values[0]  # Most recent
+
+                        lower_band = pb_avg - pb_std
+                        upper_band = pb_avg + pb_std
+
+                        if pb_current < lower_band:
+                            signal = 'BUY'
+                            message = f'P/B ({pb_current:.2f}) below 5Y average ({pb_avg:.2f}) - 1 std dev. Possible BOTTOM.'
+                        elif pb_current > upper_band:
+                            signal = 'SELL'
+                            message = f'P/B ({pb_current:.2f}) above 5Y average ({pb_avg:.2f}) + 1 std dev. Possible PEAK.'
+                        else:
+                            signal = 'HOLD'
+                            message = f'P/B ({pb_current:.2f}) within normal range vs 5Y avg ({pb_avg:.2f}).'
+
+                        timing_tools['pb_bands'] = {
+                            'current': pb_current,
+                            'avg_5y': pb_avg,
+                            'std_dev': pb_std,
+                            'lower_band': lower_band,
+                            'upper_band': upper_band,
+                            'signal': signal,
+                            'message': message
+                        }
+            except:
+                pass
+
+            # Tool 3: Inventory Warning (DIO)
+            try:
+                ratios = self.fmp.get_financial_ratios(symbol, period='annual', limit=4)
+                if ratios and len(ratios) >= 2:
+                    dio_values = []
+                    for r in ratios:
+                        dio = r.get('daysOfInventoryOutstanding', None)
+                        if dio is not None:
+                            dio_values.append(dio)
+
+                    if len(dio_values) >= 2:
+                        dio_current = dio_values[0]
+                        dio_avg_3y = sum(dio_values[1:]) / len(dio_values[1:])
+
+                        if dio_current > dio_avg_3y * 1.2:  # 20% above average
+                            signal = 'DANGER'
+                            message = f'Inventory buildup detected! DIO ({dio_current:.0f} days) is {((dio_current/dio_avg_3y - 1) * 100):.0f}% above 3Y avg. Cycle may be turning down.'
+                        elif dio_current < dio_avg_3y * 0.85 and dio_avg_3y > dio_current:  # Declining after peak
+                            signal = 'RECOVERY'
+                            message = f'Destocking complete. DIO ({dio_current:.0f} days) down from 3Y avg ({dio_avg_3y:.0f}). Recovery signal.'
+                        else:
+                            signal = 'NEUTRAL'
+                            message = f'DIO ({dio_current:.0f} days) vs 3Y avg ({dio_avg_3y:.0f} days). Normal range.'
+
+                        timing_tools['inventory'] = {
+                            'current_dio': dio_current,
+                            'avg_3y': dio_avg_3y,
+                            'signal': signal,
+                            'message': message
+                        }
+            except:
+                pass
+
+            # Tool 4: Operating Margin Mean Reversion
+            try:
+                income_hist = self.fmp.get_income_statement(symbol, period='annual', limit=5)
+                if income_hist and len(income_hist) >= 3:
+                    margins = []
+                    for stmt in income_hist:
+                        revenue = stmt.get('revenue', 0)
+                        op_income = stmt.get('operatingIncome', 0)
+                        if revenue and revenue != 0:
+                            margin = (op_income / revenue) * 100
+                            margins.append(margin)
+
+                    if len(margins) >= 3:
+                        import statistics
+                        margin_current = margins[0]
+                        margin_avg = statistics.mean(margins[1:])
+                        margin_max = max(margins)
+
+                        if margin_current >= margin_avg * 1.3:  # 30% above average
+                            signal = 'DANGER'
+                            message = f'Operating margin ({margin_current:.1f}%) is {((margin_current/margin_avg - 1) * 100):.0f}% above avg ({margin_avg:.1f}%). Peak margins = mean reversion risk.'
+                        elif margin_current <= margin_avg * 0.7:  # 30% below average
+                            signal = 'OPPORTUNITY'
+                            message = f'Operating margin ({margin_current:.1f}%) depressed vs avg ({margin_avg:.1f}%). Room for recovery.'
+                        else:
+                            signal = 'NEUTRAL'
+                            message = f'Operating margin ({margin_current:.1f}%) near historical avg ({margin_avg:.1f}%).'
+
+                        timing_tools['operating_margin'] = {
+                            'current': margin_current,
+                            'avg_historical': margin_avg,
+                            'max': margin_max,
+                            'signal': signal,
+                            'message': message
+                        }
+            except:
+                pass
+
+            return {
+                'is_cyclical': True,
+                'sector': sector,
+                'industry': industry,
+                'beta': beta,
+                'eps_volatile': eps_volatile,
+                'timing_tools': timing_tools
+            }
+
+        except Exception as e:
+            logger.error(f"Error in cyclical analysis for {symbol}: {e}")
+            return None
 
     # ===================================
     # Formatting Functions (UI Compatibility)
