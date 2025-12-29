@@ -5239,6 +5239,250 @@ with tab5:
                     else:
                         st.info("No hay datos de consenso de analistas para este símbolo. Puede tener poca cobertura de Wall Street o datos no disponibles en FMP.")
 
+                    st.markdown("---")
+
+                    # ============================================================
+                    # SECTION 9: CYCLICAL ASSET ANALYSIS
+                    # ============================================================
+                    cyclical_analysis = analysis.get('cyclical_analysis')
+                    if cyclical_analysis and cyclical_analysis.get('is_cyclical'):
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                                    padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem;'>
+                            <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                <span style='background: rgba(255,255,255,0.2); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                    SECTION 9
+                                </span>
+                                <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                    Cyclical Asset Analysis
+                                </h3>
+                            </div>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
+                                Special timing tools for cyclical stocks
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # CYCLICAL ASSET BADGE
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+                                    padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem;
+                                    border-left: 4px solid #f59e0b; box-shadow: 0 2px 4px rgba(0,0,0,0.08);'>
+                            <div style='font-weight: 700; color: #92400e; font-size: 1.1rem; margin-bottom: 0.75rem; letter-spacing: 0.5px;'>
+                                CYCLICAL ASSET DETECTED
+                            </div>
+                            <div style='font-size: 0.9rem; color: #78350f; line-height: 1.6;'>
+                                This stock exhibits cyclical characteristics. Traditional valuation metrics (P/E, P/B) may be misleading.
+                                Use the timing tools below to assess cycle position.
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # DETECTION CRITERIA
+                        st.markdown("**How We Detected This as Cyclical:**")
+
+                        detection_reasons = []
+                        if cyclical_analysis.get('sector_match'):
+                            sector = cyclical_analysis.get('sector', 'Unknown')
+                            detection_reasons.append(f"Sector: **{sector}** (cyclical industry)")
+
+                        if cyclical_analysis.get('high_beta'):
+                            beta = cyclical_analysis.get('beta', 0)
+                            detection_reasons.append(f"Beta: **{beta:.2f}** (>1.3 threshold)")
+
+                        if cyclical_analysis.get('eps_volatility'):
+                            eps_volatility_count = cyclical_analysis.get('eps_volatility_count', 0)
+                            detection_reasons.append(f"EPS Volatility: **{eps_volatility_count} years** with >20% decline in last 10 years")
+
+                        for reason in detection_reasons:
+                            st.markdown(f"- {reason}")
+
+                        st.markdown("<br>", unsafe_allow_html=True)
+
+                        # TIMING TOOLS
+                        st.markdown("**Timing Tools (Cycle Position Indicators):**")
+
+                        timing_tools = cyclical_analysis.get('timing_tools', {})
+
+                        # Create 2x2 grid for the 4 tools
+                        col1, col2 = st.columns(2)
+
+                        # TOOL 1: P/E PARADOX
+                        with col1:
+                            pe_paradox = timing_tools.get('pe_paradox', {})
+                            pe_signal = pe_paradox.get('signal', 'NEUTRAL')
+                            pe_value = pe_paradox.get('pe_ratio')
+                            pe_interpretation = pe_paradox.get('interpretation', 'No data')
+
+                            # Color based on signal
+                            if pe_signal == 'DANGER':
+                                signal_color = '#ef4444'
+                                signal_bg = '#fee2e2'
+                            elif pe_signal == 'OPPORTUNITY':
+                                signal_color = '#10b981'
+                                signal_bg = '#d1fae5'
+                            else:
+                                signal_color = '#6b7280'
+                                signal_bg = '#f3f4f6'
+
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1.25rem; border-radius: 10px; border: 2px solid {signal_color}; margin-bottom: 1rem;'>
+                                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;'>
+                                    <div style='font-weight: 700; color: #0f172a; font-size: 0.95rem;'>P/E PARADOX</div>
+                                    <span style='background: {signal_bg}; color: {signal_color}; padding: 0.25rem 0.65rem;
+                                                 border-radius: 4px; font-size: 0.7rem; font-weight: 700;
+                                                 letter-spacing: 0.5px;'>{pe_signal}</span>
+                                </div>
+                                <div style='font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;'>
+                                    Current P/E: <strong>{pe_value if pe_value else 'N/A'}</strong>
+                                </div>
+                                <div style='font-size: 0.8rem; color: #64748b; line-height: 1.4;'>
+                                    {pe_interpretation}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        # TOOL 2: P/B BANDS
+                        with col2:
+                            pb_bands = timing_tools.get('pb_bands', {})
+                            pb_signal = pb_bands.get('signal', 'NEUTRAL')
+                            pb_current = pb_bands.get('pb_current')
+                            pb_avg = pb_bands.get('pb_avg')
+                            pb_lower = pb_bands.get('pb_lower_band')
+                            pb_upper = pb_bands.get('pb_upper_band')
+                            pb_interpretation = pb_bands.get('interpretation', 'No data')
+
+                            # Color based on signal
+                            if pb_signal == 'SELL':
+                                signal_color = '#ef4444'
+                                signal_bg = '#fee2e2'
+                            elif pb_signal == 'BUY':
+                                signal_color = '#10b981'
+                                signal_bg = '#d1fae5'
+                            else:
+                                signal_color = '#6b7280'
+                                signal_bg = '#f3f4f6'
+
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1.25rem; border-radius: 10px; border: 2px solid {signal_color}; margin-bottom: 1rem;'>
+                                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;'>
+                                    <div style='font-weight: 700; color: #0f172a; font-size: 0.95rem;'>P/B BANDS (Centauro)</div>
+                                    <span style='background: {signal_bg}; color: {signal_color}; padding: 0.25rem 0.65rem;
+                                                 border-radius: 4px; font-size: 0.7rem; font-weight: 700;
+                                                 letter-spacing: 0.5px;'>{pb_signal}</span>
+                                </div>
+                                <div style='font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;'>
+                                    Current: <strong>{pb_current:.2f if pb_current else 'N/A'}</strong> | Avg: <strong>{pb_avg:.2f if pb_avg else 'N/A'}</strong>
+                                </div>
+                                <div style='font-size: 0.8rem; color: #64748b; line-height: 1.4;'>
+                                    {pb_interpretation}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        col3, col4 = st.columns(2)
+
+                        # TOOL 3: INVENTORY (DIO)
+                        with col3:
+                            dio_analysis = timing_tools.get('inventory_dio', {})
+                            dio_signal = dio_analysis.get('signal', 'NEUTRAL')
+                            dio_current = dio_analysis.get('dio_current')
+                            dio_avg = dio_analysis.get('dio_avg_3y')
+                            dio_interpretation = dio_analysis.get('interpretation', 'No data')
+
+                            # Color based on signal
+                            if dio_signal == 'DANGER':
+                                signal_color = '#ef4444'
+                                signal_bg = '#fee2e2'
+                            elif dio_signal == 'RECOVERY':
+                                signal_color = '#10b981'
+                                signal_bg = '#d1fae5'
+                            else:
+                                signal_color = '#6b7280'
+                                signal_bg = '#f3f4f6'
+
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1.25rem; border-radius: 10px; border: 2px solid {signal_color}; margin-bottom: 1rem;'>
+                                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;'>
+                                    <div style='font-weight: 700; color: #0f172a; font-size: 0.95rem;'>INVENTORY (DIO)</div>
+                                    <span style='background: {signal_bg}; color: {signal_color}; padding: 0.25rem 0.65rem;
+                                                 border-radius: 4px; font-size: 0.7rem; font-weight: 700;
+                                                 letter-spacing: 0.5px;'>{dio_signal}</span>
+                                </div>
+                                <div style='font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;'>
+                                    Current: <strong>{dio_current:.1f if dio_current else 'N/A'}</strong> days | 3Y Avg: <strong>{dio_avg:.1f if dio_avg else 'N/A'}</strong> days
+                                </div>
+                                <div style='font-size: 0.8rem; color: #64748b; line-height: 1.4;'>
+                                    {dio_interpretation}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        # TOOL 4: OPERATING MARGIN
+                        with col4:
+                            margin_analysis = timing_tools.get('operating_margin', {})
+                            margin_signal = margin_analysis.get('signal', 'NEUTRAL')
+                            margin_current = margin_analysis.get('margin_current')
+                            margin_avg = margin_analysis.get('margin_avg_5y')
+                            margin_interpretation = margin_analysis.get('interpretation', 'No data')
+
+                            # Color based on signal
+                            if margin_signal == 'DANGER':
+                                signal_color = '#ef4444'
+                                signal_bg = '#fee2e2'
+                            elif margin_signal == 'OPPORTUNITY':
+                                signal_color = '#10b981'
+                                signal_bg = '#d1fae5'
+                            else:
+                                signal_color = '#6b7280'
+                                signal_bg = '#f3f4f6'
+
+                            st.markdown(f"""
+                            <div style='background: white; padding: 1.25rem; border-radius: 10px; border: 2px solid {signal_color}; margin-bottom: 1rem;'>
+                                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;'>
+                                    <div style='font-weight: 700; color: #0f172a; font-size: 0.95rem;'>OPERATING MARGIN</div>
+                                    <span style='background: {signal_bg}; color: {signal_color}; padding: 0.25rem 0.65rem;
+                                                 border-radius: 4px; font-size: 0.7rem; font-weight: 700;
+                                                 letter-spacing: 0.5px;'>{margin_signal}</span>
+                                </div>
+                                <div style='font-size: 0.85rem; color: #475569; margin-bottom: 0.5rem;'>
+                                    Current: <strong>{margin_current:.1f if margin_current else 'N/A'}%</strong> | 5Y Avg: <strong>{margin_avg:.1f if margin_avg else 'N/A'}%</strong>
+                                </div>
+                                <div style='font-size: 0.8rem; color: #64748b; line-height: 1.4;'>
+                                    {margin_interpretation}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        # OVERALL CYCLE ASSESSMENT
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        st.markdown("**Overall Cycle Assessment:**")
+
+                        # Count signals
+                        danger_count = sum(1 for tool in timing_tools.values() if tool.get('signal') == 'DANGER')
+                        opportunity_count = sum(1 for tool in timing_tools.values() if tool.get('signal') in ['OPPORTUNITY', 'BUY', 'RECOVERY'])
+
+                        if danger_count >= 2:
+                            assessment_color = '#fef3c7'
+                            assessment_border = '#f59e0b'
+                            assessment_text = f"**CAUTION:** {danger_count} of 4 indicators suggest this stock may be at or near peak cycle. Traditional 'low P/E = bargain' logic may not apply. Consider waiting for cycle downturn."
+                        elif opportunity_count >= 2:
+                            assessment_color = '#d1fae5'
+                            assessment_border = '#10b981'
+                            assessment_text = f"**OPPORTUNITY:** {opportunity_count} of 4 indicators suggest this stock may be in trough or recovery phase. High P/E or depressed margins may actually signal future upside potential."
+                        else:
+                            assessment_color = '#f3f4f6'
+                            assessment_border = '#6b7280'
+                            assessment_text = "**MID-CYCLE:** Mixed signals. Stock appears to be in transition between cycle phases. Monitor closely for clearer directional signals."
+
+                        st.markdown(f"""
+                        <div style='background: {assessment_color}; padding: 1.25rem; border-radius: 10px; border-left: 4px solid {assessment_border}; margin-bottom: 1rem;'>
+                            <div style='font-size: 0.9rem; color: #0f172a; line-height: 1.6;'>
+                                {assessment_text}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
                         st.markdown("---")
 
                     # ============================================================
