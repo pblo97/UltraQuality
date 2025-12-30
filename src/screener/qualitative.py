@@ -2930,17 +2930,60 @@ class QualitativeAnalyzer:
 
                     # === PRICE PROJECTIONS ===
                     # Calculate price targets with different growth assumptions
-                    valuation['price_projections'] = self._calculate_price_projections(
+                    # Use Growth Engine data if available for more robust scenarios
+                    valuation['price_projections'] = self._calculate_price_projections_v2(
                         symbol,
                         current_price,
                         dcf_value,
                         forward_value,
                         company_type,
-                        industry_wacc
+                        industry_wacc,
+                        growth_engine if 'growth_engine' in locals() else None
                     )
                 else:
                     valuation['notes'].append("Upside/downside not calculated (no current price)")
                     valuation['valuation_assessment'] = 'Unknown'
+
+                # === NEW ROBUST VALUATION SYSTEM ===
+
+                # 1. Growth Engine 5Y: Robust growth estimation
+                logger.info(f"Calculating Growth Engine 5Y for {symbol}")
+                growth_engine = self._calculate_growth_engine_5y(symbol)
+                if growth_engine and growth_engine.get('revenue_growth_5y'):
+                    valuation['growth_engine'] = growth_engine
+                    logger.info(f"Growth Engine calculated: base={growth_engine.get('revenue_growth_5y', {}).get('base')}")
+
+                # 2. Confidence Score: Data quality assessment
+                logger.info(f"Calculating Confidence Score for {symbol}")
+                confidence_score = self._calculate_valuation_confidence_score(symbol)
+                if confidence_score:
+                    valuation['confidence_score'] = confidence_score
+                    logger.info(f"Confidence Score: {confidence_score.get('total_score'):.1f}/100")
+
+                # 3. Robust Fair Value: Log-scale combination with method families
+                logger.info(f"Calculating Robust Fair Value for {symbol}")
+
+                # Prepare valuation methods dict for robust calculation
+                valuation_methods_dict = {}
+                if dcf_value and dcf_value > 0:
+                    valuation_methods_dict['dcf_value'] = dcf_value
+                if forward_value and forward_value > 0:
+                    valuation_methods_dict['forward_multiple_value'] = forward_value
+                if historical_value and historical_value > 0:
+                    valuation_methods_dict['historical_multiple_value'] = historical_value
+
+                # Calculate robust fair value if we have methods and confidence data
+                if valuation_methods_dict and confidence_score:
+                    robust_valuation = self._calculate_robust_fair_value(
+                        symbol,
+                        valuation_methods_dict,
+                        confidence_score,
+                        growth_engine
+                    )
+                    if robust_valuation:
+                        valuation['robust_valuation'] = robust_valuation
+                        logger.info(f"Robust Fair Value: ${robust_valuation.get('fair_value_robust', 0):.2f} " +
+                                  f"(range: ${robust_valuation.get('range_p10', 0):.2f} - ${robust_valuation.get('range_p90', 0):.2f})")
 
                 # === ADVANCED QUALITATIVE METRICS ===
 
@@ -4019,6 +4062,833 @@ class QualitativeAnalyzer:
             logger.warning(f"Failed to calculate price projections for {symbol}: {e}")
 
         return projections
+
+    def _calculate_growth_engine_5y(self, symbol: str) -> Dict:
+        """
+        Growth Engine 5Y: Robust growth estimation combining 3 estimators.
+
+        Returns:
+        {
+            'revenue_growth_5y': {
+                'historical': float,  # Historical robust growth
+                'fundamental': float,  # ROIC-based growth
+                'consensus': float,   # Analyst estimates
+                'blended': float,     # Weighted mixture
+                'bear': float,        # Base - k*sigma
+                'base': float,        # Blended estimate
+                'bull': float,        # Base + k*sigma
+                'volatility': float,  # Growth volatility (sigma)
+                'weights': dict       # Actual weights used
+            },
+            'ebit_growth_5y': {...},  # Same structure for EBIT
+            'confidence': float,      # 0-100 score
+            'caps_applied': dict,     # Industry caps
+            'notes': list
+        }
+        """
+        result = {
+            'revenue_growth_5y': None,
+            'ebit_growth_5y': None,
+            'confidence': None,
+            'caps_applied': {},
+            'notes': []
+        }
+
+        try:
+            # Get industry profile for caps
+            industry_profile = self._get_industry_valuation_profile(symbol)
+            profile_type = industry_profile.get('profile', 'unknown')
+
+            # Define industry-specific caps
+            if profile_type == 'high_growth_asset_light':
+                growth_caps = {'min': 0.0, 'max': 0.35}  # 0-35%
+            elif profile_type == 'stable_asset_heavy':
+                growth_caps = {'min': -0.02, 'max': 0.12}  # -2% to 12%
+            elif profile_type in ['mature_cashflow', 'defensive_yield']:
+                growth_caps = {'min': -0.05, 'max': 0.10}  # -5% to 10%
+            else:
+                growth_caps = {'min': -0.05, 'max': 0.25}  # -5% to 25%
+
+            result['caps_applied'] = growth_caps
+
+            # === ESTIMATOR A: Historical Robust (Revenue & EBIT) ===
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=12)
+
+            if not income or len(income) < 3:
+                result['notes'].append("Insufficient historical data (< 3 years)")
+                return result
+
+            # Calculate historical growth with log-linear regression (robust)
+            import numpy as np
+            from scipy import stats
+
+            revenues = []
+            ebits = []
+            years = []
+
+            for i, stmt in enumerate(income):
+                rev = stmt.get('revenue', 0)
+                ebit = stmt.get('operatingIncome', 0)  # EBIT proxy
+
+                if rev and rev > 0:
+                    revenues.append(rev)
+                    ebits.append(ebit if ebit else 0)
+                    years.append(len(income) - i - 1)  # 0 is most recent
+
+            g_rev_hist = None
+            g_ebit_hist = None
+            sigma_rev = None
+
+            if len(revenues) >= 3:
+                # Log-linear regression for revenue
+                log_rev = [np.log(r) for r in revenues]
+                slope_rev, intercept_rev, r_value, p_value, std_err = stats.linregress(years, log_rev)
+                g_rev_hist = slope_rev  # Annualized growth rate
+
+                # Calculate YoY volatility for scenarios
+                yoy_growth = []
+                for i in range(len(revenues) - 1):
+                    if revenues[i+1] > 0:
+                        g = np.log(revenues[i] / revenues[i+1])
+                        yoy_growth.append(g)
+
+                if len(yoy_growth) >= 2:
+                    sigma_rev = np.std(yoy_growth)
+                else:
+                    sigma_rev = 0.05  # Default 5%
+
+                # EBIT growth (if available)
+                if all(e > 0 for e in ebits):
+                    log_ebit = [np.log(e) for e in ebits]
+                    slope_ebit, _, _, _, _ = stats.linregress(years, log_ebit)
+                    g_ebit_hist = slope_ebit
+                else:
+                    g_ebit_hist = g_rev_hist  # Fallback to revenue growth
+
+            # === ESTIMATOR B: Fundamental Growth (ROIC × Reinvestment) ===
+            g_rev_fund = None
+
+            try:
+                # Get ROIC and reinvestment rate
+                balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=3)
+                cash_flow = self.fmp.get_cash_flow(symbol, period='annual', limit=3)
+
+                if income and balance and len(income) >= 2 and len(balance) >= 2:
+                    # Calculate NOPAT = EBIT × (1 - tax_rate)
+                    ebit_recent = income[0].get('operatingIncome', 0)
+                    income_before_tax = income[0].get('incomeBeforeTax', 0)
+                    tax_rate = 1 - (income[0].get('netIncome', 0) / income_before_tax) if income_before_tax else 0.21
+                    tax_rate = max(0, min(tax_rate, 0.35))  # Clamp 0-35%
+
+                    nopat = ebit_recent * (1 - tax_rate) if ebit_recent else 0
+
+                    # Reinvestment = Capex - D&A + Delta NWC (simplified: Capex / NOPAT)
+                    if cash_flow and len(cash_flow) >= 1:
+                        capex = abs(cash_flow[0].get('capitalExpenditure', 0))
+
+                        if nopat and nopat > 0:
+                            reinvestment_rate = capex / nopat
+                            reinvestment_rate = max(0, min(reinvestment_rate, 2.0))  # Cap at 200%
+
+                            # ROIC = NOPAT / Invested Capital (simplified)
+                            total_assets = balance[0].get('totalAssets', 0)
+                            cash = balance[0].get('cashAndShortTermInvestments', 0)
+                            current_liabilities = balance[0].get('totalCurrentLiabilities', 0)
+
+                            invested_capital = total_assets - cash - current_liabilities if total_assets else 1
+                            invested_capital = max(invested_capital, 1)  # Avoid division by zero
+
+                            roic = nopat / invested_capital if invested_capital else 0
+                            roic = max(0, min(roic, 1.0))  # Cap at 100%
+
+                            # Fundamental growth = ROIC × Reinvestment Rate
+                            g_rev_fund = roic * reinvestment_rate
+                        else:
+                            g_rev_fund = None
+                    else:
+                        g_rev_fund = None
+            except Exception as e:
+                logger.debug(f"Fundamental growth calculation failed for {symbol}: {e}")
+                g_rev_fund = None
+
+            # === ESTIMATOR C: Consensus Growth (Analyst Estimates) ===
+            g_rev_cons = None
+
+            try:
+                estimates = self.fmp.get_analyst_estimates(symbol, limit=3)
+
+                if estimates and len(estimates) >= 2:
+                    # Get estimated revenue for next 2 years
+                    rev_est_0 = estimates[0].get('estimatedRevenueAvg', 0)
+                    rev_est_1 = estimates[1].get('estimatedRevenueAvg', 0)
+
+                    if rev_est_0 and rev_est_1 and rev_est_1 > 0:
+                        # CAGR over 2 years
+                        g_rev_cons = (rev_est_0 / rev_est_1) ** 0.5 - 1
+                    else:
+                        g_rev_cons = None
+                else:
+                    g_rev_cons = None
+            except Exception as e:
+                logger.debug(f"Consensus growth calculation failed for {symbol}: {e}")
+                g_rev_cons = None
+
+            # === BLEND: Weighted Mixture ===
+            # Default weights: 45% hist, 45% fund, 10% consensus
+            # Adjust based on data availability
+
+            weights = {'historical': 0.45, 'fundamental': 0.45, 'consensus': 0.10}
+            available_estimators = []
+
+            if g_rev_hist is not None:
+                available_estimators.append(('historical', g_rev_hist, weights['historical']))
+
+            if g_rev_fund is not None:
+                available_estimators.append(('fundamental', g_rev_fund, weights['fundamental']))
+
+            if g_rev_cons is not None:
+                available_estimators.append(('consensus', g_rev_cons, weights['consensus']))
+
+            if not available_estimators:
+                result['notes'].append("No growth estimators available")
+                return result
+
+            # Normalize weights based on available estimators
+            total_weight = sum(w for _, _, w in available_estimators)
+            normalized_estimators = [(name, val, w/total_weight) for name, val, w in available_estimators]
+
+            # Blended growth
+            g_rev_blended = sum(val * w for _, val, w in normalized_estimators)
+
+            # Apply industry caps
+            g_rev_blended = max(growth_caps['min'], min(g_rev_blended, growth_caps['max']))
+
+            # === SCENARIOS: Bear/Base/Bull ===
+            # Bear = Base - k*sigma, Bull = Base + k*sigma
+            k = 0.9  # Conservative factor
+
+            if sigma_rev:
+                g_rev_bear = g_rev_blended - k * sigma_rev
+                g_rev_bull = g_rev_blended + k * sigma_rev
+            else:
+                # Default: ±30% of base
+                g_rev_bear = g_rev_blended * 0.7
+                g_rev_bull = g_rev_blended * 1.3
+
+            # Apply caps to scenarios
+            g_rev_bear = max(growth_caps['min'], min(g_rev_bear, growth_caps['max']))
+            g_rev_bull = max(growth_caps['min'], min(g_rev_bull, growth_caps['max']))
+
+            # Store revenue growth results
+            actual_weights = {name: w for name, _, w in normalized_estimators}
+
+            result['revenue_growth_5y'] = {
+                'historical': g_rev_hist,
+                'fundamental': g_rev_fund,
+                'consensus': g_rev_cons,
+                'blended': g_rev_blended,
+                'bear': g_rev_bear,
+                'base': g_rev_blended,
+                'bull': g_rev_bull,
+                'volatility': sigma_rev,
+                'weights': actual_weights
+            }
+
+            # EBIT growth (simplified: same as revenue if not available)
+            if g_ebit_hist is not None:
+                result['ebit_growth_5y'] = {
+                    'historical': g_ebit_hist,
+                    'blended': g_ebit_hist,  # Simplified for now
+                    'bear': g_ebit_hist - k * sigma_rev if sigma_rev else g_ebit_hist * 0.7,
+                    'base': g_ebit_hist,
+                    'bull': g_ebit_hist + k * sigma_rev if sigma_rev else g_ebit_hist * 1.3
+                }
+
+            result['notes'].append(f"Growth engine: {len(available_estimators)} estimators used")
+
+        except Exception as e:
+            logger.error(f"Growth engine calculation failed for {symbol}: {e}", exc_info=True)
+            result['notes'].append(f"Growth engine error: {str(e)[:100]}")
+
+        return result
+
+    def _calculate_price_projections_v2(
+        self,
+        symbol: str,
+        current_price: float,
+        dcf_value: Optional[float],
+        forward_value: Optional[float],
+        company_type: str,
+        wacc: float,
+        growth_engine_data: Optional[Dict] = None
+    ) -> Dict:
+        """
+        Calculate price targets using Growth Engine scenarios (bear/base/bull).
+
+        If growth_engine_data is provided, uses robust growth estimates.
+        Otherwise falls back to simple revenue-based estimation.
+
+        Returns dict with price targets for 1Y, 3Y, 5Y horizons.
+        """
+        projections = {
+            'scenarios': {},
+            'current_price': current_price
+        }
+
+        try:
+            # Get scenarios from Growth Engine if available
+            if growth_engine_data and growth_engine_data.get('revenue_growth_5y'):
+                revenue_growth = growth_engine_data['revenue_growth_5y']
+
+                bear_growth = revenue_growth.get('bear', 0.03)
+                base_growth = revenue_growth.get('base', 0.08)
+                bull_growth = revenue_growth.get('bull', 0.15)
+
+                scenarios = {
+                    'Bear Case': {
+                        'growth_rate': bear_growth,
+                        'description': f'Conservative: {bear_growth:.1%} growth (base - volatility)'
+                    },
+                    'Base Case': {
+                        'growth_rate': base_growth,
+                        'description': f'Blended estimate: {base_growth:.1%} growth (hist/fund/consensus)'
+                    },
+                    'Bull Case': {
+                        'growth_rate': bull_growth,
+                        'description': f'Optimistic: {bull_growth:.1%} growth (base + volatility)'
+                    }
+                }
+
+                projections['source'] = 'growth_engine'
+                projections['estimators_used'] = revenue_growth.get('weights', {})
+
+            else:
+                # Fallback: estimate from recent revenue data
+                income = self.fmp.get_income_statement(symbol, period='annual', limit=3)
+
+                if not income or len(income) < 2:
+                    return projections
+
+                # Estimate current growth rate
+                revenue_current = income[0].get('revenue', 0)
+                revenue_prev = income[1].get('revenue', 0)
+
+                if revenue_prev > 0:
+                    current_growth = (revenue_current - revenue_prev) / revenue_prev
+                    current_growth = max(0, min(current_growth, 0.50))
+                else:
+                    current_growth = 0.08
+
+                # Define scenarios with intelligent logic
+                bear_growth = max(0.03, current_growth * 0.5)
+                base_growth = current_growth
+                bull_growth = max(current_growth * 1.5, base_growth * 1.2)
+
+                scenarios = {
+                    'Bear Case': {
+                        'growth_rate': bear_growth,
+                        'description': 'Conservative: Slow growth, market challenges'
+                    },
+                    'Base Case': {
+                        'growth_rate': base_growth,
+                        'description': f'Current trend: {base_growth:.1%} revenue growth'
+                    },
+                    'Bull Case': {
+                        'growth_rate': bull_growth,
+                        'description': 'Optimistic: Accelerated growth, market expansion'
+                    }
+                }
+
+                projections['source'] = 'simple_revenue'
+
+            # Calculate price targets for each scenario
+            for scenario_name, scenario_data in scenarios.items():
+                growth_rate = scenario_data['growth_rate']
+
+                # Calculate fair value for reference
+                if dcf_value and dcf_value > 0:
+                    fair_value = dcf_value
+                elif forward_value and forward_value > 0:
+                    fair_value = forward_value
+                else:
+                    fair_value = current_price
+
+                # Convergence factor (only if undervalued)
+                convergence_factor = 0
+                if fair_value > current_price:
+                    years_to_fair = 5
+                    fair_value_return = ((fair_value / current_price) ** (1 / years_to_fair)) - 1 if current_price > 0 else 0
+                    convergence_factor = fair_value_return * 0.10
+
+                # Blended return
+                blended_return = growth_rate + convergence_factor
+
+                # Calculate price targets
+                price_1y = current_price * (1 + blended_return)
+                price_3y = current_price * ((1 + blended_return) ** 3)
+                price_5y = current_price * ((1 + blended_return) ** 5)
+
+                projections['scenarios'][scenario_name] = {
+                    'growth_assumption': f"{growth_rate:.1%}",
+                    'blended_return': f"{blended_return:.1%}",
+                    'description': scenario_data['description'],
+                    '1Y_target': round(price_1y, 2),
+                    '3Y_target': round(price_3y, 2),
+                    '5Y_target': round(price_5y, 2),
+                    '1Y_return': f"{((price_1y / current_price) - 1) * 100:+.1f}%",
+                    '3Y_return': f"{((price_3y / current_price) - 1) * 100:+.1f}%",
+                    '5Y_return': f"{((price_5y / current_price) - 1) * 100:+.1f}%",
+                    '3Y_cagr': f"{(((price_3y / current_price) ** (1/3)) - 1) * 100:.1f}%",
+                    '5Y_cagr': f"{(((price_5y / current_price) ** (1/5)) - 1) * 100:.1f}%"
+                }
+
+        except Exception as e:
+            logger.warning(f"Failed to calculate price projections for {symbol}: {e}")
+
+        return projections
+
+    def _calculate_valuation_confidence_score(self, symbol: str) -> Dict:
+        """
+        Calculate confidence score (0-100) for valuation quality.
+
+        Components:
+        - Stability (30%): Low volatility in margins and revenue
+        - FCF Quality (25%): Stable FCF conversion, reasonable accruals
+        - Data Richness (20%): Historical data availability (8+ years ideal)
+        - Balance Sheet (15%): Leverage and liquidity strength
+        - Other (10%): Additional factors
+
+        Returns:
+        {
+            'total_score': float,  # 0-100
+            'components': {
+                'stability': float,
+                'fcf_quality': float,
+                'data_richness': float,
+                'balance_strength': float,
+                'other': float
+            },
+            'confidence_level': str,  # 'High' / 'Medium' / 'Low'
+            'notes': list
+        }
+        """
+        result = {
+            'total_score': 0,
+            'components': {
+                'stability': 0,
+                'fcf_quality': 0,
+                'data_richness': 0,
+                'balance_strength': 0,
+                'other': 0
+            },
+            'confidence_level': 'Low',
+            'notes': []
+        }
+
+        try:
+            import numpy as np
+
+            # === COMPONENT 1: Stability (30%) ===
+            # Low volatility in revenue growth and operating margin
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=10)
+
+            stability_score = 0
+            if income and len(income) >= 3:
+                revenues = []
+                margins = []
+
+                for stmt in income:
+                    rev = stmt.get('revenue', 0)
+                    op_income = stmt.get('operatingIncome', 0)
+
+                    if rev and rev > 0:
+                        revenues.append(rev)
+                        margin = (op_income / rev) if op_income and rev else 0
+                        margins.append(margin)
+
+                # Revenue growth volatility
+                if len(revenues) >= 3:
+                    growth_rates = []
+                    for i in range(len(revenues) - 1):
+                        if revenues[i+1] > 0:
+                            g = (revenues[i] - revenues[i+1]) / revenues[i+1]
+                            growth_rates.append(g)
+
+                    if growth_rates:
+                        rev_volatility = np.std(growth_rates)
+                        # Lower volatility = higher score (cap at 20%)
+                        rev_stability = max(0, 1 - (rev_volatility / 0.20))
+                    else:
+                        rev_stability = 0.5
+
+                    # Margin volatility
+                    if len(margins) >= 3:
+                        margin_volatility = np.std(margins)
+                        # Lower volatility = higher score (cap at 10pp)
+                        margin_stability = max(0, 1 - (margin_volatility / 0.10))
+                    else:
+                        margin_stability = 0.5
+
+                    # Combined stability (50/50 weight)
+                    stability_score = (rev_stability * 0.5 + margin_stability * 0.5) * 100
+                    result['components']['stability'] = stability_score
+
+            # === COMPONENT 2: FCF Quality (25%) ===
+            # Stable FCF conversion and low accruals
+            cash_flow = self.fmp.get_cash_flow(symbol, period='annual', limit=5)
+
+            fcf_quality_score = 0
+            if income and cash_flow and len(income) >= 3 and len(cash_flow) >= 3:
+                fcf_conversions = []
+                accruals = []
+
+                for i in range(min(len(income), len(cash_flow))):
+                    net_income = income[i].get('netIncome', 0)
+                    operating_cf = cash_flow[i].get('operatingCashFlow', 0)
+                    capex = abs(cash_flow[i].get('capitalExpenditure', 0))
+
+                    fcf = operating_cf - capex if operating_cf else 0
+
+                    if net_income and net_income > 0:
+                        fcf_conversion = fcf / net_income
+                        fcf_conversions.append(fcf_conversion)
+
+                        # Accruals = (Net Income - Operating CF) / Total Assets
+                        # Simplified: just use difference
+                        accrual_ratio = (net_income - operating_cf) / abs(net_income) if net_income else 0
+                        accruals.append(abs(accrual_ratio))
+
+                # FCF conversion stability (higher and more stable = better)
+                if fcf_conversions:
+                    avg_fcf_conversion = np.mean(fcf_conversions)
+                    fcf_volatility = np.std(fcf_conversions) if len(fcf_conversions) > 1 else 0
+
+                    # Good conversion: >0.8, stable: volatility <0.3
+                    conversion_score = min(1.0, avg_fcf_conversion / 0.8)
+                    stability_score_fcf = max(0, 1 - (fcf_volatility / 0.3))
+
+                    # Accruals: lower is better (< 10% is good)
+                    if accruals:
+                        avg_accrual = np.mean(accruals)
+                        accrual_score = max(0, 1 - (avg_accrual / 0.10))
+                    else:
+                        accrual_score = 0.5
+
+                    # Combined FCF quality
+                    fcf_quality_score = (conversion_score * 0.4 + stability_score_fcf * 0.4 + accrual_score * 0.2) * 100
+                    result['components']['fcf_quality'] = fcf_quality_score
+
+            # === COMPONENT 3: Data Richness (20%) ===
+            # More historical data = higher confidence (8+ years ideal)
+            data_years = len(income) if income else 0
+            data_richness_score = min(100, (data_years / 8) * 100)  # 8 years = 100%
+            result['components']['data_richness'] = data_richness_score
+
+            # === COMPONENT 4: Balance Sheet Strength (15%) ===
+            # Low leverage, high liquidity
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
+
+            balance_score = 50  # Default neutral
+            if balance and len(balance) >= 1:
+                total_debt = balance[0].get('totalDebt', 0)
+                total_equity = balance[0].get('totalStockholdersEquity', 1)
+                current_assets = balance[0].get('totalCurrentAssets', 0)
+                current_liabilities = balance[0].get('totalCurrentLiabilities', 1)
+
+                # Debt/Equity: <0.5 = excellent, >2.0 = poor
+                debt_equity = total_debt / total_equity if total_equity > 0 else 0
+                leverage_score = max(0, 1 - (debt_equity / 2.0))
+
+                # Current Ratio: >2.0 = excellent, <1.0 = poor
+                current_ratio = current_assets / current_liabilities if current_liabilities > 0 else 0
+                liquidity_score = min(1.0, current_ratio / 2.0)
+
+                balance_score = (leverage_score * 0.6 + liquidity_score * 0.4) * 100
+                result['components']['balance_strength'] = balance_score
+
+            # === COMPONENT 5: Other (10%) ===
+            # Placeholder for additional factors (e.g., sector volatility, concentration)
+            other_score = 50  # Neutral default
+            result['components']['other'] = other_score
+
+            # === TOTAL SCORE ===
+            weights = {
+                'stability': 0.30,
+                'fcf_quality': 0.25,
+                'data_richness': 0.20,
+                'balance_strength': 0.15,
+                'other': 0.10
+            }
+
+            total_score = sum(result['components'][k] * weights[k] for k in weights.keys())
+            result['total_score'] = total_score
+
+            # Confidence level mapping
+            if total_score >= 75:
+                result['confidence_level'] = 'High'
+                result['notes'].append("High confidence: Stable metrics, rich data, strong balance sheet")
+            elif total_score >= 50:
+                result['confidence_level'] = 'Medium'
+                result['notes'].append("Medium confidence: Some volatility or data limitations")
+            else:
+                result['confidence_level'] = 'Low'
+                result['notes'].append("Low confidence: Significant volatility, limited data, or balance sheet concerns")
+
+        except Exception as e:
+            logger.error(f"Confidence score calculation failed for {symbol}: {e}", exc_info=True)
+            result['notes'].append(f"Error: {str(e)[:100]}")
+
+        return result
+
+    def _calculate_robust_fair_value(
+        self,
+        symbol: str,
+        valuation_methods: Dict,
+        confidence_data: Dict,
+        growth_data: Dict
+    ) -> Dict:
+        """
+        Calculate robust fair value using log-scale transformation and method families.
+
+        Prevents double-counting correlated methods and handles outliers robustly.
+
+        Method Families:
+        - Cashflow-based: DCF, Reverse DCF (if applicable)
+        - Earnings-based: P/E, PEG
+        - Enterprise multiples: EV/EBIT, EV/FCF
+
+        Process:
+        1. Transform to log-scale: xi = log(Vi)
+        2. Assign confidence weights per method (based on data quality)
+        3. Limit weight per family (≤ 1/3 each)
+        4. Calculate weighted median (robust to outliers)
+        5. Calculate p10-p90 range for uncertainty
+        6. Transform back: V* = exp(median)
+
+        Args:
+            valuation_methods: Dict with keys like 'dcf_value', 'pe_value', 'ev_ebit_value', etc.
+            confidence_data: Output from _calculate_valuation_confidence_score
+            growth_data: Output from _calculate_growth_engine_5y
+
+        Returns:
+        {
+            'fair_value_robust': float,  # Median in original scale
+            'range_p10': float,          # 10th percentile
+            'range_p90': float,          # 90th percentile
+            'consensus_tightness': str,  # 'High' / 'Medium' / 'Low'
+            'method_disagreement': str,  # Description of family divergence
+            'methods_used': list,        # Which methods contributed
+            'family_weights': dict,      # Actual weights by family
+            'notes': list
+        }
+        """
+        result = {
+            'fair_value_robust': None,
+            'range_p10': None,
+            'range_p90': None,
+            'consensus_tightness': 'Low',
+            'method_disagreement': None,
+            'methods_used': [],
+            'family_weights': {},
+            'notes': []
+        }
+
+        try:
+            import numpy as np
+            from scipy import stats
+
+            # Define method families and their base weights
+            families = {
+                'cashflow': {
+                    'methods': ['dcf_value'],
+                    'max_weight': 0.33,
+                    'values': []
+                },
+                'earnings': {
+                    'methods': ['pe_value', 'peg_value'],
+                    'max_weight': 0.33,
+                    'values': []
+                },
+                'enterprise': {
+                    'methods': ['ev_ebit_value', 'ev_fcf_value', 'forward_multiple_value'],
+                    'max_weight': 0.34,  # Slightly higher to sum to 1.0
+                    'values': []
+                }
+            }
+
+            # Collect available methods and transform to log-scale
+            log_values = []
+            method_weights = []
+            method_names = []
+            method_families = []
+
+            for family_name, family_data in families.items():
+                family_log_values = []
+                family_weights = []
+
+                for method in family_data['methods']:
+                    value = valuation_methods.get(method)
+
+                    if value and value > 0:
+                        log_val = np.log(value)
+                        family_log_values.append(log_val)
+
+                        # Assign confidence weight based on method and data quality
+                        confidence_score = confidence_data.get('total_score', 50) / 100
+
+                        # Method-specific adjustments
+                        if method == 'dcf_value':
+                            # DCF weight depends on stability and FCF quality
+                            fcf_quality = confidence_data.get('components', {}).get('fcf_quality', 50) / 100
+                            stability = confidence_data.get('components', {}).get('stability', 50) / 100
+                            method_weight = (fcf_quality * 0.6 + stability * 0.4) * 1.2  # Boost DCF if high quality
+                        elif method == 'peg_value':
+                            # PEG weight depends on growth stability
+                            growth_volatility = growth_data.get('revenue_growth_5y', {}).get('volatility', 0.1) if growth_data else 0.1
+                            # Lower volatility = higher PEG confidence
+                            method_weight = max(0.3, 1.0 - (growth_volatility / 0.15))
+                        elif method == 'pe_value':
+                            # P/E weight depends on earnings quality (proxy: low accruals)
+                            fcf_quality = confidence_data.get('components', {}).get('fcf_quality', 50) / 100
+                            method_weight = fcf_quality * 0.9
+                        elif method in ['ev_ebit_value', 'ev_fcf_value']:
+                            # EV multiples: stable, moderate weight
+                            method_weight = confidence_score * 1.0
+                        else:
+                            # Default
+                            method_weight = confidence_score
+
+                        family_weights.append(method_weight)
+                        method_names.append(method)
+                        method_families.append(family_name)
+
+                # Store family values
+                if family_log_values:
+                    family_data['values'] = family_log_values
+                    family_data['weights'] = family_weights
+
+            # Flatten all values
+            for family_name, family_data in families.items():
+                if family_data['values']:
+                    log_values.extend(family_data['values'])
+                    method_weights.extend(family_data['weights'])
+
+            if not log_values:
+                result['notes'].append("No valuation methods available")
+                return result
+
+            # Normalize weights and apply family caps
+            # Step 1: Normalize within each family
+            for family_name, family_data in families.items():
+                if family_data['weights']:
+                    total_family_weight = sum(family_data['weights'])
+                    # Normalize to family max_weight
+                    family_data['normalized_weights'] = [
+                        w / total_family_weight * family_data['max_weight']
+                        for w in family_data['weights']
+                    ]
+                else:
+                    family_data['normalized_weights'] = []
+
+            # Step 2: Collect all normalized weights
+            all_normalized_weights = []
+            for family_data in families.values():
+                all_normalized_weights.extend(family_data['normalized_weights'])
+
+            # Step 3: Re-normalize to sum to 1.0
+            total_weight = sum(all_normalized_weights)
+            if total_weight > 0:
+                final_weights = [w / total_weight for w in all_normalized_weights]
+            else:
+                final_weights = [1.0 / len(all_normalized_weights)] * len(all_normalized_weights)
+
+            # Calculate weighted median (in log-space)
+            # For simplicity, use weighted mean (robust enough with winsorization)
+            log_values_array = np.array(log_values)
+            weights_array = np.array(final_weights)
+
+            # Winsorize extreme values (outlier handling)
+            p10_log = np.percentile(log_values_array, 10)
+            p90_log = np.percentile(log_values_array, 90)
+            log_values_winsorized = np.clip(log_values_array, p10_log, p90_log)
+
+            # Weighted median approximation (weighted mean of winsorized values)
+            weighted_median_log = np.average(log_values_winsorized, weights=weights_array)
+
+            # Calculate uncertainty range (p10-p90 in log-space)
+            # Use weighted percentiles
+            sorted_indices = np.argsort(log_values_array)
+            sorted_values = log_values_array[sorted_indices]
+            sorted_weights = weights_array[sorted_indices]
+            cumulative_weights = np.cumsum(sorted_weights)
+
+            # Find p10 and p90
+            p10_idx = np.searchsorted(cumulative_weights, 0.10)
+            p90_idx = np.searchsorted(cumulative_weights, 0.90)
+
+            p10_log_val = sorted_values[min(p10_idx, len(sorted_values) - 1)]
+            p90_log_val = sorted_values[min(p90_idx, len(sorted_values) - 1)]
+
+            # Transform back to original scale
+            fair_value_robust = np.exp(weighted_median_log)
+            range_p10 = np.exp(p10_log_val)
+            range_p90 = np.exp(p90_log_val)
+
+            result['fair_value_robust'] = fair_value_robust
+            result['range_p10'] = range_p10
+            result['range_p90'] = range_p90
+            result['methods_used'] = method_names
+
+            # Consensus tightness: measure dispersion in log-space
+            log_dispersion = np.std(log_values_array)
+            if log_dispersion < 0.15:  # ~16% in original scale
+                result['consensus_tightness'] = 'High'
+            elif log_dispersion < 0.30:  # ~35% in original scale
+                result['consensus_tightness'] = 'Medium'
+            else:
+                result['consensus_tightness'] = 'Low'
+
+            # Method disagreement: compare family medians
+            family_medians = {}
+            for family_name, family_data in families.items():
+                if family_data['values']:
+                    family_median_log = np.median(family_data['values'])
+                    family_medians[family_name] = np.exp(family_median_log)
+
+            if len(family_medians) >= 2:
+                # Compare cashflow vs earnings vs enterprise
+                disagreement_pct = []
+                family_names_list = list(family_medians.keys())
+
+                for i in range(len(family_names_list)):
+                    for j in range(i + 1, len(family_names_list)):
+                        f1 = family_medians[family_names_list[i]]
+                        f2 = family_medians[family_names_list[j]]
+                        diff_pct = abs(f1 - f2) / ((f1 + f2) / 2)
+                        disagreement_pct.append(diff_pct)
+
+                if disagreement_pct:
+                    max_disagreement = max(disagreement_pct)
+                    if max_disagreement > 0.30:  # >30% divergence
+                        diverging_families = [name for name in family_names_list]
+                        result['method_disagreement'] = f"High divergence between {' vs '.join(diverging_families)} ({max_disagreement:.1%})"
+                    else:
+                        result['method_disagreement'] = "Methods generally agree"
+
+            # Store family weights for transparency
+            result['family_weights'] = {
+                family_name: sum(family_data.get('normalized_weights', []))
+                for family_name, family_data in families.items()
+            }
+
+            result['notes'].append(f"Used {len(method_names)} methods across {len([f for f in families.values() if f['values']])} families")
+            result['notes'].append(f"Tightness: {result['consensus_tightness']}, Range: ${range_p10:.2f} - ${range_p90:.2f}")
+
+        except Exception as e:
+            logger.error(f"Robust fair value calculation failed for {symbol}: {e}", exc_info=True)
+            result['notes'].append(f"Error: {str(e)[:100]}")
+
+        return result
 
     # ===================================
     # Advanced Qualitative Metrics

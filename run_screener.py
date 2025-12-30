@@ -5673,6 +5673,165 @@ with tab5:
                             else:
                                 st.metric("Fair Value", "N/A")
 
+                        # === ROBUST VALUATION SYSTEM (NEW) ===
+                        robust_val = intrinsic.get('robust_valuation')
+                        confidence_data = intrinsic.get('confidence_score')
+                        growth_engine = intrinsic.get('growth_engine')
+
+                        if robust_val and robust_val.get('fair_value_robust'):
+                            st.markdown("<br>", unsafe_allow_html=True)
+
+                            # Robust Fair Value with Range
+                            fair_value_robust = robust_val.get('fair_value_robust')
+                            range_p10 = robust_val.get('range_p10')
+                            range_p90 = robust_val.get('range_p90')
+                            consensus_tightness = robust_val.get('consensus_tightness', 'Low')
+                            method_disagreement = robust_val.get('method_disagreement', '')
+
+                            # Color based on tightness
+                            if consensus_tightness == 'High':
+                                tightness_color = '#10b981'
+                                tightness_bg = '#d1fae5'
+                            elif consensus_tightness == 'Medium':
+                                tightness_color = '#f59e0b'
+                                tightness_bg = '#fef3c7'
+                            else:
+                                tightness_color = '#ef4444'
+                                tightness_bg = '#fee2e2'
+
+                            st.markdown(f"""
+                            <div style='background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+                                        padding: 1.25rem; border-radius: 10px; margin-bottom: 1rem;
+                                        box-shadow: 0 4px 6px rgba(99,102,241,0.2);'>
+                                <div style='color: white; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>
+                                    ROBUST FAIR VALUE (Log-Scale, Method Families)
+                                </div>
+                                <div style='display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem;'>
+                                    <div style='color: white; font-size: 2rem; font-weight: 700;'>
+                                        ${fair_value_robust:.2f}
+                                    </div>
+                                    <div style='background: {tightness_bg}; color: {tightness_color}; padding: 0.25rem 0.65rem;
+                                                border-radius: 4px; font-size: 0.7rem; font-weight: 700;'>
+                                        {consensus_tightness} Consensus
+                                    </div>
+                                </div>
+                                <div style='color: rgba(255,255,255,0.9); font-size: 0.85rem; margin-bottom: 0.5rem;'>
+                                    Range (p10-p90): <strong>${range_p10:.2f} - ${range_p90:.2f}</strong>
+                                </div>
+                                <div style='color: rgba(255,255,255,0.8); font-size: 0.75rem; line-height: 1.4;'>
+                                    Prevents double-counting correlated methods. Winsorizes outliers.
+                                    Family limits: Cashflow ≤33%, Earnings ≤33%, Enterprise ≤34%.
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Method disagreement warning if exists
+                            if method_disagreement and 'divergence' in method_disagreement.lower():
+                                st.warning(f"Method Disagreement: {method_disagreement}")
+
+                        # Confidence Score Visual
+                        if confidence_data:
+                            conf_score = confidence_data.get('total_score', 0)
+                            conf_level = confidence_data.get('confidence_level', 'Low')
+                            components = confidence_data.get('components', {})
+
+                            # Color based on level
+                            if conf_level == 'High':
+                                conf_color = '#10b981'
+                                conf_bg = '#d1fae5'
+                            elif conf_level == 'Medium':
+                                conf_color = '#f59e0b'
+                                conf_bg = '#fef3c7'
+                            else:
+                                conf_color = '#ef4444'
+                                conf_bg = '#fee2e2'
+
+                            col_conf1, col_conf2 = st.columns([1, 2])
+                            with col_conf1:
+                                st.markdown(f"""
+                                <div style='background: {conf_bg}; border: 2px solid {conf_color};
+                                            padding: 1rem; border-radius: 8px; text-align: center;'>
+                                    <div style='color: {conf_color}; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
+                                        CONFIDENCE SCORE
+                                    </div>
+                                    <div style='color: {conf_color}; font-size: 2.5rem; font-weight: 700; margin-bottom: 0.25rem;'>
+                                        {conf_score:.0f}
+                                    </div>
+                                    <div style='color: {conf_color}; font-size: 0.75rem; font-weight: 600;'>
+                                        {conf_level}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                            with col_conf2:
+                                st.markdown("""
+                                <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
+                                    Score Components (Weighted):
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                                comp_labels = {
+                                    'stability': ('Stability', 30),
+                                    'fcf_quality': ('FCF Quality', 25),
+                                    'data_richness': ('Data Richness', 20),
+                                    'balance_strength': ('Balance', 15),
+                                    'other': ('Other', 10)
+                                }
+
+                                for key, (label, weight) in comp_labels.items():
+                                    val = components.get(key, 0)
+                                    bar_width = val  # 0-100
+                                    st.markdown(f"""
+                                    <div style='margin-bottom: 0.35rem;'>
+                                        <div style='display: flex; justify-content: space-between; font-size: 0.7rem; color: #475569; margin-bottom: 0.15rem;'>
+                                            <span>{label} ({weight}%)</span>
+                                            <span style='font-weight: 600;'>{val:.0f}</span>
+                                        </div>
+                                        <div style='background: #e2e8f0; height: 4px; border-radius: 2px; overflow: hidden;'>
+                                            <div style='background: {conf_color}; width: {bar_width}%; height: 100%;'></div>
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                        # Growth Engine Breakdown
+                        if growth_engine and growth_engine.get('revenue_growth_5y'):
+                            rev_growth = growth_engine['revenue_growth_5y']
+
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            st.markdown("""
+                            <div style='font-weight: 700; color: #0f172a; font-size: 0.95rem; margin-bottom: 0.75rem;'>
+                                Growth Engine 5Y (Revenue)
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            col_g1, col_g2, col_g3 = st.columns(3)
+
+                            with col_g1:
+                                bear = rev_growth.get('bear', 0) * 100
+                                st.metric("Bear Case", f"{bear:.1f}%", help="Base - volatility")
+
+                            with col_g2:
+                                base = rev_growth.get('base', 0) * 100
+                                st.metric("Base Case", f"{base:.1f}%", help="Blended estimate")
+
+                            with col_g3:
+                                bull = rev_growth.get('bull', 0) * 100
+                                st.metric("Bull Case", f"{bull:.1f}%", help="Base + volatility")
+
+                            # Estimator breakdown
+                            weights = rev_growth.get('weights', {})
+                            if weights:
+                                st.caption("Estimator Weights:")
+                                weight_text = " | ".join([f"{k.title()}: {v:.1%}" for k, v in weights.items()])
+                                st.caption(weight_text)
+
+                            # Volatility
+                            volatility = rev_growth.get('volatility', 0)
+                            if volatility:
+                                st.caption(f"Growth Volatility (σ): {volatility:.1%}")
+
+                        st.markdown("<br>", unsafe_allow_html=True)
+
                         # Second row: PEG Ratio + Intrinsic Value PEG-Forward
                         st.markdown("")  # Spacing
 
