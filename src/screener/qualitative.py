@@ -2991,7 +2991,19 @@ class QualitativeAnalyzer:
                         logger.info(f"Confidence Score: {confidence_score.get('total_score'):.1f}/100")
                 except Exception as e:
                     logger.error(f"Confidence Score calculation failed for {symbol}: {e}", exc_info=True)
-                    confidence_score = None
+                    # Fallback: Use neutral confidence score so robust valuation can still run
+                    confidence_score = {
+                        'total_score': 50,
+                        'confidence_level': 'Medium',
+                        'components': {
+                            'stability': 50,
+                            'fcf_quality': 50,
+                            'data_richness': 50,
+                            'balance_strength': 50,
+                            'other': 50
+                        },
+                        'notes': [f"Confidence calculation failed, using neutral defaults"]
+                    }
 
                 # 3. Additional Valuation Methods (P/E, PEG, EV/EBIT, EV/FCF)
                 # Initialize variables first
@@ -3008,24 +3020,32 @@ class QualitativeAnalyzer:
                     if pe_value and pe_value > 0:
                         valuation['pe_value'] = pe_value
                         logger.info(f"✓ P/E Value: ${pe_value:.2f}")
+                    else:
+                        logger.debug(f"P/E Value not available for {symbol} (peers: {len(peers_list) if peers_list else 0})")
 
                     # PEG based value (Earnings family) - uses growth engine if available
                     peg_value = self._calculate_peg_intrinsic_value(symbol, growth_engine)
                     if peg_value and peg_value > 0:
                         valuation['peg_value'] = peg_value
                         logger.info(f"✓ PEG Value: ${peg_value:.2f}")
+                    else:
+                        logger.debug(f"PEG Value not available for {symbol}")
 
                     # EV/EBIT based value (Enterprise family)
                     ev_ebit_value = self._calculate_ev_ebit_intrinsic_value(symbol, peers_list)
                     if ev_ebit_value and ev_ebit_value > 0:
                         valuation['ev_ebit_value'] = ev_ebit_value
                         logger.info(f"✓ EV/EBIT Value: ${ev_ebit_value:.2f}")
+                    else:
+                        logger.debug(f"EV/EBIT Value not available for {symbol} (peers: {len(peers_list) if peers_list else 0})")
 
                     # EV/FCF based value (Enterprise family)
                     ev_fcf_value = self._calculate_ev_fcf_intrinsic_value(symbol, peers_list)
                     if ev_fcf_value and ev_fcf_value > 0:
                         valuation['ev_fcf_value'] = ev_fcf_value
                         logger.info(f"✓ EV/FCF Value: ${ev_fcf_value:.2f}")
+                    else:
+                        logger.debug(f"EV/FCF Value not available for {symbol} (peers: {len(peers_list) if peers_list else 0})")
 
                 except Exception as e:
                     logger.error(f"Additional valuation methods failed for {symbol}: {e}", exc_info=True)
