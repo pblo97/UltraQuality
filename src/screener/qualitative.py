@@ -3057,14 +3057,7 @@ class QualitativeAnalyzer:
 
                 # 4. Robust Fair Value: Log-scale combination with method families
                 try:
-                    print(f"\n{'='*60}")
-                    print(f"ROBUST FAIR VALUE DEBUG - {symbol}")
-                    print(f"{'='*60}")
-                    logger.info(f"Calculating Robust Fair Value for {symbol}")
-                    logger.info(f"Available variables: dcf_value={dcf_value}, forward_value={forward_value}, historical_value={historical_value}")
-                    logger.info(f"Available variables: pe_value={pe_value}, peg_value={peg_value}, ev_ebit_value={ev_ebit_value}, ev_fcf_value={ev_fcf_value}")
-                    print(f"dcf_value={dcf_value}, forward_value={forward_value}, historical_value={historical_value}")
-                    print(f"pe_value={pe_value}, peg_value={peg_value}, ev_ebit_value={ev_ebit_value}, ev_fcf_value={ev_fcf_value}")
+                    print(f"\n🔵 [{symbol}] dcf={dcf_value}, fwd={forward_value}, hist={historical_value}, pe={pe_value}, peg={peg_value}")
 
                     # Prepare valuation methods dict for robust calculation
                     valuation_methods_dict = {}
@@ -3096,40 +3089,29 @@ class QualitativeAnalyzer:
                         valuation_methods_dict['historical_multiple_value'] = historical_value
                         logger.info(f"✓ Added historical_multiple_value: ${historical_value:.2f}")
 
-                    logger.info(f"Valuation methods available for {symbol}: {list(valuation_methods_dict.keys())}")
-                    print(f"Methods dict: {valuation_methods_dict}")
-                    print(f"Confidence score exists: {confidence_score is not None}")
-                    print(f"Number of methods: {len(valuation_methods_dict)}")
+                    print(f"   Methods: {list(valuation_methods_dict.keys())} | Count: {len(valuation_methods_dict)} | Has conf: {confidence_score is not None}")
 
                     # Calculate robust fair value if we have methods and confidence data
                     # MINIMUM: Need at least 1 method (reduced from 2)
                     # With 1 method, it becomes a confidence-adjusted single estimate
                     # With 2+ methods, it becomes a true robust combination
                     if len(valuation_methods_dict) >= 1 and confidence_score:
-                        print(f"✓ CONDITION MET - Calling _calculate_robust_fair_value")
-                        logger.info(f"Calculating robust fair value with {len(valuation_methods_dict)} method(s)")
+                        print(f"   ✓ Calling _calculate_robust_fair_value...")
                         robust_valuation = self._calculate_robust_fair_value(
                             symbol,
                             valuation_methods_dict,
                             confidence_score,
                             growth_engine
                         )
-                        print(f"robust_valuation returned: {robust_valuation}")
                         if robust_valuation and robust_valuation.get('fair_value_robust'):
                             valuation['robust_valuation'] = robust_valuation
-                            print(f"✓✓✓ ADDED TO VALUATION DICT ✓✓✓")
-                            logger.info(f"✓ Robust Fair Value: ${robust_valuation.get('fair_value_robust', 0):.2f} " +
-                                      f"(range: ${robust_valuation.get('range_p10', 0):.2f} - ${robust_valuation.get('range_p90', 0):.2f})")
+                            print(f"   ✅ ADDED robust_valuation: ${robust_valuation.get('fair_value_robust', 0):.2f}")
                         else:
-                            print(f"✗ ROBUST VALUATION EMPTY OR MISSING fair_value_robust")
-                            logger.warning(f"Robust fair value returned empty result for {symbol}")
+                            print(f"   ❌ Returned empty or None")
                     elif len(valuation_methods_dict) < 1:
-                        print(f"✗ NOT ENOUGH METHODS: {len(valuation_methods_dict)}")
-                        logger.warning(f"No valuation methods available for robust calculation")
+                        print(f"   ❌ Not enough methods ({len(valuation_methods_dict)})")
                     elif not confidence_score:
-                        print(f"✗ NO CONFIDENCE SCORE")
-                        logger.warning(f"No confidence score available for robust valuation")
-                    print(f"{'='*60}\n")
+                        print(f"   ❌ No confidence score")
                 except Exception as e:
                     logger.error(f"Robust Fair Value calculation failed for {symbol}: {e}", exc_info=True)
 

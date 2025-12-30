@@ -5678,6 +5678,9 @@ with tab5:
                         confidence_data = intrinsic.get('confidence_score')
                         growth_engine = intrinsic.get('growth_engine')
 
+                        # SIMPLE DEBUG: Show what we have
+                        st.info(f"🔍 Debug: robust_val exists = {robust_val is not None}, has fair_value = {robust_val.get('fair_value_robust') if robust_val else 'N/A'}")
+
                         if robust_val and robust_val.get('fair_value_robust'):
                             st.markdown("<br>", unsafe_allow_html=True)
 
