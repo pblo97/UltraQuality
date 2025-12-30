@@ -5729,11 +5729,57 @@ with tab5:
                             if method_disagreement and 'divergence' in method_disagreement.lower():
                                 st.warning(f"Method Disagreement: {method_disagreement}")
 
+                        # Implied Expectations (Reverse DCF) - Show prominently
+                        reverse_dcf_data = intrinsic.get('reverse_dcf', {})
+                        if reverse_dcf_data:
+                            implied_growth = reverse_dcf_data.get('implied_growth_rate', 0)
+                            interpretation = reverse_dcf_data.get('interpretation', '')
+
+                            # Color based on reasonableness
+                            if implied_growth > 40 or implied_growth < -5:
+                                expect_color = '#ef4444'
+                                expect_bg = '#fee2e2'
+                                expect_label = 'ABSURD'
+                            elif implied_growth > 25 or implied_growth < 0:
+                                expect_color = '#f59e0b'
+                                expect_bg = '#fef3c7'
+                                expect_label = 'AGGRESSIVE'
+                            elif 5 <= implied_growth <= 15:
+                                expect_color = '#10b981'
+                                expect_bg = '#d1fae5'
+                                expect_label = 'REASONABLE'
+                            else:
+                                expect_color = '#6b7280'
+                                expect_bg = '#f3f4f6'
+                                expect_label = 'MODERATE'
+
+                            st.markdown(f"""
+                            <div style='background: {expect_bg}; border-left: 4px solid {expect_color};
+                                        padding: 1rem; border-radius: 8px; margin-bottom: 1rem;'>
+                                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;'>
+                                    <div style='font-size: 0.75rem; color: {expect_color}; font-weight: 700; letter-spacing: 0.5px;'>
+                                        IMPLIED MARKET EXPECTATIONS (Reverse DCF)
+                                    </div>
+                                    <div style='background: {expect_color}; color: white; padding: 0.25rem 0.5rem;
+                                                border-radius: 3px; font-size: 0.7rem; font-weight: 700;'>
+                                        {expect_label}
+                                    </div>
+                                </div>
+                                <div style='color: {expect_color}; font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;'>
+                                    {implied_growth:.1f}% Growth Forever
+                                </div>
+                                <div style='color: {expect_color}; font-size: 0.8rem; opacity: 0.9;'>
+                                    {interpretation}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
                         # Confidence Score Visual
                         if confidence_data:
                             conf_score = confidence_data.get('total_score', 0)
                             conf_level = confidence_data.get('confidence_level', 'Low')
                             components = confidence_data.get('components', {})
+                            reverse_dcf_penalty = confidence_data.get('reverse_dcf_penalty', 0)
 
                             # Color based on level
                             if conf_level == 'High':
@@ -5748,6 +5794,7 @@ with tab5:
 
                             col_conf1, col_conf2 = st.columns([1, 2])
                             with col_conf1:
+                                penalty_text = f"<div style='color: {conf_color}; font-size: 0.65rem; margin-top: 0.25rem;'>Reverse DCF Penalty: -{reverse_dcf_penalty}</div>" if reverse_dcf_penalty > 0 else ""
                                 st.markdown(f"""
                                 <div style='background: {conf_bg}; border: 2px solid {conf_color};
                                             padding: 1rem; border-radius: 8px; text-align: center;'>
@@ -5760,6 +5807,7 @@ with tab5:
                                     <div style='color: {conf_color}; font-size: 0.75rem; font-weight: 600;'>
                                         {conf_level}
                                     </div>
+                                    {penalty_text}
                                 </div>
                                 """, unsafe_allow_html=True)
 
