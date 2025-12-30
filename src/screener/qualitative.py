@@ -4928,10 +4928,16 @@ class QualitativeAnalyzer:
             log_values_array = np.array(log_values)
             weights_array = np.array(final_weights)
 
-            # Winsorize extreme values (outlier handling)
-            p10_log = np.percentile(log_values_array, 10)
-            p90_log = np.percentile(log_values_array, 90)
-            log_values_winsorized = np.clip(log_values_array, p10_log, p90_log)
+            # Winsorize extreme values (outlier handling) - only if we have enough values
+            if len(log_values_array) >= 3:
+                p10_log = np.percentile(log_values_array, 10)
+                p90_log = np.percentile(log_values_array, 90)
+                log_values_winsorized = np.clip(log_values_array, p10_log, p90_log)
+            else:
+                # With 2 values, don't winsorize (just use them as-is)
+                log_values_winsorized = log_values_array
+                p10_log = np.min(log_values_array)
+                p90_log = np.max(log_values_array)
 
             # Weighted median approximation (weighted mean of winsorized values)
             weighted_median_log = np.average(log_values_winsorized, weights=weights_array)
