@@ -2947,43 +2947,54 @@ class QualitativeAnalyzer:
                 # === NEW ROBUST VALUATION SYSTEM ===
 
                 # 1. Growth Engine 5Y: Robust growth estimation
-                logger.info(f"Calculating Growth Engine 5Y for {symbol}")
-                growth_engine = self._calculate_growth_engine_5y(symbol)
-                if growth_engine and growth_engine.get('revenue_growth_5y'):
-                    valuation['growth_engine'] = growth_engine
-                    logger.info(f"Growth Engine calculated: base={growth_engine.get('revenue_growth_5y', {}).get('base')}")
+                try:
+                    logger.info(f"Calculating Growth Engine 5Y for {symbol}")
+                    growth_engine = self._calculate_growth_engine_5y(symbol)
+                    if growth_engine and growth_engine.get('revenue_growth_5y'):
+                        valuation['growth_engine'] = growth_engine
+                        logger.info(f"Growth Engine calculated: base={growth_engine.get('revenue_growth_5y', {}).get('base')}")
+                except Exception as e:
+                    logger.error(f"Growth Engine calculation failed for {symbol}: {e}", exc_info=True)
+                    growth_engine = None
 
                 # 2. Confidence Score: Data quality assessment
-                logger.info(f"Calculating Confidence Score for {symbol}")
-                confidence_score = self._calculate_valuation_confidence_score(symbol)
-                if confidence_score:
-                    valuation['confidence_score'] = confidence_score
-                    logger.info(f"Confidence Score: {confidence_score.get('total_score'):.1f}/100")
+                try:
+                    logger.info(f"Calculating Confidence Score for {symbol}")
+                    confidence_score = self._calculate_valuation_confidence_score(symbol)
+                    if confidence_score:
+                        valuation['confidence_score'] = confidence_score
+                        logger.info(f"Confidence Score: {confidence_score.get('total_score'):.1f}/100")
+                except Exception as e:
+                    logger.error(f"Confidence Score calculation failed for {symbol}: {e}", exc_info=True)
+                    confidence_score = None
 
                 # 3. Robust Fair Value: Log-scale combination with method families
-                logger.info(f"Calculating Robust Fair Value for {symbol}")
+                try:
+                    logger.info(f"Calculating Robust Fair Value for {symbol}")
 
-                # Prepare valuation methods dict for robust calculation
-                valuation_methods_dict = {}
-                if dcf_value and dcf_value > 0:
-                    valuation_methods_dict['dcf_value'] = dcf_value
-                if forward_value and forward_value > 0:
-                    valuation_methods_dict['forward_multiple_value'] = forward_value
-                if historical_value and historical_value > 0:
-                    valuation_methods_dict['historical_multiple_value'] = historical_value
+                    # Prepare valuation methods dict for robust calculation
+                    valuation_methods_dict = {}
+                    if dcf_value and dcf_value > 0:
+                        valuation_methods_dict['dcf_value'] = dcf_value
+                    if forward_value and forward_value > 0:
+                        valuation_methods_dict['forward_multiple_value'] = forward_value
+                    if historical_value and historical_value > 0:
+                        valuation_methods_dict['historical_multiple_value'] = historical_value
 
-                # Calculate robust fair value if we have methods and confidence data
-                if valuation_methods_dict and confidence_score:
-                    robust_valuation = self._calculate_robust_fair_value(
-                        symbol,
-                        valuation_methods_dict,
-                        confidence_score,
-                        growth_engine
-                    )
-                    if robust_valuation:
-                        valuation['robust_valuation'] = robust_valuation
-                        logger.info(f"Robust Fair Value: ${robust_valuation.get('fair_value_robust', 0):.2f} " +
-                                  f"(range: ${robust_valuation.get('range_p10', 0):.2f} - ${robust_valuation.get('range_p90', 0):.2f})")
+                    # Calculate robust fair value if we have methods and confidence data
+                    if valuation_methods_dict and confidence_score:
+                        robust_valuation = self._calculate_robust_fair_value(
+                            symbol,
+                            valuation_methods_dict,
+                            confidence_score,
+                            growth_engine
+                        )
+                        if robust_valuation:
+                            valuation['robust_valuation'] = robust_valuation
+                            logger.info(f"Robust Fair Value: ${robust_valuation.get('fair_value_robust', 0):.2f} " +
+                                      f"(range: ${robust_valuation.get('range_p10', 0):.2f} - ${robust_valuation.get('range_p90', 0):.2f})")
+                except Exception as e:
+                    logger.error(f"Robust Fair Value calculation failed for {symbol}: {e}", exc_info=True)
 
                 # === ADVANCED QUALITATIVE METRICS ===
 
