@@ -3058,6 +3058,8 @@ class QualitativeAnalyzer:
                 # 4. Robust Fair Value: Log-scale combination with method families
                 try:
                     logger.info(f"Calculating Robust Fair Value for {symbol}")
+                    logger.info(f"Available variables: dcf_value={dcf_value}, forward_value={forward_value}, historical_value={historical_value}")
+                    logger.info(f"Available variables: pe_value={pe_value}, peg_value={peg_value}, ev_ebit_value={ev_ebit_value}, ev_fcf_value={ev_fcf_value}")
 
                     # Prepare valuation methods dict for robust calculation
                     valuation_methods_dict = {}
@@ -3065,22 +3067,29 @@ class QualitativeAnalyzer:
                     # Cashflow family
                     if dcf_value and dcf_value > 0:
                         valuation_methods_dict['dcf_value'] = dcf_value
+                        logger.info(f"✓ Added dcf_value: ${dcf_value:.2f}")
 
                     # Earnings family
                     if pe_value and pe_value > 0:
                         valuation_methods_dict['pe_value'] = pe_value
+                        logger.info(f"✓ Added pe_value: ${pe_value:.2f}")
                     if peg_value and peg_value > 0:
                         valuation_methods_dict['peg_value'] = peg_value
+                        logger.info(f"✓ Added peg_value: ${peg_value:.2f}")
 
                     # Enterprise family
                     if ev_ebit_value and ev_ebit_value > 0:
                         valuation_methods_dict['ev_ebit_value'] = ev_ebit_value
+                        logger.info(f"✓ Added ev_ebit_value: ${ev_ebit_value:.2f}")
                     if ev_fcf_value and ev_fcf_value > 0:
                         valuation_methods_dict['ev_fcf_value'] = ev_fcf_value
+                        logger.info(f"✓ Added ev_fcf_value: ${ev_fcf_value:.2f}")
                     if forward_value and forward_value > 0:
                         valuation_methods_dict['forward_multiple_value'] = forward_value
+                        logger.info(f"✓ Added forward_multiple_value: ${forward_value:.2f}")
                     if historical_value and historical_value > 0:
                         valuation_methods_dict['historical_multiple_value'] = historical_value
+                        logger.info(f"✓ Added historical_multiple_value: ${historical_value:.2f}")
 
                     logger.info(f"Valuation methods available for {symbol}: {list(valuation_methods_dict.keys())}")
 

@@ -5678,6 +5678,12 @@ with tab5:
                         confidence_data = intrinsic.get('confidence_score')
                         growth_engine = intrinsic.get('growth_engine')
 
+                        # DEBUG: Show why robust value isn't displaying
+                        if not robust_val:
+                            st.warning(f"⚠️ DEBUG: robust_valuation not found in intrinsic data. Keys: {list(intrinsic.keys())}")
+                        elif not robust_val.get('fair_value_robust'):
+                            st.warning(f"⚠️ DEBUG: fair_value_robust is empty. robust_val keys: {list(robust_val.keys())}, values: {robust_val}")
+
                         if robust_val and robust_val.get('fair_value_robust'):
                             st.markdown("<br>", unsafe_allow_html=True)
 
