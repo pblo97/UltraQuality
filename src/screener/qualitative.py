@@ -2950,24 +2950,108 @@ class QualitativeAnalyzer:
                     logger.info(f"Calculating Confidence Score for {symbol}")
                     confidence_score = self._calculate_valuation_confidence_score(symbol)
                     if confidence_score:
+                        # Get reverse DCF to check if market expectations are absurd
+                        reverse_dcf_data = valuation.get('reverse_dcf', {})
+                        if reverse_dcf_data:
+                            implied_growth = reverse_dcf_data.get('implied_growth_rate', 0)
+
+                            # Penalize confidence if reverse DCF implies absurd expectations
+                            # Red flags:
+                            # - Implied growth > 25% for mature companies
+                            # - Implied growth > 40% for any company (unsustainable)
+                            # - Implied growth < -5% (permanent decline priced in)
+
+                            penalty = 0
+                            if implied_growth > 40:
+                                penalty = 20  # Severe penalty: market expects >40% growth forever
+                                confidence_score['notes'].append(f"⚠️ Reverse DCF implies absurd growth: {implied_growth:.1f}% (>40%)")
+                            elif implied_growth > 25:
+                                penalty = 10  # Moderate penalty: high expectations
+                                confidence_score['notes'].append(f"⚠️ Reverse DCF implies aggressive growth: {implied_growth:.1f}% (>25%)")
+                            elif implied_growth < -5:
+                                penalty = 15  # Market expects permanent decline
+                                confidence_score['notes'].append(f"⚠️ Reverse DCF implies permanent decline: {implied_growth:.1f}% (<-5%)")
+
+                            if penalty > 0:
+                                original_score = confidence_score.get('total_score', 0)
+                                penalized_score = max(0, original_score - penalty)
+                                confidence_score['total_score'] = penalized_score
+                                confidence_score['reverse_dcf_penalty'] = penalty
+                                logger.info(f"Confidence Score penalized: {original_score:.1f} → {penalized_score:.1f} (Reverse DCF penalty: -{penalty})")
+
+                                # Update confidence level
+                                if penalized_score >= 75:
+                                    confidence_score['confidence_level'] = 'High'
+                                elif penalized_score >= 50:
+                                    confidence_score['confidence_level'] = 'Medium'
+                                else:
+                                    confidence_score['confidence_level'] = 'Low'
+
                         valuation['confidence_score'] = confidence_score
                         logger.info(f"Confidence Score: {confidence_score.get('total_score'):.1f}/100")
                 except Exception as e:
                     logger.error(f"Confidence Score calculation failed for {symbol}: {e}", exc_info=True)
                     confidence_score = None
 
-                # 3. Robust Fair Value: Log-scale combination with method families
+                # 3. Additional Valuation Methods (P/E, PEG, EV/EBIT, EV/FCF)
+                try:
+                    logger.info(f"Calculating additional valuation methods for {symbol}")
+
+                    # P/E based value (Earnings family)
+                    pe_value = self._calculate_pe_intrinsic_value(symbol, peers_list)
+                    if pe_value and pe_value > 0:
+                        valuation['pe_value'] = pe_value
+                        logger.info(f"✓ P/E Value: ${pe_value:.2f}")
+
+                    # PEG based value (Earnings family) - uses growth engine if available
+                    peg_value = self._calculate_peg_intrinsic_value(symbol, growth_engine)
+                    if peg_value and peg_value > 0:
+                        valuation['peg_value'] = peg_value
+                        logger.info(f"✓ PEG Value: ${peg_value:.2f}")
+
+                    # EV/EBIT based value (Enterprise family)
+                    ev_ebit_value = self._calculate_ev_ebit_intrinsic_value(symbol, peers_list)
+                    if ev_ebit_value and ev_ebit_value > 0:
+                        valuation['ev_ebit_value'] = ev_ebit_value
+                        logger.info(f"✓ EV/EBIT Value: ${ev_ebit_value:.2f}")
+
+                    # EV/FCF based value (Enterprise family)
+                    ev_fcf_value = self._calculate_ev_fcf_intrinsic_value(symbol, peers_list)
+                    if ev_fcf_value and ev_fcf_value > 0:
+                        valuation['ev_fcf_value'] = ev_fcf_value
+                        logger.info(f"✓ EV/FCF Value: ${ev_fcf_value:.2f}")
+
+                except Exception as e:
+                    logger.error(f"Additional valuation methods failed for {symbol}: {e}", exc_info=True)
+
+                # 4. Robust Fair Value: Log-scale combination with method families
                 try:
                     logger.info(f"Calculating Robust Fair Value for {symbol}")
 
                     # Prepare valuation methods dict for robust calculation
                     valuation_methods_dict = {}
+
+                    # Cashflow family
                     if dcf_value and dcf_value > 0:
                         valuation_methods_dict['dcf_value'] = dcf_value
+
+                    # Earnings family
+                    if pe_value and pe_value > 0:
+                        valuation_methods_dict['pe_value'] = pe_value
+                    if peg_value and peg_value > 0:
+                        valuation_methods_dict['peg_value'] = peg_value
+
+                    # Enterprise family
+                    if ev_ebit_value and ev_ebit_value > 0:
+                        valuation_methods_dict['ev_ebit_value'] = ev_ebit_value
+                    if ev_fcf_value and ev_fcf_value > 0:
+                        valuation_methods_dict['ev_fcf_value'] = ev_fcf_value
                     if forward_value and forward_value > 0:
                         valuation_methods_dict['forward_multiple_value'] = forward_value
                     if historical_value and historical_value > 0:
                         valuation_methods_dict['historical_multiple_value'] = historical_value
+
+                    logger.info(f"Valuation methods available for {symbol}: {list(valuation_methods_dict.keys())}")
 
                     # Calculate robust fair value if we have methods and confidence data
                     if valuation_methods_dict and confidence_score:
@@ -4909,6 +4993,305 @@ class QualitativeAnalyzer:
             result['notes'].append(f"Error: {str(e)[:100]}")
 
         return result
+
+    def _calculate_pe_intrinsic_value(self, symbol: str, peers_list: List[str] = None) -> Optional[float]:
+        """
+        Calculate intrinsic value using P/E ratio vs peers.
+
+        Fair Value = EPS × P/E_peers_median
+
+        Returns fair price per share.
+        """
+        try:
+            # Get company P/E and EPS
+            key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
+            if not key_metrics or len(key_metrics) == 0:
+                return None
+
+            company_pe = key_metrics[0].get('peRatio')
+
+            # Get EPS (trailing)
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=1)
+            if not income or len(income) == 0:
+                return None
+
+            net_income = income[0].get('netIncome', 0)
+            weighted_avg_shares = income[0].get('weightedAverageShsOut', 0)
+
+            if not weighted_avg_shares or weighted_avg_shares == 0:
+                return None
+
+            eps = net_income / weighted_avg_shares
+
+            if not eps or eps <= 0:
+                return None
+
+            # Get peer P/E ratios
+            if not peers_list:
+                return None
+
+            peer_pes = []
+            for peer in peers_list[:10]:  # Limit to 10 peers
+                try:
+                    peer_metrics = self.fmp.get_key_metrics(peer, period='annual', limit=1)
+                    if peer_metrics and len(peer_metrics) > 0:
+                        peer_pe = peer_metrics[0].get('peRatio')
+                        if peer_pe and peer_pe > 0 and peer_pe < 100:  # Filter outliers
+                            peer_pes.append(peer_pe)
+                except:
+                    continue
+
+            if len(peer_pes) < 3:
+                return None
+
+            # Use median P/E to avoid outlier influence
+            import statistics
+            peer_pe_median = statistics.median(peer_pes)
+
+            # Fair value = EPS × Peer P/E
+            fair_value = eps * peer_pe_median
+
+            return fair_value if fair_value > 0 else None
+
+        except Exception as e:
+            logger.debug(f"P/E intrinsic value calculation failed for {symbol}: {e}")
+            return None
+
+    def _calculate_peg_intrinsic_value(self, symbol: str, growth_data: Dict = None) -> Optional[float]:
+        """
+        Calculate intrinsic value using PEG ratio.
+
+        Fair Value = Current Price × (Fair PEG / Current PEG)
+        Fair PEG = 1.0 (conservative baseline)
+
+        Only valid for growth companies (5% <= growth <= 100%)
+
+        Returns fair price per share.
+        """
+        try:
+            # Get current price
+            profile = self.fmp.get_profile(symbol)
+            if not profile or len(profile) == 0:
+                return None
+
+            current_price = profile[0].get('price', 0)
+            if not current_price or current_price <= 0:
+                return None
+
+            # Get PEG ratio
+            key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
+            if not key_metrics or len(key_metrics) == 0:
+                return None
+
+            peg_ratio = key_metrics[0].get('pegRatio')
+            if not peg_ratio or peg_ratio <= 0:
+                return None
+
+            # Get growth rate (prefer from growth_data if available)
+            if growth_data and growth_data.get('revenue_growth_5y'):
+                growth_rate = growth_data['revenue_growth_5y'].get('base', 0) * 100
+            else:
+                # Fallback: estimate from revenue
+                income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
+                if income and len(income) >= 2:
+                    rev_current = income[0].get('revenue', 0)
+                    rev_prev = income[1].get('revenue', 0)
+                    if rev_prev > 0:
+                        growth_rate = ((rev_current - rev_prev) / rev_prev) * 100
+                    else:
+                        return None
+                else:
+                    return None
+
+            # Only valid for reasonable growth rates
+            if growth_rate < 5 or growth_rate > 100:
+                return None
+
+            # Fair PEG = 1.0 (conservative)
+            fair_peg = 1.0
+
+            # Fair Value = Current Price × (Fair PEG / Current PEG)
+            fair_value = current_price * (fair_peg / peg_ratio)
+
+            return fair_value if fair_value > 0 else None
+
+        except Exception as e:
+            logger.debug(f"PEG intrinsic value calculation failed for {symbol}: {e}")
+            return None
+
+    def _calculate_ev_ebit_intrinsic_value(self, symbol: str, peers_list: List[str] = None) -> Optional[float]:
+        """
+        Calculate intrinsic value using EV/EBIT ratio vs peers.
+
+        Fair EV = EBIT × EV/EBIT_peers_median
+        Fair Equity Value = Fair EV - Net Debt
+        Fair Price = Fair Equity Value / Shares Outstanding
+
+        Returns fair price per share.
+        """
+        try:
+            # Get company EBIT
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=1)
+            if not income or len(income) == 0:
+                return None
+
+            ebit = income[0].get('operatingIncome', 0)
+            if not ebit or ebit <= 0:
+                return None
+
+            # Get Net Debt (Total Debt - Cash)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
+            if not balance or len(balance) == 0:
+                return None
+
+            total_debt = balance[0].get('totalDebt', 0)
+            cash = balance[0].get('cashAndCashEquivalents', 0)
+            net_debt = total_debt - cash
+
+            # Get shares outstanding
+            profile = self.fmp.get_profile(symbol)
+            if not profile or len(profile) == 0:
+                return None
+
+            shares_outstanding = profile[0].get('sharesOutstanding', 0)
+            if not shares_outstanding or shares_outstanding == 0:
+                return None
+
+            # Get peer EV/EBIT ratios
+            if not peers_list:
+                return None
+
+            peer_ev_ebit_ratios = []
+            for peer in peers_list[:10]:
+                try:
+                    peer_metrics = self.fmp.get_key_metrics(peer, period='annual', limit=1)
+                    if peer_metrics and len(peer_metrics) > 0:
+                        ev_ebit = peer_metrics[0].get('enterpriseValueOverEBIT')
+                        if ev_ebit and ev_ebit > 0 and ev_ebit < 50:  # Filter outliers
+                            peer_ev_ebit_ratios.append(ev_ebit)
+                except:
+                    continue
+
+            if len(peer_ev_ebit_ratios) < 3:
+                return None
+
+            # Use median to avoid outliers
+            import statistics
+            peer_ev_ebit_median = statistics.median(peer_ev_ebit_ratios)
+
+            # Fair EV = EBIT × Peer EV/EBIT
+            fair_ev = ebit * peer_ev_ebit_median
+
+            # Fair Equity Value = Fair EV - Net Debt
+            fair_equity_value = fair_ev - net_debt
+
+            # Fair Price = Fair Equity Value / Shares
+            fair_price = fair_equity_value / shares_outstanding
+
+            return fair_price if fair_price > 0 else None
+
+        except Exception as e:
+            logger.debug(f"EV/EBIT intrinsic value calculation failed for {symbol}: {e}")
+            return None
+
+    def _calculate_ev_fcf_intrinsic_value(self, symbol: str, peers_list: List[str] = None) -> Optional[float]:
+        """
+        Calculate intrinsic value using EV/FCF ratio vs peers.
+
+        Fair EV = FCF × EV/FCF_peers_median
+        Fair Equity Value = Fair EV - Net Debt
+        Fair Price = Fair Equity Value / Shares Outstanding
+
+        Returns fair price per share.
+        """
+        try:
+            # Get company FCF
+            cash_flow = self.fmp.get_cash_flow(symbol, period='annual', limit=1)
+            if not cash_flow or len(cash_flow) == 0:
+                return None
+
+            operating_cf = cash_flow[0].get('operatingCashFlow', 0)
+            capex = abs(cash_flow[0].get('capitalExpenditure', 0))
+            fcf = operating_cf - capex
+
+            if not fcf or fcf <= 0:
+                return None
+
+            # Get Net Debt
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
+            if not balance or len(balance) == 0:
+                return None
+
+            total_debt = balance[0].get('totalDebt', 0)
+            cash = balance[0].get('cashAndCashEquivalents', 0)
+            net_debt = total_debt - cash
+
+            # Get shares outstanding
+            profile = self.fmp.get_profile(symbol)
+            if not profile or len(profile) == 0:
+                return None
+
+            shares_outstanding = profile[0].get('sharesOutstanding', 0)
+            if not shares_outstanding or shares_outstanding == 0:
+                return None
+
+            # Get current EV for reference
+            market_cap = profile[0].get('mktCap', 0)
+            current_ev = market_cap + net_debt
+            current_ev_fcf = current_ev / fcf if fcf > 0 else None
+
+            # Get peer EV/FCF ratios
+            if not peers_list:
+                return None
+
+            peer_ev_fcf_ratios = []
+            for peer in peers_list[:10]:
+                try:
+                    # Calculate peer EV/FCF
+                    peer_cf = self.fmp.get_cash_flow(peer, period='annual', limit=1)
+                    peer_balance = self.fmp.get_balance_sheet(peer, period='annual', limit=1)
+                    peer_profile = self.fmp.get_profile(peer)
+
+                    if peer_cf and peer_balance and peer_profile:
+                        peer_ocf = peer_cf[0].get('operatingCashFlow', 0)
+                        peer_capex = abs(peer_cf[0].get('capitalExpenditure', 0))
+                        peer_fcf = peer_ocf - peer_capex
+
+                        peer_debt = peer_balance[0].get('totalDebt', 0)
+                        peer_cash = peer_balance[0].get('cashAndCashEquivalents', 0)
+                        peer_net_debt = peer_debt - peer_cash
+
+                        peer_mkt_cap = peer_profile[0].get('mktCap', 0)
+                        peer_ev = peer_mkt_cap + peer_net_debt
+
+                        if peer_fcf > 0:
+                            peer_ev_fcf = peer_ev / peer_fcf
+                            if peer_ev_fcf > 0 and peer_ev_fcf < 50:  # Filter outliers
+                                peer_ev_fcf_ratios.append(peer_ev_fcf)
+                except:
+                    continue
+
+            if len(peer_ev_fcf_ratios) < 3:
+                return None
+
+            # Use median
+            import statistics
+            peer_ev_fcf_median = statistics.median(peer_ev_fcf_ratios)
+
+            # Fair EV = FCF × Peer EV/FCF
+            fair_ev = fcf * peer_ev_fcf_median
+
+            # Fair Equity Value = Fair EV - Net Debt
+            fair_equity_value = fair_ev - net_debt
+
+            # Fair Price = Fair Equity Value / Shares
+            fair_price = fair_equity_value / shares_outstanding
+
+            return fair_price if fair_price > 0 else None
+
+        except Exception as e:
+            logger.debug(f"EV/FCF intrinsic value calculation failed for {symbol}: {e}")
+            return None
 
     # ===================================
     # Advanced Qualitative Metrics
