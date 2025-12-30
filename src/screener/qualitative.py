@@ -4945,7 +4945,7 @@ class QualitativeAnalyzer:
             # Normalize weights and apply family caps
             # Step 1: Normalize within each family
             for family_name, family_data in families.items():
-                if family_data['weights']:
+                if family_data.get('weights'):
                     total_family_weight = sum(family_data['weights'])
                     # Normalize to family max_weight
                     family_data['normalized_weights'] = [
