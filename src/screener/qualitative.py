@@ -4820,7 +4820,7 @@ class QualitativeAnalyzer:
                     'values': []
                 },
                 'enterprise': {
-                    'methods': ['ev_ebit_value', 'ev_fcf_value', 'forward_multiple_value'],
+                    'methods': ['ev_ebit_value', 'ev_fcf_value', 'forward_multiple_value', 'historical_multiple_value'],
                     'max_weight': 0.34,  # Slightly higher to sum to 1.0
                     'values': []
                 }
