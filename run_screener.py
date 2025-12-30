@@ -6274,7 +6274,29 @@ with tab5:
                         projections = intrinsic.get('price_projections', {})
                         if projections and 'scenarios' in projections:
                             st.markdown("---")
-                            st.markdown("""
+
+                            # Check if using Growth Engine or fallback
+                            projection_source = projections.get('source', 'unknown')
+                            estimators_used = projections.get('estimators_used', {})
+
+                            if projection_source == 'growth_engine':
+                                source_badge = """
+                                <span style='background: #10b981; color: white; padding: 0.25rem 0.65rem; border-radius: 4px;
+                                             font-size: 0.65rem; font-weight: 700; margin-left: 0.5rem;'>
+                                    GROWTH ENGINE
+                                </span>
+                                """
+                                source_text = "Robust scenarios using 3 estimators (historical, fundamental, consensus)"
+                            else:
+                                source_badge = """
+                                <span style='background: #6b7280; color: white; padding: 0.25rem 0.65rem; border-radius: 4px;
+                                             font-size: 0.65rem; font-weight: 700; margin-left: 0.5rem;'>
+                                    SIMPLE
+                                </span>
+                                """
+                                source_text = "Basic scenarios from recent revenue growth"
+
+                            st.markdown(f"""
                             <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                         padding: 0.75rem 1.25rem; border-radius: 10px; margin-bottom: 1rem;'>
                                 <div style='display: flex; align-items: center; gap: 0.75rem;'>
@@ -6284,12 +6306,18 @@ with tab5:
                                     <h4 style='margin: 0; color: white; font-weight: 600;'>
                                         Price Projections by Scenario
                                     </h4>
+                                    {source_badge}
                                 </div>
                                 <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
-                                    Bear, Base, and Bull case scenarios based on fundamental growth assumptions
+                                    {source_text}
                                 </p>
                             </div>
                             """, unsafe_allow_html=True)
+
+                            # Show estimator breakdown if using Growth Engine
+                            if projection_source == 'growth_engine' and estimators_used:
+                                estimator_text = " | ".join([f"{k.title()}: {v:.1%}" for k, v in estimators_used.items()])
+                                st.caption(f"**Estimator Weights:** {estimator_text}")
 
                             scenarios = projections.get('scenarios', {})
 
