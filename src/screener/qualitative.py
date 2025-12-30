@@ -3060,17 +3060,25 @@ class QualitativeAnalyzer:
                     logger.info(f"Valuation methods available for {symbol}: {list(valuation_methods_dict.keys())}")
 
                     # Calculate robust fair value if we have methods and confidence data
-                    if valuation_methods_dict and confidence_score:
+                    # MINIMUM: Need at least 2 methods for robust calculation
+                    if len(valuation_methods_dict) >= 2 and confidence_score:
+                        logger.info(f"Calculating robust fair value with {len(valuation_methods_dict)} methods")
                         robust_valuation = self._calculate_robust_fair_value(
                             symbol,
                             valuation_methods_dict,
                             confidence_score,
                             growth_engine
                         )
-                        if robust_valuation:
+                        if robust_valuation and robust_valuation.get('fair_value_robust'):
                             valuation['robust_valuation'] = robust_valuation
-                            logger.info(f"Robust Fair Value: ${robust_valuation.get('fair_value_robust', 0):.2f} " +
+                            logger.info(f"✓ Robust Fair Value: ${robust_valuation.get('fair_value_robust', 0):.2f} " +
                                       f"(range: ${robust_valuation.get('range_p10', 0):.2f} - ${robust_valuation.get('range_p90', 0):.2f})")
+                        else:
+                            logger.warning(f"Robust fair value returned empty result for {symbol}")
+                    elif len(valuation_methods_dict) < 2:
+                        logger.warning(f"Insufficient valuation methods for robust calculation: {len(valuation_methods_dict)} (need ≥2)")
+                    elif not confidence_score:
+                        logger.warning(f"No confidence score available for robust valuation")
                 except Exception as e:
                     logger.error(f"Robust Fair Value calculation failed for {symbol}: {e}", exc_info=True)
 
@@ -4884,8 +4892,11 @@ class QualitativeAnalyzer:
                     method_weights.extend(family_data['weights'])
 
             if not log_values:
-                result['notes'].append("No valuation methods available")
+                logger.warning(f"No valid log values after transformation for {symbol}. valuation_methods: {valuation_methods}")
+                result['notes'].append("No valuation methods available after log transformation")
                 return result
+
+            logger.info(f"Robust valuation processing {len(log_values)} values from methods: {method_names}")
 
             # Normalize weights and apply family caps
             # Step 1: Normalize within each family
