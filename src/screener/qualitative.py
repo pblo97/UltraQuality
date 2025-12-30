@@ -3094,9 +3094,11 @@ class QualitativeAnalyzer:
                     logger.info(f"Valuation methods available for {symbol}: {list(valuation_methods_dict.keys())}")
 
                     # Calculate robust fair value if we have methods and confidence data
-                    # MINIMUM: Need at least 2 methods for robust calculation
-                    if len(valuation_methods_dict) >= 2 and confidence_score:
-                        logger.info(f"Calculating robust fair value with {len(valuation_methods_dict)} methods")
+                    # MINIMUM: Need at least 1 method (reduced from 2)
+                    # With 1 method, it becomes a confidence-adjusted single estimate
+                    # With 2+ methods, it becomes a true robust combination
+                    if len(valuation_methods_dict) >= 1 and confidence_score:
+                        logger.info(f"Calculating robust fair value with {len(valuation_methods_dict)} method(s)")
                         robust_valuation = self._calculate_robust_fair_value(
                             symbol,
                             valuation_methods_dict,
@@ -3109,8 +3111,8 @@ class QualitativeAnalyzer:
                                       f"(range: ${robust_valuation.get('range_p10', 0):.2f} - ${robust_valuation.get('range_p90', 0):.2f})")
                         else:
                             logger.warning(f"Robust fair value returned empty result for {symbol}")
-                    elif len(valuation_methods_dict) < 2:
-                        logger.warning(f"Insufficient valuation methods for robust calculation: {len(valuation_methods_dict)} (need ≥2)")
+                    elif len(valuation_methods_dict) < 1:
+                        logger.warning(f"No valuation methods available for robust calculation")
                     elif not confidence_score:
                         logger.warning(f"No confidence score available for robust valuation")
                 except Exception as e:
@@ -4967,11 +4969,16 @@ class QualitativeAnalyzer:
                 p10_log = np.percentile(log_values_array, 10)
                 p90_log = np.percentile(log_values_array, 90)
                 log_values_winsorized = np.clip(log_values_array, p10_log, p90_log)
-            else:
+            elif len(log_values_array) == 2:
                 # With 2 values, don't winsorize (just use them as-is)
                 log_values_winsorized = log_values_array
                 p10_log = np.min(log_values_array)
                 p90_log = np.max(log_values_array)
+            else:
+                # With 1 value, use it for everything
+                log_values_winsorized = log_values_array
+                p10_log = log_values_array[0]
+                p90_log = log_values_array[0]
 
             # Weighted median approximation (weighted mean of winsorized values)
             weighted_median_log = np.average(log_values_winsorized, weights=weights_array)
@@ -5001,13 +5008,17 @@ class QualitativeAnalyzer:
             result['methods_used'] = method_names
 
             # Consensus tightness: measure dispersion in log-space
-            log_dispersion = np.std(log_values_array)
-            if log_dispersion < 0.15:  # ~16% in original scale
+            if len(log_values_array) == 1:
+                # With 1 method, always "High" (perfect consensus with self)
                 result['consensus_tightness'] = 'High'
-            elif log_dispersion < 0.30:  # ~35% in original scale
-                result['consensus_tightness'] = 'Medium'
             else:
-                result['consensus_tightness'] = 'Low'
+                log_dispersion = np.std(log_values_array)
+                if log_dispersion < 0.15:  # ~16% in original scale
+                    result['consensus_tightness'] = 'High'
+                elif log_dispersion < 0.30:  # ~35% in original scale
+                    result['consensus_tightness'] = 'Medium'
+                else:
+                    result['consensus_tightness'] = 'Low'
 
             # Method disagreement: compare family medians
             family_medians = {}
@@ -5035,6 +5046,9 @@ class QualitativeAnalyzer:
                         result['method_disagreement'] = f"High divergence between {' vs '.join(diverging_families)} ({max_disagreement:.1%})"
                     else:
                         result['method_disagreement'] = "Methods generally agree"
+            else:
+                # Single method - no comparison possible
+                result['method_disagreement'] = "Single method - no comparison"
 
             # Store family weights for transparency
             result['family_weights'] = {
