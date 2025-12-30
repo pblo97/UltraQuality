@@ -5678,8 +5678,40 @@ with tab5:
                         confidence_data = intrinsic.get('confidence_score')
                         growth_engine = intrinsic.get('growth_engine')
 
-                        # SIMPLE DEBUG: Show what we have
-                        st.info(f"🔍 Debug: robust_val exists = {robust_val is not None}, has fair_value = {robust_val.get('fair_value_robust') if robust_val else 'N/A'}")
+                        # DEBUG SECTION - Visible in UI
+                        with st.expander("🔧 DEBUG: Robust Fair Value Calculation", expanded=True):
+                            st.write("**Valuation Methods Available:**")
+                            dcf_val = intrinsic.get('dcf_value')
+                            fwd_val = intrinsic.get('forward_multiple_value')
+                            hist_val = intrinsic.get('historical_multiple_value')
+                            pe_val = intrinsic.get('pe_value')
+                            peg_val = intrinsic.get('peg_value')
+                            ev_ebit_val = intrinsic.get('ev_ebit_value')
+                            ev_fcf_val = intrinsic.get('ev_fcf_value')
+
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.write(f"- DCF: ${dcf_val:.2f}" if dcf_val else "- DCF: ❌ None")
+                                st.write(f"- Forward Multiple: ${fwd_val:.2f}" if fwd_val else "- Forward Multiple: ❌ None")
+                                st.write(f"- Historical Multiple: ${hist_val:.2f}" if hist_val else "- Historical Multiple: ❌ None")
+                                st.write(f"- P/E Value: ${pe_val:.2f}" if pe_val else "- P/E Value: ❌ None")
+                            with col2:
+                                st.write(f"- PEG Value: ${peg_val:.2f}" if peg_val else "- PEG Value: ❌ None")
+                                st.write(f"- EV/EBIT Value: ${ev_ebit_val:.2f}" if ev_ebit_val else "- EV/EBIT Value: ❌ None")
+                                st.write(f"- EV/FCF Value: ${ev_fcf_val:.2f}" if ev_fcf_val else "- EV/FCF Value: ❌ None")
+
+                            # Count methods
+                            methods_count = sum([1 for v in [dcf_val, fwd_val, hist_val, pe_val, peg_val, ev_ebit_val, ev_fcf_val] if v and v > 0])
+                            st.write(f"\n**Methods Count:** {methods_count} (need ≥1)")
+                            st.write(f"**Confidence Score Exists:** {'✅ Yes' if confidence_data else '❌ No'}")
+                            st.write(f"**Growth Engine Exists:** {'✅ Yes' if growth_engine else '❌ No'}")
+
+                            st.divider()
+                            st.write(f"**robust_valuation in dict:** {'✅ Yes' if robust_val else '❌ NO - THIS IS THE PROBLEM'}")
+                            if robust_val:
+                                st.write(f"**has fair_value_robust:** {'✅ Yes' if robust_val.get('fair_value_robust') else '❌ No'}")
+                                st.write(f"**robust_val keys:** {list(robust_val.keys())}")
+                                st.write(f"**robust_val values:** {robust_val}")
 
                         if robust_val and robust_val.get('fair_value_robust'):
                             st.markdown("<br>", unsafe_allow_html=True)
