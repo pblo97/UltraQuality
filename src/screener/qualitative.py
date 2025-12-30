@@ -2994,6 +2994,12 @@ class QualitativeAnalyzer:
                     confidence_score = None
 
                 # 3. Additional Valuation Methods (P/E, PEG, EV/EBIT, EV/FCF)
+                # Initialize variables first
+                pe_value = None
+                peg_value = None
+                ev_ebit_value = None
+                ev_fcf_value = None
+
                 try:
                     logger.info(f"Calculating additional valuation methods for {symbol}")
 
