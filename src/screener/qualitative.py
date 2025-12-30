@@ -2824,6 +2824,11 @@ class QualitativeAnalyzer:
             # Use industry-specific WACC
             industry_wacc = industry_profile.get('wacc', 0.10)
 
+            # Initialize valuation variables FIRST (before try-except blocks)
+            dcf_value = None
+            forward_value = None
+            historical_value = None
+
             # 1. DCF Valuation (with industry-specific WACC as base, but Net Cash Bonus can override)
             logger.info(f"Calculating DCF for {symbol}, type={company_type}, base_wacc={industry_wacc}")
             actual_wacc_used = industry_wacc  # Default, will be updated if DCF succeeds
