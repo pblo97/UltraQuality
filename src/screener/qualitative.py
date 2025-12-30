@@ -2928,18 +2928,6 @@ class QualitativeAnalyzer:
                     # Store initial assessment for debugging
                     valuation['dcf_based_assessment'] = valuation['valuation_assessment']
 
-                    # === PRICE PROJECTIONS ===
-                    # Calculate price targets with different growth assumptions
-                    # Use Growth Engine data if available for more robust scenarios
-                    valuation['price_projections'] = self._calculate_price_projections_v2(
-                        symbol,
-                        current_price,
-                        dcf_value,
-                        forward_value,
-                        company_type,
-                        industry_wacc,
-                        growth_engine if 'growth_engine' in locals() else None
-                    )
                 else:
                     valuation['notes'].append("Upside/downside not calculated (no current price)")
                     valuation['valuation_assessment'] = 'Unknown'
@@ -2995,6 +2983,27 @@ class QualitativeAnalyzer:
                                       f"(range: ${robust_valuation.get('range_p10', 0):.2f} - ${robust_valuation.get('range_p90', 0):.2f})")
                 except Exception as e:
                     logger.error(f"Robust Fair Value calculation failed for {symbol}: {e}", exc_info=True)
+
+                # === PRICE PROJECTIONS (Using Growth Engine) ===
+                # NOW calculate price projections AFTER Growth Engine is available
+                if current_price and current_price > 0:
+                    try:
+                        logger.info(f"Calculating Price Projections for {symbol} using Growth Engine")
+                        valuation['price_projections'] = self._calculate_price_projections_v2(
+                            symbol,
+                            current_price,
+                            dcf_value,
+                            forward_value,
+                            company_type,
+                            industry_wacc,
+                            growth_engine  # Now growth_engine is available!
+                        )
+                        if valuation['price_projections'].get('source') == 'growth_engine':
+                            logger.info(f"Price Projections using Growth Engine scenarios")
+                        else:
+                            logger.info(f"Price Projections using simple fallback")
+                    except Exception as e:
+                        logger.error(f"Price Projections calculation failed for {symbol}: {e}", exc_info=True)
 
                 # === ADVANCED QUALITATIVE METRICS ===
 
