@@ -2279,19 +2279,9 @@ class QualitativeAnalyzer:
             timing_tools = {}
 
             # Tool 1: P/E Paradox Warning
+            # Use P/E from profile that we already loaded at the beginning
             try:
-                # Try key_metrics first
-                key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
-                pe_ratio = None
-
-                if key_metrics and len(key_metrics) > 0:
-                    pe_ratio = key_metrics[0].get('peRatio', None)
-
-                # Fallback: try getting from profile
-                if not pe_ratio:
-                    profile = self.fmp.get_profile(symbol)
-                    if profile and len(profile) > 0:
-                        pe_ratio = profile[0].get('pe', None)
+                pe_ratio = prof.get('pe', None)
 
                 if pe_ratio and pe_ratio > 0:
                     if pe_ratio < 8:
@@ -2313,21 +2303,27 @@ class QualitativeAnalyzer:
                             'interpretation': f'P/E is moderate ({pe_ratio:.1f}x). No clear cycle signal.'
                         }
                 else:
-                    logger.info(f"Cyclical P/E: No P/E data available for {symbol}")
+                    logger.info(f"Cyclical P/E: No P/E data in profile for {symbol}")
             except Exception as e:
                 logger.warning(f"Cyclical P/E failed for {symbol}: {e}")
 
             # Tool 2: P/B Bands (Centauro)
+            # Get current P/B from profile, then fetch historical for bands
             try:
-                key_metrics_hist = self.fmp.get_key_metrics(symbol, period='annual', limit=5)
-                if key_metrics_hist and len(key_metrics_hist) >= 3:
-                    pb_values = [m.get('pbRatio', None) for m in key_metrics_hist if m.get('pbRatio')]
+                pb_current = prof.get('priceToBook', None)
+
+                if pb_current and pb_current > 0:
+                    # Get historical P/B for bands calculation
+                    key_metrics_hist = self.fmp.get_key_metrics(symbol, period='annual', limit=5)
+                    pb_values = []
+
+                    if key_metrics_hist:
+                        pb_values = [m.get('pbRatio', None) for m in key_metrics_hist if m.get('pbRatio')]
 
                     if len(pb_values) >= 3:
                         import statistics
                         pb_avg = statistics.mean(pb_values)
                         pb_std = statistics.stdev(pb_values) if len(pb_values) > 1 else 0
-                        pb_current = pb_values[0]  # Most recent
 
                         lower_band = pb_avg - pb_std
                         upper_band = pb_avg + pb_std
@@ -2352,9 +2348,9 @@ class QualitativeAnalyzer:
                             'interpretation': message
                         }
                     else:
-                        logger.info(f"Cyclical P/B: Need 3+ P/B values, got {len(pb_values)} for {symbol}")
+                        logger.info(f"Cyclical P/B: Current P/B={pb_current:.2f}, but need 3+ historical values for bands (got {len(pb_values)})")
                 else:
-                    logger.info(f"Cyclical P/B: Insufficient key metrics data for {symbol}")
+                    logger.info(f"Cyclical P/B: No P/B data in profile for {symbol}")
             except Exception as e:
                 logger.warning(f"Cyclical P/B failed for {symbol}: {e}")
 
