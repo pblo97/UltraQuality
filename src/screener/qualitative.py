@@ -3112,6 +3112,7 @@ class QualitativeAnalyzer:
                         if robust_valuation:
                             valuation['_debug_has_fair_value_key'] = 'fair_value_robust' in robust_valuation
                             valuation['_debug_fair_value'] = robust_valuation.get('fair_value_robust')
+                            valuation['_debug_full_return'] = robust_valuation  # Save entire dict for inspection
 
                         if robust_valuation and robust_valuation.get('fair_value_robust'):
                             valuation['robust_valuation'] = robust_valuation

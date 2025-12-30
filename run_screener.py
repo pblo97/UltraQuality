@@ -5732,6 +5732,18 @@ with tab5:
                                         st.success("✅ Successfully added to valuation dict!")
                                     else:
                                         st.error(f"❌ NOT ADDED: {intrinsic.get('_debug_why_not_added', 'unknown reason')}")
+
+                                        # Show the full returned dict to see error messages in 'notes'
+                                        st.write("**🔍 Full return dict from function:**")
+                                        full_return = intrinsic.get('_debug_full_return')
+                                        if full_return:
+                                            st.json(full_return)
+                                            if 'notes' in full_return and full_return['notes']:
+                                                st.error("**Error messages in notes:**")
+                                                for note in full_return['notes']:
+                                                    st.write(f"- {note}")
+                                        else:
+                                            st.write("_debug_full_return not available")
                                 else:
                                     st.error(f"❌ Condition not met: {intrinsic.get('_debug_why_not_calculated', 'unknown')}")
 
