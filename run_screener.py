@@ -5687,11 +5687,13 @@ with tab5:
                             eps_growth = company_vals.get('eps_growth_%', None)
 
                         if peg_ratio and peg_ratio > 0:
-                            # PEG-based valuation ONLY makes sense for growth companies (growth >= 5%)
+                            # PEG-based valuation ONLY makes sense for growth companies (5% <= growth <= 100%)
                             # For low/no growth companies, PEG is meaningless
                             # Example: Growth 0.4% → Fair PEG 1.0 would imply PE of 0.4x (absurd)
+                            # For extreme growth (>100%), it's usually a one-time turnaround, not sustainable
+                            # Example: Growth 1352% → Likely losses-to-profits transition, not real growth rate
 
-                            if eps_growth and eps_growth >= 5:
+                            if eps_growth and eps_growth >= 5 and eps_growth <= 100:
                                 # Calculate PEG-based Intrinsic Value for GROWTH companies
                                 # Formula: Fair Value = Current Price × (Fair PEG / Current PEG)
                                 # Fair PEG = 1.0 (conservative) or 1.5 (growth premium)
@@ -5731,10 +5733,17 @@ with tab5:
                                         st.caption(f"**Growth PEG 1.5:** ${peg_intrinsic_growth:.2f} ({upside_growth:+.1f}%)")
                                     st.caption("*Premium para empresas de alto crecimiento*")
                             else:
-                                # Low/No growth company → PEG valuation not applicable
-                                st.warning(f" **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (< 5% threshold)")
-                                st.caption("PEG-based valuation only works for growth companies. For mature/declining companies, use DCF or P/E multiples.")
-                                st.caption(f"Current PEG: **{peg_ratio:.2f}** (High PEG with low growth = overvalued)")
+                                # PEG valuation not applicable for low growth OR extreme growth
+                                if eps_growth and eps_growth > 100:
+                                    # Extreme growth spike (likely one-time turnaround)
+                                    st.warning(f"⚠️ **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (> 100% threshold)")
+                                    st.caption("Extreme growth rates usually indicate one-time events (losses-to-profits, restructuring, etc.) rather than sustainable growth.")
+                                    st.caption(f"Current PEG: **{peg_ratio:.2f}** — Use DCF or sector comparables for valuation instead.")
+                                else:
+                                    # Low/No growth company
+                                    st.warning(f"⚠️ **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (< 5% threshold)")
+                                    st.caption("PEG-based valuation only works for growth companies. For mature/declining companies, use DCF or P/E multiples.")
+                                    st.caption(f"Current PEG: **{peg_ratio:.2f}** (High PEG with low growth = overvalued)")
                         else:
                             st.info(" **PEG Ratio:** N/A (Data not available)")
 
@@ -8662,11 +8671,13 @@ with tab6:
                 eps_growth = company_vals.get('eps_growth_%', None)
 
             if peg_ratio and peg_ratio > 0:
-                # PEG-based valuation ONLY makes sense for growth companies (growth >= 5%)
+                # PEG-based valuation ONLY makes sense for growth companies (5% <= growth <= 100%)
                 # For low/no growth companies, PEG is meaningless
                 # Example: Growth 0.4% → Fair PEG 1.0 would imply PE of 0.4x (absurd)
+                # For extreme growth (>100%), it's usually a one-time turnaround, not sustainable
+                # Example: Growth 1352% → Likely losses-to-profits transition, not real growth rate
 
-                if eps_growth and eps_growth >= 5:
+                if eps_growth and eps_growth >= 5 and eps_growth <= 100:
                     # Calculate PEG-based Intrinsic Value for GROWTH companies
                     # Formula: Fair Value = Current Price × (Fair PEG / Current PEG)
                     # Fair PEG = 1.0 (conservative) or 1.5 (growth premium)
@@ -8706,10 +8717,17 @@ with tab6:
                             st.caption(f"**Growth PEG 1.5:** ${peg_intrinsic_growth:.2f} ({upside_growth:+.1f}%)")
                         st.caption("*Premium para empresas de alto crecimiento*")
                 else:
-                    # Low/No growth company → PEG valuation not applicable
-                    st.warning(f" **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (< 5% threshold)")
-                    st.caption("PEG-based valuation only works for growth companies. For mature/declining companies, use DCF or P/E multiples.")
-                    st.caption(f"Current PEG: **{peg_ratio:.2f}** (High PEG with low growth = overvalued)")
+                    # PEG valuation not applicable for low growth OR extreme growth
+                    if eps_growth and eps_growth > 100:
+                        # Extreme growth spike (likely one-time turnaround)
+                        st.warning(f"⚠️ **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (> 100% threshold)")
+                        st.caption("Extreme growth rates usually indicate one-time events (losses-to-profits, restructuring, etc.) rather than sustainable growth.")
+                        st.caption(f"Current PEG: **{peg_ratio:.2f}** — Use DCF or sector comparables for valuation instead.")
+                    else:
+                        # Low/No growth company
+                        st.warning(f"⚠️ **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (< 5% threshold)")
+                        st.caption("PEG-based valuation only works for growth companies. For mature/declining companies, use DCF or P/E multiples.")
+                        st.caption(f"Current PEG: **{peg_ratio:.2f}** (High PEG with low growth = overvalued)")
             else:
                 st.info(" **PEG Ratio:** N/A (Data not available)")
 
