@@ -2824,6 +2824,11 @@ class QualitativeAnalyzer:
             # Use industry-specific WACC
             industry_wacc = industry_profile.get('wacc', 0.10)
 
+            # Initialize valuation variables FIRST (before try-except blocks)
+            dcf_value = None
+            forward_value = None
+            historical_value = None
+
             # 1. DCF Valuation (with industry-specific WACC as base, but Net Cash Bonus can override)
             logger.info(f"Calculating DCF for {symbol}, type={company_type}, base_wacc={industry_wacc}")
             actual_wacc_used = industry_wacc  # Default, will be updated if DCF succeeds
@@ -2991,7 +2996,19 @@ class QualitativeAnalyzer:
                         logger.info(f"Confidence Score: {confidence_score.get('total_score'):.1f}/100")
                 except Exception as e:
                     logger.error(f"Confidence Score calculation failed for {symbol}: {e}", exc_info=True)
-                    confidence_score = None
+                    # Fallback: Use neutral confidence score so robust valuation can still run
+                    confidence_score = {
+                        'total_score': 50,
+                        'confidence_level': 'Medium',
+                        'components': {
+                            'stability': 50,
+                            'fcf_quality': 50,
+                            'data_richness': 50,
+                            'balance_strength': 50,
+                            'other': 50
+                        },
+                        'notes': [f"Confidence calculation failed, using neutral defaults"]
+                    }
 
                 # 3. Additional Valuation Methods (P/E, PEG, EV/EBIT, EV/FCF)
                 # Initialize variables first
@@ -3008,24 +3025,32 @@ class QualitativeAnalyzer:
                     if pe_value and pe_value > 0:
                         valuation['pe_value'] = pe_value
                         logger.info(f"✓ P/E Value: ${pe_value:.2f}")
+                    else:
+                        logger.debug(f"P/E Value not available for {symbol} (peers: {len(peers_list) if peers_list else 0})")
 
                     # PEG based value (Earnings family) - uses growth engine if available
                     peg_value = self._calculate_peg_intrinsic_value(symbol, growth_engine)
                     if peg_value and peg_value > 0:
                         valuation['peg_value'] = peg_value
                         logger.info(f"✓ PEG Value: ${peg_value:.2f}")
+                    else:
+                        logger.debug(f"PEG Value not available for {symbol}")
 
                     # EV/EBIT based value (Enterprise family)
                     ev_ebit_value = self._calculate_ev_ebit_intrinsic_value(symbol, peers_list)
                     if ev_ebit_value and ev_ebit_value > 0:
                         valuation['ev_ebit_value'] = ev_ebit_value
                         logger.info(f"✓ EV/EBIT Value: ${ev_ebit_value:.2f}")
+                    else:
+                        logger.debug(f"EV/EBIT Value not available for {symbol} (peers: {len(peers_list) if peers_list else 0})")
 
                     # EV/FCF based value (Enterprise family)
                     ev_fcf_value = self._calculate_ev_fcf_intrinsic_value(symbol, peers_list)
                     if ev_fcf_value and ev_fcf_value > 0:
                         valuation['ev_fcf_value'] = ev_fcf_value
                         logger.info(f"✓ EV/FCF Value: ${ev_fcf_value:.2f}")
+                    else:
+                        logger.debug(f"EV/FCF Value not available for {symbol} (peers: {len(peers_list) if peers_list else 0})")
 
                 except Exception as e:
                     logger.error(f"Additional valuation methods failed for {symbol}: {e}", exc_info=True)
@@ -3060,17 +3085,25 @@ class QualitativeAnalyzer:
                     logger.info(f"Valuation methods available for {symbol}: {list(valuation_methods_dict.keys())}")
 
                     # Calculate robust fair value if we have methods and confidence data
-                    if valuation_methods_dict and confidence_score:
+                    # MINIMUM: Need at least 2 methods for robust calculation
+                    if len(valuation_methods_dict) >= 2 and confidence_score:
+                        logger.info(f"Calculating robust fair value with {len(valuation_methods_dict)} methods")
                         robust_valuation = self._calculate_robust_fair_value(
                             symbol,
                             valuation_methods_dict,
                             confidence_score,
                             growth_engine
                         )
-                        if robust_valuation:
+                        if robust_valuation and robust_valuation.get('fair_value_robust'):
                             valuation['robust_valuation'] = robust_valuation
-                            logger.info(f"Robust Fair Value: ${robust_valuation.get('fair_value_robust', 0):.2f} " +
+                            logger.info(f"✓ Robust Fair Value: ${robust_valuation.get('fair_value_robust', 0):.2f} " +
                                       f"(range: ${robust_valuation.get('range_p10', 0):.2f} - ${robust_valuation.get('range_p90', 0):.2f})")
+                        else:
+                            logger.warning(f"Robust fair value returned empty result for {symbol}")
+                    elif len(valuation_methods_dict) < 2:
+                        logger.warning(f"Insufficient valuation methods for robust calculation: {len(valuation_methods_dict)} (need ≥2)")
+                    elif not confidence_score:
+                        logger.warning(f"No confidence score available for robust valuation")
                 except Exception as e:
                     logger.error(f"Robust Fair Value calculation failed for {symbol}: {e}", exc_info=True)
 
@@ -4884,8 +4917,11 @@ class QualitativeAnalyzer:
                     method_weights.extend(family_data['weights'])
 
             if not log_values:
-                result['notes'].append("No valuation methods available")
+                logger.warning(f"No valid log values after transformation for {symbol}. valuation_methods: {valuation_methods}")
+                result['notes'].append("No valuation methods available after log transformation")
                 return result
+
+            logger.info(f"Robust valuation processing {len(log_values)} values from methods: {method_names}")
 
             # Normalize weights and apply family caps
             # Step 1: Normalize within each family
@@ -4917,10 +4953,16 @@ class QualitativeAnalyzer:
             log_values_array = np.array(log_values)
             weights_array = np.array(final_weights)
 
-            # Winsorize extreme values (outlier handling)
-            p10_log = np.percentile(log_values_array, 10)
-            p90_log = np.percentile(log_values_array, 90)
-            log_values_winsorized = np.clip(log_values_array, p10_log, p90_log)
+            # Winsorize extreme values (outlier handling) - only if we have enough values
+            if len(log_values_array) >= 3:
+                p10_log = np.percentile(log_values_array, 10)
+                p90_log = np.percentile(log_values_array, 90)
+                log_values_winsorized = np.clip(log_values_array, p10_log, p90_log)
+            else:
+                # With 2 values, don't winsorize (just use them as-is)
+                log_values_winsorized = log_values_array
+                p10_log = np.min(log_values_array)
+                p90_log = np.max(log_values_array)
 
             # Weighted median approximation (weighted mean of winsorized values)
             weighted_median_log = np.average(log_values_winsorized, weights=weights_array)
