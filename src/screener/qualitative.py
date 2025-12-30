@@ -2280,30 +2280,42 @@ class QualitativeAnalyzer:
 
             # Tool 1: P/E Paradox Warning
             try:
+                # Try key_metrics first
                 key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
+                pe_ratio = None
+
                 if key_metrics and len(key_metrics) > 0:
                     pe_ratio = key_metrics[0].get('peRatio', None)
-                    if pe_ratio:
-                        if pe_ratio < 8:
-                            timing_tools['pe_paradox'] = {
-                                'pe_ratio': pe_ratio,
-                                'signal': 'DANGER',
-                                'interpretation': f'P/E is very low ({pe_ratio:.1f}x). For cyclicals, this often signals PEAK earnings. Consider selling.'
-                            }
-                        elif pe_ratio > 25:
-                            timing_tools['pe_paradox'] = {
-                                'pe_ratio': pe_ratio,
-                                'signal': 'OPPORTUNITY',
-                                'interpretation': f'P/E is high ({pe_ratio:.1f}x). For cyclicals, this may signal TROUGH earnings. Consider buying.'
-                            }
-                        else:
-                            timing_tools['pe_paradox'] = {
-                                'pe_ratio': pe_ratio,
-                                'signal': 'NEUTRAL',
-                                'interpretation': f'P/E is moderate ({pe_ratio:.1f}x). No clear cycle signal.'
-                            }
-            except:
-                pass
+
+                # Fallback: try getting from profile
+                if not pe_ratio:
+                    profile = self.fmp.get_profile(symbol)
+                    if profile and len(profile) > 0:
+                        pe_ratio = profile[0].get('pe', None)
+
+                if pe_ratio and pe_ratio > 0:
+                    if pe_ratio < 8:
+                        timing_tools['pe_paradox'] = {
+                            'pe_ratio': pe_ratio,
+                            'signal': 'DANGER',
+                            'interpretation': f'P/E is very low ({pe_ratio:.1f}x). For cyclicals, this often signals PEAK earnings. Consider selling.'
+                        }
+                    elif pe_ratio > 25:
+                        timing_tools['pe_paradox'] = {
+                            'pe_ratio': pe_ratio,
+                            'signal': 'OPPORTUNITY',
+                            'interpretation': f'P/E is high ({pe_ratio:.1f}x). For cyclicals, this may signal TROUGH earnings. Consider buying.'
+                        }
+                    else:
+                        timing_tools['pe_paradox'] = {
+                            'pe_ratio': pe_ratio,
+                            'signal': 'NEUTRAL',
+                            'interpretation': f'P/E is moderate ({pe_ratio:.1f}x). No clear cycle signal.'
+                        }
+                else:
+                    logger.info(f"Cyclical P/E: No P/E data available for {symbol}")
+            except Exception as e:
+                logger.warning(f"Cyclical P/E failed for {symbol}: {e}")
 
             # Tool 2: P/B Bands (Centauro)
             try:
@@ -2327,7 +2339,7 @@ class QualitativeAnalyzer:
                             signal = 'SELL'
                             message = f'P/B ({pb_current:.2f}) above 5Y average ({pb_avg:.2f}) + 1 std dev. Possible PEAK.'
                         else:
-                            signal = 'HOLD'
+                            signal = 'NEUTRAL'
                             message = f'P/B ({pb_current:.2f}) within normal range vs 5Y avg ({pb_avg:.2f}).'
 
                         timing_tools['pb_bands'] = {
@@ -2339,8 +2351,12 @@ class QualitativeAnalyzer:
                             'signal': signal,
                             'interpretation': message
                         }
-            except:
-                pass
+                    else:
+                        logger.info(f"Cyclical P/B: Need 3+ P/B values, got {len(pb_values)} for {symbol}")
+                else:
+                    logger.info(f"Cyclical P/B: Insufficient key metrics data for {symbol}")
+            except Exception as e:
+                logger.warning(f"Cyclical P/B failed for {symbol}: {e}")
 
             # Tool 3: Inventory Warning (DIO)
             try:
@@ -2372,8 +2388,12 @@ class QualitativeAnalyzer:
                             'signal': signal,
                             'interpretation': message
                         }
-            except:
-                pass
+                    else:
+                        logger.info(f"Cyclical DIO: Need 2+ DIO values, got {len(dio_values)} for {symbol}")
+                else:
+                    logger.info(f"Cyclical DIO: Insufficient financial ratios data for {symbol} (companies without inventory won't have DIO)")
+            except Exception as e:
+                logger.warning(f"Cyclical DIO failed for {symbol}: {e}")
 
             # Tool 4: Operating Margin Mean Reversion
             try:
@@ -2410,8 +2430,12 @@ class QualitativeAnalyzer:
                             'signal': signal,
                             'interpretation': message
                         }
-            except:
-                pass
+                    else:
+                        logger.info(f"Cyclical Margin: Need 3+ margin values, got {len(margins)} for {symbol}")
+                else:
+                    logger.info(f"Cyclical Margin: Insufficient income statement data for {symbol}")
+            except Exception as e:
+                logger.warning(f"Cyclical Margin failed for {symbol}: {e}")
 
             return {
                 'is_cyclical': True,
