@@ -3056,9 +3056,11 @@ class QualitativeAnalyzer:
                     logger.error(f"Additional valuation methods failed for {symbol}: {e}", exc_info=True)
 
                 # 4. Robust Fair Value: Log-scale combination with method families
-                try:
-                    print(f"\n🔵 [{symbol}] dcf={dcf_value}, fwd={forward_value}, hist={historical_value}, pe={pe_value}, peg={peg_value}")
+                # ADD DEBUG FLAG to track execution
+                valuation['_debug_robust_started'] = True
+                valuation['_debug_variables'] = f"dcf={dcf_value}, fwd={forward_value}, hist={historical_value}"
 
+                try:
                     # Prepare valuation methods dict for robust calculation
                     valuation_methods_dict = {}
 
@@ -3089,29 +3091,37 @@ class QualitativeAnalyzer:
                         valuation_methods_dict['historical_multiple_value'] = historical_value
                         logger.info(f"✓ Added historical_multiple_value: ${historical_value:.2f}")
 
-                    print(f"   Methods: {list(valuation_methods_dict.keys())} | Count: {len(valuation_methods_dict)} | Has conf: {confidence_score is not None}")
+                    # DEBUG: Track methods dict creation
+                    valuation['_debug_methods_dict'] = list(valuation_methods_dict.keys())
+                    valuation['_debug_methods_count'] = len(valuation_methods_dict)
+                    valuation['_debug_has_confidence'] = confidence_score is not None
 
                     # Calculate robust fair value if we have methods and confidence data
                     # MINIMUM: Need at least 1 method (reduced from 2)
                     # With 1 method, it becomes a confidence-adjusted single estimate
                     # With 2+ methods, it becomes a true robust combination
                     if len(valuation_methods_dict) >= 1 and confidence_score:
-                        print(f"   ✓ Calling _calculate_robust_fair_value...")
+                        valuation['_debug_condition_met'] = True
                         robust_valuation = self._calculate_robust_fair_value(
                             symbol,
                             valuation_methods_dict,
                             confidence_score,
                             growth_engine
                         )
+                        valuation['_debug_returned'] = robust_valuation is not None
+                        if robust_valuation:
+                            valuation['_debug_has_fair_value_key'] = 'fair_value_robust' in robust_valuation
+                            valuation['_debug_fair_value'] = robust_valuation.get('fair_value_robust')
+
                         if robust_valuation and robust_valuation.get('fair_value_robust'):
                             valuation['robust_valuation'] = robust_valuation
-                            print(f"   ✅ ADDED robust_valuation: ${robust_valuation.get('fair_value_robust', 0):.2f}")
+                            valuation['_debug_added_to_dict'] = True
                         else:
-                            print(f"   ❌ Returned empty or None")
+                            valuation['_debug_why_not_added'] = "returned None or missing fair_value_robust"
                     elif len(valuation_methods_dict) < 1:
-                        print(f"   ❌ Not enough methods ({len(valuation_methods_dict)})")
+                        valuation['_debug_why_not_calculated'] = f"Not enough methods: {len(valuation_methods_dict)}"
                     elif not confidence_score:
-                        print(f"   ❌ No confidence score")
+                        valuation['_debug_why_not_calculated'] = "No confidence score"
                 except Exception as e:
                     logger.error(f"Robust Fair Value calculation failed for {symbol}: {e}", exc_info=True)
 

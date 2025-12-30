@@ -5707,11 +5707,39 @@ with tab5:
                             st.write(f"**Growth Engine Exists:** {'✅ Yes' if growth_engine else '❌ No'}")
 
                             st.divider()
-                            st.write(f"**robust_valuation in dict:** {'✅ Yes' if robust_val else '❌ NO - THIS IS THE PROBLEM'}")
+                            st.write("**🔍 Execution Trace:**")
+
+                            # Show all debug flags
+                            debug_started = intrinsic.get('_debug_robust_started')
+                            st.write(f"1. Code block started: {'✅ Yes' if debug_started else '❌ NO - CODE NOT EXECUTING'}")
+
+                            if debug_started:
+                                st.write(f"2. Variables at start: {intrinsic.get('_debug_variables', 'N/A')}")
+                                st.write(f"3. Methods dict built: {intrinsic.get('_debug_methods_dict', 'N/A')}")
+                                st.write(f"4. Methods count: {intrinsic.get('_debug_methods_count', 0)}")
+                                st.write(f"5. Has confidence: {intrinsic.get('_debug_has_confidence', False)}")
+
+                                condition_met = intrinsic.get('_debug_condition_met')
+                                st.write(f"6. Condition met (>=1 methods + confidence): {'✅ Yes' if condition_met else '❌ No'}")
+
+                                if condition_met:
+                                    st.write(f"7. Function returned value: {'✅ Yes' if intrinsic.get('_debug_returned') else '❌ No (None)'}")
+                                    st.write(f"8. Has 'fair_value_robust' key: {'✅ Yes' if intrinsic.get('_debug_has_fair_value_key') else '❌ No'}")
+                                    fair_val_debug = intrinsic.get('_debug_fair_value')
+                                    st.write(f"9. fair_value value: ${fair_val_debug:.2f}" if fair_val_debug else "9. fair_value value: ❌ None or 0")
+
+                                    if intrinsic.get('_debug_added_to_dict'):
+                                        st.success("✅ Successfully added to valuation dict!")
+                                    else:
+                                        st.error(f"❌ NOT ADDED: {intrinsic.get('_debug_why_not_added', 'unknown reason')}")
+                                else:
+                                    st.error(f"❌ Condition not met: {intrinsic.get('_debug_why_not_calculated', 'unknown')}")
+
+                            st.divider()
+                            st.write(f"**Final result - robust_valuation in dict:** {'✅ Yes' if robust_val else '❌ NO'}")
                             if robust_val:
                                 st.write(f"**has fair_value_robust:** {'✅ Yes' if robust_val.get('fair_value_robust') else '❌ No'}")
-                                st.write(f"**robust_val keys:** {list(robust_val.keys())}")
-                                st.write(f"**robust_val values:** {robust_val}")
+                                st.json(robust_val)
 
                         if robust_val and robust_val.get('fair_value_robust'):
                             st.markdown("<br>", unsafe_allow_html=True)
