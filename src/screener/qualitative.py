@@ -5085,6 +5085,35 @@ class QualitativeAnalyzer:
             result['range_p90'] = range_p90
             result['methods_used'] = method_names
 
+            # ============================================================================
+            # DISAGREEMENT METRICS: Separate RAW vs ROBUST
+            # ============================================================================
+            # RAW disagreement: All individual methods before winsorization
+            # ROBUST disagreement: Family medians after winsorization
+            # This separation explains why you can have "High raw disagreement" but "High consensus"
+            # ============================================================================
+
+            # Raw disagreement: Calculate coefficient of variation of ALL methods
+            raw_values = []
+            for family_name, family_data in families.items():
+                if family_data['values']:
+                    # Get original values (before winsorization)
+                    for log_val in family_data['values']:
+                        raw_values.append(np.exp(log_val))
+
+            raw_disagreement_pct = 0
+            if len(raw_values) >= 2:
+                raw_mean = np.mean(raw_values)
+                raw_std = np.std(raw_values)
+                raw_disagreement_pct = (raw_std / raw_mean) if raw_mean > 0 else 0
+
+            # Detect outliers: Methods outside robust range
+            outlier_methods = []
+            for method, value in valuation_methods.items():
+                if value and value > 0:
+                    if value < range_p10 * 0.9 or value > range_p90 * 1.1:
+                        outlier_methods.append(f"{method}=${value:.0f}")
+
             # Consensus tightness: measure dispersion using ROBUST p10-p90 range
             # This is based on the final robust range, not raw method variation
             range_width = (range_p90 - range_p10) / fair_value_robust if fair_value_robust > 0 else 0
@@ -5096,8 +5125,9 @@ class QualitativeAnalyzer:
             else:  # >50% range = low consensus
                 result['consensus_tightness'] = 'Low'
 
-            # Method disagreement (ROBUST): compare family medians after winsorization
+            # Robust disagreement: compare family medians after winsorization
             # This shows divergence between valuation approaches (cashflow vs earnings vs enterprise)
+            robust_disagreement_pct = 0
             if len(family_medians) >= 2:
                 # Compare cashflow vs earnings vs enterprise
                 disagreement_pct = []
@@ -5111,15 +5141,27 @@ class QualitativeAnalyzer:
                         disagreement_pct.append(diff_pct)
 
                 if disagreement_pct:
-                    max_disagreement = max(disagreement_pct)
-                    if max_disagreement > 0.30:  # >30% divergence
-                        diverging_families = [name for name in family_names_list]
-                        result['method_disagreement'] = f"High divergence between {' vs '.join(diverging_families)} ({max_disagreement:.1%})"
-                    else:
-                        result['method_disagreement'] = "Methods generally agree"
+                    robust_disagreement_pct = max(disagreement_pct)
+
+            # Store both disagreement metrics
+            result['raw_disagreement_pct'] = raw_disagreement_pct
+            result['robust_disagreement_pct'] = robust_disagreement_pct
+            result['outlier_methods'] = outlier_methods
+
+            # Generate method disagreement message
+            if robust_disagreement_pct > 0.30:  # >30% divergence between families
+                diverging_families = list(family_medians.keys())
+
+                # Check if high raw disagreement but high consensus
+                if result['consensus_tightness'] == 'High' and raw_disagreement_pct > 0.50:
+                    result['method_disagreement'] = (
+                        f"Robust consensus high after trimming outliers; "
+                        f"raw methods disagree ({raw_disagreement_pct:.1%}) due to outliers: {', '.join(outlier_methods)}"
+                    )
+                else:
+                    result['method_disagreement'] = f"High divergence between {' vs '.join(diverging_families)} ({robust_disagreement_pct:.1%})"
             else:
-                # Single method - no comparison possible
-                result['method_disagreement'] = "Single method - no comparison"
+                result['method_disagreement'] = "Families generally agree"
 
             # Store family weights for transparency (use final weights from Level B)
             result['family_weights'] = {
