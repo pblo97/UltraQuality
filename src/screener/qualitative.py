@@ -4953,21 +4953,21 @@ class QualitativeAnalyzer:
                             # P/E weight depends on earnings quality (proxy: low accruals)
                             fcf_quality = confidence_data.get('components', {}).get('fcf_quality', 50) / 100
                             method_weight = fcf_quality * 0.9
-                            # Penalize if no peers (using fallback multiples)
+                            # CRITICAL: Penalize heavily if no peers (using fallback multiples)
                             if not has_peers:
-                                method_weight *= 0.7  # Reduce by 30%
+                                method_weight *= 0.25  # Reduce to 25% (unreliable without anchor)
                         elif method in ['ev_ebit_value', 'ev_fcf_value']:
                             # EV multiples: stable, moderate weight
                             method_weight = confidence_score * 1.0
-                            # Penalize if no peers (using fallback multiples)
+                            # CRITICAL: Penalize heavily if no peers (using fallback multiples)
                             if not has_peers:
-                                method_weight *= 0.7  # Reduce by 30%
+                                method_weight *= 0.25  # Reduce to 25% (unreliable without anchor)
                         elif method in ['forward_multiple_value', 'historical_multiple_value']:
                             # Multiples-based: default weight
                             method_weight = confidence_score
-                            # Penalize if no peers (less reliable)
+                            # CRITICAL: Penalize severely if no peers (very unreliable)
                             if not has_peers:
-                                method_weight *= 0.6  # Reduce by 40% (more severe)
+                                method_weight *= 0.15  # Reduce to 15% (almost zero weight)
                         else:
                             # Default
                             method_weight = confidence_score
@@ -5085,25 +5085,19 @@ class QualitativeAnalyzer:
             result['range_p90'] = range_p90
             result['methods_used'] = method_names
 
-            # Consensus tightness: measure dispersion between family medians
-            if len(family_medians) == 1:
-                # With 1 family, always "High" (perfect consensus)
+            # Consensus tightness: measure dispersion using ROBUST p10-p90 range
+            # This is based on the final robust range, not raw method variation
+            range_width = (range_p90 - range_p10) / fair_value_robust if fair_value_robust > 0 else 0
+
+            if range_width < 0.30:  # <30% range = tight consensus
                 result['consensus_tightness'] = 'High'
-            else:
-                # Calculate coefficient of variation of family medians
-                family_vals_array = np.array(list(family_medians.values()))
-                family_mean = np.mean(family_vals_array)
-                family_std = np.std(family_vals_array)
-                cv = family_std / family_mean if family_mean > 0 else 0
+            elif range_width < 0.50:  # 30-50% range = medium consensus
+                result['consensus_tightness'] = 'Medium'
+            else:  # >50% range = low consensus
+                result['consensus_tightness'] = 'Low'
 
-                if cv < 0.15:  # ~15% variation
-                    result['consensus_tightness'] = 'High'
-                elif cv < 0.30:  # ~30% variation
-                    result['consensus_tightness'] = 'Medium'
-                else:
-                    result['consensus_tightness'] = 'Low'
-
-            # Method disagreement: compare family medians (already calculated above)
+            # Method disagreement (ROBUST): compare family medians after winsorization
+            # This shows divergence between valuation approaches (cashflow vs earnings vs enterprise)
             if len(family_medians) >= 2:
                 # Compare cashflow vs earnings vs enterprise
                 disagreement_pct = []
