@@ -5077,7 +5077,7 @@ class QualitativeAnalyzer:
         """
         Calculate intrinsic value using P/E ratio vs peers.
 
-        Fair Value = EPS × P/E_peers_median
+        Fair Value = EPS × P/E_peers_median (or sector P/E if no peers)
 
         Returns fair price per share.
         """
@@ -5085,6 +5085,7 @@ class QualitativeAnalyzer:
             # Get company P/E and EPS
             key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
             if not key_metrics or len(key_metrics) == 0:
+                logger.debug(f"P/E calc: No key metrics for {symbol}")
                 return None
 
             company_pe = key_metrics[0].get('peRatio')
@@ -5092,48 +5093,80 @@ class QualitativeAnalyzer:
             # Get EPS (trailing)
             income = self.fmp.get_income_statement(symbol, period='annual', limit=1)
             if not income or len(income) == 0:
+                logger.debug(f"P/E calc: No income statement for {symbol}")
                 return None
 
             net_income = income[0].get('netIncome', 0)
             weighted_avg_shares = income[0].get('weightedAverageShsOut', 0)
 
             if not weighted_avg_shares or weighted_avg_shares == 0:
+                logger.debug(f"P/E calc: No shares outstanding for {symbol}")
                 return None
 
             eps = net_income / weighted_avg_shares
 
             if not eps or eps <= 0:
+                logger.debug(f"P/E calc: EPS is {eps} for {symbol}")
                 return None
 
-            # Get peer P/E ratios
-            if not peers_list:
-                return None
+            # Strategy 1: Try to use peer P/E ratios
+            peer_pe_median = None
+            if peers_list and len(peers_list) > 0:
+                peer_pes = []
+                for peer in peers_list[:10]:  # Limit to 10 peers
+                    try:
+                        peer_metrics = self.fmp.get_key_metrics(peer, period='annual', limit=1)
+                        if peer_metrics and len(peer_metrics) > 0:
+                            peer_pe = peer_metrics[0].get('peRatio')
+                            if peer_pe and peer_pe > 0 and peer_pe < 100:  # Filter outliers
+                                peer_pes.append(peer_pe)
+                    except:
+                        continue
 
-            peer_pes = []
-            for peer in peers_list[:10]:  # Limit to 10 peers
+                if len(peer_pes) >= 3:
+                    import statistics
+                    peer_pe_median = statistics.median(peer_pes)
+                    logger.info(f"P/E calc: Using peer median P/E={peer_pe_median:.2f} from {len(peer_pes)} peers for {symbol}")
+
+            # Strategy 2: If no peers or not enough peer data, use sector average
+            if peer_pe_median is None:
                 try:
-                    peer_metrics = self.fmp.get_key_metrics(peer, period='annual', limit=1)
-                    if peer_metrics and len(peer_metrics) > 0:
-                        peer_pe = peer_metrics[0].get('peRatio')
-                        if peer_pe and peer_pe > 0 and peer_pe < 100:  # Filter outliers
-                            peer_pes.append(peer_pe)
+                    profile = self.fmp.get_profile(symbol)
+                    if profile and len(profile) > 0:
+                        sector = profile[0].get('sector', '')
+                        industry = profile[0].get('industry', '')
+
+                        # Use conservative sector P/E estimates
+                        sector_pe_map = {
+                            'Technology': 25,
+                            'Healthcare': 22,
+                            'Consumer Cyclical': 18,
+                            'Consumer Defensive': 20,
+                            'Industrials': 18,
+                            'Financial Services': 12,
+                            'Energy': 15,
+                            'Utilities': 16,
+                            'Real Estate': 20,
+                            'Basic Materials': 16,
+                            'Communication Services': 20,
+                            'Financial': 12
+                        }
+
+                        peer_pe_median = sector_pe_map.get(sector, 18)  # Default to market average ~18
+                        logger.info(f"P/E calc: Using sector P/E={peer_pe_median} for {symbol} (sector: {sector})")
                 except:
-                    continue
+                    # Ultimate fallback: use market average
+                    peer_pe_median = 18
+                    logger.info(f"P/E calc: Using market average P/E=18 for {symbol}")
 
-            if len(peer_pes) < 3:
-                return None
-
-            # Use median P/E to avoid outlier influence
-            import statistics
-            peer_pe_median = statistics.median(peer_pes)
-
-            # Fair value = EPS × Peer P/E
+            # Fair value = EPS × Peer/Sector P/E
             fair_value = eps * peer_pe_median
 
+            logger.info(f"P/E calc: Fair value=${fair_value:.2f} (EPS=${eps:.2f} × P/E={peer_pe_median:.2f}) for {symbol}")
             return fair_value if fair_value > 0 else None
 
         except Exception as e:
-            logger.debug(f"P/E intrinsic value calculation failed for {symbol}: {e}")
+            logger.warning(f"P/E intrinsic value calculation failed for {symbol}: {e}", exc_info=True)
             return None
 
     def _calculate_peg_intrinsic_value(self, symbol: str, growth_data: Dict = None) -> Optional[float]:
@@ -5151,24 +5184,30 @@ class QualitativeAnalyzer:
             # Get current price
             profile = self.fmp.get_profile(symbol)
             if not profile or len(profile) == 0:
+                logger.debug(f"PEG calc: No profile for {symbol}")
                 return None
 
             current_price = profile[0].get('price', 0)
             if not current_price or current_price <= 0:
+                logger.debug(f"PEG calc: No valid price for {symbol}")
                 return None
 
             # Get PEG ratio
             key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
             if not key_metrics or len(key_metrics) == 0:
+                logger.debug(f"PEG calc: No key metrics for {symbol}")
                 return None
 
             peg_ratio = key_metrics[0].get('pegRatio')
             if not peg_ratio or peg_ratio <= 0:
+                logger.debug(f"PEG calc: No valid PEG ratio for {symbol}")
                 return None
 
             # Get growth rate (prefer from growth_data if available)
+            growth_rate = None
             if growth_data and growth_data.get('revenue_growth_5y'):
                 growth_rate = growth_data['revenue_growth_5y'].get('base', 0) * 100
+                logger.debug(f"PEG calc: Using growth_data growth rate={growth_rate:.1f}% for {symbol}")
             else:
                 # Fallback: estimate from revenue
                 income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
@@ -5177,13 +5216,17 @@ class QualitativeAnalyzer:
                     rev_prev = income[1].get('revenue', 0)
                     if rev_prev > 0:
                         growth_rate = ((rev_current - rev_prev) / rev_prev) * 100
+                        logger.debug(f"PEG calc: Using historical revenue growth rate={growth_rate:.1f}% for {symbol}")
                     else:
+                        logger.debug(f"PEG calc: No previous revenue for {symbol}")
                         return None
                 else:
+                    logger.debug(f"PEG calc: Insufficient revenue history for {symbol}")
                     return None
 
             # Only valid for reasonable growth rates
             if growth_rate < 5 or growth_rate > 100:
+                logger.debug(f"PEG calc: Growth rate {growth_rate:.1f}% out of valid range [5%, 100%] for {symbol}")
                 return None
 
             # Fair PEG = 1.0 (conservative)
@@ -5192,17 +5235,18 @@ class QualitativeAnalyzer:
             # Fair Value = Current Price × (Fair PEG / Current PEG)
             fair_value = current_price * (fair_peg / peg_ratio)
 
+            logger.info(f"PEG calc: Fair value=${fair_value:.2f} (Price=${current_price:.2f} × FairPEG={fair_peg}/PEG={peg_ratio:.2f}, Growth={growth_rate:.1f}%) for {symbol}")
             return fair_value if fair_value > 0 else None
 
         except Exception as e:
-            logger.debug(f"PEG intrinsic value calculation failed for {symbol}: {e}")
+            logger.warning(f"PEG intrinsic value calculation failed for {symbol}: {e}", exc_info=True)
             return None
 
     def _calculate_ev_ebit_intrinsic_value(self, symbol: str, peers_list: List[str] = None) -> Optional[float]:
         """
         Calculate intrinsic value using EV/EBIT ratio vs peers.
 
-        Fair EV = EBIT × EV/EBIT_peers_median
+        Fair EV = EBIT × EV/EBIT_peers_median (or sector EV/EBIT if no peers)
         Fair Equity Value = Fair EV - Net Debt
         Fair Price = Fair Equity Value / Shares Outstanding
 
@@ -5212,15 +5256,18 @@ class QualitativeAnalyzer:
             # Get company EBIT
             income = self.fmp.get_income_statement(symbol, period='annual', limit=1)
             if not income or len(income) == 0:
+                logger.debug(f"EV/EBIT calc: No income statement for {symbol}")
                 return None
 
             ebit = income[0].get('operatingIncome', 0)
             if not ebit or ebit <= 0:
+                logger.debug(f"EV/EBIT calc: EBIT is {ebit} for {symbol}")
                 return None
 
             # Get Net Debt (Total Debt - Cash)
             balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
             if not balance or len(balance) == 0:
+                logger.debug(f"EV/EBIT calc: No balance sheet for {symbol}")
                 return None
 
             total_debt = balance[0].get('totalDebt', 0)
@@ -5230,35 +5277,62 @@ class QualitativeAnalyzer:
             # Get shares outstanding
             profile = self.fmp.get_profile(symbol)
             if not profile or len(profile) == 0:
+                logger.debug(f"EV/EBIT calc: No profile for {symbol}")
                 return None
 
             shares_outstanding = profile[0].get('sharesOutstanding', 0)
             if not shares_outstanding or shares_outstanding == 0:
+                logger.debug(f"EV/EBIT calc: No shares outstanding for {symbol}")
                 return None
 
-            # Get peer EV/EBIT ratios
-            if not peers_list:
-                return None
+            # Strategy 1: Try to use peer EV/EBIT ratios
+            peer_ev_ebit_median = None
+            if peers_list and len(peers_list) > 0:
+                peer_ev_ebit_ratios = []
+                for peer in peers_list[:10]:
+                    try:
+                        peer_metrics = self.fmp.get_key_metrics(peer, period='annual', limit=1)
+                        if peer_metrics and len(peer_metrics) > 0:
+                            ev_ebit = peer_metrics[0].get('enterpriseValueOverEBIT')
+                            if ev_ebit and ev_ebit > 0 and ev_ebit < 50:  # Filter outliers
+                                peer_ev_ebit_ratios.append(ev_ebit)
+                    except:
+                        continue
 
-            peer_ev_ebit_ratios = []
-            for peer in peers_list[:10]:
+                if len(peer_ev_ebit_ratios) >= 3:
+                    import statistics
+                    peer_ev_ebit_median = statistics.median(peer_ev_ebit_ratios)
+                    logger.info(f"EV/EBIT calc: Using peer median EV/EBIT={peer_ev_ebit_median:.2f} from {len(peer_ev_ebit_ratios)} peers for {symbol}")
+
+            # Strategy 2: If no peers or not enough peer data, use sector average
+            if peer_ev_ebit_median is None:
                 try:
-                    peer_metrics = self.fmp.get_key_metrics(peer, period='annual', limit=1)
-                    if peer_metrics and len(peer_metrics) > 0:
-                        ev_ebit = peer_metrics[0].get('enterpriseValueOverEBIT')
-                        if ev_ebit and ev_ebit > 0 and ev_ebit < 50:  # Filter outliers
-                            peer_ev_ebit_ratios.append(ev_ebit)
+                    sector = profile[0].get('sector', '')
+
+                    # Use conservative sector EV/EBIT estimates
+                    sector_ev_ebit_map = {
+                        'Technology': 18,
+                        'Healthcare': 16,
+                        'Consumer Cyclical': 12,
+                        'Consumer Defensive': 14,
+                        'Industrials': 12,
+                        'Financial Services': 10,
+                        'Energy': 8,
+                        'Utilities': 10,
+                        'Real Estate': 15,
+                        'Basic Materials': 10,
+                        'Communication Services': 14,
+                        'Financial': 10
+                    }
+
+                    peer_ev_ebit_median = sector_ev_ebit_map.get(sector, 12)  # Default to market average ~12
+                    logger.info(f"EV/EBIT calc: Using sector EV/EBIT={peer_ev_ebit_median} for {symbol} (sector: {sector})")
                 except:
-                    continue
+                    # Ultimate fallback: use market average
+                    peer_ev_ebit_median = 12
+                    logger.info(f"EV/EBIT calc: Using market average EV/EBIT=12 for {symbol}")
 
-            if len(peer_ev_ebit_ratios) < 3:
-                return None
-
-            # Use median to avoid outliers
-            import statistics
-            peer_ev_ebit_median = statistics.median(peer_ev_ebit_ratios)
-
-            # Fair EV = EBIT × Peer EV/EBIT
+            # Fair EV = EBIT × Peer/Sector EV/EBIT
             fair_ev = ebit * peer_ev_ebit_median
 
             # Fair Equity Value = Fair EV - Net Debt
@@ -5267,17 +5341,18 @@ class QualitativeAnalyzer:
             # Fair Price = Fair Equity Value / Shares
             fair_price = fair_equity_value / shares_outstanding
 
+            logger.info(f"EV/EBIT calc: Fair price=${fair_price:.2f} (EBIT={ebit/1e6:.1f}M × EV/EBIT={peer_ev_ebit_median:.2f} - NetDebt={net_debt/1e6:.1f}M) / {shares_outstanding/1e6:.1f}M shares for {symbol}")
             return fair_price if fair_price > 0 else None
 
         except Exception as e:
-            logger.debug(f"EV/EBIT intrinsic value calculation failed for {symbol}: {e}")
+            logger.warning(f"EV/EBIT intrinsic value calculation failed for {symbol}: {e}", exc_info=True)
             return None
 
     def _calculate_ev_fcf_intrinsic_value(self, symbol: str, peers_list: List[str] = None) -> Optional[float]:
         """
         Calculate intrinsic value using EV/FCF ratio vs peers.
 
-        Fair EV = FCF × EV/FCF_peers_median
+        Fair EV = FCF × EV/FCF_peers_median (or sector EV/FCF if no peers)
         Fair Equity Value = Fair EV - Net Debt
         Fair Price = Fair Equity Value / Shares Outstanding
 
@@ -5287,6 +5362,7 @@ class QualitativeAnalyzer:
             # Get company FCF
             cash_flow = self.fmp.get_cash_flow(symbol, period='annual', limit=1)
             if not cash_flow or len(cash_flow) == 0:
+                logger.debug(f"EV/FCF calc: No cash flow for {symbol}")
                 return None
 
             operating_cf = cash_flow[0].get('operatingCashFlow', 0)
@@ -5294,24 +5370,28 @@ class QualitativeAnalyzer:
             fcf = operating_cf - capex
 
             if not fcf or fcf <= 0:
+                logger.debug(f"EV/FCF calc: FCF is {fcf} for {symbol}")
                 return None
 
             # Get Net Debt
             balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
             if not balance or len(balance) == 0:
+                logger.debug(f"EV/FCF calc: No balance sheet for {symbol}")
                 return None
 
             total_debt = balance[0].get('totalDebt', 0)
-            cash = balance[0].get('cashAndCashEquivalents', 0)
-            net_debt = total_debt - cash
+            cash_balance = balance[0].get('cashAndCashEquivalents', 0)
+            net_debt = total_debt - cash_balance
 
             # Get shares outstanding
             profile = self.fmp.get_profile(symbol)
             if not profile or len(profile) == 0:
+                logger.debug(f"EV/FCF calc: No profile for {symbol}")
                 return None
 
             shares_outstanding = profile[0].get('sharesOutstanding', 0)
             if not shares_outstanding or shares_outstanding == 0:
+                logger.debug(f"EV/FCF calc: No shares outstanding for {symbol}")
                 return None
 
             # Get current EV for reference
@@ -5319,45 +5399,70 @@ class QualitativeAnalyzer:
             current_ev = market_cap + net_debt
             current_ev_fcf = current_ev / fcf if fcf > 0 else None
 
-            # Get peer EV/FCF ratios
-            if not peers_list:
-                return None
+            # Strategy 1: Try to use peer EV/FCF ratios
+            peer_ev_fcf_median = None
+            if peers_list and len(peers_list) > 0:
+                peer_ev_fcf_ratios = []
+                for peer in peers_list[:10]:
+                    try:
+                        # Calculate peer EV/FCF
+                        peer_cf = self.fmp.get_cash_flow(peer, period='annual', limit=1)
+                        peer_balance = self.fmp.get_balance_sheet(peer, period='annual', limit=1)
+                        peer_profile = self.fmp.get_profile(peer)
 
-            peer_ev_fcf_ratios = []
-            for peer in peers_list[:10]:
+                        if peer_cf and peer_balance and peer_profile:
+                            peer_ocf = peer_cf[0].get('operatingCashFlow', 0)
+                            peer_capex = abs(peer_cf[0].get('capitalExpenditure', 0))
+                            peer_fcf = peer_ocf - peer_capex
+
+                            peer_debt = peer_balance[0].get('totalDebt', 0)
+                            peer_cash = peer_balance[0].get('cashAndCashEquivalents', 0)
+                            peer_net_debt = peer_debt - peer_cash
+
+                            peer_mkt_cap = peer_profile[0].get('mktCap', 0)
+                            peer_ev = peer_mkt_cap + peer_net_debt
+
+                            if peer_fcf > 0:
+                                peer_ev_fcf = peer_ev / peer_fcf
+                                if peer_ev_fcf > 0 and peer_ev_fcf < 50:  # Filter outliers
+                                    peer_ev_fcf_ratios.append(peer_ev_fcf)
+                    except:
+                        continue
+
+                if len(peer_ev_fcf_ratios) >= 3:
+                    import statistics
+                    peer_ev_fcf_median = statistics.median(peer_ev_fcf_ratios)
+                    logger.info(f"EV/FCF calc: Using peer median EV/FCF={peer_ev_fcf_median:.2f} from {len(peer_ev_fcf_ratios)} peers for {symbol}")
+
+            # Strategy 2: If no peers or not enough peer data, use sector average
+            if peer_ev_fcf_median is None:
                 try:
-                    # Calculate peer EV/FCF
-                    peer_cf = self.fmp.get_cash_flow(peer, period='annual', limit=1)
-                    peer_balance = self.fmp.get_balance_sheet(peer, period='annual', limit=1)
-                    peer_profile = self.fmp.get_profile(peer)
+                    sector = profile[0].get('sector', '')
 
-                    if peer_cf and peer_balance and peer_profile:
-                        peer_ocf = peer_cf[0].get('operatingCashFlow', 0)
-                        peer_capex = abs(peer_cf[0].get('capitalExpenditure', 0))
-                        peer_fcf = peer_ocf - peer_capex
+                    # Use conservative sector EV/FCF estimates
+                    sector_ev_fcf_map = {
+                        'Technology': 22,
+                        'Healthcare': 20,
+                        'Consumer Cyclical': 15,
+                        'Consumer Defensive': 18,
+                        'Industrials': 15,
+                        'Financial Services': 12,
+                        'Energy': 10,
+                        'Utilities': 12,
+                        'Real Estate': 18,
+                        'Basic Materials': 12,
+                        'Communication Services': 16,
+                        'Financial': 12
+                    }
 
-                        peer_debt = peer_balance[0].get('totalDebt', 0)
-                        peer_cash = peer_balance[0].get('cashAndCashEquivalents', 0)
-                        peer_net_debt = peer_debt - peer_cash
-
-                        peer_mkt_cap = peer_profile[0].get('mktCap', 0)
-                        peer_ev = peer_mkt_cap + peer_net_debt
-
-                        if peer_fcf > 0:
-                            peer_ev_fcf = peer_ev / peer_fcf
-                            if peer_ev_fcf > 0 and peer_ev_fcf < 50:  # Filter outliers
-                                peer_ev_fcf_ratios.append(peer_ev_fcf)
+                    peer_ev_fcf_median = sector_ev_fcf_map.get(sector, 15)  # Default to market average ~15
+                    logger.info(f"EV/FCF calc: Using sector EV/FCF={peer_ev_fcf_median} for {symbol} (sector: {sector})")
                 except:
-                    continue
+                    # Ultimate fallback: use market average
+                    peer_ev_fcf_median = 15
+                    logger.info(f"EV/FCF calc: Using market average EV/FCF=15 for {symbol}")
 
-            if len(peer_ev_fcf_ratios) < 3:
-                return None
-
-            # Use median
-            import statistics
-            peer_ev_fcf_median = statistics.median(peer_ev_fcf_ratios)
-
-            # Fair EV = FCF × Peer EV/FCF
+            # Fair EV = FCF × Peer/Sector EV/FCF
             fair_ev = fcf * peer_ev_fcf_median
 
             # Fair Equity Value = Fair EV - Net Debt
@@ -5366,10 +5471,11 @@ class QualitativeAnalyzer:
             # Fair Price = Fair Equity Value / Shares
             fair_price = fair_equity_value / shares_outstanding
 
+            logger.info(f"EV/FCF calc: Fair price=${fair_price:.2f} (FCF={fcf/1e6:.1f}M × EV/FCF={peer_ev_fcf_median:.2f} - NetDebt={net_debt/1e6:.1f}M) / {shares_outstanding/1e6:.1f}M shares for {symbol}")
             return fair_price if fair_price > 0 else None
 
         except Exception as e:
-            logger.debug(f"EV/FCF intrinsic value calculation failed for {symbol}: {e}")
+            logger.warning(f"EV/FCF intrinsic value calculation failed for {symbol}: {e}", exc_info=True)
             return None
 
     # ===================================
