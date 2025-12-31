@@ -3033,8 +3033,10 @@ class QualitativeAnalyzer:
                         logger.info(f"✓ P/E Value: ${pe_value:.2f}")
                         valuation_calc_attempts.append(f"✓ P/E: ${pe_value:.2f}")
                     else:
-                        logger.warning(f"⚠️ P/E Value not available for {symbol} - returned {pe_value}")
-                        valuation_calc_attempts.append(f"⚠️ P/E: returned {pe_value}")
+                        # Try to get more specific failure reason from most recent logs
+                        reason = "Unknown reason - check: key_metrics, income_statement, EPS>0"
+                        logger.warning(f"⚠️ P/E Value not available for {symbol} - returned {pe_value}. {reason}")
+                        valuation_calc_attempts.append(f"⚠️ P/E: None ({reason})")
                 except Exception as e:
                     logger.error(f"❌ P/E calculation error for {symbol}: {e}", exc_info=True)
                     valuation_calc_attempts.append(f"❌ P/E: {str(e)[:50]}")
@@ -5118,7 +5120,7 @@ class QualitativeAnalyzer:
             # Get company P/E and EPS
             key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
             if not key_metrics or len(key_metrics) == 0:
-                logger.warning(f"P/E calc: No key metrics for {symbol}")
+                logger.warning(f"P/E calc: ❌ FAILED - No key_metrics for {symbol}")
                 return None
 
             company_pe = key_metrics[0].get('peRatio')
@@ -5126,21 +5128,23 @@ class QualitativeAnalyzer:
             # Get EPS (trailing)
             income = self.fmp.get_income_statement(symbol, period='annual', limit=1)
             if not income or len(income) == 0:
-                logger.debug(f"P/E calc: No income statement for {symbol}")
+                logger.warning(f"P/E calc: ❌ FAILED - No income_statement for {symbol}")
                 return None
 
             net_income = income[0].get('netIncome', 0)
             weighted_avg_shares = income[0].get('weightedAverageShsOut', 0)
 
             if not weighted_avg_shares or weighted_avg_shares == 0:
-                logger.debug(f"P/E calc: No shares outstanding for {symbol}")
+                logger.warning(f"P/E calc: ❌ FAILED - No shares_outstanding for {symbol}")
                 return None
 
             eps = net_income / weighted_avg_shares
 
             if not eps or eps <= 0:
-                logger.debug(f"P/E calc: EPS is {eps} for {symbol}")
+                logger.warning(f"P/E calc: ❌ FAILED - EPS={eps} (must be >0) for {symbol}")
                 return None
+
+            logger.info(f"P/E calc: ✓ Got EPS=${eps:.2f} for {symbol}")
 
             # Strategy 1: Try to use peer P/E ratios
             peer_pe_median = None
