@@ -3017,52 +3017,75 @@ class QualitativeAnalyzer:
                 ev_ebit_value = None
                 ev_fcf_value = None
 
+                # Track calculation attempts for debugging
+                valuation_calc_attempts = []
+
                 # Calculate each method independently with individual error handling
                 logger.info(f"Calculating additional valuation methods for {symbol}")
+                valuation_calc_attempts.append(f"Starting additional methods for {symbol}")
 
                 # P/E based value (Earnings family)
                 try:
+                    valuation_calc_attempts.append(f"Attempting P/E (peers: {len(peers_list) if peers_list else 0})")
                     pe_value = self._calculate_pe_intrinsic_value(symbol, peers_list)
                     if pe_value and pe_value > 0:
                         valuation['pe_value'] = pe_value
                         logger.info(f"✓ P/E Value: ${pe_value:.2f}")
+                        valuation_calc_attempts.append(f"✓ P/E: ${pe_value:.2f}")
                     else:
                         logger.warning(f"⚠️ P/E Value not available for {symbol} - returned {pe_value}")
+                        valuation_calc_attempts.append(f"⚠️ P/E: returned {pe_value}")
                 except Exception as e:
                     logger.error(f"❌ P/E calculation error for {symbol}: {e}", exc_info=True)
+                    valuation_calc_attempts.append(f"❌ P/E: {str(e)[:50]}")
 
                 # PEG based value (Earnings family) - uses growth engine if available
                 try:
+                    valuation_calc_attempts.append(f"Attempting PEG (has growth_data: {growth_engine is not None})")
                     peg_value = self._calculate_peg_intrinsic_value(symbol, growth_engine)
                     if peg_value and peg_value > 0:
                         valuation['peg_value'] = peg_value
                         logger.info(f"✓ PEG Value: ${peg_value:.2f}")
+                        valuation_calc_attempts.append(f"✓ PEG: ${peg_value:.2f}")
                     else:
                         logger.warning(f"⚠️ PEG Value not available for {symbol} - returned {peg_value}")
+                        valuation_calc_attempts.append(f"⚠️ PEG: returned {peg_value}")
                 except Exception as e:
                     logger.error(f"❌ PEG calculation error for {symbol}: {e}", exc_info=True)
+                    valuation_calc_attempts.append(f"❌ PEG: {str(e)[:50]}")
 
                 # EV/EBIT based value (Enterprise family)
                 try:
+                    valuation_calc_attempts.append(f"Attempting EV/EBIT (peers: {len(peers_list) if peers_list else 0})")
                     ev_ebit_value = self._calculate_ev_ebit_intrinsic_value(symbol, peers_list)
                     if ev_ebit_value and ev_ebit_value > 0:
                         valuation['ev_ebit_value'] = ev_ebit_value
                         logger.info(f"✓ EV/EBIT Value: ${ev_ebit_value:.2f}")
+                        valuation_calc_attempts.append(f"✓ EV/EBIT: ${ev_ebit_value:.2f}")
                     else:
                         logger.warning(f"⚠️ EV/EBIT Value not available for {symbol} - returned {ev_ebit_value}")
+                        valuation_calc_attempts.append(f"⚠️ EV/EBIT: returned {ev_ebit_value}")
                 except Exception as e:
                     logger.error(f"❌ EV/EBIT calculation error for {symbol}: {e}", exc_info=True)
+                    valuation_calc_attempts.append(f"❌ EV/EBIT: {str(e)[:50]}")
 
                 # EV/FCF based value (Enterprise family)
                 try:
+                    valuation_calc_attempts.append(f"Attempting EV/FCF (peers: {len(peers_list) if peers_list else 0})")
                     ev_fcf_value = self._calculate_ev_fcf_intrinsic_value(symbol, peers_list)
                     if ev_fcf_value and ev_fcf_value > 0:
                         valuation['ev_fcf_value'] = ev_fcf_value
                         logger.info(f"✓ EV/FCF Value: ${ev_fcf_value:.2f}")
+                        valuation_calc_attempts.append(f"✓ EV/FCF: ${ev_fcf_value:.2f}")
                     else:
                         logger.warning(f"⚠️ EV/FCF Value not available for {symbol} - returned {ev_fcf_value}")
+                        valuation_calc_attempts.append(f"⚠️ EV/FCF: returned {ev_fcf_value}")
                 except Exception as e:
                     logger.error(f"❌ EV/FCF calculation error for {symbol}: {e}", exc_info=True)
+                    valuation_calc_attempts.append(f"❌ EV/FCF: {str(e)[:50]}")
+
+                # Store debug info
+                valuation['_debug_valuation_calc_attempts'] = valuation_calc_attempts
 
                 # 4. Robust Fair Value: Log-scale combination with method families
                 # ADD DEBUG FLAG to track execution
