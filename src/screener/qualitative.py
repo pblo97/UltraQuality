@@ -5232,10 +5232,16 @@ class QualitativeAnalyzer:
             # Fair value = EPS × Peer/Sector P/E
             fair_value = eps * peer_pe_median
 
-            logger.info(f"P/E calc: Fair value=${fair_value:.2f} (EPS=${eps:.2f} × P/E={peer_pe_median:.2f}) for {symbol}")
-            return fair_value if fair_value > 0 else None
+            if fair_value <= 0:
+                self._last_valuation_error = f"Calculated fair_value={fair_value:.2f} (EPS={eps:.2f} × P/E={peer_pe_median:.2f}) is ≤0"
+                logger.warning(f"P/E calc: ❌ FAILED - Fair value is {fair_value:.2f} for {symbol}")
+                return None
+
+            logger.info(f"P/E calc: ✓ Fair value=${fair_value:.2f} (EPS=${eps:.2f} × P/E={peer_pe_median:.2f}) for {symbol}")
+            return fair_value
 
         except Exception as e:
+            self._last_valuation_error = f"Exception: {str(e)[:80]}"
             logger.warning(f"P/E intrinsic value calculation failed for {symbol}: {e}", exc_info=True)
             return None
 
@@ -5294,15 +5300,18 @@ class QualitativeAnalyzer:
                         growth_rate = ((rev_current - rev_prev) / rev_prev) * 100
                         logger.debug(f"PEG calc: Using historical revenue growth rate={growth_rate:.1f}% for {symbol}")
                     else:
-                        logger.debug(f"PEG calc: No previous revenue for {symbol}")
+                        self._last_valuation_error = "No previous revenue for growth calc"
+                        logger.warning(f"PEG calc: ❌ FAILED - No previous revenue for {symbol}")
                         return None
                 else:
-                    logger.debug(f"PEG calc: Insufficient revenue history for {symbol}")
+                    self._last_valuation_error = "Insufficient revenue history (need 2 years)"
+                    logger.warning(f"PEG calc: ❌ FAILED - Insufficient revenue history for {symbol}")
                     return None
 
             # Only valid for reasonable growth rates
             if growth_rate < 5 or growth_rate > 100:
-                logger.debug(f"PEG calc: Growth rate {growth_rate:.1f}% out of valid range [5%, 100%] for {symbol}")
+                self._last_valuation_error = f"Growth rate {growth_rate:.1f}% outside valid range [5%, 100%]"
+                logger.warning(f"PEG calc: ❌ FAILED - Growth rate {growth_rate:.1f}% out of valid range for {symbol}")
                 return None
 
             # Fair PEG = 1.0 (conservative)
@@ -5311,10 +5320,16 @@ class QualitativeAnalyzer:
             # Fair Value = Current Price × (Fair PEG / Current PEG)
             fair_value = current_price * (fair_peg / peg_ratio)
 
-            logger.info(f"PEG calc: Fair value=${fair_value:.2f} (Price=${current_price:.2f} × FairPEG={fair_peg}/PEG={peg_ratio:.2f}, Growth={growth_rate:.1f}%) for {symbol}")
-            return fair_value if fair_value > 0 else None
+            if fair_value <= 0:
+                self._last_valuation_error = f"Calculated fair_value={fair_value:.2f} is ≤0"
+                logger.warning(f"PEG calc: ❌ FAILED - Fair value is {fair_value:.2f} for {symbol}")
+                return None
+
+            logger.info(f"PEG calc: ✓ Fair value=${fair_value:.2f} (Price=${current_price:.2f} × FairPEG={fair_peg}/PEG={peg_ratio:.2f}, Growth={growth_rate:.1f}%) for {symbol}")
+            return fair_value
 
         except Exception as e:
+            self._last_valuation_error = f"Exception: {str(e)[:80]}"
             logger.warning(f"PEG intrinsic value calculation failed for {symbol}: {e}", exc_info=True)
             return None
 
