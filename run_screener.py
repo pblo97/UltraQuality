@@ -5815,9 +5815,33 @@ with tab5:
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # Method disagreement warning if exists
-                            if method_disagreement and 'divergence' in method_disagreement.lower():
-                                st.warning(f"Method Disagreement: {method_disagreement}")
+                            # Consensus explanation if exists (clarifies consensus vs disagreement)
+                            consensus_explanation = robust_val.get('consensus_explanation')
+                            if consensus_explanation:
+                                st.info(f"📊 {consensus_explanation}")
+
+                            # Method disagreement if exists
+                            if method_disagreement:
+                                if 'divergence' in method_disagreement.lower():
+                                    st.warning(f"⚠️ {method_disagreement}")
+                                else:
+                                    st.success(f"✅ {method_disagreement}")
+
+                            # Percentile positioning (from percentile_info)
+                            percentile_info = intrinsic.get('percentile_info', {})
+                            if percentile_info:
+                                positioning = percentile_info.get('positioning', '')
+                                downside_label = percentile_info.get('downside_label', '')
+                                if positioning:
+                                    st.caption(f"📍 **Price Positioning:** {positioning}")
+                                if downside_label:
+                                    st.caption(f"💰 **{downside_label}**")
+
+                            # Multiples reliability flag
+                            multiples_reliability = robust_val.get('multiples_reliability')
+                            if multiples_reliability == 'Low':
+                                reliability_reason = robust_val.get('multiples_reliability_reason', '')
+                                st.warning(f"⚠️ **Multiples Reliability: Low** - {reliability_reason}")
 
                         # Implied Expectations (Reverse DCF) - Show prominently
                         reverse_dcf_data = intrinsic.get('reverse_dcf', {})
@@ -6098,7 +6122,7 @@ with tab5:
 
 📊 **Valoración Base (Robust FV):**
 - **Fair Value Robusto: ${robust_fv:.0f}** (basado en cash flows y enterprise multiples)
-- **Rango: ${range_p10:.0f} - ${robust_p90:.0f}**
+- **Rango base (p10-p90): ${range_p10:.0f} - ${robust_p90:.0f}**
 
 🚀 **Escenario Bull (PEG):**
 - PEG Ratio: {peg_ratio:.2f} (< 1.5 = Growth at reasonable price)
@@ -9045,7 +9069,7 @@ with tab6:
 
 📊 **Valoración Base (Robust FV):**
 - **Fair Value Robusto: ${robust_fv:.0f}** (basado en cash flows y enterprise multiples)
-- **Rango: ${range_p10:.0f} - ${robust_p90:.0f}**
+- **Rango base (p10-p90): ${range_p10:.0f} - ${robust_p90:.0f}**
 
 🚀 **Escenario Bull (PEG):**
 - PEG Ratio: {peg_ratio:.2f} (< 1.5 = Growth at reasonable price)
