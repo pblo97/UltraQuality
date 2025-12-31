@@ -5189,23 +5189,29 @@ class QualitativeAnalyzer:
             else:  # >50% range = low consensus
                 result['consensus_tightness'] = 'Low'
 
-            # Robust disagreement: compare family medians after winsorization
-            # This shows divergence between valuation approaches (cashflow vs earnings vs enterprise)
+            # Robust disagreement: Coefficient of variation of family medians (same metric as raw)
+            # This ensures robust <= raw (since we're aggregating to 3 families vs 7 methods)
             robust_disagreement_pct = 0
             if len(family_medians) >= 2:
-                # Compare cashflow vs earnings vs enterprise
-                disagreement_pct = []
-                family_names_list = list(family_medians.keys())
+                family_median_values = list(family_medians.values())
+                fam_mean = np.mean(family_median_values)
+                fam_std = np.std(family_median_values)
+                robust_disagreement_pct = (fam_std / fam_mean) if fam_mean > 0 else 0
+                logger.debug(f"Robust disagreement: {robust_disagreement_pct:.2%} (CV of {len(family_medians)} family medians)")
 
-                for i in range(len(family_names_list)):
-                    for j in range(i + 1, len(family_names_list)):
-                        f1 = family_medians[family_names_list[i]]
-                        f2 = family_medians[family_names_list[j]]
+            # Calculate max family divergence for informational purposes
+            max_family_divergence_pct = 0
+            if len(family_medians) >= 2:
+                disagreement_pct = []
+                family_names_list_temp = list(family_medians.keys())
+                for i in range(len(family_names_list_temp)):
+                    for j in range(i + 1, len(family_names_list_temp)):
+                        f1 = family_medians[family_names_list_temp[i]]
+                        f2 = family_medians[family_names_list_temp[j]]
                         diff_pct = abs(f1 - f2) / ((f1 + f2) / 2)
                         disagreement_pct.append(diff_pct)
-
                 if disagreement_pct:
-                    robust_disagreement_pct = max(disagreement_pct)
+                    max_family_divergence_pct = max(disagreement_pct)
 
             # Store both disagreement metrics
             result['raw_disagreement_pct'] = raw_disagreement_pct
@@ -5227,16 +5233,17 @@ class QualitativeAnalyzer:
             else:
                 result['consensus_explanation'] = None
 
-            # Generate method disagreement message
-            if robust_disagreement_pct > 0.30:  # >30% divergence between families
+            # Generate method disagreement message using max family divergence
+            if max_family_divergence_pct > 0.30:  # >30% divergence between families
                 diverging_families = list(family_medians.keys())
-                result['method_disagreement'] = f"High divergence between {' vs '.join(diverging_families)} ({robust_disagreement_pct:.1%})"
+                result['method_disagreement'] = f"High divergence between {' vs '.join(diverging_families)} ({max_family_divergence_pct:.1%})"
             else:
                 result['method_disagreement'] = "Families generally agree"
 
-            # Add outlier information if any detected
+            # Add outlier information if any detected (clean format)
             if outlier_methods:
-                result['method_disagreement'] += f" (outliers trimmed: {', '.join(outlier_methods[:3])})"  # Show max 3
+                outliers_str = ", ".join(outlier_methods[:5])  # Show max 5
+                result['method_disagreement'] += f" | Outliers trimmed: {outliers_str}"
 
             # Store family weights for transparency (use final weights from Level B)
             result['family_weights'] = {
