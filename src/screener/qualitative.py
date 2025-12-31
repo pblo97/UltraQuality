@@ -5272,17 +5272,17 @@ class QualitativeAnalyzer:
                 logger.warning(f"PEG calc: ❌ FAILED - No valid price for {symbol}")
                 return None
 
-            # Get PEG ratio
+            # Get P/E ratio to calculate PEG
             key_metrics = self.fmp.get_key_metrics_ttm(symbol)
             if not key_metrics or len(key_metrics) == 0:
                 self._last_valuation_error = "No key_metrics from API"
                 logger.warning(f"PEG calc: ❌ FAILED - No key metrics for {symbol}")
                 return None
 
-            peg_ratio = key_metrics[0].get('pegRatio')
-            if not peg_ratio or peg_ratio <= 0:
-                self._last_valuation_error = f"No valid PEG ratio (got {peg_ratio})"
-                logger.warning(f"PEG calc: ❌ FAILED - No valid PEG ratio for {symbol}")
+            pe_ratio = key_metrics[0].get('peRatioTTM') or key_metrics[0].get('peRatio')
+            if not pe_ratio or pe_ratio <= 0:
+                self._last_valuation_error = f"No valid P/E ratio (got {pe_ratio})"
+                logger.warning(f"PEG calc: ❌ FAILED - No valid P/E ratio for {symbol}")
                 return None
 
             # Get growth rate (prefer from growth_data if available)
@@ -5314,7 +5314,11 @@ class QualitativeAnalyzer:
                 logger.warning(f"PEG calc: ❌ FAILED - Growth rate {growth_rate:.1f}% out of valid range for {symbol}")
                 return None
 
-            # Fair PEG = 1.0 (conservative)
+            # Calculate PEG ratio: PEG = P/E / Growth Rate
+            peg_ratio = pe_ratio / growth_rate
+            logger.debug(f"PEG calc: Calculated PEG={peg_ratio:.2f} (P/E={pe_ratio:.2f} / Growth={growth_rate:.1f}%) for {symbol}")
+
+            # Fair PEG = 1.0 (conservative baseline)
             fair_peg = 1.0
 
             # Fair Value = Current Price × (Fair PEG / Current PEG)
@@ -5325,7 +5329,7 @@ class QualitativeAnalyzer:
                 logger.warning(f"PEG calc: ❌ FAILED - Fair value is {fair_value:.2f} for {symbol}")
                 return None
 
-            logger.info(f"PEG calc: ✓ Fair value=${fair_value:.2f} (Price=${current_price:.2f} × FairPEG={fair_peg}/PEG={peg_ratio:.2f}, Growth={growth_rate:.1f}%) for {symbol}")
+            logger.info(f"PEG calc: ✓ Fair value=${fair_value:.2f} (Price=${current_price:.2f}, P/E={pe_ratio:.2f}, PEG={peg_ratio:.2f}, Growth={growth_rate:.1f}%) for {symbol}")
             return fair_value
 
         except Exception as e:
