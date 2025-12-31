@@ -5620,66 +5620,63 @@ with tab5:
                     # INTRINSIC VALUE & VALUATION
                     # ============================================================
                     st.markdown("""
-                    <div style='background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                    <div style='background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
                                 padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
                         <div style='display: flex; align-items: center; gap: 0.75rem;'>
                             <span style='background: rgba(255,255,255,0.25); padding: 0.35rem 0.75rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
                                 VALUATION
                             </span>
                             <h3 style='margin: 0; color: white; font-weight: 600;'>
-                                Intrinsic Value & Fair Price Estimation
+                                Robust Fair Value Estimation
                             </h3>
                         </div>
-                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem; padding-left: 0.5rem;'>
-                            DCF modeling, forward multiples, and PEG analysis to estimate fair value
+                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
+                            Multi-method consensus with family weighting and outlier trimming
                         </p>
                     </div>
                     """, unsafe_allow_html=True)
 
                     intrinsic = analysis.get('intrinsic_value', {})
 
-                    # Show section if we have intrinsic_value dict (even if current_price is missing)
+                    # Show section if we have intrinsic_value dict
                     if intrinsic and 'current_price' in intrinsic:
-                        # First row: 4 main valuation metrics
-                        col1, col2, col3, col4 = st.columns(4)
-
                         current_price = intrinsic.get('current_price', 0)
+                        robust_val = intrinsic.get('robust_valuation')
 
-                        with col1:
-                            if current_price and current_price > 0:
-                                st.metric("Current Price", f"${current_price:.2f}")
-                            else:
-                                st.metric("Current Price", "N/A")
-                                st.caption(" Price data unavailable")
+                        # Compact metrics row: Price vs Robust FV range
+                        if robust_val and robust_val.get('fair_value_robust'):
+                            col1, col2, col3, col4 = st.columns(4)
 
-                        with col2:
-                            dcf_val = intrinsic.get('dcf_value')
-                            if dcf_val and dcf_val > 0:
-                                st.metric("DCF Value", f"${dcf_val:.2f}")
-                            else:
-                                st.metric("DCF Value", "N/A")
+                            with col1:
+                                st.metric("Price", f"${current_price:.2f}" if current_price > 0 else "N/A")
 
-                        with col3:
-                            fwd_val = intrinsic.get('forward_multiple_value')
-                            if fwd_val and fwd_val > 0:
-                                st.metric("Forward Multiple", f"${fwd_val:.2f}")
-                            else:
-                                st.metric("Forward Multiple", "N/A")
+                            with col2:
+                                fair_value_robust = robust_val.get('fair_value_robust')
+                                st.metric("Robust FV (p50)", f"${fair_value_robust:.2f}")
 
-                        with col4:
-                            fair_val = intrinsic.get('weighted_value')
-                            if fair_val and fair_val > 0:
-                                st.metric("Fair Value", f"${fair_val:.2f}")
-                            else:
-                                st.metric("Fair Value", "N/A")
+                            with col3:
+                                range_p10 = robust_val.get('range_p10')
+                                st.metric("Range p10", f"${range_p10:.2f}")
+
+                            with col4:
+                                range_p90 = robust_val.get('range_p90')
+                                st.metric("Range p90", f"${range_p90:.2f}")
+                        else:
+                            # Fallback if robust_val not available
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.metric("Current Price", f"${current_price:.2f}" if current_price > 0 else "N/A")
+                            with col2:
+                                dcf_val = intrinsic.get('dcf_value')
+                                st.metric("DCF Value", f"${dcf_val:.2f}" if dcf_val else "N/A")
 
                         # === ROBUST VALUATION SYSTEM (NEW) ===
                         robust_val = intrinsic.get('robust_valuation')
                         confidence_data = intrinsic.get('confidence_score')
                         growth_engine = intrinsic.get('growth_engine')
 
-                        # DEBUG SECTION - Visible in UI
-                        with st.expander("🔧 DEBUG: Robust Fair Value Calculation", expanded=True):
+                        # DEBUG SECTION - Collapsed by default
+                        with st.expander("🔧 DEBUG: Robust Fair Value Calculation", expanded=False):
                             st.write("**Valuation Methods Available:**")
                             dcf_val = intrinsic.get('dcf_value')
                             fwd_val = intrinsic.get('forward_multiple_value')
@@ -5771,49 +5768,42 @@ with tab5:
                         if robust_val and robust_val.get('fair_value_robust'):
                             st.markdown("<br>", unsafe_allow_html=True)
 
-                            # Robust Fair Value with Range
+                            # Extract metrics
                             fair_value_robust = robust_val.get('fair_value_robust')
                             range_p10 = robust_val.get('range_p10')
                             range_p90 = robust_val.get('range_p90')
                             consensus_tightness = robust_val.get('consensus_tightness', 'Low')
-                            method_disagreement = robust_val.get('method_disagreement', '')
+                            percentile_info = intrinsic.get('percentile_info', {})
+                            positioning = percentile_info.get('positioning', '')
+                            downside_label = percentile_info.get('downside_label', '')
+                            multiples_reliability = robust_val.get('multiples_reliability', 'Medium')
+                            reliability_reason = robust_val.get('multiples_reliability_reason', '')
 
-                            # Color based on tightness
-                            if consensus_tightness == 'High':
-                                tightness_color = '#10b981'
-                                tightness_bg = '#d1fae5'
-                            elif consensus_tightness == 'Medium':
-                                tightness_color = '#f59e0b'
-                                tightness_bg = '#fef3c7'
-                            else:
-                                tightness_color = '#ef4444'
-                                tightness_bg = '#fee2e2'
-
+                            # Compact display (as suggested)
                             st.markdown(f"""
                             <div style='background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-                                        padding: 1.25rem; border-radius: 10px; margin-bottom: 1rem;
+                                        padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1rem;
                                         box-shadow: 0 4px 6px rgba(99,102,241,0.2);'>
-                                <div style='color: white; font-weight: 700; font-size: 0.8rem; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>
-                                    ROBUST FAIR VALUE (Log-Scale, Method Families)
-                                </div>
-                                <div style='display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.75rem;'>
-                                    <div style='color: white; font-size: 2rem; font-weight: 700;'>
-                                        ${fair_value_robust:.2f}
+                                <div style='color: white; font-size: 0.95rem; line-height: 1.6;'>
+                                    <div style='margin-bottom: 0.5rem;'>
+                                        <strong style='font-size: 1.05rem;'>Robust FV (p50):</strong> <span style='font-size: 1.4rem; font-weight: 700;'>${fair_value_robust:.2f}</span>
                                     </div>
-                                    <div style='background: {tightness_bg}; color: {tightness_color}; padding: 0.25rem 0.65rem;
-                                                border-radius: 4px; font-size: 0.7rem; font-weight: 700;'>
-                                        {consensus_tightness} (post-trim)
+                                    <div style='margin-bottom: 0.5rem;'>
+                                        <strong>Range (p10–p90):</strong> ${range_p10:.2f}–${range_p90:.2f} | <strong>Consensus:</strong> {consensus_tightness} (post-trim)
                                     </div>
-                                </div>
-                                <div style='color: rgba(255,255,255,0.9); font-size: 0.85rem; margin-bottom: 0.5rem;'>
-                                    <strong>Range (p10–p90): ${range_p10:.2f}–${range_p90:.2f}</strong>
-                                </div>
-                                <div style='color: rgba(255,255,255,0.8); font-size: 0.75rem; line-height: 1.4;'>
-                                    Prevents double-counting correlated methods. Winsorizes outliers.
-                                    Family limits: Cashflow ≤33%, Earnings ≤33%, Enterprise ≤34%.
+                                    <div style='margin-bottom: 0.5rem;'>
+                                        <strong>Price:</strong> ${current_price:.2f} | <em>{positioning}</em>
+                                    </div>
+                                    <div style='margin-bottom: 0.25rem;'>
+                                        <strong>{downside_label}</strong>
+                                    </div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
+
+                            # Multiples reliability flag
+                            if multiples_reliability == 'Low':
+                                st.warning(f"⚠️ **Multiples Reliability: Low** – {reliability_reason}")
 
                             # Consensus explanation if exists (clarifies consensus vs disagreement)
                             consensus_explanation = robust_val.get('consensus_explanation')
