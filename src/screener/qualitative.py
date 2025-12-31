@@ -5151,6 +5151,20 @@ class QualitativeAnalyzer:
                                   balance[0].get('commonStockSharesOutstanding') or
                                   balance[0].get('weightedAverageShsOutDil'))
 
+            # Fallback: calculate from mktCap / price (same as DCF)
+            if not weighted_avg_shares or weighted_avg_shares <= 0:
+                profile = self.fmp.get_profile(symbol)
+                if profile and len(profile) > 0:
+                    weighted_avg_shares = profile[0].get('sharesOutstanding', 0)
+
+                    # Last resort: calculate from mktCap / price
+                    if not weighted_avg_shares or weighted_avg_shares <= 0:
+                        mkt_cap = profile[0].get('mktCap')
+                        price = profile[0].get('price')
+                        if mkt_cap and price and price > 0:
+                            weighted_avg_shares = int(mkt_cap / price)
+                            logger.info(f"P/E calc: Calculated shares from mktCap/price: {weighted_avg_shares:,}")
+
             if not weighted_avg_shares or weighted_avg_shares == 0:
                 self._last_valuation_error = f"No shares_outstanding in balance sheet (got {weighted_avg_shares})"
                 logger.warning(f"P/E calc: ❌ FAILED - No shares_outstanding for {symbol}")
@@ -5346,6 +5360,20 @@ class QualitativeAnalyzer:
                                  balance[0].get('commonStockSharesOutstanding') or
                                  balance[0].get('weightedAverageShsOutDil'))
 
+            # Fallback: calculate from mktCap / price (same as DCF)
+            if not shares_outstanding or shares_outstanding <= 0:
+                profile = self.fmp.get_profile(symbol)
+                if profile and len(profile) > 0:
+                    shares_outstanding = profile[0].get('sharesOutstanding', 0)
+
+                    # Last resort: calculate from mktCap / price
+                    if not shares_outstanding or shares_outstanding <= 0:
+                        mkt_cap = profile[0].get('mktCap')
+                        price = profile[0].get('price')
+                        if mkt_cap and price and price > 0:
+                            shares_outstanding = int(mkt_cap / price)
+                            logger.info(f"EV/EBIT calc: Calculated shares from mktCap/price: {shares_outstanding:,}")
+
             if not shares_outstanding or shares_outstanding == 0:
                 self._last_valuation_error = f"No shares_outstanding in balance sheet (got {shares_outstanding})"
                 logger.warning(f"EV/EBIT calc: ❌ FAILED - No shares outstanding for {symbol}")
@@ -5458,6 +5486,20 @@ class QualitativeAnalyzer:
             shares_outstanding = (balance[0].get('weightedAverageShsOut') or
                                  balance[0].get('commonStockSharesOutstanding') or
                                  balance[0].get('weightedAverageShsOutDil'))
+
+            # Fallback: calculate from mktCap / price (same as DCF)
+            if not shares_outstanding or shares_outstanding <= 0:
+                profile = self.fmp.get_profile(symbol)
+                if profile and len(profile) > 0:
+                    shares_outstanding = profile[0].get('sharesOutstanding', 0)
+
+                    # Last resort: calculate from mktCap / price
+                    if not shares_outstanding or shares_outstanding <= 0:
+                        mkt_cap = profile[0].get('mktCap')
+                        price = profile[0].get('price')
+                        if mkt_cap and price and price > 0:
+                            shares_outstanding = int(mkt_cap / price)
+                            logger.info(f"EV/FCF calc: Calculated shares from mktCap/price: {shares_outstanding:,}")
 
             if not shares_outstanding or shares_outstanding == 0:
                 self._last_valuation_error = f"No shares_outstanding in balance sheet (got {shares_outstanding})"
