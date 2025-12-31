@@ -5706,6 +5706,21 @@ with tab5:
                             st.write(f"**Confidence Score Exists:** {'✅ Yes' if confidence_data else '❌ No'}")
                             st.write(f"**Growth Engine Exists:** {'✅ Yes' if growth_engine else '❌ No'}")
 
+                            # Show calculation attempts for missing methods
+                            calc_attempts = intrinsic.get('_debug_valuation_calc_attempts', [])
+                            if calc_attempts:
+                                st.divider()
+                                st.write("**🔧 Valuation Method Calculation Attempts:**")
+                                for attempt in calc_attempts:
+                                    if '✓' in attempt:
+                                        st.success(attempt)
+                                    elif '⚠️' in attempt or 'returned None' in attempt:
+                                        st.warning(attempt)
+                                    elif '❌' in attempt:
+                                        st.error(attempt)
+                                    else:
+                                        st.write(f"- {attempt}")
+
                             st.divider()
                             st.write("**🔍 Execution Trace:**")
 
