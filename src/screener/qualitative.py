@@ -3140,13 +3140,24 @@ class QualitativeAnalyzer:
                     # With 2+ methods, it becomes a true robust combination
                     if len(valuation_methods_dict) >= 1 and confidence_score:
                         valuation['_debug_condition_met'] = True
+                        # Check peers availability for reliability flag
+                        has_peers = (len(peers_list) > 0 if peers_list else False)
+
                         robust_valuation = self._calculate_robust_fair_value(
                             symbol,
                             valuation_methods_dict,
                             confidence_score,
                             growth_engine,
-                            has_peers=(len(peers_list) > 0 if peers_list else False)
+                            has_peers=has_peers
                         )
+
+                        # Add reliability flag to robust_valuation if peers=0
+                        if robust_valuation and not has_peers:
+                            robust_valuation['multiples_reliability'] = 'Low'
+                            robust_valuation['multiples_reliability_reason'] = 'No peers available - using sector fallback multiples'
+                        elif robust_valuation:
+                            robust_valuation['multiples_reliability'] = 'Medium'  # Even with peers, multiples can vary
+                            robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers used for comparison'
                         valuation['_debug_returned'] = robust_valuation is not None
                         if robust_valuation:
                             valuation['_debug_has_fair_value_key'] = 'fair_value_robust' in robust_valuation
@@ -3186,6 +3197,24 @@ class QualitativeAnalyzer:
                                     elif base_verdict == 'Undervalued' and current_price > p10 * 0.85:
                                         base_verdict = 'Fair Value'  # Not extremely undervalued
 
+                                # Calculate percentile positioning
+                                if current_price > p90:
+                                    percentile_pos = "Price above p90 (premium-priced)"
+                                    downside_to_robust = ((p90 - current_price) / current_price) * 100
+                                    downside_label = f"Downside to p90: {downside_to_robust:.1f}%"
+                                elif current_price > p50:
+                                    percentile_pos = "Price between p50-p90 (fair to expensive)"
+                                    downside_to_robust = ((p50 - current_price) / current_price) * 100
+                                    downside_label = f"Downside to p50: {downside_to_robust:.1f}%"
+                                elif current_price > p10:
+                                    percentile_pos = "Price between p10-p50 (fair to cheap)"
+                                    upside_to_robust = ((p50 - current_price) / current_price) * 100
+                                    downside_label = f"Upside to p50: {upside_to_robust:.1f}%"
+                                else:
+                                    percentile_pos = "Price below p10 (undervalued)"
+                                    upside_to_robust = ((p10 - current_price) / current_price) * 100
+                                    downside_label = f"Upside to p10: {upside_to_robust:.1f}%"
+
                                 # Override old DCF-based assessment
                                 valuation['valuation_assessment'] = base_verdict
                                 valuation['valuation_basis'] = 'robust_fv_percentiles'
@@ -3194,10 +3223,17 @@ class QualitativeAnalyzer:
                                     'p10': p10,
                                     'p50': p50,
                                     'p90': p90,
-                                    'verdict': base_verdict
+                                    'verdict': base_verdict,
+                                    'positioning': percentile_pos,
+                                    'downside_label': downside_label
                                 }
 
+                                # Replace old upside/downside with robust FV-based calculation
+                                valuation['upside_downside_%'] = downside_to_robust if current_price > p50 else upside_to_robust
+                                valuation['upside_downside_basis'] = 'robust_fv_percentiles'
+
                                 logger.info(f"Valuation verdict: {base_verdict} (Price=${current_price:.2f} vs p10=${p10:.2f}, p50=${p50:.2f}, p90=${p90:.2f})")
+                                logger.info(f"Percentile positioning: {percentile_pos} | {downside_label}")
                         else:
                             valuation['_debug_why_not_added'] = "returned None or missing fair_value_robust"
                     elif len(valuation_methods_dict) < 1:
@@ -5148,20 +5184,31 @@ class QualitativeAnalyzer:
             result['robust_disagreement_pct'] = robust_disagreement_pct
             result['outlier_methods'] = outlier_methods
 
+            # Generate consensus explanation (separate from disagreement)
+            # This makes it clear why "High consensus" can coexist with "High raw disagreement"
+            if result['consensus_tightness'] == 'High' and raw_disagreement_pct > 0.40:
+                result['consensus_explanation'] = (
+                    f"Consensus (robust): High - tight range after winsorization | "
+                    f"Disagreement (raw): High ({raw_disagreement_pct:.0%}) - methods diverge before trimming (outliers detected)"
+                )
+            elif result['consensus_tightness'] == 'Medium' and raw_disagreement_pct > 0.40:
+                result['consensus_explanation'] = (
+                    f"Consensus (robust): Medium - moderate range after trimming | "
+                    f"Disagreement (raw): High ({raw_disagreement_pct:.0%}) - some outliers present"
+                )
+            else:
+                result['consensus_explanation'] = None
+
             # Generate method disagreement message
             if robust_disagreement_pct > 0.30:  # >30% divergence between families
                 diverging_families = list(family_medians.keys())
-
-                # Check if high raw disagreement but high consensus
-                if result['consensus_tightness'] == 'High' and raw_disagreement_pct > 0.50:
-                    result['method_disagreement'] = (
-                        f"Robust consensus high after trimming outliers; "
-                        f"raw methods disagree ({raw_disagreement_pct:.1%}) due to outliers: {', '.join(outlier_methods)}"
-                    )
-                else:
-                    result['method_disagreement'] = f"High divergence between {' vs '.join(diverging_families)} ({robust_disagreement_pct:.1%})"
+                result['method_disagreement'] = f"High divergence between {' vs '.join(diverging_families)} ({robust_disagreement_pct:.1%})"
             else:
                 result['method_disagreement'] = "Families generally agree"
+
+            # Add outlier information if any detected
+            if outlier_methods:
+                result['method_disagreement'] += f" (outliers trimmed: {', '.join(outlier_methods[:3])})"  # Show max 3
 
             # Store family weights for transparency (use final weights from Level B)
             result['family_weights'] = {
