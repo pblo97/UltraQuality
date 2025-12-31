@@ -675,7 +675,7 @@ class QualitativeAnalyzer:
             # Approach 2: Key metrics (some companies report it here)
             if skin['insider_ownership_pct'] is None:
                 try:
-                    key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
+                    key_metrics = self.fmp.get_key_metrics_ttm(symbol)
                     if key_metrics and len(key_metrics) > 0:
                         metrics = key_metrics[0]
 
@@ -2314,8 +2314,8 @@ class QualitativeAnalyzer:
                 pb_current = prof.get('priceToBook', None)
 
                 if pb_current and pb_current > 0:
-                    # Get historical P/B for bands calculation
-                    key_metrics_hist = self.fmp.get_key_metrics(symbol, period='annual', limit=5)
+                    # Get historical P/B for bands calculation (TTM only)
+                    key_metrics_hist = self.fmp.get_key_metrics_ttm(symbol)
                     pb_values = []
 
                     if key_metrics_hist:
@@ -5123,7 +5123,7 @@ class QualitativeAnalyzer:
         self._last_valuation_error = None  # Reset
         try:
             # Get company P/E and EPS
-            key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
+            key_metrics = self.fmp.get_key_metrics_ttm(symbol)
             if not key_metrics or len(key_metrics) == 0:
                 self._last_valuation_error = "No key_metrics from API"
                 logger.warning(f"P/E calc: ❌ FAILED - No key_metrics for {symbol}")
@@ -5185,7 +5185,7 @@ class QualitativeAnalyzer:
                 peer_pes = []
                 for peer in peers_list[:10]:  # Limit to 10 peers
                     try:
-                        peer_metrics = self.fmp.get_key_metrics(peer, period='annual', limit=1)
+                        peer_metrics = self.fmp.get_key_metrics_ttm(peer)
                         if peer_metrics and len(peer_metrics) > 0:
                             peer_pe = peer_metrics[0].get('peRatio')
                             if peer_pe and peer_pe > 0 and peer_pe < 100:  # Filter outliers
@@ -5273,7 +5273,7 @@ class QualitativeAnalyzer:
                 return None
 
             # Get PEG ratio
-            key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
+            key_metrics = self.fmp.get_key_metrics_ttm(symbol)
             if not key_metrics or len(key_metrics) == 0:
                 self._last_valuation_error = "No key_metrics from API"
                 logger.warning(f"PEG calc: ❌ FAILED - No key metrics for {symbol}")
@@ -5400,7 +5400,7 @@ class QualitativeAnalyzer:
                 peer_ev_ebit_ratios = []
                 for peer in peers_list[:10]:
                     try:
-                        peer_metrics = self.fmp.get_key_metrics(peer, period='annual', limit=1)
+                        peer_metrics = self.fmp.get_key_metrics_ttm(peer)
                         if peer_metrics and len(peer_metrics) > 0:
                             ev_ebit = peer_metrics[0].get('enterpriseValueOverEBIT')
                             if ev_ebit and ev_ebit > 0 and ev_ebit < 50:  # Filter outliers
