@@ -5139,10 +5139,20 @@ class QualitativeAnalyzer:
                 return None
 
             net_income = income[0].get('netIncome', 0)
-            weighted_avg_shares = income[0].get('weightedAverageShsOut', 0)
+
+            # Get shares from balance sheet (same method as DCF)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
+            if not balance or len(balance) == 0:
+                self._last_valuation_error = "No balance_sheet from API"
+                logger.warning(f"P/E calc: ❌ FAILED - No balance_sheet for {symbol}")
+                return None
+
+            weighted_avg_shares = (balance[0].get('weightedAverageShsOut') or
+                                  balance[0].get('commonStockSharesOutstanding') or
+                                  balance[0].get('weightedAverageShsOutDil'))
 
             if not weighted_avg_shares or weighted_avg_shares == 0:
-                self._last_valuation_error = f"No shares_outstanding (got {weighted_avg_shares})"
+                self._last_valuation_error = f"No shares_outstanding in balance sheet (got {weighted_avg_shares})"
                 logger.warning(f"P/E calc: ❌ FAILED - No shares_outstanding for {symbol}")
                 return None
 
@@ -5331,16 +5341,13 @@ class QualitativeAnalyzer:
             cash = balance[0].get('cashAndCashEquivalents', 0)
             net_debt = total_debt - cash
 
-            # Get shares outstanding
-            profile = self.fmp.get_profile(symbol)
-            if not profile or len(profile) == 0:
-                self._last_valuation_error = "No profile from API"
-                logger.warning(f"EV/EBIT calc: ❌ FAILED - No profile for {symbol}")
-                return None
+            # Get shares from balance sheet (same method as DCF)
+            shares_outstanding = (balance[0].get('weightedAverageShsOut') or
+                                 balance[0].get('commonStockSharesOutstanding') or
+                                 balance[0].get('weightedAverageShsOutDil'))
 
-            shares_outstanding = profile[0].get('sharesOutstanding', 0)
             if not shares_outstanding or shares_outstanding == 0:
-                self._last_valuation_error = f"No shares_outstanding (got {shares_outstanding})"
+                self._last_valuation_error = f"No shares_outstanding in balance sheet (got {shares_outstanding})"
                 logger.warning(f"EV/EBIT calc: ❌ FAILED - No shares outstanding for {symbol}")
                 return None
 
@@ -5447,23 +5454,15 @@ class QualitativeAnalyzer:
             cash_balance = balance[0].get('cashAndCashEquivalents', 0)
             net_debt = total_debt - cash_balance
 
-            # Get shares outstanding
-            profile = self.fmp.get_profile(symbol)
-            if not profile or len(profile) == 0:
-                self._last_valuation_error = "No profile from API"
-                logger.warning(f"EV/FCF calc: ❌ FAILED - No profile for {symbol}")
-                return None
+            # Get shares from balance sheet (same method as DCF)
+            shares_outstanding = (balance[0].get('weightedAverageShsOut') or
+                                 balance[0].get('commonStockSharesOutstanding') or
+                                 balance[0].get('weightedAverageShsOutDil'))
 
-            shares_outstanding = profile[0].get('sharesOutstanding', 0)
             if not shares_outstanding or shares_outstanding == 0:
-                self._last_valuation_error = f"No shares_outstanding (got {shares_outstanding})"
+                self._last_valuation_error = f"No shares_outstanding in balance sheet (got {shares_outstanding})"
                 logger.warning(f"EV/FCF calc: ❌ FAILED - No shares outstanding for {symbol}")
                 return None
-
-            # Get current EV for reference
-            market_cap = profile[0].get('mktCap', 0)
-            current_ev = market_cap + net_debt
-            current_ev_fcf = current_ev / fcf if fcf > 0 else None
 
             # Strategy 1: Try to use peer EV/FCF ratios
             peer_ev_fcf_median = None
