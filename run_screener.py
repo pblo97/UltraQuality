@@ -9009,10 +9009,16 @@ with tab6:
                 if eps_growth:
                     revenue_growth = eps_growth  # Use EPS growth as proxy
 
+            # Check if PEG is within robust range or outlier
+            robust_valuation = intrinsic.get('robust_valuation', {})
+            outlier_methods = robust_valuation.get('outlier_methods', [])
+            peg_is_outlier = any('peg_value' in om.lower() for om in outlier_methods)
+            robust_p90 = robust_valuation.get('range_p90', 0)
+
             # Determine predominant method
-            # Priority 1: If PEG < 1.5, it's a growth company (even without explicit revenue growth data)
-            if peg_ratio and peg_ratio < 1.5:
-                # Growth company - PEG is king
+            # Priority 1: If PEG < 1.5 AND within robust range, it's a growth company
+            if peg_ratio and peg_ratio < 1.5 and not peg_is_outlier:
+                # Growth company - PEG is king AND validated by robust range
                 method_icon = ""
                 method_name = "PEG Ratio (Growth Valuation)"
                 growth_text = f"{revenue_growth:.1f}%" if revenue_growth else "Datos limitados (inferido de PEG < 1.5)"
@@ -9026,6 +9032,29 @@ with tab6:
   - No valora network effects ni moats digitales
 - **PEG captura el valor del crecimiento futuro** (P/E ajustado por growth)
 - Empresas similares: Amazon, Google, Meta en fase de crecimiento alto
+"""
+            elif peg_ratio and peg_ratio < 1.5 and peg_is_outlier:
+                # PEG is low but outside robust range = Bull/Premium case only
+                method_icon = ""
+                method_name = "Robust FV (PEG = escenario bull, no base)"
+                peg_value = intrinsic.get('peg_value', 0)
+                robust_fv = robust_valuation.get('fair_value_robust', 0)
+                range_p10 = robust_valuation.get('range_p10', 0)
+                method_reason = f"""
+**PEG sugiere escenario premium, pero el consenso robusto difiere:**
+
+📊 **Valoración Base (Robust FV):**
+- **Fair Value Robusto: ${robust_fv:.0f}** (basado en cash flows y enterprise multiples)
+- **Rango: ${range_p10:.0f} - ${robust_p90:.0f}**
+
+🚀 **Escenario Bull (PEG):**
+- PEG Ratio: {peg_ratio:.2f} (< 1.5 = Growth at reasonable price)
+- **PEG Fair Value: ${peg_value:.0f}** ← Escenario premium si ejecutan crecimiento
+
+**Interpretación:**
+- Si el mercado paga múltiplos premium por crecimiento → target ~${peg_value:.0f}
+- Consenso de métodos conservadores (DCF, EV/EBIT, EV/FCF) → rango ${range_p10:.0f}-${robust_p90:.0f}
+- **Use robust FV como base, PEG como upside potencial**
 """
             elif peg_ratio and peg_ratio > 2.5 and revenue_growth and revenue_growth < 5:
                 # Mature company - DCF is king
