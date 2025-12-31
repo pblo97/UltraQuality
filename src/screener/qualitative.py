@@ -3144,7 +3144,8 @@ class QualitativeAnalyzer:
                             symbol,
                             valuation_methods_dict,
                             confidence_score,
-                            growth_engine
+                            growth_engine,
+                            has_peers=(len(peers_list) > 0 if peers_list else False)
                         )
                         valuation['_debug_returned'] = robust_valuation is not None
                         if robust_valuation:
@@ -3155,6 +3156,48 @@ class QualitativeAnalyzer:
                         if robust_valuation and robust_valuation.get('fair_value_robust'):
                             valuation['robust_valuation'] = robust_valuation
                             valuation['_debug_added_to_dict'] = True
+
+                            # === VALUATION VERDICT FROM ROBUST FV ===
+                            # Calculate verdict based on price vs percentiles (p10/p50/p90)
+                            if current_price and current_price > 0:
+                                p10 = robust_valuation.get('range_p10', 0)
+                                p50 = robust_valuation.get('fair_value_robust', 0)  # Median = p50
+                                p90 = robust_valuation.get('range_p90', 0)
+                                consensus = robust_valuation.get('consensus_tightness', 'Low')
+                                disagreement = robust_valuation.get('method_disagreement', '')
+                                confidence_total = confidence_score.get('total_score', 50) if confidence_score else 50
+
+                                # Base verdict from percentile position
+                                if current_price > p90:
+                                    base_verdict = 'Overvalued'
+                                elif current_price >= p50:
+                                    base_verdict = 'Fair Value'  # Between p50 and p90
+                                elif current_price >= p10:
+                                    base_verdict = 'Fair Value'  # Between p10 and p50
+                                else:
+                                    base_verdict = 'Undervalued'  # Below p10
+
+                                # Modulate by confidence and consensus
+                                # If low confidence or high disagreement, downgrade certainty
+                                if confidence_total < 60 or consensus == 'Low' or 'High divergence' in disagreement:
+                                    # Downgrade extreme verdicts to Fair Value
+                                    if base_verdict == 'Overvalued' and current_price < p90 * 1.15:
+                                        base_verdict = 'Fair Value'  # Not extremely overvalued
+                                    elif base_verdict == 'Undervalued' and current_price > p10 * 0.85:
+                                        base_verdict = 'Fair Value'  # Not extremely undervalued
+
+                                # Override old DCF-based assessment
+                                valuation['valuation_assessment'] = base_verdict
+                                valuation['valuation_basis'] = 'robust_fv_percentiles'
+                                valuation['percentile_info'] = {
+                                    'price': current_price,
+                                    'p10': p10,
+                                    'p50': p50,
+                                    'p90': p90,
+                                    'verdict': base_verdict
+                                }
+
+                                logger.info(f"Valuation verdict: {base_verdict} (Price=${current_price:.2f} vs p10=${p10:.2f}, p50=${p50:.2f}, p90=${p90:.2f})")
                         else:
                             valuation['_debug_why_not_added'] = "returned None or missing fair_value_robust"
                     elif len(valuation_methods_dict) < 1:
@@ -3296,50 +3339,8 @@ class QualitativeAnalyzer:
                 else:
                     logger.warning(f"❌ Earnings Transcripts is DISABLED in config")
 
-                # === GROWTH-ADJUSTED VALUATION ASSESSMENT ===
-                # CRITICAL FIX: Override DCF conservatism for growth companies with strong signals
-                # If PEG < 1.5 AND Reverse DCF says "UNDERVALUED", trust growth metrics over DCF
-
-                if 'valuation_assessment' in valuation and current_price and current_price > 0:
-                    # Get PEG Ratio from features (calculated earlier)
-                    try:
-                        features = self.feature_calc.calculate(symbol)
-                        peg_ratio = features.get('peg_ratio', None)
-                    except:
-                        peg_ratio = None
-
-                    # Get Reverse DCF interpretation
-                    reverse_dcf_signal = None
-                    if 'reverse_dcf' in valuation:
-                        interpretation = valuation['reverse_dcf'].get('interpretation', '')
-                        if 'UNDERVALUED' in interpretation.upper():
-                            reverse_dcf_signal = 'UNDERVALUED'
-                        elif 'OVERVALUED' in interpretation.upper():
-                            reverse_dcf_signal = 'OVERVALUED'
-
-                    # Apply growth override logic
-                    growth_signals = []
-
-                    if peg_ratio and peg_ratio < 1.5:
-                        growth_signals.append(f"PEG={peg_ratio:.2f} (Growth at reasonable price)")
-
-                    if reverse_dcf_signal == 'UNDERVALUED':
-                        growth_signals.append("Reverse DCF=UNDERVALUED (Market pessimistic)")
-
-                    # Override if we have 2+ growth signals saying UNDERVALUED
-                    if len(growth_signals) >= 2 and valuation['valuation_assessment'] == 'Overvalued':
-                        logger.info(f"GROWTH OVERRIDE: {symbol} DCF says 'Overvalued' but growth signals say 'Undervalued': {growth_signals}")
-                        valuation['valuation_assessment'] = 'Fair Value'  # Upgrade from Overvalued
-                        valuation['growth_adjustment'] = {
-                            'original': 'Overvalued',
-                            'adjusted': 'Fair Value',
-                            'reason': 'Growth signals override DCF conservatism',
-                            'signals': growth_signals
-                        }
-                    elif len(growth_signals) >= 1 and valuation['valuation_assessment'] == 'Overvalued':
-                        # Single signal: log but don't override
-                        logger.info(f"GROWTH SIGNAL: {symbol} DCF says 'Overvalued' but has growth signal: {growth_signals}")
-                        valuation['growth_signals'] = growth_signals
+                # NOTE: PEG Override removed - valuation verdict now comes ONLY from
+                # robust FV vs price comparison, not from PEG or reverse DCF signals
 
                 # Add detailed notes
                 profile_name = industry_profile.get('profile', 'unknown').replace('_', ' ').title()
@@ -4845,7 +4846,8 @@ class QualitativeAnalyzer:
         symbol: str,
         valuation_methods: Dict,
         confidence_data: Dict,
-        growth_data: Dict
+        growth_data: Dict,
+        has_peers: bool = False
     ) -> Dict:
         """
         Calculate robust fair value using log-scale transformation and method families.
@@ -4951,9 +4953,21 @@ class QualitativeAnalyzer:
                             # P/E weight depends on earnings quality (proxy: low accruals)
                             fcf_quality = confidence_data.get('components', {}).get('fcf_quality', 50) / 100
                             method_weight = fcf_quality * 0.9
+                            # Penalize if no peers (using fallback multiples)
+                            if not has_peers:
+                                method_weight *= 0.7  # Reduce by 30%
                         elif method in ['ev_ebit_value', 'ev_fcf_value']:
                             # EV multiples: stable, moderate weight
                             method_weight = confidence_score * 1.0
+                            # Penalize if no peers (using fallback multiples)
+                            if not has_peers:
+                                method_weight *= 0.7  # Reduce by 30%
+                        elif method in ['forward_multiple_value', 'historical_multiple_value']:
+                            # Multiples-based: default weight
+                            method_weight = confidence_score
+                            # Penalize if no peers (less reliable)
+                            if not has_peers:
+                                method_weight *= 0.6  # Reduce by 40% (more severe)
                         else:
                             # Default
                             method_weight = confidence_score
@@ -4967,112 +4981,129 @@ class QualitativeAnalyzer:
                     family_data['values'] = family_log_values
                     family_data['weights'] = family_weights
 
-            # Flatten all values
+            # ============================================================================
+            # TWO-LEVEL WINSORIZATION & AGGREGATION
+            # ============================================================================
+            # Level A: Within each family (cashflow / earnings / enterprise)
+            #   - Winsorize outliers within family
+            #   - Calculate family median
+            # Level B: Between families
+            #   - Combine family medians with weight caps (33% / 33% / 34%)
+            #   - This prevents one method (e.g., PEG) from defining p90 of entire distribution
+            # ============================================================================
+
+            family_medians = {}
+            family_p10s = {}
+            family_p90s = {}
+
+            for family_name, family_data in families.items():
+                if not family_data['values']:
+                    continue
+
+                family_log_vals = np.array(family_data['values'])
+                family_wts = np.array(family_data['weights'])
+
+                # Level A: Winsorize within family (if ≥3 methods)
+                if len(family_log_vals) >= 3:
+                    p10_fam = np.percentile(family_log_vals, 10)
+                    p90_fam = np.percentile(family_log_vals, 90)
+                    family_log_vals_winsorized = np.clip(family_log_vals, p10_fam, p90_fam)
+                else:
+                    # With 1-2 methods, don't winsorize
+                    family_log_vals_winsorized = family_log_vals
+                    p10_fam = np.min(family_log_vals)
+                    p90_fam = np.max(family_log_vals)
+
+                # Calculate family median (weighted)
+                if len(family_wts) > 0:
+                    # Normalize weights within family
+                    family_wts_norm = family_wts / family_wts.sum()
+                    family_median_log = np.average(family_log_vals_winsorized, weights=family_wts_norm)
+                else:
+                    family_median_log = np.median(family_log_vals_winsorized)
+
+                # Store family statistics
+                family_medians[family_name] = np.exp(family_median_log)
+                family_p10s[family_name] = np.exp(p10_fam)
+                family_p90s[family_name] = np.exp(p90_fam)
+
+                logger.debug(f"Family '{family_name}': median=${family_medians[family_name]:.2f}, "
+                           f"range ${family_p10s[family_name]:.2f} - ${family_p90s[family_name]:.2f} "
+                           f"({len(family_log_vals)} methods)")
+
+            if not family_medians:
+                logger.warning(f"No family medians calculated for {symbol}")
+                result['notes'].append("No family medians available")
+                return result
+
+            # Level B: Combine family medians with weight caps
+            # Each family gets max 33%/33%/34% weight
+            family_names_list = list(family_medians.keys())
+            family_values_list = [family_medians[f] for f in family_names_list]
+
+            # Assign weights based on which families are available
+            num_families = len(family_names_list)
+            if num_families == 1:
+                # Only one family: use it 100%
+                family_final_weights = [1.0]
+            elif num_families == 2:
+                # Two families: 50/50
+                family_final_weights = [0.5, 0.5]
+            else:
+                # Three families: use predefined caps
+                family_final_weights = []
+                for fname in family_names_list:
+                    if fname in families:
+                        family_final_weights.append(families[fname]['max_weight'])
+                    else:
+                        family_final_weights.append(1.0 / num_families)
+                # Normalize to sum to 1.0
+                total_fam_weight = sum(family_final_weights)
+                family_final_weights = [w / total_fam_weight for w in family_final_weights]
+
+            # Calculate robust fair value (weighted average of family medians)
+            fair_value_robust = sum(v * w for v, w in zip(family_values_list, family_final_weights))
+
+            # Calculate p10 and p90 from family ranges (weighted)
+            family_p10_list = [family_p10s[f] for f in family_names_list]
+            family_p90_list = [family_p90s[f] for f in family_names_list]
+
+            range_p10 = sum(v * w for v, w in zip(family_p10_list, family_final_weights))
+            range_p90 = sum(v * w for v, w in zip(family_p90_list, family_final_weights))
+
+            logger.info(f"Robust FV=${fair_value_robust:.2f} from {num_families} families: "
+                       f"{', '.join([f'{f}=${family_medians[f]:.2f}' for f in family_names_list])}")
+
+            # Flatten for methods_used tracking
             for family_name, family_data in families.items():
                 if family_data['values']:
                     log_values.extend(family_data['values'])
                     method_weights.extend(family_data['weights'])
-
-            if not log_values:
-                logger.warning(f"No valid log values after transformation for {symbol}. valuation_methods: {valuation_methods}")
-                result['notes'].append("No valuation methods available after log transformation")
-                return result
-
-            logger.info(f"Robust valuation processing {len(log_values)} values from methods: {method_names}")
-
-            # Normalize weights and apply family caps
-            # Step 1: Normalize within each family
-            for family_name, family_data in families.items():
-                if family_data.get('weights'):
-                    total_family_weight = sum(family_data['weights'])
-                    # Normalize to family max_weight
-                    family_data['normalized_weights'] = [
-                        w / total_family_weight * family_data['max_weight']
-                        for w in family_data['weights']
-                    ]
-                else:
-                    family_data['normalized_weights'] = []
-
-            # Step 2: Collect all normalized weights
-            all_normalized_weights = []
-            for family_data in families.values():
-                all_normalized_weights.extend(family_data['normalized_weights'])
-
-            # Step 3: Re-normalize to sum to 1.0
-            total_weight = sum(all_normalized_weights)
-            if total_weight > 0:
-                final_weights = [w / total_weight for w in all_normalized_weights]
-            else:
-                final_weights = [1.0 / len(all_normalized_weights)] * len(all_normalized_weights)
-
-            # Calculate weighted median (in log-space)
-            # For simplicity, use weighted mean (robust enough with winsorization)
-            log_values_array = np.array(log_values)
-            weights_array = np.array(final_weights)
-
-            # Winsorize extreme values (outlier handling) - only if we have enough values
-            if len(log_values_array) >= 3:
-                p10_log = np.percentile(log_values_array, 10)
-                p90_log = np.percentile(log_values_array, 90)
-                log_values_winsorized = np.clip(log_values_array, p10_log, p90_log)
-            elif len(log_values_array) == 2:
-                # With 2 values, don't winsorize (just use them as-is)
-                log_values_winsorized = log_values_array
-                p10_log = np.min(log_values_array)
-                p90_log = np.max(log_values_array)
-            else:
-                # With 1 value, use it for everything
-                log_values_winsorized = log_values_array
-                p10_log = log_values_array[0]
-                p90_log = log_values_array[0]
-
-            # Weighted median approximation (weighted mean of winsorized values)
-            weighted_median_log = np.average(log_values_winsorized, weights=weights_array)
-
-            # Calculate uncertainty range (p10-p90 in log-space)
-            # Use weighted percentiles
-            sorted_indices = np.argsort(log_values_array)
-            sorted_values = log_values_array[sorted_indices]
-            sorted_weights = weights_array[sorted_indices]
-            cumulative_weights = np.cumsum(sorted_weights)
-
-            # Find p10 and p90
-            p10_idx = np.searchsorted(cumulative_weights, 0.10)
-            p90_idx = np.searchsorted(cumulative_weights, 0.90)
-
-            p10_log_val = sorted_values[min(p10_idx, len(sorted_values) - 1)]
-            p90_log_val = sorted_values[min(p90_idx, len(sorted_values) - 1)]
-
-            # Transform back to original scale
-            fair_value_robust = np.exp(weighted_median_log)
-            range_p10 = np.exp(p10_log_val)
-            range_p90 = np.exp(p90_log_val)
 
             result['fair_value_robust'] = fair_value_robust
             result['range_p10'] = range_p10
             result['range_p90'] = range_p90
             result['methods_used'] = method_names
 
-            # Consensus tightness: measure dispersion in log-space
-            if len(log_values_array) == 1:
-                # With 1 method, always "High" (perfect consensus with self)
+            # Consensus tightness: measure dispersion between family medians
+            if len(family_medians) == 1:
+                # With 1 family, always "High" (perfect consensus)
                 result['consensus_tightness'] = 'High'
             else:
-                log_dispersion = np.std(log_values_array)
-                if log_dispersion < 0.15:  # ~16% in original scale
+                # Calculate coefficient of variation of family medians
+                family_vals_array = np.array(list(family_medians.values()))
+                family_mean = np.mean(family_vals_array)
+                family_std = np.std(family_vals_array)
+                cv = family_std / family_mean if family_mean > 0 else 0
+
+                if cv < 0.15:  # ~15% variation
                     result['consensus_tightness'] = 'High'
-                elif log_dispersion < 0.30:  # ~35% in original scale
+                elif cv < 0.30:  # ~30% variation
                     result['consensus_tightness'] = 'Medium'
                 else:
                     result['consensus_tightness'] = 'Low'
 
-            # Method disagreement: compare family medians
-            family_medians = {}
-            for family_name, family_data in families.items():
-                if family_data['values']:
-                    family_median_log = np.median(family_data['values'])
-                    family_medians[family_name] = np.exp(family_median_log)
-
+            # Method disagreement: compare family medians (already calculated above)
             if len(family_medians) >= 2:
                 # Compare cashflow vs earnings vs enterprise
                 disagreement_pct = []
@@ -5096,10 +5127,10 @@ class QualitativeAnalyzer:
                 # Single method - no comparison possible
                 result['method_disagreement'] = "Single method - no comparison"
 
-            # Store family weights for transparency
+            # Store family weights for transparency (use final weights from Level B)
             result['family_weights'] = {
-                family_name: sum(family_data.get('normalized_weights', []))
-                for family_name, family_data in families.items()
+                family_names_list[i]: family_final_weights[i]
+                for i in range(len(family_names_list))
             }
 
             result['notes'].append(f"Used {len(method_names)} methods across {len([f for f in families.values() if f['values']])} families")
@@ -7061,22 +7092,21 @@ class QualitativeAnalyzer:
 
     def _interpret_reverse_dcf(self, implied_growth: float, actual_growth: float) -> str:
         """
-        Interpret what the implied growth means.
+        Interpret plausibility of implied growth (NOT a valuation verdict).
 
-        CRITICAL FIX: Lógica correcta de Reverse DCF
-        - Si Implied Growth < Actual Growth → UNDERVALUED (mercado espera menos)
-        - Si Implied Growth > Actual Growth → OVERVALUED (mercado espera más)
+        Returns description of market expectations relative to actual growth.
+        Valuation verdict comes from robust FV vs price comparison, NOT here.
         """
         if implied_growth > actual_growth * 1.5:
-            return "OVERVALUED: Market expects significant acceleration (+50%+ above actual)"
+            return "Expectations demanding: Market pricing acceleration +50% above actual"
         elif implied_growth > actual_growth * 1.2:
-            return "OVERVALUED: Market pricing in growth above current trend (+20%)"
+            return "Expectations aggressive: Market pricing growth +20% above actual"
         elif implied_growth >= actual_growth * 0.8:
-            return "FAIR VALUE: Market expects continuation of current trend (±20%)"
+            return "Expectations reasonable: Aligned with current trend (±20%)"
         elif implied_growth >= actual_growth * 0.5:
-            return "UNDERVALUED: Market expects moderate slowdown (implied < actual)"
+            return "Expectations moderate: Market pricing modest slowdown"
         else:
-            return "UNDERVALUED: Market is very pessimistic (implied << actual growth)"
+            return "Expectations conservative: Market pricing significant slowdown"
 
     def _calculate_earnings_quality(self, symbol: str) -> Dict:
         """
