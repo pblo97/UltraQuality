@@ -3198,22 +3198,29 @@ class QualitativeAnalyzer:
                                         base_verdict = 'Fair Value'  # Not extremely undervalued
 
                                 # Calculate percentile positioning
+                                # ALWAYS use p90 as downside reference (consistent and conservative)
+                                downside_to_p90 = ((p90 - current_price) / current_price) * 100
+                                upside_to_p10 = ((p10 - current_price) / current_price) * 100
+
                                 if current_price > p90:
                                     percentile_pos = "Price above p90 (premium-priced)"
-                                    downside_to_robust = ((p90 - current_price) / current_price) * 100
-                                    downside_label = f"Downside to p90: {downside_to_robust:.1f}%"
+                                    downside_label = f"Downside to p90: {downside_to_p90:.1f}%"
+                                    main_metric = downside_to_p90
                                 elif current_price > p50:
-                                    percentile_pos = "Price between p50-p90 (fair to expensive)"
-                                    downside_to_robust = ((p50 - current_price) / current_price) * 100
-                                    downside_label = f"Downside to p50: {downside_to_robust:.1f}%"
+                                    percentile_pos = "Price between p50–p90 (fair to expensive)"
+                                    downside_label = f"Downside to p90: {downside_to_p90:.1f}%"
+                                    main_metric = downside_to_p90
                                 elif current_price > p10:
-                                    percentile_pos = "Price between p10-p50 (fair to cheap)"
-                                    upside_to_robust = ((p50 - current_price) / current_price) * 100
-                                    downside_label = f"Upside to p50: {upside_to_robust:.1f}%"
+                                    percentile_pos = "Price between p10–p50 (fair to cheap)"
+                                    # When below p50, show upside to p90 instead
+                                    upside_to_p90 = ((p90 - current_price) / current_price) * 100
+                                    downside_label = f"Upside to p90: {upside_to_p90:.1f}%"
+                                    main_metric = upside_to_p90
                                 else:
                                     percentile_pos = "Price below p10 (undervalued)"
-                                    upside_to_robust = ((p10 - current_price) / current_price) * 100
-                                    downside_label = f"Upside to p10: {upside_to_robust:.1f}%"
+                                    upside_to_p90 = ((p90 - current_price) / current_price) * 100
+                                    downside_label = f"Upside to p90: {upside_to_p90:.1f}%"
+                                    main_metric = upside_to_p90
 
                                 # Override old DCF-based assessment
                                 valuation['valuation_assessment'] = base_verdict
@@ -3228,9 +3235,9 @@ class QualitativeAnalyzer:
                                     'downside_label': downside_label
                                 }
 
-                                # Replace old upside/downside with robust FV-based calculation
-                                valuation['upside_downside_%'] = downside_to_robust if current_price > p50 else upside_to_robust
-                                valuation['upside_downside_basis'] = 'robust_fv_percentiles'
+                                # Replace old upside/downside with robust FV-based calculation (always vs p90)
+                                valuation['upside_downside_%'] = main_metric
+                                valuation['upside_downside_basis'] = 'vs_p90'
 
                                 logger.info(f"Valuation verdict: {base_verdict} (Price=${current_price:.2f} vs p10=${p10:.2f}, p50=${p50:.2f}, p90=${p90:.2f})")
                                 logger.info(f"Percentile positioning: {percentile_pos} | {downside_label}")
@@ -5086,16 +5093,27 @@ class QualitativeAnalyzer:
                 # Two families: 50/50
                 family_final_weights = [0.5, 0.5]
             else:
-                # Three families: use predefined caps
+                # Three families: use predefined caps, adjusted for peers availability
                 family_final_weights = []
                 for fname in family_names_list:
                     if fname in families:
-                        family_final_weights.append(families[fname]['max_weight'])
+                        base_weight = families[fname]['max_weight']
+
+                        # CRITICAL: If no peers and this is enterprise family, reduce weight
+                        if fname == 'enterprise' and not has_peers:
+                            # Reduce from 0.34 to 0.17 (50% reduction)
+                            base_weight = 0.17
+                            logger.info(f"Reduced enterprise weight: 0.34 → 0.17 (no peers available)")
+
+                        family_final_weights.append(base_weight)
                     else:
                         family_final_weights.append(1.0 / num_families)
+
                 # Normalize to sum to 1.0
                 total_fam_weight = sum(family_final_weights)
                 family_final_weights = [w / total_fam_weight for w in family_final_weights]
+
+                logger.debug(f"Family weights (normalized): {dict(zip(family_names_list, family_final_weights))}")
 
             # Calculate robust fair value (weighted average of family medians)
             fair_value_robust = sum(v * w for v, w in zip(family_values_list, family_final_weights))
@@ -5145,10 +5163,20 @@ class QualitativeAnalyzer:
 
             # Detect outliers: Methods outside robust range
             outlier_methods = []
+            method_name_map = {
+                'peg_value': 'PEG',
+                'pe_value': 'P/E',
+                'ev_ebit_value': 'EV/EBIT',
+                'ev_fcf_value': 'EV/FCF',
+                'forward_multiple_value': 'Forward',
+                'historical_multiple_value': 'Historical',
+                'dcf_value': 'DCF'
+            }
             for method, value in valuation_methods.items():
                 if value and value > 0:
                     if value < range_p10 * 0.9 or value > range_p90 * 1.1:
-                        outlier_methods.append(f"{method}=${value:.0f}")
+                        clean_name = method_name_map.get(method, method)
+                        outlier_methods.append(f"{clean_name}=${value:.0f}")
 
             # Consensus tightness: measure dispersion using ROBUST p10-p90 range
             # This is based on the final robust range, not raw method variation
