@@ -5802,11 +5802,11 @@ with tab5:
                                     </div>
                                     <div style='background: {tightness_bg}; color: {tightness_color}; padding: 0.25rem 0.65rem;
                                                 border-radius: 4px; font-size: 0.7rem; font-weight: 700;'>
-                                        {consensus_tightness} Consensus
+                                        {consensus_tightness} (post-trim)
                                     </div>
                                 </div>
                                 <div style='color: rgba(255,255,255,0.9); font-size: 0.85rem; margin-bottom: 0.5rem;'>
-                                    Range (p10-p90): <strong>${range_p10:.2f} - ${range_p90:.2f}</strong>
+                                    <strong>Range (p10–p90): ${range_p10:.2f}–${range_p90:.2f}</strong>
                                 </div>
                                 <div style='color: rgba(255,255,255,0.8); font-size: 0.75rem; line-height: 1.4;'>
                                     Prevents double-counting correlated methods. Winsorizes outliers.
