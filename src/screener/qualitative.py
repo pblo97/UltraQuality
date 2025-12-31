@@ -3017,43 +3017,52 @@ class QualitativeAnalyzer:
                 ev_ebit_value = None
                 ev_fcf_value = None
 
-                try:
-                    logger.info(f"Calculating additional valuation methods for {symbol}")
+                # Calculate each method independently with individual error handling
+                logger.info(f"Calculating additional valuation methods for {symbol}")
 
-                    # P/E based value (Earnings family)
+                # P/E based value (Earnings family)
+                try:
                     pe_value = self._calculate_pe_intrinsic_value(symbol, peers_list)
                     if pe_value and pe_value > 0:
                         valuation['pe_value'] = pe_value
                         logger.info(f"✓ P/E Value: ${pe_value:.2f}")
                     else:
-                        logger.debug(f"P/E Value not available for {symbol} (peers: {len(peers_list) if peers_list else 0})")
+                        logger.warning(f"⚠️ P/E Value not available for {symbol} - returned {pe_value}")
+                except Exception as e:
+                    logger.error(f"❌ P/E calculation error for {symbol}: {e}", exc_info=True)
 
-                    # PEG based value (Earnings family) - uses growth engine if available
+                # PEG based value (Earnings family) - uses growth engine if available
+                try:
                     peg_value = self._calculate_peg_intrinsic_value(symbol, growth_engine)
                     if peg_value and peg_value > 0:
                         valuation['peg_value'] = peg_value
                         logger.info(f"✓ PEG Value: ${peg_value:.2f}")
                     else:
-                        logger.debug(f"PEG Value not available for {symbol}")
+                        logger.warning(f"⚠️ PEG Value not available for {symbol} - returned {peg_value}")
+                except Exception as e:
+                    logger.error(f"❌ PEG calculation error for {symbol}: {e}", exc_info=True)
 
-                    # EV/EBIT based value (Enterprise family)
+                # EV/EBIT based value (Enterprise family)
+                try:
                     ev_ebit_value = self._calculate_ev_ebit_intrinsic_value(symbol, peers_list)
                     if ev_ebit_value and ev_ebit_value > 0:
                         valuation['ev_ebit_value'] = ev_ebit_value
                         logger.info(f"✓ EV/EBIT Value: ${ev_ebit_value:.2f}")
                     else:
-                        logger.debug(f"EV/EBIT Value not available for {symbol} (peers: {len(peers_list) if peers_list else 0})")
+                        logger.warning(f"⚠️ EV/EBIT Value not available for {symbol} - returned {ev_ebit_value}")
+                except Exception as e:
+                    logger.error(f"❌ EV/EBIT calculation error for {symbol}: {e}", exc_info=True)
 
-                    # EV/FCF based value (Enterprise family)
+                # EV/FCF based value (Enterprise family)
+                try:
                     ev_fcf_value = self._calculate_ev_fcf_intrinsic_value(symbol, peers_list)
                     if ev_fcf_value and ev_fcf_value > 0:
                         valuation['ev_fcf_value'] = ev_fcf_value
                         logger.info(f"✓ EV/FCF Value: ${ev_fcf_value:.2f}")
                     else:
-                        logger.debug(f"EV/FCF Value not available for {symbol} (peers: {len(peers_list) if peers_list else 0})")
-
+                        logger.warning(f"⚠️ EV/FCF Value not available for {symbol} - returned {ev_fcf_value}")
                 except Exception as e:
-                    logger.error(f"Additional valuation methods failed for {symbol}: {e}", exc_info=True)
+                    logger.error(f"❌ EV/FCF calculation error for {symbol}: {e}", exc_info=True)
 
                 # 4. Robust Fair Value: Log-scale combination with method families
                 # ADD DEBUG FLAG to track execution
@@ -5081,11 +5090,12 @@ class QualitativeAnalyzer:
 
         Returns fair price per share.
         """
+        logger.info(f"🔵 P/E calc: Starting for {symbol} (peers: {len(peers_list) if peers_list else 0})")
         try:
             # Get company P/E and EPS
             key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
             if not key_metrics or len(key_metrics) == 0:
-                logger.debug(f"P/E calc: No key metrics for {symbol}")
+                logger.warning(f"P/E calc: No key metrics for {symbol}")
                 return None
 
             company_pe = key_metrics[0].get('peRatio')
@@ -5180,11 +5190,12 @@ class QualitativeAnalyzer:
 
         Returns fair price per share.
         """
+        logger.info(f"🔵 PEG calc: Starting for {symbol} (has growth_data: {growth_data is not None})")
         try:
             # Get current price
             profile = self.fmp.get_profile(symbol)
             if not profile or len(profile) == 0:
-                logger.debug(f"PEG calc: No profile for {symbol}")
+                logger.warning(f"PEG calc: No profile for {symbol}")
                 return None
 
             current_price = profile[0].get('price', 0)
@@ -5252,11 +5263,12 @@ class QualitativeAnalyzer:
 
         Returns fair price per share.
         """
+        logger.info(f"🔵 EV/EBIT calc: Starting for {symbol} (peers: {len(peers_list) if peers_list else 0})")
         try:
             # Get company EBIT
             income = self.fmp.get_income_statement(symbol, period='annual', limit=1)
             if not income or len(income) == 0:
-                logger.debug(f"EV/EBIT calc: No income statement for {symbol}")
+                logger.warning(f"EV/EBIT calc: No income statement for {symbol}")
                 return None
 
             ebit = income[0].get('operatingIncome', 0)
@@ -5358,11 +5370,12 @@ class QualitativeAnalyzer:
 
         Returns fair price per share.
         """
+        logger.info(f"🔵 EV/FCF calc: Starting for {symbol} (peers: {len(peers_list) if peers_list else 0})")
         try:
             # Get company FCF
             cash_flow = self.fmp.get_cash_flow(symbol, period='annual', limit=1)
             if not cash_flow or len(cash_flow) == 0:
-                logger.debug(f"EV/FCF calc: No cash flow for {symbol}")
+                logger.warning(f"EV/FCF calc: No cash flow for {symbol}")
                 return None
 
             operating_cf = cash_flow[0].get('operatingCashFlow', 0)
