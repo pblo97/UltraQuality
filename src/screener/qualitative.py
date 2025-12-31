@@ -5272,51 +5272,75 @@ class QualitativeAnalyzer:
                 logger.warning(f"PEG calc: ❌ FAILED - No valid price for {symbol}")
                 return None
 
-            # Get P/E ratio to calculate PEG
-            key_metrics = self.fmp.get_key_metrics_ttm(symbol)
-            if not key_metrics or len(key_metrics) == 0:
-                self._last_valuation_error = "No key_metrics from API"
-                logger.warning(f"PEG calc: ❌ FAILED - No key metrics for {symbol}")
+            # Get P/E ratio and calculate EPS growth (same as _calculate_valuation_multiples)
+            income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
+            if not income or len(income) < 2:
+                self._last_valuation_error = "Need 2 years of income statements for EPS growth"
+                logger.warning(f"PEG calc: ❌ FAILED - Insufficient income history for {symbol}")
                 return None
 
-            pe_ratio = key_metrics[0].get('peRatioTTM') or key_metrics[0].get('peRatio')
+            # Get shares from balance sheet (same as other methods)
+            balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
+            if not balance or len(balance) == 0:
+                self._last_valuation_error = "No balance_sheet from API"
+                logger.warning(f"PEG calc: ❌ FAILED - No balance_sheet for {symbol}")
+                return None
+
+            # Triple fallback for shares (same as DCF and P/E methods)
+            weighted_avg_shares = (balance[0].get('weightedAverageShsOut') or
+                                  balance[0].get('commonStockSharesOutstanding') or
+                                  balance[0].get('weightedAverageShsOutDil'))
+
+            if not weighted_avg_shares or weighted_avg_shares <= 0:
+                profile = self.fmp.get_profile(symbol)
+                if profile and len(profile) > 0:
+                    weighted_avg_shares = profile[0].get('sharesOutstanding', 0)
+
+                    if not weighted_avg_shares or weighted_avg_shares <= 0:
+                        mkt_cap = profile[0].get('mktCap')
+                        price = profile[0].get('price')
+                        if mkt_cap and price and price > 0:
+                            weighted_avg_shares = int(mkt_cap / price)
+
+            if not weighted_avg_shares or weighted_avg_shares <= 0:
+                self._last_valuation_error = f"No shares_outstanding (got {weighted_avg_shares})"
+                logger.warning(f"PEG calc: ❌ FAILED - No valid shares for {symbol}")
+                return None
+
+            # Calculate current and previous EPS
+            current_eps = income[0].get('eps', 0) or (income[0].get('netIncome', 0) / weighted_avg_shares if weighted_avg_shares > 0 else 0)
+            prev_eps = income[1].get('eps', 0) or (income[1].get('netIncome', 0) / weighted_avg_shares if weighted_avg_shares > 0 else 0)
+
+            if not current_eps or current_eps <= 0:
+                self._last_valuation_error = f"No valid current EPS (got {current_eps})"
+                logger.warning(f"PEG calc: ❌ FAILED - No valid current EPS for {symbol}")
+                return None
+
+            if not prev_eps or prev_eps <= 0:
+                self._last_valuation_error = f"No valid previous EPS (got {prev_eps})"
+                logger.warning(f"PEG calc: ❌ FAILED - No valid previous EPS for {symbol}")
+                return None
+
+            # Calculate EPS growth rate (year-over-year)
+            eps_growth_rate = ((current_eps - prev_eps) / prev_eps) * 100
+            logger.debug(f"PEG calc: EPS growth={eps_growth_rate:.1f}% (current EPS={current_eps:.2f}, prev EPS={prev_eps:.2f}) for {symbol}")
+
+            # Calculate P/E ratio
+            pe_ratio = current_price / current_eps if current_eps > 0 else None
             if not pe_ratio or pe_ratio <= 0:
                 self._last_valuation_error = f"No valid P/E ratio (got {pe_ratio})"
                 logger.warning(f"PEG calc: ❌ FAILED - No valid P/E ratio for {symbol}")
                 return None
 
-            # Get growth rate (prefer from growth_data if available)
-            growth_rate = None
-            if growth_data and growth_data.get('revenue_growth_5y'):
-                growth_rate = growth_data['revenue_growth_5y'].get('base', 0) * 100
-                logger.debug(f"PEG calc: Using growth_data growth rate={growth_rate:.1f}% for {symbol}")
-            else:
-                # Fallback: estimate from revenue
-                income = self.fmp.get_income_statement(symbol, period='annual', limit=2)
-                if income and len(income) >= 2:
-                    rev_current = income[0].get('revenue', 0)
-                    rev_prev = income[1].get('revenue', 0)
-                    if rev_prev > 0:
-                        growth_rate = ((rev_current - rev_prev) / rev_prev) * 100
-                        logger.debug(f"PEG calc: Using historical revenue growth rate={growth_rate:.1f}% for {symbol}")
-                    else:
-                        self._last_valuation_error = "No previous revenue for growth calc"
-                        logger.warning(f"PEG calc: ❌ FAILED - No previous revenue for {symbol}")
-                        return None
-                else:
-                    self._last_valuation_error = "Insufficient revenue history (need 2 years)"
-                    logger.warning(f"PEG calc: ❌ FAILED - Insufficient revenue history for {symbol}")
-                    return None
-
-            # Only valid for reasonable growth rates
-            if growth_rate < 5 or growth_rate > 100:
-                self._last_valuation_error = f"Growth rate {growth_rate:.1f}% outside valid range [5%, 100%]"
-                logger.warning(f"PEG calc: ❌ FAILED - Growth rate {growth_rate:.1f}% out of valid range for {symbol}")
+            # Only valid for reasonable EPS growth rates
+            if eps_growth_rate < 5 or eps_growth_rate > 100:
+                self._last_valuation_error = f"EPS growth {eps_growth_rate:.1f}% outside valid range [5%, 100%]"
+                logger.warning(f"PEG calc: ❌ FAILED - EPS growth {eps_growth_rate:.1f}% out of valid range for {symbol}")
                 return None
 
-            # Calculate PEG ratio: PEG = P/E / Growth Rate
-            peg_ratio = pe_ratio / growth_rate
-            logger.debug(f"PEG calc: Calculated PEG={peg_ratio:.2f} (P/E={pe_ratio:.2f} / Growth={growth_rate:.1f}%) for {symbol}")
+            # Calculate PEG ratio: PEG = P/E / EPS Growth Rate
+            peg_ratio = pe_ratio / eps_growth_rate
+            logger.debug(f"PEG calc: Calculated PEG={peg_ratio:.2f} (P/E={pe_ratio:.2f} / EPS Growth={eps_growth_rate:.1f}%) for {symbol}")
 
             # Fair PEG = 1.0 (conservative baseline)
             fair_peg = 1.0
@@ -5329,7 +5353,7 @@ class QualitativeAnalyzer:
                 logger.warning(f"PEG calc: ❌ FAILED - Fair value is {fair_value:.2f} for {symbol}")
                 return None
 
-            logger.info(f"PEG calc: ✓ Fair value=${fair_value:.2f} (Price=${current_price:.2f}, P/E={pe_ratio:.2f}, PEG={peg_ratio:.2f}, Growth={growth_rate:.1f}%) for {symbol}")
+            logger.info(f"PEG calc: ✓ Fair value=${fair_value:.2f} (Price=${current_price:.2f}, P/E={pe_ratio:.2f}, PEG={peg_ratio:.2f}, EPS Growth={eps_growth_rate:.1f}%) for {symbol}")
             return fair_value
 
         except Exception as e:
