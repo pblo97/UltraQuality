@@ -5813,10 +5813,15 @@ with tab5:
                             # Method disagreement if exists
                             method_disagreement = robust_val.get('method_disagreement', '')
                             if method_disagreement:
-                                if 'divergence' in method_disagreement.lower():
+                                if 'divergence' in method_disagreement.lower() or 'raw methods' in method_disagreement.lower():
                                     st.warning(f"⚠️ {method_disagreement}")
                                 else:
                                     st.success(f"✅ {method_disagreement}")
+
+                            # Outliers display (clean, separate from disagreement)
+                            outliers_display = robust_val.get('outliers_display')
+                            if outliers_display:
+                                st.info(f"🔍 **Outliers trimmed:** {outliers_display}")
 
                         # Implied Expectations (Reverse DCF) - Show prominently
                         reverse_dcf_data = intrinsic.get('reverse_dcf', {})
@@ -6061,15 +6066,42 @@ with tab5:
                             if eps_growth:
                                 revenue_growth = eps_growth  # Use EPS growth as proxy
 
-                        # Check if PEG is within robust range or outlier
+                        # Check if robust valuation exists and if price is premium-priced
                         robust_valuation = intrinsic.get('robust_valuation', {})
                         outlier_methods = robust_valuation.get('outlier_methods', [])
-                        peg_is_outlier = any('peg_value' in om.lower() for om in outlier_methods)
+                        peg_is_outlier = any('PEG' in om or 'peg' in om.lower() for om in outlier_methods)
                         robust_p90 = robust_valuation.get('range_p90', 0)
+                        robust_fv = robust_valuation.get('fair_value_robust', 0)
+                        percentile_info = intrinsic.get('percentile_info', {})
+                        positioning = percentile_info.get('positioning', '')
 
                         # Determine predominant method
-                        # Priority 1: If PEG < 1.5 AND within robust range, it's a growth company
-                        if peg_ratio and peg_ratio < 1.5 and not peg_is_outlier:
+                        # Priority 0: If robust FV exists AND price is premium-priced, use Robust FV
+                        if robust_fv and 'above p90' in positioning.lower():
+                            # Price above robust range - Robust FV is base, PEG is bull case
+                            method_icon = ""
+                            method_name = "Robust FV (Price at premium)"
+                            peg_value = intrinsic.get('peg_value', 0)
+                            range_p10 = robust_valuation.get('range_p10', 0)
+                            method_reason = f"""
+**Price is above robust valuation range - premium-priced:**
+
+📊 **Valoración Base (Robust FV):**
+- **Fair Value Robusto: ${robust_fv:.0f}** (consenso de múltiples métodos)
+- **Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}**
+- **Precio actual: ${current_price:.0f}** → Above p90 (premium-priced)
+
+🚀 **PEG Bull Case:**
+- PEG Fair Value: ${peg_value:.0f}{"" if not peg_ratio else f" (PEG={peg_ratio:.2f})"} ← Escenario si mercado paga premium por crecimiento
+- PEG 1.5 premium: ${intrinsic.get('peg_intrinsic_conservative', peg_value * 1.53):.0f}
+
+**Interpretación:**
+- Valoración base: ${robust_fv:.0f} (consenso robusto)
+- Precio actual ≈ PEG bull case (mercado ya pricing growth premium)
+- **No hay margen de seguridad por valoración**
+"""
+                        # Priority 1: If PEG < 1.5 AND within robust range AND price reasonable
+                        elif peg_ratio and peg_ratio < 1.5 and not peg_is_outlier and 'above p90' not in positioning.lower():
                             # Growth company - PEG is king AND validated by robust range
                             method_icon = ""
                             method_name = "PEG Ratio (Growth Valuation)"
@@ -9011,12 +9043,39 @@ with tab6:
             # Check if PEG is within robust range or outlier
             robust_valuation = intrinsic.get('robust_valuation', {})
             outlier_methods = robust_valuation.get('outlier_methods', [])
-            peg_is_outlier = any('peg_value' in om.lower() for om in outlier_methods)
+            peg_is_outlier = any('PEG' in om or 'peg' in om.lower() for om in outlier_methods)
             robust_p90 = robust_valuation.get('range_p90', 0)
+            robust_fv = robust_valuation.get('fair_value_robust', 0)
+            percentile_info = intrinsic.get('percentile_info', {})
+            positioning = percentile_info.get('positioning', '')
 
             # Determine predominant method
-            # Priority 1: If PEG < 1.5 AND within robust range, it's a growth company
-            if peg_ratio and peg_ratio < 1.5 and not peg_is_outlier:
+            # Priority 0: If robust FV exists AND price is premium-priced, use Robust FV
+            if robust_fv and 'above p90' in positioning.lower():
+                # Price above robust range - Robust FV is base, PEG is bull case
+                method_icon = ""
+                method_name = "Robust FV (Price at premium)"
+                peg_value = intrinsic.get('peg_value', 0)
+                range_p10 = robust_valuation.get('range_p10', 0)
+                method_reason = f"""
+**Price is above robust valuation range - premium-priced:**
+
+📊 **Valoración Base (Robust FV):**
+- **Fair Value Robusto: ${robust_fv:.0f}** (consenso de múltiples métodos)
+- **Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}**
+- **Precio actual: ${current_price:.0f}** → Above p90 (premium-priced)
+
+🚀 **PEG Bull Case:**
+- PEG Fair Value: ${peg_value:.0f}{"" if not peg_ratio else f" (PEG={peg_ratio:.2f})"} ← Escenario si mercado paga premium por crecimiento
+- PEG 1.5 premium: ${intrinsic.get('peg_intrinsic_conservative', peg_value * 1.53):.0f}
+
+**Interpretación:**
+- Valoración base: ${robust_fv:.0f} (consenso robusto)
+- Precio actual ≈ PEG bull case (mercado ya pricing growth premium)
+- **No hay margen de seguridad por valoración**
+"""
+            # Priority 1: If PEG < 1.5 AND within robust range AND price reasonable
+            elif peg_ratio and peg_ratio < 1.5 and not peg_is_outlier and 'above p90' not in positioning.lower():
                 # Growth company - PEG is king AND validated by robust range
                 method_icon = ""
                 method_name = "PEG Ratio (Growth Valuation)"
