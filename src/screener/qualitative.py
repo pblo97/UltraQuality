@@ -27,6 +27,7 @@ class QualitativeAnalyzer:
     def __init__(self, fmp_client, config: Dict):
         self.fmp = fmp_client
         self.config = config
+        self._last_valuation_error = None  # Track last valuation calculation error
 
     def analyze_symbol(
         self,
@@ -3033,13 +3034,13 @@ class QualitativeAnalyzer:
                         logger.info(f"✓ P/E Value: ${pe_value:.2f}")
                         valuation_calc_attempts.append(f"✓ P/E: ${pe_value:.2f}")
                     else:
-                        # Try to get more specific failure reason from most recent logs
-                        reason = "Unknown reason - check: key_metrics, income_statement, EPS>0"
-                        logger.warning(f"⚠️ P/E Value not available for {symbol} - returned {pe_value}. {reason}")
-                        valuation_calc_attempts.append(f"⚠️ P/E: None ({reason})")
+                        # Get specific failure reason from method
+                        reason = self._last_valuation_error or "Unknown reason"
+                        logger.warning(f"⚠️ P/E Value not available for {symbol} - {reason}")
+                        valuation_calc_attempts.append(f"⚠️ P/E: FAILED - {reason}")
                 except Exception as e:
                     logger.error(f"❌ P/E calculation error for {symbol}: {e}", exc_info=True)
-                    valuation_calc_attempts.append(f"❌ P/E: {str(e)[:50]}")
+                    valuation_calc_attempts.append(f"❌ P/E ERROR: {str(e)[:80]}")
 
                 # PEG based value (Earnings family) - uses growth engine if available
                 try:
@@ -3050,11 +3051,12 @@ class QualitativeAnalyzer:
                         logger.info(f"✓ PEG Value: ${peg_value:.2f}")
                         valuation_calc_attempts.append(f"✓ PEG: ${peg_value:.2f}")
                     else:
-                        logger.warning(f"⚠️ PEG Value not available for {symbol} - returned {peg_value}")
-                        valuation_calc_attempts.append(f"⚠️ PEG: returned {peg_value}")
+                        reason = self._last_valuation_error or "Unknown reason"
+                        logger.warning(f"⚠️ PEG Value not available for {symbol} - {reason}")
+                        valuation_calc_attempts.append(f"⚠️ PEG: FAILED - {reason}")
                 except Exception as e:
                     logger.error(f"❌ PEG calculation error for {symbol}: {e}", exc_info=True)
-                    valuation_calc_attempts.append(f"❌ PEG: {str(e)[:50]}")
+                    valuation_calc_attempts.append(f"❌ PEG ERROR: {str(e)[:80]}")
 
                 # EV/EBIT based value (Enterprise family)
                 try:
@@ -3065,11 +3067,12 @@ class QualitativeAnalyzer:
                         logger.info(f"✓ EV/EBIT Value: ${ev_ebit_value:.2f}")
                         valuation_calc_attempts.append(f"✓ EV/EBIT: ${ev_ebit_value:.2f}")
                     else:
-                        logger.warning(f"⚠️ EV/EBIT Value not available for {symbol} - returned {ev_ebit_value}")
-                        valuation_calc_attempts.append(f"⚠️ EV/EBIT: returned {ev_ebit_value}")
+                        reason = self._last_valuation_error or "Unknown reason"
+                        logger.warning(f"⚠️ EV/EBIT Value not available for {symbol} - {reason}")
+                        valuation_calc_attempts.append(f"⚠️ EV/EBIT: FAILED - {reason}")
                 except Exception as e:
                     logger.error(f"❌ EV/EBIT calculation error for {symbol}: {e}", exc_info=True)
-                    valuation_calc_attempts.append(f"❌ EV/EBIT: {str(e)[:50]}")
+                    valuation_calc_attempts.append(f"❌ EV/EBIT ERROR: {str(e)[:80]}")
 
                 # EV/FCF based value (Enterprise family)
                 try:
@@ -3080,11 +3083,12 @@ class QualitativeAnalyzer:
                         logger.info(f"✓ EV/FCF Value: ${ev_fcf_value:.2f}")
                         valuation_calc_attempts.append(f"✓ EV/FCF: ${ev_fcf_value:.2f}")
                     else:
-                        logger.warning(f"⚠️ EV/FCF Value not available for {symbol} - returned {ev_fcf_value}")
-                        valuation_calc_attempts.append(f"⚠️ EV/FCF: returned {ev_fcf_value}")
+                        reason = self._last_valuation_error or "Unknown reason"
+                        logger.warning(f"⚠️ EV/FCF Value not available for {symbol} - {reason}")
+                        valuation_calc_attempts.append(f"⚠️ EV/FCF: FAILED - {reason}")
                 except Exception as e:
                     logger.error(f"❌ EV/FCF calculation error for {symbol}: {e}", exc_info=True)
-                    valuation_calc_attempts.append(f"❌ EV/FCF: {str(e)[:50]}")
+                    valuation_calc_attempts.append(f"❌ EV/FCF ERROR: {str(e)[:80]}")
 
                 # Store debug info
                 valuation['_debug_valuation_calc_attempts'] = valuation_calc_attempts
@@ -5116,10 +5120,12 @@ class QualitativeAnalyzer:
         Returns fair price per share.
         """
         logger.info(f"🔵 P/E calc: Starting for {symbol} (peers: {len(peers_list) if peers_list else 0})")
+        self._last_valuation_error = None  # Reset
         try:
             # Get company P/E and EPS
             key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
             if not key_metrics or len(key_metrics) == 0:
+                self._last_valuation_error = "No key_metrics from API"
                 logger.warning(f"P/E calc: ❌ FAILED - No key_metrics for {symbol}")
                 return None
 
@@ -5128,6 +5134,7 @@ class QualitativeAnalyzer:
             # Get EPS (trailing)
             income = self.fmp.get_income_statement(symbol, period='annual', limit=1)
             if not income or len(income) == 0:
+                self._last_valuation_error = "No income_statement from API"
                 logger.warning(f"P/E calc: ❌ FAILED - No income_statement for {symbol}")
                 return None
 
@@ -5135,12 +5142,14 @@ class QualitativeAnalyzer:
             weighted_avg_shares = income[0].get('weightedAverageShsOut', 0)
 
             if not weighted_avg_shares or weighted_avg_shares == 0:
+                self._last_valuation_error = f"No shares_outstanding (got {weighted_avg_shares})"
                 logger.warning(f"P/E calc: ❌ FAILED - No shares_outstanding for {symbol}")
                 return None
 
             eps = net_income / weighted_avg_shares
 
             if not eps or eps <= 0:
+                self._last_valuation_error = f"EPS={eps:.4f} (must be >0)"
                 logger.warning(f"P/E calc: ❌ FAILED - EPS={eps} (must be >0) for {symbol}")
                 return None
 
@@ -5218,27 +5227,32 @@ class QualitativeAnalyzer:
         Returns fair price per share.
         """
         logger.info(f"🔵 PEG calc: Starting for {symbol} (has growth_data: {growth_data is not None})")
+        self._last_valuation_error = None  # Reset
         try:
             # Get current price
             profile = self.fmp.get_profile(symbol)
             if not profile or len(profile) == 0:
-                logger.warning(f"PEG calc: No profile for {symbol}")
+                self._last_valuation_error = "No profile from API"
+                logger.warning(f"PEG calc: ❌ FAILED - No profile for {symbol}")
                 return None
 
             current_price = profile[0].get('price', 0)
             if not current_price or current_price <= 0:
-                logger.debug(f"PEG calc: No valid price for {symbol}")
+                self._last_valuation_error = f"No valid price (got {current_price})"
+                logger.warning(f"PEG calc: ❌ FAILED - No valid price for {symbol}")
                 return None
 
             # Get PEG ratio
             key_metrics = self.fmp.get_key_metrics(symbol, period='annual', limit=1)
             if not key_metrics or len(key_metrics) == 0:
-                logger.debug(f"PEG calc: No key metrics for {symbol}")
+                self._last_valuation_error = "No key_metrics from API"
+                logger.warning(f"PEG calc: ❌ FAILED - No key metrics for {symbol}")
                 return None
 
             peg_ratio = key_metrics[0].get('pegRatio')
             if not peg_ratio or peg_ratio <= 0:
-                logger.debug(f"PEG calc: No valid PEG ratio for {symbol}")
+                self._last_valuation_error = f"No valid PEG ratio (got {peg_ratio})"
+                logger.warning(f"PEG calc: ❌ FAILED - No valid PEG ratio for {symbol}")
                 return None
 
             # Get growth rate (prefer from growth_data if available)
@@ -5291,22 +5305,26 @@ class QualitativeAnalyzer:
         Returns fair price per share.
         """
         logger.info(f"🔵 EV/EBIT calc: Starting for {symbol} (peers: {len(peers_list) if peers_list else 0})")
+        self._last_valuation_error = None  # Reset
         try:
             # Get company EBIT
             income = self.fmp.get_income_statement(symbol, period='annual', limit=1)
             if not income or len(income) == 0:
-                logger.warning(f"EV/EBIT calc: No income statement for {symbol}")
+                self._last_valuation_error = "No income_statement from API"
+                logger.warning(f"EV/EBIT calc: ❌ FAILED - No income statement for {symbol}")
                 return None
 
             ebit = income[0].get('operatingIncome', 0)
             if not ebit or ebit <= 0:
-                logger.debug(f"EV/EBIT calc: EBIT is {ebit} for {symbol}")
+                self._last_valuation_error = f"EBIT={ebit} (must be >0)"
+                logger.warning(f"EV/EBIT calc: ❌ FAILED - EBIT is {ebit} for {symbol}")
                 return None
 
             # Get Net Debt (Total Debt - Cash)
             balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
             if not balance or len(balance) == 0:
-                logger.debug(f"EV/EBIT calc: No balance sheet for {symbol}")
+                self._last_valuation_error = "No balance_sheet from API"
+                logger.warning(f"EV/EBIT calc: ❌ FAILED - No balance sheet for {symbol}")
                 return None
 
             total_debt = balance[0].get('totalDebt', 0)
@@ -5316,12 +5334,14 @@ class QualitativeAnalyzer:
             # Get shares outstanding
             profile = self.fmp.get_profile(symbol)
             if not profile or len(profile) == 0:
-                logger.debug(f"EV/EBIT calc: No profile for {symbol}")
+                self._last_valuation_error = "No profile from API"
+                logger.warning(f"EV/EBIT calc: ❌ FAILED - No profile for {symbol}")
                 return None
 
             shares_outstanding = profile[0].get('sharesOutstanding', 0)
             if not shares_outstanding or shares_outstanding == 0:
-                logger.debug(f"EV/EBIT calc: No shares outstanding for {symbol}")
+                self._last_valuation_error = f"No shares_outstanding (got {shares_outstanding})"
+                logger.warning(f"EV/EBIT calc: ❌ FAILED - No shares outstanding for {symbol}")
                 return None
 
             # Strategy 1: Try to use peer EV/EBIT ratios
@@ -5398,11 +5418,13 @@ class QualitativeAnalyzer:
         Returns fair price per share.
         """
         logger.info(f"🔵 EV/FCF calc: Starting for {symbol} (peers: {len(peers_list) if peers_list else 0})")
+        self._last_valuation_error = None  # Reset
         try:
             # Get company FCF
             cash_flow = self.fmp.get_cash_flow(symbol, period='annual', limit=1)
             if not cash_flow or len(cash_flow) == 0:
-                logger.warning(f"EV/FCF calc: No cash flow for {symbol}")
+                self._last_valuation_error = "No cash_flow from API"
+                logger.warning(f"EV/FCF calc: ❌ FAILED - No cash flow for {symbol}")
                 return None
 
             operating_cf = cash_flow[0].get('operatingCashFlow', 0)
@@ -5410,13 +5432,15 @@ class QualitativeAnalyzer:
             fcf = operating_cf - capex
 
             if not fcf or fcf <= 0:
-                logger.debug(f"EV/FCF calc: FCF is {fcf} for {symbol}")
+                self._last_valuation_error = f"FCF={fcf} (must be >0)"
+                logger.warning(f"EV/FCF calc: ❌ FAILED - FCF is {fcf} for {symbol}")
                 return None
 
             # Get Net Debt
             balance = self.fmp.get_balance_sheet(symbol, period='annual', limit=1)
             if not balance or len(balance) == 0:
-                logger.debug(f"EV/FCF calc: No balance sheet for {symbol}")
+                self._last_valuation_error = "No balance_sheet from API"
+                logger.warning(f"EV/FCF calc: ❌ FAILED - No balance sheet for {symbol}")
                 return None
 
             total_debt = balance[0].get('totalDebt', 0)
@@ -5426,12 +5450,14 @@ class QualitativeAnalyzer:
             # Get shares outstanding
             profile = self.fmp.get_profile(symbol)
             if not profile or len(profile) == 0:
-                logger.debug(f"EV/FCF calc: No profile for {symbol}")
+                self._last_valuation_error = "No profile from API"
+                logger.warning(f"EV/FCF calc: ❌ FAILED - No profile for {symbol}")
                 return None
 
             shares_outstanding = profile[0].get('sharesOutstanding', 0)
             if not shares_outstanding or shares_outstanding == 0:
-                logger.debug(f"EV/FCF calc: No shares outstanding for {symbol}")
+                self._last_valuation_error = f"No shares_outstanding (got {shares_outstanding})"
+                logger.warning(f"EV/FCF calc: ❌ FAILED - No shares outstanding for {symbol}")
                 return None
 
             # Get current EV for reference
