@@ -2409,21 +2409,34 @@ class QualitativeAnalyzer:
                         margin_current = margins[0]
                         margin_avg = statistics.mean(margins[1:])
                         margin_max = max(margins)
+                        margin_min = min(margins)
 
-                        if margin_current >= margin_avg * 1.3:  # 30% above average
+                        # Calculate deviation percentage
+                        deviation_pct = ((margin_current / margin_avg) - 1) * 100
+
+                        # More sensitive thresholds for cyclical margin mean reversion
+                        if margin_current >= margin_avg * 1.15:  # 15%+ above average
                             signal = 'DANGER'
-                            message = f'Operating margin ({margin_current:.1f}%) is {((margin_current/margin_avg - 1) * 100):.0f}% above avg ({margin_avg:.1f}%). Peak margins = mean reversion risk.'
-                        elif margin_current <= margin_avg * 0.7:  # 30% below average
+                            message = f'Margin expansion: {margin_current:.1f}% vs {margin_avg:.1f}% avg (+{deviation_pct:.0f}%). Peak margins suggest mean reversion risk.'
+                        elif margin_current >= margin_avg * 1.08:  # 8-15% above average
+                            signal = 'CAUTION'
+                            message = f'Elevated margins: {margin_current:.1f}% vs {margin_avg:.1f}% avg (+{deviation_pct:.0f}%). Above normal range.'
+                        elif margin_current <= margin_avg * 0.85:  # 15%+ below average
                             signal = 'OPPORTUNITY'
-                            message = f'Operating margin ({margin_current:.1f}%) depressed vs avg ({margin_avg:.1f}%). Room for recovery.'
+                            message = f'Margin compression: {margin_current:.1f}% vs {margin_avg:.1f}% avg ({deviation_pct:.0f}%). Room for recovery.'
+                        elif margin_current <= margin_avg * 0.92:  # 8-15% below average
+                            signal = 'WATCH'
+                            message = f'Margin pressure: {margin_current:.1f}% vs {margin_avg:.1f}% avg ({deviation_pct:.0f}%). Below normal range.'
                         else:
                             signal = 'NEUTRAL'
-                            message = f'Operating margin ({margin_current:.1f}%) near historical avg ({margin_avg:.1f}%).'
+                            message = f'Stable margins: {margin_current:.1f}% vs {margin_avg:.1f}% avg ({deviation_pct:+.0f}%). Within normal range.'
 
                         timing_tools['operating_margin'] = {
                             'margin_current': margin_current,
                             'margin_avg_5y': margin_avg,
                             'margin_max': margin_max,
+                            'margin_min': margin_min,
+                            'deviation_pct': deviation_pct,
                             'signal': signal,
                             'interpretation': message
                         }
