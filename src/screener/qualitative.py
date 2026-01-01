@@ -5233,17 +5233,26 @@ class QualitativeAnalyzer:
             else:
                 result['consensus_explanation'] = None
 
-            # Generate method disagreement message using max family divergence
+            # Generate method disagreement message
+            # Use max_family_divergence for the message (informative)
+            # But store robust_disagreement_pct separately for metrics
             if max_family_divergence_pct > 0.30:  # >30% divergence between families
                 diverging_families = list(family_medians.keys())
-                result['method_disagreement'] = f"High divergence between {' vs '.join(diverging_families)} ({max_family_divergence_pct:.1%})"
+                # Show robust disagreement (CV of family medians), not max divergence
+                result['method_disagreement'] = f"Family divergence: {robust_disagreement_pct:.1%} between {' vs '.join(diverging_families)}"
             else:
                 result['method_disagreement'] = "Families generally agree"
 
-            # Add outlier information if any detected (clean format)
+            # Add raw disagreement context if high
+            if raw_disagreement_pct > 0.50:
+                result['method_disagreement'] += f" | Raw methods: {raw_disagreement_pct:.0%} (outliers present)"
+
+            # Add outlier list if any detected (clean format, avoid duplicates)
             if outlier_methods:
-                outliers_str = ", ".join(outlier_methods[:5])  # Show max 5
-                result['method_disagreement'] += f" | Outliers trimmed: {outliers_str}"
+                # Deduplicate and clean
+                unique_outliers = list(dict.fromkeys(outlier_methods))  # Preserve order, remove dupes
+                outliers_str = ", ".join(unique_outliers[:5])  # Show max 5
+                result['outliers_display'] = outliers_str  # Separate field for clean display
 
             # Store family weights for transparency (use final weights from Level B)
             result['family_weights'] = {
