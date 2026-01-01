@@ -3922,7 +3922,7 @@ with tab3:
                     col1, col2, col3 = st.columns(3)
 
                     with col1:
-                        st.markdown("**🟢 Top Tier**")
+                        st.markdown("**Top Tier**")
                         top_tier = viable[viable['tier'] == 'Top Tier (Elite)'].nlargest(5, 'composite_0_100')[['ticker', 'composite_0_100', 'decision']]
                         if len(top_tier) > 0:
                             st.dataframe(top_tier, use_container_width=True, hide_index=True)
@@ -3930,7 +3930,7 @@ with tab3:
                             st.caption("No stocks in this tier")
 
                     with col2:
-                        st.markdown("**🟡 Mid Tier**")
+                        st.markdown("**Mid Tier**")
                         mid_tier = viable[viable['tier'] == 'Mid Tier (Good)'].nlargest(5, 'composite_0_100')[['ticker', 'composite_0_100', 'decision']]
                         if len(mid_tier) > 0:
                             st.dataframe(mid_tier, use_container_width=True, hide_index=True)
@@ -3938,7 +3938,7 @@ with tab3:
                             st.caption("No stocks in this tier")
 
                     with col3:
-                        st.markdown("**🔴 Lower Tier**")
+                        st.markdown("**Lower Tier**")
                         lower_tier = viable[viable['tier'] == 'Lower Tier (Marginal)'].nlargest(5, 'composite_0_100')[['ticker', 'composite_0_100', 'decision']]
                         if len(lower_tier) > 0:
                             st.dataframe(lower_tier, use_container_width=True, hide_index=True)
@@ -5803,20 +5803,20 @@ with tab5:
 
                             # Multiples reliability flag
                             if multiples_reliability == 'Low':
-                                st.warning(f"⚠️ **Multiples Reliability: Low** – {reliability_reason}")
+                                st.warning(f"**Multiples Reliability: Low** – {reliability_reason}")
 
                             # Consensus explanation if exists (clarifies consensus vs disagreement)
                             consensus_explanation = robust_val.get('consensus_explanation')
                             if consensus_explanation:
-                                st.info(f"📊 {consensus_explanation}")
+                                st.info(f"{consensus_explanation}")
 
                             # Method disagreement if exists
                             method_disagreement = robust_val.get('method_disagreement', '')
                             if method_disagreement:
                                 if 'divergence' in method_disagreement.lower() or 'raw methods' in method_disagreement.lower():
-                                    st.warning(f"⚠️ {method_disagreement}")
+                                    st.warning(f"{method_disagreement}")
                                 else:
-                                    st.success(f"✅ {method_disagreement}")
+                                    st.success(f"{method_disagreement}")
 
                             # Outliers display (micro-panels for each outlier)
                             outliers_display = robust_val.get('outliers_display')
@@ -6087,12 +6087,12 @@ with tab5:
                                 # PEG valuation not applicable for low growth OR extreme growth
                                 if eps_growth and eps_growth > 100:
                                     # Extreme growth spike (likely one-time turnaround)
-                                    st.warning(f"⚠️ **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (> 100% threshold)")
+                                    st.warning(f"**PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (> 100% threshold)")
                                     st.caption("Extreme growth rates usually indicate one-time events (losses-to-profits, restructuring, etc.) rather than sustainable growth.")
                                     st.caption(f"Current PEG: **{peg_ratio:.2f}** — Use DCF or sector comparables for valuation instead.")
                                 else:
                                     # Low/No growth company
-                                    st.warning(f"⚠️ **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (< 5% threshold)")
+                                    st.warning(f"**PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (< 5% threshold)")
                                     st.caption("PEG-based valuation only works for growth companies. For mature/declining companies, use DCF or P/E multiples.")
                                     st.caption(f"Current PEG: **{peg_ratio:.2f}** (High PEG with low growth = overvalued)")
                         else:
@@ -6484,7 +6484,7 @@ with tab5:
                             st.markdown(f"""
                             <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                         padding: 0.75rem 1.25rem; border-radius: 10px; margin-bottom: 1rem;'>
-                                <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                                <div style='display: flex; align-items: center; gap: 0.5rem;'>
                                     <span style='background: rgba(255,255,255,0.2); padding: 0.25rem 0.65rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
                                         PROJECTIONS
                                     </span>
@@ -6493,7 +6493,7 @@ with tab5:
                                     </h4>
                                     {source_badge}
                                 </div>
-                                <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem; padding-left: 0.5rem;'>
+                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
                                     {source_text}
                                 </p>
                             </div>
@@ -6507,7 +6507,7 @@ with tab5:
                                 # Enhanced Growth Engine Details in expander
                                 growth_engine = intrinsic.get('growth_engine')
                                 if growth_engine and growth_engine.get('revenue_growth_5y'):
-                                    with st.expander("📊 Growth Engine Breakdown (3-Estimator System)", expanded=False):
+                                    with st.expander("Growth Engine Breakdown (3-Estimator System)", expanded=False):
                                         rev_growth = growth_engine['revenue_growth_5y']
 
                                         # Volatility and k factor
@@ -6648,7 +6648,7 @@ with tab5:
                                         # Growth engine notes
                                         notes = growth_engine.get('notes', [])
                                         if notes:
-                                            st.caption(f"📝 **Notes:** {' • '.join(notes)}")
+                                            st.caption(f"**Notes:** {' • '.join(notes)}")
 
                                         # Additional explanations for edge cases
                                         explanations = []
@@ -6657,7 +6657,7 @@ with tab5:
                                         if bear < 0.02:  # < 2%
                                             k_calc = (bull - blended) / sigma if sigma > 0 else 1.0
                                             explanations.append(
-                                                f"⚠️ **Bear scenario very low ({bear:.1%})**: Base ({blended:.1%}) - k·σ = "
+                                                f"**Bear scenario very low ({bear:.1%})**: Base ({blended:.1%}) - k·σ = "
                                                 f"{blended:.1%} - ({k_calc:.1f} × {sigma:.1%}) = {bear:.1%}. "
                                                 f"With low base growth and volatility, bear compresses near zero."
                                             )
@@ -6676,7 +6676,7 @@ with tab5:
 
                                                 if divergence > 0.5:  # >50% divergence
                                                     explanations.append(
-                                                        f"📊 **Consensus unusually {'low' if cons_val < avg else 'high'} "
+                                                        f"**Consensus unusually {'low' if cons_val < avg else 'high'} "
                                                         f"({cons_val:.1%}) vs hist/fundamental (~{avg:.1%})**: "
                                                         f"Analysts may have different view on near-term execution or market conditions."
                                                     )
@@ -9288,12 +9288,12 @@ with tab6:
                     # PEG valuation not applicable for low growth OR extreme growth
                     if eps_growth and eps_growth > 100:
                         # Extreme growth spike (likely one-time turnaround)
-                        st.warning(f"⚠️ **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (> 100% threshold)")
+                        st.warning(f"**PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (> 100% threshold)")
                         st.caption("Extreme growth rates usually indicate one-time events (losses-to-profits, restructuring, etc.) rather than sustainable growth.")
                         st.caption(f"Current PEG: **{peg_ratio:.2f}** — Use DCF or sector comparables for valuation instead.")
                     else:
                         # Low/No growth company
-                        st.warning(f"⚠️ **PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (< 5% threshold)")
+                        st.warning(f"**PEG Valuation Not Applicable:** EPS Growth {eps_growth:.1f}% (< 5% threshold)")
                         st.caption("PEG-based valuation only works for growth companies. For mature/declining companies, use DCF or P/E multiples.")
                         st.caption(f"Current PEG: **{peg_ratio:.2f}** (High PEG with low growth = overvalued)")
             else:
@@ -10341,7 +10341,7 @@ with tab6:
                 # Show Growth Engine badge if applicable
                 projection_source = projections.get('source', 'unknown')
                 if projection_source == 'growth_engine':
-                    st.success("📊 **GROWTH ENGINE** - Robust 3-estimator system")
+                    st.success("**GROWTH ENGINE** - Robust 3-estimator system")
 
                     # Show estimator weights
                     estimators_used = projections.get('estimators_used', {})
@@ -10352,7 +10352,7 @@ with tab6:
                     # Enhanced details in expander for mobile too
                     growth_engine = intrinsic.get('growth_engine')
                     if growth_engine and growth_engine.get('revenue_growth_5y'):
-                        with st.expander("📊 See Growth Engine Details", expanded=False):
+                        with st.expander("See Growth Engine Details", expanded=False):
                             rev_growth = growth_engine['revenue_growth_5y']
                             sigma = rev_growth.get('volatility', 0)
 
@@ -10373,11 +10373,11 @@ with tab6:
                             weights = rev_growth.get('weights', {})
 
                             if hist_val is not None:
-                                st.caption(f"📈 **Historical:** {hist_val:.1%} (weight: {weights.get('historical', 0):.0%})")
+                                st.caption(f"**Historical:** {hist_val:.1%} (weight: {weights.get('historical', 0):.0%})")
                             if fund_val is not None:
-                                st.caption(f"⚙️ **Fundamental:** {fund_val:.1%} (weight: {weights.get('fundamental', 0):.0%})")
+                                st.caption(f"**Fundamental:** {fund_val:.1%} (weight: {weights.get('fundamental', 0):.0%})")
                             if cons_val is not None:
-                                st.caption(f"👥 **Consensus:** {cons_val:.1%} (weight: {weights.get('consensus', 0):.0%})")
+                                st.caption(f"**Consensus:** {cons_val:.1%} (weight: {weights.get('consensus', 0):.0%})")
 
                             # Show scenarios
                             blended = rev_growth.get('blended', 0)
@@ -10397,18 +10397,15 @@ with tab6:
 
                     for i, (scenario_name, data) in enumerate(scenarios.items()):
                         with cols[i]:
-                            # Emoji based on scenario
+                            # Color based on scenario
                             if 'Bear' in scenario_name:
-                                emoji = '🐻'
                                 color = '#ff6b6b'
                             elif 'Bull' in scenario_name:
-                                emoji = '🐂'
                                 color = '#51cf66'
                             else:
-                                emoji = ''
                                 color = '#ffd43b'
 
-                            st.markdown(f"**{emoji} {scenario_name}**")
+                            st.markdown(f"**{scenario_name}**")
                             st.caption(data.get('description', ''))
                             st.caption(f"Growth: {data.get('growth_assumption', 'N/A')}")
 
