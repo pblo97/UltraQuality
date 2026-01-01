@@ -5561,9 +5561,15 @@ with tab5:
                             if margin_signal == 'DANGER':
                                 signal_color = '#ef4444'
                                 signal_bg = '#fee2e2'
+                            elif margin_signal == 'CAUTION':
+                                signal_color = '#f59e0b'
+                                signal_bg = '#fef3c7'
                             elif margin_signal == 'OPPORTUNITY':
                                 signal_color = '#10b981'
                                 signal_bg = '#d1fae5'
+                            elif margin_signal == 'WATCH':
+                                signal_color = '#3b82f6'
+                                signal_bg = '#dbeafe'
                             else:
                                 signal_color = '#6b7280'
                                 signal_bg = '#f3f4f6'
@@ -5590,17 +5596,23 @@ with tab5:
                         st.markdown("**Overall Cycle Assessment:**")
 
                         # Count signals
-                        danger_count = sum(1 for tool in timing_tools.values() if tool.get('signal') == 'DANGER')
+                        danger_count = sum(1 for tool in timing_tools.values() if tool.get('signal') in ['DANGER', 'SELL'])
+                        caution_count = sum(1 for tool in timing_tools.values() if tool.get('signal') == 'CAUTION')
                         opportunity_count = sum(1 for tool in timing_tools.values() if tool.get('signal') in ['OPPORTUNITY', 'BUY', 'RECOVERY'])
+                        watch_count = sum(1 for tool in timing_tools.values() if tool.get('signal') == 'WATCH')
 
-                        if danger_count >= 2:
+                        # Calculate combined scores for assessment
+                        peak_score = danger_count + (caution_count * 0.5)  # CAUTION counts as half DANGER
+                        trough_score = opportunity_count + (watch_count * 0.5)  # WATCH counts as half OPPORTUNITY
+
+                        if peak_score >= 2:
                             assessment_color = '#fef3c7'
                             assessment_border = '#f59e0b'
-                            assessment_text = f"**CAUTION:** {danger_count} of 4 indicators suggest this stock may be at or near peak cycle. Traditional 'low P/E = bargain' logic may not apply. Consider waiting for cycle downturn."
-                        elif opportunity_count >= 2:
+                            assessment_text = f"**CAUTION:** {danger_count} DANGER + {caution_count} CAUTION signals suggest this stock may be at or near peak cycle. Traditional 'low P/E = bargain' logic may not apply. Consider waiting for cycle downturn."
+                        elif trough_score >= 2:
                             assessment_color = '#d1fae5'
                             assessment_border = '#10b981'
-                            assessment_text = f"**OPPORTUNITY:** {opportunity_count} of 4 indicators suggest this stock may be in trough or recovery phase. High P/E or depressed margins may actually signal future upside potential."
+                            assessment_text = f"**OPPORTUNITY:** {opportunity_count} OPPORTUNITY + {watch_count} WATCH signals suggest this stock may be in trough or recovery phase. High P/E or depressed margins may actually signal future upside potential."
                         else:
                             assessment_color = '#f3f4f6'
                             assessment_border = '#6b7280'
