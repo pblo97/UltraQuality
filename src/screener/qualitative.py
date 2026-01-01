@@ -3185,22 +3185,22 @@ class QualitativeAnalyzer:
 
                                 if current_price > p90:
                                     percentile_pos = "Price above p90 (premium-priced)"
-                                    downside_label = f"Downside to p90: {downside_to_p90:.1f}%"
+                                    downside_label = f"Downside to robust p90: {downside_to_p90:.1f}%"
                                     main_metric = downside_to_p90
                                 elif current_price > p50:
                                     percentile_pos = "Price between p50–p90 (fair to expensive)"
-                                    downside_label = f"Downside to p90: {downside_to_p90:.1f}%"
+                                    downside_label = f"Downside to robust p90: {downside_to_p90:.1f}%"
                                     main_metric = downside_to_p90
                                 elif current_price > p10:
                                     percentile_pos = "Price between p10–p50 (fair to cheap)"
                                     # When below p50, show upside to p90 instead
                                     upside_to_p90 = ((p90 - current_price) / current_price) * 100
-                                    downside_label = f"Upside to p90: {upside_to_p90:.1f}%"
+                                    downside_label = f"Upside to robust p90: {upside_to_p90:.1f}%"
                                     main_metric = upside_to_p90
                                 else:
                                     percentile_pos = "Price below p10 (undervalued)"
                                     upside_to_p90 = ((p90 - current_price) / current_price) * 100
-                                    downside_label = f"Upside to p90: {upside_to_p90:.1f}%"
+                                    downside_label = f"Upside to robust p90: {upside_to_p90:.1f}%"
                                     main_metric = upside_to_p90
 
                                 # Override old DCF-based assessment

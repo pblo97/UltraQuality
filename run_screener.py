@@ -6137,19 +6137,19 @@ with tab5:
                             method_reason = f"""
 **Price is above robust valuation range - premium-priced:**
 
-📊 **Valoración Base (Robust FV):**
-- **Fair Value Robusto: ${robust_fv:.0f}** (consenso de múltiples métodos)
-- **Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}**
-- **Precio actual: ${current_price:.0f}** → Above p90 (premium-priced)
+**Valoración Base (Robust FV):**
+- Fair Value Robusto: ${robust_fv:.0f} (consenso de múltiples métodos)
+- Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}
+- Precio actual: ${current_price:.0f} → Above p90 (premium-priced)
 
-🚀 **PEG Bull Case:**
+**PEG Bull Case:**
 - PEG Fair Value: ${peg_value:.0f}{"" if not peg_ratio else f" (PEG={peg_ratio:.2f})"} ← Escenario si mercado paga premium por crecimiento
 - PEG 1.5 premium: ${intrinsic.get('peg_intrinsic_conservative', peg_value * 1.53):.0f}
 
 **Interpretación:**
 - Valoración base: ${robust_fv:.0f} (consenso robusto)
 - Precio actual ≈ PEG bull case (mercado ya pricing growth premium)
-- **Valuation base: premium-priced; requiere ejecución y/o momentum para justificar la prima**
+- Valuation base: premium-priced; requiere ejecución y/o momentum para justificar la prima
 """
                         # Priority 1: If PEG < 1.5 AND within robust range AND price reasonable
                         elif peg_ratio and peg_ratio < 1.5 and not peg_is_outlier and 'above p90' not in positioning.lower():
@@ -6178,18 +6178,18 @@ with tab5:
                             method_reason = f"""
 **PEG sugiere escenario premium, pero el consenso robusto difiere:**
 
-📊 **Valoración Base (Robust FV):**
-- **Fair Value Robusto: ${robust_fv:.0f}** (basado en cash flows y enterprise multiples)
-- **Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}**
+**Valoración Base (Robust FV):**
+- Fair Value Robusto: ${robust_fv:.0f} (basado en cash flows y enterprise multiples)
+- Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}
 
-🚀 **Escenario Bull (PEG):**
+**Escenario Bull (PEG):**
 - PEG Ratio: {peg_ratio:.2f} (< 1.5 = Growth at reasonable price)
-- **PEG Fair Value: ${peg_value:.0f}** ← Escenario premium si ejecutan crecimiento
+- PEG Fair Value: ${peg_value:.0f} ← Escenario premium si ejecutan crecimiento
 
 **Interpretación:**
 - Si el mercado paga múltiplos premium por crecimiento → target ~${peg_value:.0f}
 - Consenso de métodos conservadores (DCF, EV/EBIT, EV/FCF) → rango ${range_p10:.0f}–${robust_p90:.0f}
-- **Use robust FV como base, PEG como upside potencial**
+- Use robust FV como base, PEG como upside potencial
 """
                         elif peg_ratio and peg_ratio > 2.5 and revenue_growth and revenue_growth < 5:
                             # Mature company - DCF is king
@@ -6323,6 +6323,15 @@ with tab5:
                             # Display main status (with PEG-driven upside if applicable)
                             display_assessment = assessment.replace('Growth Undervalued', 'Undervalued (PEG Driver)')
 
+                            # Adjust conviction if multiples reliability is low
+                            robust_valuation_check = intrinsic.get('robust_valuation', {})
+                            multiples_reliability_check = robust_valuation_check.get('multiples_reliability', 'Medium')
+
+                            if multiples_reliability_check == 'Low' and confidence.lower() == 'high':
+                                conviction_display = "MEDIUM-HIGH"
+                            else:
+                                conviction_display = confidence.upper()
+
                             # Get upside/downside label with benchmark from percentile_info (if available)
                             percentile_info = intrinsic.get('percentile_info', {})
                             downside_label_full = percentile_info.get('downside_label', '')
@@ -6368,7 +6377,7 @@ with tab5:
                                     </div>
                                     <div style='background: {badge_bg}; color: white; padding: 0.35rem 0.75rem;
                                                 border-radius: 6px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.3px;'>
-                                        CONVICTION: {confidence.upper()}
+                                        CONVICTION: {conviction_display}
                                     </div>
                                 </div>
                                 <div style='font-size: 2.8rem; font-weight: 900; color: {text_color}; margin-bottom: 0.5rem; letter-spacing: -0.5px;'>
@@ -9329,19 +9338,19 @@ with tab6:
                 method_reason = f"""
 **Price is above robust valuation range - premium-priced:**
 
-📊 **Valoración Base (Robust FV):**
-- **Fair Value Robusto: ${robust_fv:.0f}** (consenso de múltiples métodos)
-- **Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}**
-- **Precio actual: ${current_price:.0f}** → Above p90 (premium-priced)
+**Valoración Base (Robust FV):**
+- Fair Value Robusto: ${robust_fv:.0f} (consenso de múltiples métodos)
+- Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}
+- Precio actual: ${current_price:.0f} → Above p90 (premium-priced)
 
-🚀 **PEG Bull Case:**
+**PEG Bull Case:**
 - PEG Fair Value: ${peg_value:.0f}{"" if not peg_ratio else f" (PEG={peg_ratio:.2f})"} ← Escenario si mercado paga premium por crecimiento
 - PEG 1.5 premium: ${intrinsic.get('peg_intrinsic_conservative', peg_value * 1.53):.0f}
 
 **Interpretación:**
 - Valoración base: ${robust_fv:.0f} (consenso robusto)
 - Precio actual ≈ PEG bull case (mercado ya pricing growth premium)
-- **Valuation base: premium-priced; requiere ejecución y/o momentum para justificar la prima**
+- Valuation base: premium-priced; requiere ejecución y/o momentum para justificar la prima
 """
             # Priority 1: If PEG < 1.5 AND within robust range AND price reasonable
             elif peg_ratio and peg_ratio < 1.5 and not peg_is_outlier and 'above p90' not in positioning.lower():
@@ -9370,18 +9379,18 @@ with tab6:
                 method_reason = f"""
 **PEG sugiere escenario premium, pero el consenso robusto difiere:**
 
-📊 **Valoración Base (Robust FV):**
-- **Fair Value Robusto: ${robust_fv:.0f}** (basado en cash flows y enterprise multiples)
-- **Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}**
+**Valoración Base (Robust FV):**
+- Fair Value Robusto: ${robust_fv:.0f} (basado en cash flows y enterprise multiples)
+- Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}
 
-🚀 **Escenario Bull (PEG):**
+**Escenario Bull (PEG):**
 - PEG Ratio: {peg_ratio:.2f} (< 1.5 = Growth at reasonable price)
-- **PEG Fair Value: ${peg_value:.0f}** ← Escenario premium si ejecutan crecimiento
+- PEG Fair Value: ${peg_value:.0f} ← Escenario premium si ejecutan crecimiento
 
 **Interpretación:**
 - Si el mercado paga múltiplos premium por crecimiento → target ~${peg_value:.0f}
 - Consenso de métodos conservadores (DCF, EV/EBIT, EV/FCF) → rango ${range_p10:.0f}–${robust_p90:.0f}
-- **Use robust FV como base, PEG como upside potencial**
+- Use robust FV como base, PEG como upside potencial
 """
             elif peg_ratio and peg_ratio > 2.5 and revenue_growth and revenue_growth < 5:
                 # Mature company - DCF is king
