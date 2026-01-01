@@ -3090,14 +3090,7 @@ class QualitativeAnalyzer:
                     logger.error(f"❌ EV/FCF calculation error for {symbol}: {e}", exc_info=True)
                     valuation_calc_attempts.append(f"❌ EV/FCF ERROR: {str(e)[:80]}")
 
-                # Store debug info
-                valuation['_debug_valuation_calc_attempts'] = valuation_calc_attempts
-
                 # 4. Robust Fair Value: Log-scale combination with method families
-                # ADD DEBUG FLAG to track execution
-                valuation['_debug_robust_started'] = True
-                valuation['_debug_variables'] = f"dcf={dcf_value}, fwd={forward_value}, hist={historical_value}"
-
                 try:
                     # Prepare valuation methods dict for robust calculation
                     valuation_methods_dict = {}
@@ -3129,17 +3122,11 @@ class QualitativeAnalyzer:
                         valuation_methods_dict['historical_multiple_value'] = historical_value
                         logger.info(f"✓ Added historical_multiple_value: ${historical_value:.2f}")
 
-                    # DEBUG: Track methods dict creation
-                    valuation['_debug_methods_dict'] = list(valuation_methods_dict.keys())
-                    valuation['_debug_methods_count'] = len(valuation_methods_dict)
-                    valuation['_debug_has_confidence'] = confidence_score is not None
-
                     # Calculate robust fair value if we have methods and confidence data
                     # MINIMUM: Need at least 1 method (reduced from 2)
                     # With 1 method, it becomes a confidence-adjusted single estimate
                     # With 2+ methods, it becomes a true robust combination
                     if len(valuation_methods_dict) >= 1 and confidence_score:
-                        valuation['_debug_condition_met'] = True
                         # Check peers availability for reliability flag
                         has_peers = (len(peers_list) > 0 if peers_list else False)
 
@@ -3158,15 +3145,9 @@ class QualitativeAnalyzer:
                         elif robust_valuation:
                             robust_valuation['multiples_reliability'] = 'Medium'  # Even with peers, multiples can vary
                             robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers used for comparison'
-                        valuation['_debug_returned'] = robust_valuation is not None
-                        if robust_valuation:
-                            valuation['_debug_has_fair_value_key'] = 'fair_value_robust' in robust_valuation
-                            valuation['_debug_fair_value'] = robust_valuation.get('fair_value_robust')
-                            valuation['_debug_full_return'] = robust_valuation  # Save entire dict for inspection
 
                         if robust_valuation and robust_valuation.get('fair_value_robust'):
                             valuation['robust_valuation'] = robust_valuation
-                            valuation['_debug_added_to_dict'] = True
 
                             # === VALUATION VERDICT FROM ROBUST FV ===
                             # Calculate verdict based on price vs percentiles (p10/p50/p90)
@@ -3241,12 +3222,7 @@ class QualitativeAnalyzer:
 
                                 logger.info(f"Valuation verdict: {base_verdict} (Price=${current_price:.2f} vs p10=${p10:.2f}, p50=${p50:.2f}, p90=${p90:.2f})")
                                 logger.info(f"Percentile positioning: {percentile_pos} | {downside_label}")
-                        else:
-                            valuation['_debug_why_not_added'] = "returned None or missing fair_value_robust"
-                    elif len(valuation_methods_dict) < 1:
-                        valuation['_debug_why_not_calculated'] = f"Not enough methods: {len(valuation_methods_dict)}"
-                    elif not confidence_score:
-                        valuation['_debug_why_not_calculated'] = "No confidence score"
+
                 except Exception as e:
                     logger.error(f"Robust Fair Value calculation failed for {symbol}: {e}", exc_info=True)
 
@@ -5162,7 +5138,8 @@ class QualitativeAnalyzer:
                 raw_disagreement_pct = (raw_std / raw_mean) if raw_mean > 0 else 0
 
             # Detect outliers: Methods outside robust range
-            outlier_methods = []
+            # Use dict to prevent duplicates by method name (key = clean_name, value = price)
+            outliers_dict = {}
             method_name_map = {
                 'peg_value': 'PEG',
                 'pe_value': 'P/E',
@@ -5175,8 +5152,11 @@ class QualitativeAnalyzer:
             for method, value in valuation_methods.items():
                 if value and value > 0:
                     if value < range_p10 * 0.9 or value > range_p90 * 1.1:
-                        clean_name = method_name_map.get(method, method)
-                        outlier_methods.append(f"{clean_name}=${value:.0f}")
+                        clean_name = method_name_map.get(method, method).strip()  # Ensure no whitespace
+                        outliers_dict[clean_name] = int(value)  # Store as int to avoid float formatting issues
+
+            # Convert to sorted list of strings (clean, no duplicates)
+            outlier_methods = [f"{name}=${val}" for name, val in sorted(outliers_dict.items())]
 
             # Consensus tightness: measure dispersion using ROBUST p10-p90 range
             # This is based on the final robust range, not raw method variation
@@ -5247,12 +5227,10 @@ class QualitativeAnalyzer:
             if raw_disagreement_pct > 0.50:
                 result['method_disagreement'] += f" | Raw methods: {raw_disagreement_pct:.0%} (outliers present)"
 
-            # Add outlier list if any detected (clean format, avoid duplicates)
+            # Add outlier list if any detected (already deduplicated and clean from dict)
             if outlier_methods:
-                # Deduplicate and clean
-                unique_outliers = list(dict.fromkeys(outlier_methods))  # Preserve order, remove dupes
-                outliers_str = ", ".join(unique_outliers[:5])  # Show max 5
-                result['outliers_display'] = outliers_str  # Separate field for clean display
+                outliers_str = ", ".join(outlier_methods[:5])  # Show max 5 (already sorted)
+                result['outliers_display'] = outliers_str
 
             # Store family weights for transparency (use final weights from Level B)
             result['family_weights'] = {
