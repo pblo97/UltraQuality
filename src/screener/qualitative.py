@@ -4364,23 +4364,23 @@ class QualitativeAnalyzer:
                 # Calculate g_hist for 3y, 5y, 10y windows and take median
                 historical_estimates = []
 
-                # 3-year window
+                # 3-year window (reverse to chronological order for regression)
                 if len(revenues) >= 3:
-                    log_rev_3y = [np.log(r) for r in revenues[:3]]
-                    years_3y = list(range(3))
+                    log_rev_3y = [np.log(r) for r in reversed(revenues[:3])]  # [oldest, ..., newest]
+                    years_3y = list(range(3))  # [0, 1, 2] = chronological time
                     slope_3y, _, _, _, _ = stats.linregress(years_3y, log_rev_3y)
                     historical_estimates.append(slope_3y)
 
                 # 5-year window
                 if len(revenues) >= 5:
-                    log_rev_5y = [np.log(r) for r in revenues[:5]]
+                    log_rev_5y = [np.log(r) for r in reversed(revenues[:5])]
                     years_5y = list(range(5))
                     slope_5y, _, _, _, _ = stats.linregress(years_5y, log_rev_5y)
                     historical_estimates.append(slope_5y)
 
                 # 10-year window
                 if len(revenues) >= 10:
-                    log_rev_10y = [np.log(r) for r in revenues[:10]]
+                    log_rev_10y = [np.log(r) for r in reversed(revenues[:10])]
                     years_10y = list(range(10))
                     slope_10y, _, _, _, _ = stats.linregress(years_10y, log_rev_10y)
                     historical_estimates.append(slope_10y)
@@ -4392,9 +4392,10 @@ class QualitativeAnalyzer:
                     # Winsorize extremes (cap at industry bounds)
                     g_rev_hist = max(growth_caps['min'], min(g_rev_hist, growth_caps['max']))
                 else:
-                    # Fallback: use all available data
-                    log_rev = [np.log(r) for r in revenues]
-                    slope_rev, _, _, _, _ = stats.linregress(years, log_rev)
+                    # Fallback: use all available data (also reversed)
+                    log_rev = [np.log(r) for r in reversed(revenues)]
+                    years_fallback = list(range(len(revenues)))
+                    slope_rev, _, _, _, _ = stats.linregress(years_fallback, log_rev)
                     g_rev_hist = slope_rev
 
                 # Calculate YoY volatility for scenarios and dynamic weighting
@@ -4414,12 +4415,12 @@ class QualitativeAnalyzer:
                     ebit_estimates = []
 
                     if len(ebits) >= 3:
-                        log_ebit_3y = [np.log(e) for e in ebits[:3]]
+                        log_ebit_3y = [np.log(e) for e in reversed(ebits[:3])]  # Chronological order
                         slope_e3, _, _, _, _ = stats.linregress(list(range(3)), log_ebit_3y)
                         ebit_estimates.append(slope_e3)
 
                     if len(ebits) >= 5:
-                        log_ebit_5y = [np.log(e) for e in ebits[:5]]
+                        log_ebit_5y = [np.log(e) for e in reversed(ebits[:5])]  # Chronological order
                         slope_e5, _, _, _, _ = stats.linregress(list(range(5)), log_ebit_5y)
                         ebit_estimates.append(slope_e5)
 
@@ -4427,8 +4428,9 @@ class QualitativeAnalyzer:
                         g_ebit_hist = np.median(ebit_estimates)
                         g_ebit_hist = max(growth_caps['min'], min(g_ebit_hist, growth_caps['max']))
                     else:
-                        log_ebit = [np.log(e) for e in ebits]
-                        slope_ebit, _, _, _, _ = stats.linregress(years, log_ebit)
+                        log_ebit = [np.log(e) for e in reversed(ebits)]  # Chronological order
+                        years_ebit = list(range(len(ebits)))
+                        slope_ebit, _, _, _, _ = stats.linregress(years_ebit, log_ebit)
                         g_ebit_hist = slope_ebit
                 else:
                     g_ebit_hist = g_rev_hist  # Fallback to revenue growth
