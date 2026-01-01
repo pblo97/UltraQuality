@@ -6129,7 +6129,7 @@ with tab5:
 
 📊 **Valoración Base (Robust FV):**
 - **Fair Value Robusto: ${robust_fv:.0f}** (basado en cash flows y enterprise multiples)
-- **Rango base (p10-p90): ${range_p10:.0f} - ${robust_p90:.0f}**
+- **Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}**
 
 🚀 **Escenario Bull (PEG):**
 - PEG Ratio: {peg_ratio:.2f} (< 1.5 = Growth at reasonable price)
@@ -6137,7 +6137,7 @@ with tab5:
 
 **Interpretación:**
 - Si el mercado paga múltiplos premium por crecimiento → target ~${peg_value:.0f}
-- Consenso de métodos conservadores (DCF, EV/EBIT, EV/FCF) → rango ${range_p10:.0f}-${robust_p90:.0f}
+- Consenso de métodos conservadores (DCF, EV/EBIT, EV/FCF) → rango ${range_p10:.0f}–${robust_p90:.0f}
 - **Use robust FV como base, PEG como upside potencial**
 """
                         elif peg_ratio and peg_ratio > 2.5 and revenue_growth and revenue_growth < 5:
@@ -6272,11 +6272,20 @@ with tab5:
                             # Display main status (with PEG-driven upside if applicable)
                             display_assessment = assessment.replace('Growth Undervalued', 'Undervalued (PEG Driver)')
 
-                            # Show upside/downside text based on whether PEG Hammer is active
-                            if growth_override_applied and upside > 0:
-                                upside_text = "Upside Potential"
+                            # Get upside/downside label with benchmark from percentile_info (if available)
+                            percentile_info = intrinsic.get('percentile_info', {})
+                            downside_label_full = percentile_info.get('downside_label', '')
+
+                            # Build display text with explicit benchmark
+                            if downside_label_full:
+                                # downside_label_full is like "Downside to p90: -19.9%" or "Upside to p90: +25.0%"
+                                # Use it as-is (already includes percentage)
+                                upside_display = downside_label_full
+                            elif growth_override_applied and upside > 0:
+                                upside_display = f"{upside:+.1f}% Upside Potential"
                             else:
                                 upside_text = 'upside' if upside > 0 else 'downside'
+                                upside_display = f"{upside:+.1f}% {upside_text}"
 
                             # Create professional card for valuation summary
                             if color == 'green':
@@ -6303,7 +6312,7 @@ with tab5:
                                     {emoji} {display_assessment}
                                 </div>
                                 <div style='font-size: 2.5rem; font-weight: 800; color: {text_color};'>
-                                    {upside:+.1f}% {upside_text}
+                                    {upside_display}
                                 </div>
                                 <div style='margin-top: 0.75rem; color: {text_color}; opacity: 0.85; font-size: 0.95rem;'>
                                     <strong>Industry:</strong> {industry_profile} |
@@ -8946,7 +8955,15 @@ with tab6:
                     color = 'orange'
                     emoji = ''
 
-                st.markdown(f"### {emoji} {assessment}: {upside:+.1f}% {'upside' if upside > 0 else 'downside'}")
+                # Get benchmark-specific label if available
+                percentile_info_mobile = intrinsic.get('percentile_info', {})
+                downside_label_mobile = percentile_info_mobile.get('downside_label', '')
+                if downside_label_mobile:
+                    upside_display_mobile = downside_label_mobile
+                else:
+                    upside_display_mobile = f"{upside:+.1f}% {'upside' if upside > 0 else 'downside'}"
+
+                st.markdown(f"### {emoji} {assessment}: {upside_display_mobile}")
                 st.caption(f"**Confidence:** {confidence}")
             # Second row: PEG Ratio + Intrinsic Value PEG-Forward
             st.markdown("")  # Spacing
@@ -9103,7 +9120,7 @@ with tab6:
 
 📊 **Valoración Base (Robust FV):**
 - **Fair Value Robusto: ${robust_fv:.0f}** (basado en cash flows y enterprise multiples)
-- **Rango base (p10-p90): ${range_p10:.0f} - ${robust_p90:.0f}**
+- **Rango base (p10–p90): ${range_p10:.0f}–${robust_p90:.0f}**
 
 🚀 **Escenario Bull (PEG):**
 - PEG Ratio: {peg_ratio:.2f} (< 1.5 = Growth at reasonable price)
@@ -9111,7 +9128,7 @@ with tab6:
 
 **Interpretación:**
 - Si el mercado paga múltiplos premium por crecimiento → target ~${peg_value:.0f}
-- Consenso de métodos conservadores (DCF, EV/EBIT, EV/FCF) → rango ${range_p10:.0f}-${robust_p90:.0f}
+- Consenso de métodos conservadores (DCF, EV/EBIT, EV/FCF) → rango ${range_p10:.0f}–${robust_p90:.0f}
 - **Use robust FV como base, PEG como upside potencial**
 """
             elif peg_ratio and peg_ratio > 2.5 and revenue_growth and revenue_growth < 5:
