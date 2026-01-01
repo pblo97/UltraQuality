@@ -5818,25 +5818,45 @@ with tab5:
                                 else:
                                     st.success(f"✅ {method_disagreement}")
 
-                            # Outliers display (professional, no emojis)
+                            # Outliers display (micro-panels for each outlier)
                             outliers_display = robust_val.get('outliers_display')
                             if outliers_display:
-                                st.markdown(f"""
-                                <div style='background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-                                            border-left: 5px solid #f59e0b;
-                                            padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1rem;
-                                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-                                    <div style='color: #92400e; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 0.4rem;'>
-                                        OUTLIERS TRIMMED
-                                    </div>
-                                    <div style='color: #78350f; font-size: 0.95rem; font-family: "SF Mono", Monaco, "Cascadia Code", monospace; line-height: 1.4;'>
-                                        {outliers_display}
-                                    </div>
-                                    <div style='color: #92400e; font-size: 0.75rem; margin-top: 0.4rem; opacity: 0.8;'>
-                                        Excluded from consensus calculation
-                                    </div>
+                                st.markdown("""
+                                <div style='color: #92400e; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.8px; margin-bottom: 0.5rem;'>
+                                    OUTLIERS TRIMMED
                                 </div>
                                 """, unsafe_allow_html=True)
+
+                                # Parse outliers and create micro-panels
+                                outliers_list = [o.strip() for o in outliers_display.split(',')]
+
+                                # Create grid of micro-panels
+                                cols_per_row = 3
+                                for i in range(0, len(outliers_list), cols_per_row):
+                                    cols = st.columns(cols_per_row)
+                                    for j, outlier in enumerate(outliers_list[i:i+cols_per_row]):
+                                        with cols[j]:
+                                            # Parse method name and value
+                                            if '=' in outlier:
+                                                method, value = outlier.split('=', 1)
+                                                st.markdown(f"""
+                                                <div style='background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+                                                            border: 2px solid #f59e0b;
+                                                            padding: 0.75rem;
+                                                            border-radius: 8px;
+                                                            text-align: center;
+                                                            box-shadow: 0 2px 3px rgba(0,0,0,0.08);
+                                                            margin-bottom: 0.5rem;'>
+                                                    <div style='color: #92400e; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
+                                                        {method.strip()}
+                                                    </div>
+                                                    <div style='color: #78350f; font-size: 1.2rem; font-weight: 900; font-family: "SF Mono", Monaco, monospace;'>
+                                                        {value.strip()}
+                                                    </div>
+                                                </div>
+                                                """, unsafe_allow_html=True)
+
+                                st.caption("Excluded from consensus calculation")
 
                         # Implied Expectations (Reverse DCF) - Show prominently
                         reverse_dcf_data = intrinsic.get('reverse_dcf', {})
