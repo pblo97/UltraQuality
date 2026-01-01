@@ -5818,17 +5818,22 @@ with tab5:
                                 else:
                                     st.success(f"✅ {method_disagreement}")
 
-                            # Outliers display (styled, compact)
+                            # Outliers display (professional, no emojis)
                             outliers_display = robust_val.get('outliers_display')
                             if outliers_display:
                                 st.markdown(f"""
-                                <div style='background: #fef3c7; border-left: 4px solid #f59e0b;
-                                            padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem;'>
-                                    <div style='color: #92400e; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem;'>
-                                        🔍 OUTLIERS TRIMMED (excluded from consensus)
+                                <div style='background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+                                            border-left: 5px solid #f59e0b;
+                                            padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1rem;
+                                            box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+                                    <div style='color: #92400e; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 0.4rem;'>
+                                        OUTLIERS TRIMMED
                                     </div>
-                                    <div style='color: #78350f; font-size: 0.9rem; font-family: monospace;'>
+                                    <div style='color: #78350f; font-size: 0.95rem; font-family: "SF Mono", Monaco, "Cascadia Code", monospace; line-height: 1.4;'>
                                         {outliers_display}
+                                    </div>
+                                    <div style='color: #92400e; font-size: 0.75rem; margin-top: 0.4rem; opacity: 0.8;'>
+                                        Excluded from consensus calculation
                                     </div>
                                 </div>
                                 """, unsafe_allow_html=True)
@@ -5858,22 +5863,27 @@ with tab5:
                                 expect_label = 'MODERATE'
 
                             st.markdown(f"""
-                            <div style='background: {expect_bg}; border-left: 4px solid {expect_color};
-                                        padding: 1rem; border-radius: 8px; margin-bottom: 1rem;'>
-                                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;'>
-                                    <div style='font-size: 0.75rem; color: {expect_color}; font-weight: 700; letter-spacing: 0.5px;'>
-                                        IMPLIED MARKET EXPECTATIONS (Reverse DCF)
+                            <div style='background: linear-gradient(135deg, {expect_bg} 0%, {expect_bg} 100%);
+                                        border-left: 5px solid {expect_color};
+                                        padding: 1.25rem 1.5rem; border-radius: 10px; margin-bottom: 1rem;
+                                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+                                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;'>
+                                    <div style='font-size: 0.7rem; color: {expect_color}; font-weight: 700; letter-spacing: 0.8px;'>
+                                        IMPLIED MARKET EXPECTATIONS
                                     </div>
-                                    <div style='background: {expect_color}; color: white; padding: 0.25rem 0.5rem;
-                                                border-radius: 3px; font-size: 0.7rem; font-weight: 700;'>
+                                    <div style='background: {expect_color}; color: white; padding: 0.3rem 0.65rem;
+                                                border-radius: 5px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.3px;'>
                                         {expect_label}
                                     </div>
                                 </div>
-                                <div style='color: {expect_color}; font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem;'>
-                                    {implied_growth:.1f}% Growth Forever
+                                <div style='color: {expect_color}; font-size: 1.75rem; font-weight: 800; margin-bottom: 0.5rem; letter-spacing: -0.3px;'>
+                                    {implied_growth:.1f}% Perpetual Growth
                                 </div>
-                                <div style='color: {expect_color}; font-size: 0.8rem; opacity: 0.9;'>
+                                <div style='color: {expect_color}; font-size: 0.85rem; opacity: 0.85; line-height: 1.4;'>
                                     {interpretation}
+                                </div>
+                                <div style='color: {expect_color}; font-size: 0.7rem; margin-top: 0.5rem; opacity: 0.7; font-style: italic;'>
+                                    Reverse DCF Analysis
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
@@ -5896,32 +5906,33 @@ with tab5:
                                 conf_color = '#ef4444'
                                 conf_bg = '#fee2e2'
 
-                            col_conf1, col_conf2 = st.columns([1, 2])
-                            with col_conf1:
-                                penalty_text = f"<div style='color: {conf_color}; font-size: 0.65rem; margin-top: 0.25rem;'>Reverse DCF Penalty: -{reverse_dcf_penalty}</div>" if reverse_dcf_penalty > 0 else ""
-                                st.markdown(f"""
-                                <div style='background: {conf_bg}; border: 2px solid {conf_color};
-                                            padding: 1rem; border-radius: 8px; text-align: center;'>
-                                    <div style='color: {conf_color}; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
-                                        CONFIDENCE SCORE
+                            # Professional confidence display without emojis
+                            penalty_text = f"<div style='color: {conf_color}; font-size: 0.7rem; margin-top: 0.5rem; opacity: 0.8;'>Reverse DCF Penalty: -{reverse_dcf_penalty}</div>" if reverse_dcf_penalty > 0 else ""
+                            st.markdown(f"""
+                            <div style='background: linear-gradient(135deg, {conf_bg} 0%, {conf_bg} 100%);
+                                        border-left: 5px solid {conf_color};
+                                        padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1rem;
+                                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
+                                <div style='display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;'>
+                                    <div>
+                                        <div style='font-size: 0.7rem; color: {conf_color}; font-weight: 700; letter-spacing: 0.8px; margin-bottom: 0.25rem;'>
+                                            CONFIDENCE SCORE
+                                        </div>
+                                        <div style='font-size: 2.5rem; font-weight: 900; color: {conf_color}; line-height: 1;'>
+                                            {conf_score:.0f}
+                                        </div>
                                     </div>
-                                    <div style='color: {conf_color}; font-size: 2.5rem; font-weight: 700; margin-bottom: 0.25rem;'>
-                                        {conf_score:.0f}
+                                    <div style='background: {conf_color}; color: white; padding: 0.4rem 0.8rem;
+                                                border-radius: 6px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.5px;'>
+                                        {conf_level.upper()}
                                     </div>
-                                    <div style='color: {conf_color}; font-size: 0.75rem; font-weight: 600;'>
-                                        {conf_level}
-                                    </div>
-                                    {penalty_text}
                                 </div>
-                                """, unsafe_allow_html=True)
+                                {penalty_text}
+                            </div>
+                            """, unsafe_allow_html=True)
 
-                            with col_conf2:
-                                st.markdown("""
-                                <div style='font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; font-weight: 600;'>
-                                    Score Components (Weighted):
-                                </div>
-                                """, unsafe_allow_html=True)
-
+                            # Component breakdown in expander
+                            with st.expander("Score Components (Weighted)", expanded=False):
                                 comp_labels = {
                                     'stability': ('Stability', 30),
                                     'fcf_quality': ('FCF Quality', 25),
@@ -5934,12 +5945,12 @@ with tab5:
                                     val = components.get(key, 0)
                                     bar_width = val  # 0-100
                                     st.markdown(f"""
-                                    <div style='margin-bottom: 0.35rem;'>
-                                        <div style='display: flex; justify-content: space-between; font-size: 0.7rem; color: #475569; margin-bottom: 0.15rem;'>
+                                    <div style='margin-bottom: 0.5rem;'>
+                                        <div style='display: flex; justify-content: space-between; font-size: 0.75rem; color: #475569; margin-bottom: 0.2rem;'>
                                             <span>{label} ({weight}%)</span>
-                                            <span style='font-weight: 600;'>{val:.0f}</span>
+                                            <span style='font-weight: 700;'>{val:.0f}</span>
                                         </div>
-                                        <div style='background: #e2e8f0; height: 4px; border-radius: 2px; overflow: hidden;'>
+                                        <div style='background: #e2e8f0; height: 6px; border-radius: 3px; overflow: hidden;'>
                                             <div style='background: {conf_color}; width: {bar_width}%; height: 100%;'></div>
                                         </div>
                                     </div>
@@ -5990,20 +6001,22 @@ with tab5:
                         outlier_methods_list = robust_val_check.get('outlier_methods', [])
                         peg_is_outlier_check = any('PEG' in om or 'peg' in om.lower() for om in outlier_methods_list)
 
+                        # Initialize PEG variables BEFORE conditional to avoid NameError
+                        peg_ratio = None
+                        pe_ratio = None
+                        eps_growth = None
+
                         if not peg_is_outlier_check:
                             st.markdown("")  # Spacing
 
                             # Get PEG and related data from correct location
-                            peg_ratio = None
-                            pe_ratio = None
-                            eps_growth = None
                             if 'valuation_multiples' in intrinsic:
                                 company_vals = intrinsic['valuation_multiples'].get('company', {})
                                 peg_ratio = company_vals.get('peg', None)
                                 pe_ratio = company_vals.get('pe', None)
                                 eps_growth = company_vals.get('eps_growth_%', None)
 
-                        if peg_ratio and peg_ratio > 0:
+                        if peg_ratio and peg_ratio > 0 and not peg_is_outlier_check:
                             # PEG-based valuation ONLY makes sense for growth companies (5% <= growth <= 100%)
                             # For low/no growth companies, PEG is meaningless
                             # Example: Growth 0.4% → Fair PEG 1.0 would imply PE of 0.4x (absurd)
@@ -9000,20 +9013,22 @@ with tab6:
             outlier_methods_list_mobile = robust_val_check_mobile.get('outlier_methods', [])
             peg_is_outlier_check_mobile = any('PEG' in om or 'peg' in om.lower() for om in outlier_methods_list_mobile)
 
+            # Initialize PEG variables BEFORE conditional to avoid NameError
+            peg_ratio = None
+            pe_ratio = None
+            eps_growth = None
+
             if not peg_is_outlier_check_mobile:
                 st.markdown("")  # Spacing
 
                 # Get PEG and related data from correct location
-                peg_ratio = None
-                pe_ratio = None
-                eps_growth = None
                 if 'valuation_multiples' in intrinsic:
                     company_vals = intrinsic['valuation_multiples'].get('company', {})
                     peg_ratio = company_vals.get('peg', None)
                     pe_ratio = company_vals.get('pe', None)
                     eps_growth = company_vals.get('eps_growth_%', None)
 
-            if peg_ratio and peg_ratio > 0:
+            if peg_ratio and peg_ratio > 0 and not peg_is_outlier_check_mobile:
                 # PEG-based valuation ONLY makes sense for growth companies (5% <= growth <= 100%)
                 # For low/no growth companies, PEG is meaningless
                 # Example: Growth 0.4% → Fair PEG 1.0 would imply PE of 0.4x (absurd)
