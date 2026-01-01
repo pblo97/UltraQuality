@@ -4360,12 +4360,44 @@ class QualitativeAnalyzer:
             sigma_rev = None
 
             if len(revenues) >= 3:
-                # Log-linear regression for revenue
-                log_rev = [np.log(r) for r in revenues]
-                slope_rev, intercept_rev, r_value, p_value, std_err = stats.linregress(years, log_rev)
-                g_rev_hist = slope_rev  # Annualized growth rate
+                # Multi-period historical growth (robust median approach)
+                # Calculate g_hist for 3y, 5y, 10y windows and take median
+                historical_estimates = []
 
-                # Calculate YoY volatility for scenarios
+                # 3-year window
+                if len(revenues) >= 3:
+                    log_rev_3y = [np.log(r) for r in revenues[:3]]
+                    years_3y = list(range(3))
+                    slope_3y, _, _, _, _ = stats.linregress(years_3y, log_rev_3y)
+                    historical_estimates.append(slope_3y)
+
+                # 5-year window
+                if len(revenues) >= 5:
+                    log_rev_5y = [np.log(r) for r in revenues[:5]]
+                    years_5y = list(range(5))
+                    slope_5y, _, _, _, _ = stats.linregress(years_5y, log_rev_5y)
+                    historical_estimates.append(slope_5y)
+
+                # 10-year window
+                if len(revenues) >= 10:
+                    log_rev_10y = [np.log(r) for r in revenues[:10]]
+                    years_10y = list(range(10))
+                    slope_10y, _, _, _, _ = stats.linregress(years_10y, log_rev_10y)
+                    historical_estimates.append(slope_10y)
+
+                # Take median of available estimates (robust to outliers)
+                if historical_estimates:
+                    g_rev_hist = np.median(historical_estimates)
+
+                    # Winsorize extremes (cap at industry bounds)
+                    g_rev_hist = max(growth_caps['min'], min(g_rev_hist, growth_caps['max']))
+                else:
+                    # Fallback: use all available data
+                    log_rev = [np.log(r) for r in revenues]
+                    slope_rev, _, _, _, _ = stats.linregress(years, log_rev)
+                    g_rev_hist = slope_rev
+
+                # Calculate YoY volatility for scenarios and dynamic weighting
                 yoy_growth = []
                 for i in range(len(revenues) - 1):
                     if revenues[i+1] > 0:
@@ -4377,11 +4409,27 @@ class QualitativeAnalyzer:
                 else:
                     sigma_rev = 0.05  # Default 5%
 
-                # EBIT growth (if available)
+                # EBIT growth (if available) - also use multi-period median
                 if all(e > 0 for e in ebits):
-                    log_ebit = [np.log(e) for e in ebits]
-                    slope_ebit, _, _, _, _ = stats.linregress(years, log_ebit)
-                    g_ebit_hist = slope_ebit
+                    ebit_estimates = []
+
+                    if len(ebits) >= 3:
+                        log_ebit_3y = [np.log(e) for e in ebits[:3]]
+                        slope_e3, _, _, _, _ = stats.linregress(list(range(3)), log_ebit_3y)
+                        ebit_estimates.append(slope_e3)
+
+                    if len(ebits) >= 5:
+                        log_ebit_5y = [np.log(e) for e in ebits[:5]]
+                        slope_e5, _, _, _, _ = stats.linregress(list(range(5)), log_ebit_5y)
+                        ebit_estimates.append(slope_e5)
+
+                    if ebit_estimates:
+                        g_ebit_hist = np.median(ebit_estimates)
+                        g_ebit_hist = max(growth_caps['min'], min(g_ebit_hist, growth_caps['max']))
+                    else:
+                        log_ebit = [np.log(e) for e in ebits]
+                        slope_ebit, _, _, _, _ = stats.linregress(years, log_ebit)
+                        g_ebit_hist = slope_ebit
                 else:
                     g_ebit_hist = g_rev_hist  # Fallback to revenue growth
 
@@ -4402,29 +4450,49 @@ class QualitativeAnalyzer:
 
                     nopat = ebit_recent * (1 - tax_rate) if ebit_recent else 0
 
-                    # Reinvestment = Capex - D&A + Delta NWC (simplified: Capex / NOPAT)
-                    if cash_flow and len(cash_flow) >= 1:
+                    # Reinvestment Rate = (Capex - D&A + ΔNWC) / NOPAT
+                    if cash_flow and len(cash_flow) >= 2 and nopat and nopat > 0:
                         capex = abs(cash_flow[0].get('capitalExpenditure', 0))
+                        depreciation = abs(cash_flow[0].get('depreciationAndAmortization', 0))
 
-                        if nopat and nopat > 0:
-                            reinvestment_rate = capex / nopat
-                            reinvestment_rate = max(0, min(reinvestment_rate, 2.0))  # Cap at 200%
+                        # Calculate ΔNWC (change in net working capital)
+                        # NWC = Current Assets - Current Liabilities (excluding cash)
+                        current_assets_0 = balance[0].get('totalCurrentAssets', 0)
+                        cash_0 = balance[0].get('cashAndShortTermInvestments', 0)
+                        current_liab_0 = balance[0].get('totalCurrentLiabilities', 0)
 
-                            # ROIC = NOPAT / Invested Capital (simplified)
-                            total_assets = balance[0].get('totalAssets', 0)
-                            cash = balance[0].get('cashAndShortTermInvestments', 0)
-                            current_liabilities = balance[0].get('totalCurrentLiabilities', 0)
+                        current_assets_1 = balance[1].get('totalCurrentAssets', 0)
+                        cash_1 = balance[1].get('cashAndShortTermInvestments', 0)
+                        current_liab_1 = balance[1].get('totalCurrentLiabilities', 0)
 
-                            invested_capital = total_assets - cash - current_liabilities if total_assets else 1
-                            invested_capital = max(invested_capital, 1)  # Avoid division by zero
+                        nwc_0 = (current_assets_0 - cash_0) - current_liab_0
+                        nwc_1 = (current_assets_1 - cash_1) - current_liab_1
 
-                            roic = nopat / invested_capital if invested_capital else 0
-                            roic = max(0, min(roic, 1.0))  # Cap at 100%
+                        delta_nwc = nwc_0 - nwc_1  # Increase in NWC (use of cash)
 
-                            # Fundamental growth = ROIC × Reinvestment Rate
-                            g_rev_fund = roic * reinvestment_rate
-                        else:
-                            g_rev_fund = None
+                        # Reinvestment = Capex - D&A + ΔNWC
+                        reinvestment = capex - depreciation + delta_nwc
+                        reinvestment = max(0, reinvestment)  # Can't be negative in this context
+
+                        reinvestment_rate = reinvestment / nopat if nopat > 0 else 0
+                        reinvestment_rate = max(0, min(reinvestment_rate, 2.0))  # Cap at 200%
+
+                        # ROIC = NOPAT / Invested Capital
+                        total_assets = balance[0].get('totalAssets', 0)
+                        cash = balance[0].get('cashAndShortTermInvestments', 0)
+                        current_liabilities = balance[0].get('totalCurrentLiabilities', 0)
+
+                        invested_capital = total_assets - cash - current_liabilities if total_assets else 1
+                        invested_capital = max(invested_capital, 1)  # Avoid division by zero
+
+                        roic = nopat / invested_capital if invested_capital else 0
+                        roic = max(0, min(roic, 1.0))  # Cap at 100%
+
+                        # Fundamental growth = ROIC × Reinvestment Rate
+                        g_rev_fund = roic * reinvestment_rate
+
+                        # Apply industry caps to fundamental growth
+                        g_rev_fund = max(growth_caps['min'], min(g_rev_fund, growth_caps['max']))
                     else:
                         g_rev_fund = None
             except Exception as e:
@@ -4453,11 +4521,26 @@ class QualitativeAnalyzer:
                 logger.debug(f"Consensus growth calculation failed for {symbol}: {e}")
                 g_rev_cons = None
 
-            # === BLEND: Weighted Mixture ===
-            # Default weights: 45% hist, 45% fund, 10% consensus
-            # Adjust based on data availability
+            # === BLEND: Weighted Mixture with Dynamic Weighting ===
+            # Adjust weights based on growth volatility (sigma_rev)
+            # Base: w_h=0.45, w_f=0.45, w_c=0.10
+            # High volatility (σ > 15%): w_h=0.25, w_f=0.55, w_c=0.20
+            # Event-driven/Very high (σ > 25%): w_h=0.20, w_f=0.60, w_c=0.20
 
-            weights = {'historical': 0.45, 'fundamental': 0.45, 'consensus': 0.10}
+            if sigma_rev is not None and sigma_rev > 0.25:
+                # Event-driven: Very high volatility
+                weights = {'historical': 0.20, 'fundamental': 0.60, 'consensus': 0.20}
+                result['notes'].append(f"Event-driven weighting (σ={sigma_rev:.1%})")
+            elif sigma_rev is not None and sigma_rev > 0.15:
+                # High volatility: Trust fundamentals more
+                weights = {'historical': 0.25, 'fundamental': 0.55, 'consensus': 0.20}
+                result['notes'].append(f"High volatility weighting (σ={sigma_rev:.1%})")
+            else:
+                # Base case: Stable growth
+                weights = {'historical': 0.45, 'fundamental': 0.45, 'consensus': 0.10}
+                if sigma_rev:
+                    result['notes'].append(f"Base weighting (σ={sigma_rev:.1%})")
+
             available_estimators = []
 
             if g_rev_hist is not None:
@@ -4485,17 +4568,32 @@ class QualitativeAnalyzer:
 
             # === SCENARIOS: Bear/Base/Bull ===
             # Bear = Base - k*sigma, Bull = Base + k*sigma
-            k = 0.9  # Conservative factor
+            # Adaptive k factor based on volatility (typically 0.7-1.2)
+            # Lower volatility → higher k (wider scenarios)
+            # Higher volatility → lower k (narrower scenarios to avoid extreme outliers)
 
             if sigma_rev:
+                if sigma_rev > 0.25:
+                    # Very high volatility: use conservative k
+                    k = 0.7
+                elif sigma_rev > 0.15:
+                    # High volatility: moderate k
+                    k = 0.9
+                else:
+                    # Low/moderate volatility: wider scenarios
+                    k = 1.2
+
                 g_rev_bear = g_rev_blended - k * sigma_rev
                 g_rev_bull = g_rev_blended + k * sigma_rev
+
+                result['notes'].append(f"Scenario factor k={k:.1f} (σ={sigma_rev:.1%})")
             else:
                 # Default: ±30% of base
                 g_rev_bear = g_rev_blended * 0.7
                 g_rev_bull = g_rev_blended * 1.3
+                k = None
 
-            # Apply caps to scenarios
+            # Apply caps to scenarios (industry-specific bounds like [-5%, 35%])
             g_rev_bear = max(growth_caps['min'], min(g_rev_bear, growth_caps['max']))
             g_rev_bull = max(growth_caps['min'], min(g_rev_bull, growth_caps['max']))
 
@@ -4514,14 +4612,26 @@ class QualitativeAnalyzer:
                 'weights': actual_weights
             }
 
-            # EBIT growth (simplified: same as revenue if not available)
+            # EBIT growth scenarios (using same adaptive k factor)
             if g_ebit_hist is not None:
+                # Apply same scenario logic to EBIT
+                if sigma_rev and k is not None:
+                    g_ebit_bear = g_ebit_hist - k * sigma_rev
+                    g_ebit_bull = g_ebit_hist + k * sigma_rev
+                else:
+                    g_ebit_bear = g_ebit_hist * 0.7
+                    g_ebit_bull = g_ebit_hist * 1.3
+
+                # Apply caps
+                g_ebit_bear = max(growth_caps['min'], min(g_ebit_bear, growth_caps['max']))
+                g_ebit_bull = max(growth_caps['min'], min(g_ebit_bull, growth_caps['max']))
+
                 result['ebit_growth_5y'] = {
                     'historical': g_ebit_hist,
-                    'blended': g_ebit_hist,  # Simplified for now
-                    'bear': g_ebit_hist - k * sigma_rev if sigma_rev else g_ebit_hist * 0.7,
+                    'blended': g_ebit_hist,
+                    'bear': g_ebit_bear,
                     'base': g_ebit_hist,
-                    'bull': g_ebit_hist + k * sigma_rev if sigma_rev else g_ebit_hist * 1.3
+                    'bull': g_ebit_bull
                 }
 
             result['notes'].append(f"Growth engine: {len(available_estimators)} estimators used")
