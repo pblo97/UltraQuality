@@ -5643,33 +5643,6 @@ with tab5:
                         current_price = intrinsic.get('current_price', 0)
                         robust_val = intrinsic.get('robust_valuation')
 
-                        # Compact metrics row: Price vs Robust FV range
-                        if robust_val and robust_val.get('fair_value_robust'):
-                            col1, col2, col3, col4 = st.columns(4)
-
-                            with col1:
-                                st.metric("Price", f"${current_price:.2f}" if current_price > 0 else "N/A")
-
-                            with col2:
-                                fair_value_robust = robust_val.get('fair_value_robust')
-                                st.metric("Robust FV (p50)", f"${fair_value_robust:.2f}")
-
-                            with col3:
-                                range_p10 = robust_val.get('range_p10')
-                                st.metric("Range p10", f"${range_p10:.2f}")
-
-                            with col4:
-                                range_p90 = robust_val.get('range_p90')
-                                st.metric("Range p90", f"${range_p90:.2f}")
-                        else:
-                            # Fallback if robust_val not available
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                st.metric("Current Price", f"${current_price:.2f}" if current_price > 0 else "N/A")
-                            with col2:
-                                dcf_val = intrinsic.get('dcf_value')
-                                st.metric("DCF Value", f"${dcf_val:.2f}" if dcf_val else "N/A")
-
                         # === ROBUST VALUATION SYSTEM (NEW) ===
                         robust_val = intrinsic.get('robust_valuation')
                         confidence_data = intrinsic.get('confidence_score')
@@ -5782,19 +5755,19 @@ with tab5:
                             # Compact display (as suggested)
                             st.markdown(f"""
                             <div style='background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-                                        padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1rem;
+                                        padding: 0.9rem 1.15rem; border-radius: 10px; margin-bottom: 1rem;
                                         box-shadow: 0 4px 6px rgba(99,102,241,0.2);'>
-                                <div style='color: white; font-size: 0.95rem; line-height: 1.6;'>
-                                    <div style='margin-bottom: 0.5rem;'>
-                                        <strong style='font-size: 1.05rem;'>Robust FV (p50):</strong> <span style='font-size: 1.4rem; font-weight: 700;'>${fair_value_robust:.2f}</span>
+                                <div style='color: white; font-size: 0.85rem; line-height: 1.5;'>
+                                    <div style='margin-bottom: 0.4rem;'>
+                                        <strong style='font-size: 0.9rem;'>Robust FV (p50):</strong> <span style='font-size: 1.15rem; font-weight: 700;'>${fair_value_robust:.2f}</span>
                                     </div>
-                                    <div style='margin-bottom: 0.5rem;'>
+                                    <div style='margin-bottom: 0.4rem;'>
                                         <strong>Range (p10–p90):</strong> ${range_p10:.2f}–${range_p90:.2f} | <strong>Consensus:</strong> {consensus_tightness} (post-trim)
                                     </div>
-                                    <div style='margin-bottom: 0.5rem;'>
+                                    <div style='margin-bottom: 0.4rem;'>
                                         <strong>Price:</strong> ${current_price:.2f} | <em>{positioning}</em>
                                     </div>
-                                    <div style='margin-bottom: 0.25rem;'>
+                                    <div style='margin-bottom: 0.2rem;'>
                                         <strong>{downside_label}</strong>
                                     </div>
                                 </div>
@@ -6466,16 +6439,16 @@ with tab5:
 
                             if projection_source == 'growth_engine':
                                 source_badge = """
-                                <span style='background: #10b981; color: white; padding: 0.25rem 0.65rem; border-radius: 4px;
-                                             font-size: 0.65rem; font-weight: 700; margin-left: 0.5rem;'>
+                                <span style='background: #10b981; color: white; padding: 0.2rem 0.5rem; border-radius: 4px;
+                                             font-size: 0.6rem; font-weight: 700; margin-left: 0.5rem;'>
                                     GROWTH ENGINE
                                 </span>
                                 """
                                 source_text = "Robust scenarios using 3 estimators (historical, fundamental, consensus)"
                             else:
                                 source_badge = """
-                                <span style='background: #6b7280; color: white; padding: 0.25rem 0.65rem; border-radius: 4px;
-                                             font-size: 0.65rem; font-weight: 700; margin-left: 0.5rem;'>
+                                <span style='background: #6b7280; color: white; padding: 0.2rem 0.5rem; border-radius: 4px;
+                                             font-size: 0.6rem; font-weight: 700; margin-left: 0.5rem;'>
                                     SIMPLE
                                 </span>
                                 """
@@ -6483,17 +6456,17 @@ with tab5:
 
                             st.markdown(f"""
                             <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                        padding: 0.75rem 1.25rem; border-radius: 10px; margin-bottom: 1rem;'>
-                                <div style='display: flex; align-items: center; gap: 0.5rem;'>
-                                    <span style='background: rgba(255,255,255,0.2); padding: 0.25rem 0.65rem; border-radius: 4px; font-size: 0.65rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
+                                        padding: 0.7rem 1.1rem; border-radius: 10px; margin-bottom: 1rem;'>
+                                <div style='display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;'>
+                                    <span style='background: rgba(255,255,255,0.2); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.6rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
                                         PROJECTIONS
                                     </span>
-                                    <h4 style='margin: 0; color: white; font-weight: 600;'>
+                                    <h4 style='margin: 0; color: white; font-weight: 600; font-size: 0.95rem;'>
                                         Price Projections by Scenario
                                     </h4>
                                     {source_badge}
                                 </div>
-                                <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.85rem;'>
+                                <p style='margin: 0; color: white; opacity: 0.9; font-size: 0.75rem;'>
                                     {source_text}
                                 </p>
                             </div>
