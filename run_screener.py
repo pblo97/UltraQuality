@@ -6494,6 +6494,152 @@ with tab5:
                                 estimator_text = " | ".join([f"{k.title()}: {v:.1%}" for k, v in estimators_used.items()])
                                 st.caption(f"**Estimator Weights:** {estimator_text}")
 
+                                # Enhanced Growth Engine Details in expander
+                                growth_engine = intrinsic.get('growth_engine')
+                                if growth_engine and growth_engine.get('revenue_growth_5y'):
+                                    with st.expander("📊 Growth Engine Breakdown (3-Estimator System)", expanded=False):
+                                        rev_growth = growth_engine['revenue_growth_5y']
+
+                                        # Volatility and k factor
+                                        sigma = rev_growth.get('volatility', 0)
+                                        weights = rev_growth.get('weights', {})
+
+                                        # Determine weighting regime
+                                        if sigma > 0.25:
+                                            regime = "Event-Driven (σ > 25%)"
+                                            regime_color = "#dc2626"
+                                        elif sigma > 0.15:
+                                            regime = "High Volatility (σ > 15%)"
+                                            regime_color = "#f59e0b"
+                                        else:
+                                            regime = "Base/Stable (σ ≤ 15%)"
+                                            regime_color = "#10b981"
+
+                                        st.markdown(f"""
+                                        <div style='background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+                                                    padding: 1rem; border-radius: 8px; margin-bottom: 1rem;
+                                                    border-left: 4px solid {regime_color};'>
+                                            <div style='font-size: 0.75rem; color: #0369a1; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>
+                                                WEIGHTING REGIME
+                                            </div>
+                                            <div style='font-size: 1.1rem; color: {regime_color}; font-weight: 700;'>
+                                                {regime}
+                                            </div>
+                                            <div style='font-size: 0.85rem; color: #0c4a6e; margin-top: 0.25rem;'>
+                                                Growth Volatility (σ): <strong>{sigma:.1%}</strong>
+                                            </div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                                        # Individual estimator values
+                                        st.markdown("**Individual Growth Estimators:**")
+
+                                        cols_est = st.columns(3)
+
+                                        # Historical
+                                        hist_val = rev_growth.get('historical')
+                                        if hist_val is not None:
+                                            with cols_est[0]:
+                                                st.markdown(f"""
+                                                <div style='background: #fef3c7; padding: 0.75rem; border-radius: 6px; text-align: center;'>
+                                                    <div style='font-size: 0.7rem; color: #92400e; font-weight: 700;'>
+                                                        HISTORICAL
+                                                    </div>
+                                                    <div style='font-size: 1.5rem; color: #78350f; font-weight: 900; font-family: monospace;'>
+                                                        {hist_val:.1%}
+                                                    </div>
+                                                    <div style='font-size: 0.7rem; color: #92400e; margin-top: 0.25rem;'>
+                                                        Weight: {weights.get('historical', 0):.0%}
+                                                    </div>
+                                                </div>
+                                                """, unsafe_allow_html=True)
+                                                st.caption("Median of 3y/5y/10y log-regression")
+
+                                        # Fundamental
+                                        fund_val = rev_growth.get('fundamental')
+                                        if fund_val is not None:
+                                            with cols_est[1]:
+                                                st.markdown(f"""
+                                                <div style='background: #ddd6fe; padding: 0.75rem; border-radius: 6px; text-align: center;'>
+                                                    <div style='font-size: 0.7rem; color: #5b21b6; font-weight: 700;'>
+                                                        FUNDAMENTAL
+                                                    </div>
+                                                    <div style='font-size: 1.5rem; color: #4c1d95; font-weight: 900; font-family: monospace;'>
+                                                        {fund_val:.1%}
+                                                    </div>
+                                                    <div style='font-size: 0.7rem; color: #5b21b6; margin-top: 0.25rem;'>
+                                                        Weight: {weights.get('fundamental', 0):.0%}
+                                                    </div>
+                                                </div>
+                                                """, unsafe_allow_html=True)
+                                                st.caption("ROIC × Reinvestment Rate")
+
+                                        # Consensus
+                                        cons_val = rev_growth.get('consensus')
+                                        if cons_val is not None:
+                                            with cols_est[2]:
+                                                st.markdown(f"""
+                                                <div style='background: #bfdbfe; padding: 0.75rem; border-radius: 6px; text-align: center;'>
+                                                    <div style='font-size: 0.7rem; color: #1e40af; font-weight: 700;'>
+                                                        CONSENSUS
+                                                    </div>
+                                                    <div style='font-size: 1.5rem; color: #1e3a8a; font-weight: 900; font-family: monospace;'>
+                                                        {cons_val:.1%}
+                                                    </div>
+                                                    <div style='font-size: 0.7rem; color: #1e40af; margin-top: 0.25rem;'>
+                                                        Weight: {weights.get('consensus', 0):.0%}
+                                                    </div>
+                                                </div>
+                                                """, unsafe_allow_html=True)
+                                                st.caption("Analyst estimates")
+
+                                        # Blended result and scenarios
+                                        st.markdown("---")
+                                        st.markdown("**Scenario Construction:**")
+
+                                        blended = rev_growth.get('blended', 0)
+                                        bear = rev_growth.get('bear', 0)
+                                        bull = rev_growth.get('bull', 0)
+
+                                        # Calculate k factor from scenarios
+                                        if sigma and sigma > 0:
+                                            k_calc = (bull - blended) / sigma if sigma > 0 else 1.0
+                                            k_display = f"{k_calc:.1f}"
+                                        else:
+                                            k_display = "N/A"
+
+                                        st.markdown(f"""
+                                        <div style='background: #f0fdf4; padding: 1rem; border-radius: 8px; border: 2px solid #10b981;'>
+                                            <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;'>
+                                                <div style='text-align: center;'>
+                                                    <div style='font-size: 0.7rem; color: #065f46; font-weight: 700;'>BEAR</div>
+                                                    <div style='font-size: 1.3rem; color: #047857; font-weight: 900; font-family: monospace;'>{bear:.1%}</div>
+                                                    <div style='font-size: 0.65rem; color: #065f46; opacity: 0.8;'>Base - k·σ</div>
+                                                </div>
+                                                <div style='text-align: center; border-left: 2px solid #6ee7b7; border-right: 2px solid #6ee7b7;'>
+                                                    <div style='font-size: 0.7rem; color: #065f46; font-weight: 700;'>BASE</div>
+                                                    <div style='font-size: 1.3rem; color: #047857; font-weight: 900; font-family: monospace;'>{blended:.1%}</div>
+                                                    <div style='font-size: 0.65rem; color: #065f46; opacity: 0.8;'>Weighted blend</div>
+                                                </div>
+                                                <div style='text-align: center;'>
+                                                    <div style='font-size: 0.7rem; color: #065f46; font-weight: 700;'>BULL</div>
+                                                    <div style='font-size: 1.3rem; color: #047857; font-weight: 900; font-family: monospace;'>{bull:.1%}</div>
+                                                    <div style='font-size: 0.65rem; color: #065f46; opacity: 0.8;'>Base + k·σ</div>
+                                                </div>
+                                            </div>
+                                            <div style='text-align: center; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 2px solid #6ee7b7;'>
+                                                <span style='font-size: 0.75rem; color: #065f46;'>
+                                                    Scenario Factor: <strong>k = {k_display}</strong> | Volatility: <strong>σ = {sigma:.1%}</strong>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                                        # Growth engine notes
+                                        notes = growth_engine.get('notes', [])
+                                        if notes:
+                                            st.caption(f"📝 **Notes:** {' • '.join(notes)}")
+
                             scenarios = projections.get('scenarios', {})
 
                             if scenarios:
@@ -10147,6 +10293,54 @@ with tab6:
             if projections and 'scenarios' in projections:
                 st.markdown("---")
                 st.markdown("###  Price Projections by Scenario")
+
+                # Show Growth Engine badge if applicable
+                projection_source = projections.get('source', 'unknown')
+                if projection_source == 'growth_engine':
+                    st.success("📊 **GROWTH ENGINE** - Robust 3-estimator system")
+
+                    # Show estimator weights
+                    estimators_used = projections.get('estimators_used', {})
+                    if estimators_used:
+                        estimator_text = " | ".join([f"{k.title()}: {v:.1%}" for k, v in estimators_used.items()])
+                        st.caption(f"**Weights:** {estimator_text}")
+
+                    # Enhanced details in expander for mobile too
+                    growth_engine = intrinsic.get('growth_engine')
+                    if growth_engine and growth_engine.get('revenue_growth_5y'):
+                        with st.expander("📊 See Growth Engine Details", expanded=False):
+                            rev_growth = growth_engine['revenue_growth_5y']
+                            sigma = rev_growth.get('volatility', 0)
+
+                            # Show regime
+                            if sigma > 0.25:
+                                regime = "Event-Driven (σ > 25%)"
+                            elif sigma > 0.15:
+                                regime = "High Volatility (σ > 15%)"
+                            else:
+                                regime = "Base/Stable (σ ≤ 15%)"
+
+                            st.info(f"**Regime:** {regime} | **σ:** {sigma:.1%}")
+
+                            # Show individual estimators
+                            hist_val = rev_growth.get('historical')
+                            fund_val = rev_growth.get('fundamental')
+                            cons_val = rev_growth.get('consensus')
+                            weights = rev_growth.get('weights', {})
+
+                            if hist_val is not None:
+                                st.caption(f"📈 **Historical:** {hist_val:.1%} (weight: {weights.get('historical', 0):.0%})")
+                            if fund_val is not None:
+                                st.caption(f"⚙️ **Fundamental:** {fund_val:.1%} (weight: {weights.get('fundamental', 0):.0%})")
+                            if cons_val is not None:
+                                st.caption(f"👥 **Consensus:** {cons_val:.1%} (weight: {weights.get('consensus', 0):.0%})")
+
+                            # Show scenarios
+                            blended = rev_growth.get('blended', 0)
+                            bear = rev_growth.get('bear', 0)
+                            bull = rev_growth.get('bull', 0)
+
+                            st.markdown(f"**Scenarios:** Bear {bear:.1%} | Base {blended:.1%} | Bull {bull:.1%}")
 
                 scenarios = projections.get('scenarios', {})
 
