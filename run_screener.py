@@ -5856,7 +5856,8 @@ with tab5:
                                                 </div>
                                                 """, unsafe_allow_html=True)
 
-                                st.caption("Excluded from consensus calculation")
+                                st.caption("Outliers (outside robust p10–p90 range)")
+
 
                         # Implied Expectations (Reverse DCF) - Show prominently
                         reverse_dcf_data = intrinsic.get('reverse_dcf', {})
@@ -6366,8 +6367,8 @@ with tab5:
                                         {emoji} {display_assessment}
                                     </div>
                                     <div style='background: {badge_bg}; color: white; padding: 0.35rem 0.75rem;
-                                                border-radius: 6px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.5px;'>
-                                        {confidence.upper()}
+                                                border-radius: 6px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.3px;'>
+                                        CONVICTION: {confidence.upper()}
                                     </div>
                                 </div>
                                 <div style='font-size: 2.8rem; font-weight: 900; color: {text_color}; margin-bottom: 0.5rem; letter-spacing: -0.5px;'>
@@ -6639,6 +6640,40 @@ with tab5:
                                         notes = growth_engine.get('notes', [])
                                         if notes:
                                             st.caption(f"📝 **Notes:** {' • '.join(notes)}")
+
+                                        # Additional explanations for edge cases
+                                        explanations = []
+
+                                        # Explain low bear scenario
+                                        if bear < 0.02:  # < 2%
+                                            k_calc = (bull - blended) / sigma if sigma > 0 else 1.0
+                                            explanations.append(
+                                                f"⚠️ **Bear scenario very low ({bear:.1%})**: Base ({blended:.1%}) - k·σ = "
+                                                f"{blended:.1%} - ({k_calc:.1f} × {sigma:.1%}) = {bear:.1%}. "
+                                                f"With low base growth and volatility, bear compresses near zero."
+                                            )
+
+                                        # Explain consensus divergence
+                                        if cons_val is not None and (hist_val is not None or fund_val is not None):
+                                            avg_hist_fund = []
+                                            if hist_val is not None:
+                                                avg_hist_fund.append(hist_val)
+                                            if fund_val is not None:
+                                                avg_hist_fund.append(fund_val)
+
+                                            if avg_hist_fund:
+                                                avg = sum(avg_hist_fund) / len(avg_hist_fund)
+                                                divergence = abs(cons_val - avg) / avg if avg > 0 else 0
+
+                                                if divergence > 0.5:  # >50% divergence
+                                                    explanations.append(
+                                                        f"📊 **Consensus unusually {'low' if cons_val < avg else 'high'} "
+                                                        f"({cons_val:.1%}) vs hist/fundamental (~{avg:.1%})**: "
+                                                        f"Analysts may have different view on near-term execution or market conditions."
+                                                    )
+
+                                        if explanations:
+                                            st.markdown("<br>".join(explanations), unsafe_allow_html=True)
 
                             scenarios = projections.get('scenarios', {})
 
