@@ -6098,7 +6098,7 @@ with tab5:
 **Interpretación:**
 - Valoración base: ${robust_fv:.0f} (consenso robusto)
 - Precio actual ≈ PEG bull case (mercado ya pricing growth premium)
-- **No hay margen de seguridad por valoración**
+- **Valuation base: premium-priced; requiere ejecución y/o momentum para justificar la prima**
 """
                         # Priority 1: If PEG < 1.5 AND within robust range AND price reasonable
                         elif peg_ratio and peg_ratio < 1.5 and not peg_is_outlier and 'above p90' not in positioning.lower():
@@ -9089,7 +9089,7 @@ with tab6:
 **Interpretación:**
 - Valoración base: ${robust_fv:.0f} (consenso robusto)
 - Precio actual ≈ PEG bull case (mercado ya pricing growth premium)
-- **No hay margen de seguridad por valoración**
+- **Valuation base: premium-priced; requiere ejecución y/o momentum para justificar la prima**
 """
             # Priority 1: If PEG < 1.5 AND within robust range AND price reasonable
             elif peg_ratio and peg_ratio < 1.5 and not peg_is_outlier and 'above p90' not in positioning.lower():
