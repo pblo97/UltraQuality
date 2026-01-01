@@ -5818,10 +5818,20 @@ with tab5:
                                 else:
                                     st.success(f"✅ {method_disagreement}")
 
-                            # Outliers display (clean, separate from disagreement)
+                            # Outliers display (styled, compact)
                             outliers_display = robust_val.get('outliers_display')
                             if outliers_display:
-                                st.info(f"🔍 **Outliers trimmed:** {outliers_display}")
+                                st.markdown(f"""
+                                <div style='background: #fef3c7; border-left: 4px solid #f59e0b;
+                                            padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem;'>
+                                    <div style='color: #92400e; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem;'>
+                                        🔍 OUTLIERS TRIMMED (excluded from consensus)
+                                    </div>
+                                    <div style='color: #78350f; font-size: 0.9rem; font-family: monospace;'>
+                                        {outliers_display}
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
 
                         # Implied Expectations (Reverse DCF) - Show prominently
                         reverse_dcf_data = intrinsic.get('reverse_dcf', {})
@@ -5975,17 +5985,23 @@ with tab5:
                         st.markdown("<br>", unsafe_allow_html=True)
 
                         # Second row: PEG Ratio + Intrinsic Value PEG-Forward
-                        st.markdown("")  # Spacing
+                        # Check if PEG is in outliers - if so, skip this section
+                        robust_val_check = intrinsic.get('robust_valuation', {})
+                        outlier_methods_list = robust_val_check.get('outlier_methods', [])
+                        peg_is_outlier_check = any('PEG' in om or 'peg' in om.lower() for om in outlier_methods_list)
 
-                        # Get PEG and related data from correct location
-                        peg_ratio = None
-                        pe_ratio = None
-                        eps_growth = None
-                        if 'valuation_multiples' in intrinsic:
-                            company_vals = intrinsic['valuation_multiples'].get('company', {})
-                            peg_ratio = company_vals.get('peg', None)
-                            pe_ratio = company_vals.get('pe', None)
-                            eps_growth = company_vals.get('eps_growth_%', None)
+                        if not peg_is_outlier_check:
+                            st.markdown("")  # Spacing
+
+                            # Get PEG and related data from correct location
+                            peg_ratio = None
+                            pe_ratio = None
+                            eps_growth = None
+                            if 'valuation_multiples' in intrinsic:
+                                company_vals = intrinsic['valuation_multiples'].get('company', {})
+                                peg_ratio = company_vals.get('peg', None)
+                                pe_ratio = company_vals.get('pe', None)
+                                eps_growth = company_vals.get('eps_growth_%', None)
 
                         if peg_ratio and peg_ratio > 0:
                             # PEG-based valuation ONLY makes sense for growth companies (5% <= growth <= 100%)
@@ -6046,7 +6062,8 @@ with tab5:
                                     st.caption("PEG-based valuation only works for growth companies. For mature/declining companies, use DCF or P/E multiples.")
                                     st.caption(f"Current PEG: **{peg_ratio:.2f}** (High PEG with low growth = overvalued)")
                         else:
-                            st.info(" **PEG Ratio:** N/A (Data not available)")
+                            if not peg_is_outlier_check:
+                                st.info(" **PEG Ratio:** N/A (Data not available)")
 
                         # === Valuation Method Recommendation ===
                         # Determine which valuation method is most appropriate
@@ -6289,35 +6306,47 @@ with tab5:
 
                             # Create professional card for valuation summary
                             if color == 'green':
-                                bg_color = '#d1fae5'
+                                bg_gradient = 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)'
                                 text_color = '#065f46'
                                 border_color = '#10b981'
+                                badge_bg = '#10b981'
                             elif color == 'red':
-                                bg_color = '#fee2e2'
+                                bg_gradient = 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)'
                                 text_color = '#991b1b'
                                 border_color = '#ef4444'
+                                badge_bg = '#ef4444'
                             else:
-                                bg_color = '#fef3c7'
+                                bg_gradient = 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)'
                                 text_color = '#92400e'
                                 border_color = '#f59e0b'
+                                badge_bg = '#f59e0b'
 
                             st.markdown(f"""
-                            <div style='background: {bg_color};
+                            <div style='background: {bg_gradient};
                                         padding: 1.5rem;
                                         border-radius: 12px;
-                                        border-left: 5px solid {border_color};
+                                        border-left: 6px solid {border_color};
                                         margin: 1rem 0;
-                                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>
-                                <div style='font-size: 1.8rem; font-weight: 700; color: {text_color}; margin-bottom: 0.5rem;'>
-                                    {emoji} {display_assessment}
+                                        box-shadow: 0 4px 8px rgba(0,0,0,0.15);'>
+                                <div style='display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;'>
+                                    <div style='font-size: 2rem; font-weight: 800; color: {text_color};'>
+                                        {emoji} {display_assessment}
+                                    </div>
+                                    <div style='background: {badge_bg}; color: white; padding: 0.35rem 0.75rem;
+                                                border-radius: 6px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.5px;'>
+                                        {confidence.upper()}
+                                    </div>
                                 </div>
-                                <div style='font-size: 2.5rem; font-weight: 800; color: {text_color};'>
+                                <div style='font-size: 2.8rem; font-weight: 900; color: {text_color}; margin-bottom: 0.5rem; letter-spacing: -0.5px;'>
                                     {upside_display}
                                 </div>
-                                <div style='margin-top: 0.75rem; color: {text_color}; opacity: 0.85; font-size: 0.95rem;'>
-                                    <strong>Industry:</strong> {industry_profile} |
-                                    <strong>Primary Metric:</strong> {primary_metric} |
-                                    <strong>Confidence:</strong> {confidence}
+                                <div style='display: flex; gap: 1.5rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 2px solid rgba(0,0,0,0.1);'>
+                                    <div style='color: {text_color}; font-size: 0.9rem;'>
+                                        <span style='opacity: 0.7;'>Industry:</span> <strong>{industry_profile}</strong>
+                                    </div>
+                                    <div style='color: {text_color}; font-size: 0.9rem;'>
+                                        <span style='opacity: 0.7;'>Primary Metric:</span> <strong>{primary_metric}</strong>
+                                    </div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
@@ -8966,17 +8995,23 @@ with tab6:
                 st.markdown(f"### {emoji} {assessment}: {upside_display_mobile}")
                 st.caption(f"**Confidence:** {confidence}")
             # Second row: PEG Ratio + Intrinsic Value PEG-Forward
-            st.markdown("")  # Spacing
+            # Check if PEG is in outliers - if so, skip this section
+            robust_val_check_mobile = intrinsic.get('robust_valuation', {})
+            outlier_methods_list_mobile = robust_val_check_mobile.get('outlier_methods', [])
+            peg_is_outlier_check_mobile = any('PEG' in om or 'peg' in om.lower() for om in outlier_methods_list_mobile)
 
-            # Get PEG and related data from correct location
-            peg_ratio = None
-            pe_ratio = None
-            eps_growth = None
-            if 'valuation_multiples' in intrinsic:
-                company_vals = intrinsic['valuation_multiples'].get('company', {})
-                peg_ratio = company_vals.get('peg', None)
-                pe_ratio = company_vals.get('pe', None)
-                eps_growth = company_vals.get('eps_growth_%', None)
+            if not peg_is_outlier_check_mobile:
+                st.markdown("")  # Spacing
+
+                # Get PEG and related data from correct location
+                peg_ratio = None
+                pe_ratio = None
+                eps_growth = None
+                if 'valuation_multiples' in intrinsic:
+                    company_vals = intrinsic['valuation_multiples'].get('company', {})
+                    peg_ratio = company_vals.get('peg', None)
+                    pe_ratio = company_vals.get('pe', None)
+                    eps_growth = company_vals.get('eps_growth_%', None)
 
             if peg_ratio and peg_ratio > 0:
                 # PEG-based valuation ONLY makes sense for growth companies (5% <= growth <= 100%)
@@ -9037,7 +9072,8 @@ with tab6:
                         st.caption("PEG-based valuation only works for growth companies. For mature/declining companies, use DCF or P/E multiples.")
                         st.caption(f"Current PEG: **{peg_ratio:.2f}** (High PEG with low growth = overvalued)")
             else:
-                st.info(" **PEG Ratio:** N/A (Data not available)")
+                if not peg_is_outlier_check_mobile:
+                    st.info(" **PEG Ratio:** N/A (Data not available)")
 
             # === Valuation Method Recommendation ===
             # Determine which valuation method is most appropriate
