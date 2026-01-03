@@ -377,9 +377,18 @@ class QualitativeAnalyzer:
             # This gives better quality than Level 3 (which uses ±80% cap range)
             if market_cap > 0 and sector:
                 try:
-                    # Same market cap range as Level 2: ±70% (tighter than Level 3's ±80%)
-                    cap_min = int(market_cap * 0.3)
-                    cap_max = int(market_cap * 3.0)
+                    # Adaptive market cap range for mega caps
+                    # For companies >$1T, use wider range to find peers (there are only ~10 companies >$1T globally)
+                    if market_cap > 1e12:  # >$1T
+                        # For mega caps: use ±90% to find other mega caps
+                        cap_min = int(market_cap * 0.1)  # 10% of current
+                        cap_max = int(market_cap * 10.0)  # 10x current
+                        cap_label = "±90% (mega cap adjusted)"
+                    else:
+                        # Standard range: ±70% (same as Level 2)
+                        cap_min = int(market_cap * 0.3)
+                        cap_max = int(market_cap * 3.0)
+                        cap_label = "±70%"
 
                     logger.debug(f"Level 2.5 screening for {symbol}: sector={sector}, cap_range=${cap_min/1e9:.1f}B-${cap_max/1e9:.1f}B (NO industry filter)")
 
@@ -413,7 +422,7 @@ class QualitativeAnalyzer:
                                 'industry': industry or 'not matched',
                                 'market_cap_min': cap_min,
                                 'market_cap_max': cap_max,
-                                'method_detail': f'Sector: {sector} | Market cap: ${cap_min_b:.1f}B-${cap_max_b:.1f}B (±70%) | Industry-specific filter not available'
+                                'method_detail': f'Sector: {sector} | Market cap: ${cap_min_b:.1f}B-${cap_max_b:.1f}B ({cap_label}) | Industry-specific peers not available in this size range'
                             }
                             return peers_list, 'screener_sector_tight', 'Medium', metadata
                 except Exception as e:
