@@ -245,6 +245,136 @@ class QualitativeAnalyzer:
     # 2. Peers & Competitive Position
     # ===================================
 
+    def _get_peers_robust(self, symbol: str) -> tuple:
+        """
+        Robust peer selection with 3-level fallback system.
+
+        Level 1: FMP Stock Peers API (if available)
+        Level 2: Stock Screener with industry + market cap filters
+        Level 3: Stock Screener with sector-only filter
+
+        Returns: (peers_list, peer_method, peer_reliability)
+        - peers_list: List of peer symbols
+        - peer_method: 'stock_peers_api' | 'screener_industry' | 'screener_sector' | 'no_peers'
+        - peer_reliability: 'High' | 'Medium' | 'Low' | 'None'
+        """
+        try:
+            # Get company profile for fallback screening
+            profile = self.fmp.get_profile(symbol)
+            if not profile or len(profile) == 0:
+                logger.warning(f"No profile found for {symbol} - cannot get peers")
+                return [], 'no_peers', 'None'
+
+            company_profile = profile[0]
+            market_cap = company_profile.get('mktCap', 0)
+            sector = company_profile.get('sector', '')
+            industry = company_profile.get('industry', '')
+            exchange = company_profile.get('exchangeShortName', '')
+
+            # ============================================================================
+            # LEVEL 1: FMP Stock Peers API (Premium, but most reliable when available)
+            # ============================================================================
+            try:
+                peers_data = self.fmp.get_stock_peers(symbol)
+
+                if peers_data and len(peers_data) > 0 and 'peersList' in peers_data[0]:
+                    peers_list_raw = peers_data[0].get('peersList', [])
+
+                    if peers_list_raw and len(peers_list_raw) > 0:
+                        # Filter out the symbol itself if present
+                        peers_list = [p for p in peers_list_raw if p != symbol][:5]
+
+                        if len(peers_list) > 0:
+                            logger.info(f"✓ Peers for {symbol}: Found {len(peers_list)} via Stock Peers API")
+                            return peers_list, 'stock_peers_api', 'High'
+            except Exception as e:
+                logger.debug(f"Stock Peers API failed for {symbol}: {e}")
+
+            # ============================================================================
+            # LEVEL 2: Stock Screener with Industry + Market Cap Similarity
+            # ============================================================================
+            if market_cap > 0 and industry:
+                try:
+                    # Market cap range: ±70% (wider than ±50% for better coverage)
+                    cap_min = int(market_cap * 0.3)
+                    cap_max = int(market_cap * 3.0)
+
+                    screener_results = self.fmp.get_stock_screener(
+                        market_cap_more_than=cap_min,
+                        market_cap_lower_than=cap_max,
+                        sector=sector,
+                        industry=industry,
+                        exchange=exchange if exchange else None,
+                        is_actively_trading=True,
+                        is_etf=False,
+                        is_fund=False,
+                        limit=50
+                    )
+
+                    if screener_results and len(screener_results) > 0:
+                        # Filter out the symbol itself and select top peers by market cap similarity
+                        candidates = [
+                            (r['symbol'], abs(r.get('mktCap', 0) - market_cap))
+                            for r in screener_results
+                            if r.get('symbol') != symbol and r.get('mktCap', 0) > 0
+                        ]
+
+                        # Sort by market cap similarity (closest first)
+                        candidates.sort(key=lambda x: x[1])
+                        peers_list = [c[0] for c in candidates[:5]]
+
+                        if len(peers_list) > 0:
+                            logger.info(f"✓ Peers for {symbol}: Found {len(peers_list)} via Industry Screener (±70% cap)")
+                            return peers_list, 'screener_industry', 'Medium'
+                except Exception as e:
+                    logger.debug(f"Industry screener failed for {symbol}: {e}")
+
+            # ============================================================================
+            # LEVEL 3: Stock Screener with Sector-Only (Broad Fallback)
+            # ============================================================================
+            if sector:
+                try:
+                    # Wider market cap range: ±80%
+                    cap_min = int(market_cap * 0.2) if market_cap > 0 else 0
+                    cap_max = int(market_cap * 5.0) if market_cap > 0 else None
+
+                    screener_results = self.fmp.get_stock_screener(
+                        market_cap_more_than=cap_min if cap_min > 0 else None,
+                        market_cap_lower_than=cap_max,
+                        sector=sector,
+                        is_actively_trading=True,
+                        is_etf=False,
+                        is_fund=False,
+                        limit=100
+                    )
+
+                    if screener_results and len(screener_results) > 0:
+                        # Filter and sort by market cap similarity
+                        candidates = [
+                            (r['symbol'], abs(r.get('mktCap', 0) - market_cap) if market_cap > 0 else 0)
+                            for r in screener_results
+                            if r.get('symbol') != symbol
+                        ]
+
+                        candidates.sort(key=lambda x: x[1])
+                        peers_list = [c[0] for c in candidates[:5]]
+
+                        if len(peers_list) > 0:
+                            logger.info(f"✓ Peers for {symbol}: Found {len(peers_list)} via Sector Screener (broad)")
+                            return peers_list, 'screener_sector', 'Low'
+                except Exception as e:
+                    logger.debug(f"Sector screener failed for {symbol}: {e}")
+
+            # ============================================================================
+            # NO PEERS FOUND
+            # ============================================================================
+            logger.warning(f"✗ No peers found for {symbol} after 3-level fallback")
+            return [], 'no_peers', 'None'
+
+        except Exception as e:
+            logger.error(f"Robust peer selection failed for {symbol}: {e}", exc_info=True)
+            return [], 'no_peers', 'None'
+
     def _get_peer_analysis(
         self,
         symbol: str,
@@ -254,16 +384,28 @@ class QualitativeAnalyzer:
         """
         Get list of peers and comparison snapshot.
 
+        Now uses robust 3-level peer selection system.
+
         Returns: (peers_list, peer_snapshot)
+
+        Side effects:
+        - Sets self._last_peer_method: Method used to find peers
+        - Sets self._last_peer_reliability: Reliability level of peer selection
         """
         try:
-            # Get peers from FMP
-            peers_data = self.fmp.get_stock_peers(symbol)
+            # Use robust peer selection
+            peers_list, peer_method, peer_reliability = self._get_peers_robust(symbol)
 
-            if not peers_data or 'peersList' not in peers_data[0]:
+            # Store peer selection metadata for use in valuation reliability assessment
+            self._last_peer_method = peer_method
+            self._last_peer_reliability = peer_reliability
+
+            if not peers_list or len(peers_list) == 0:
+                logger.info(f"No peers available for {symbol}")
                 return [], []
 
-            peers_list = peers_data[0]['peersList'][:5]  # Top 5 peers
+            # Log peer selection method for transparency
+            logger.info(f"Peer selection for {symbol}: method={peer_method}, reliability={peer_reliability}, count={len(peers_list)}")
 
             # Get peer profiles for enrichment
             peer_profiles = self.fmp.get_profile_bulk(peers_list)
@@ -3151,13 +3293,34 @@ class QualitativeAnalyzer:
                             has_peers=has_peers
                         )
 
-                        # Add reliability flag to robust_valuation if peers=0
-                        if robust_valuation and not has_peers:
-                            robust_valuation['multiples_reliability'] = 'Low'
-                            robust_valuation['multiples_reliability_reason'] = 'No peers available - using sector fallback multiples'
-                        elif robust_valuation:
-                            robust_valuation['multiples_reliability'] = 'Medium'  # Even with peers, multiples can vary
-                            robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers used for comparison'
+                        # Add reliability flag to robust_valuation based on peer selection method
+                        if robust_valuation:
+                            peer_method = getattr(self, '_last_peer_method', 'unknown')
+                            peer_reliability = getattr(self, '_last_peer_reliability', 'None')
+
+                            # Map peer_reliability to multiples_reliability
+                            # Peer reliability: High (stock_peers_api) > Medium (screener_industry) > Low (screener_sector) > None (no_peers)
+                            if not has_peers or peer_method == 'no_peers':
+                                robust_valuation['multiples_reliability'] = 'Low'
+                                robust_valuation['multiples_reliability_reason'] = 'No peers available - using sector fallback multiples'
+                                robust_valuation['peer_selection_method'] = 'no_peers'
+                            elif peer_method == 'stock_peers_api':
+                                robust_valuation['multiples_reliability'] = 'High'
+                                robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers from FMP API (industry + market cap matched)'
+                                robust_valuation['peer_selection_method'] = 'stock_peers_api'
+                            elif peer_method == 'screener_industry':
+                                robust_valuation['multiples_reliability'] = 'Medium'
+                                robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers from industry screener (±70% market cap)'
+                                robust_valuation['peer_selection_method'] = 'screener_industry'
+                            elif peer_method == 'screener_sector':
+                                robust_valuation['multiples_reliability'] = 'Medium-Low'
+                                robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers from sector screener (broad match)'
+                                robust_valuation['peer_selection_method'] = 'screener_sector'
+                            else:
+                                # Fallback for unknown method
+                                robust_valuation['multiples_reliability'] = 'Medium'
+                                robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers used for comparison'
+                                robust_valuation['peer_selection_method'] = peer_method
 
                         if robust_valuation and robust_valuation.get('fair_value_robust'):
                             valuation['robust_valuation'] = robust_valuation
