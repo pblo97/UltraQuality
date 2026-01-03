@@ -5829,6 +5829,15 @@ with tab5:
                                     zone_label = "Extremely Overvalued"
                                     zone_color = "#dc2626"
 
+                                # Pre-calculate extended range HTML to avoid nested f-strings
+                                extended_left = ''
+                                if p10_position > 0.02:
+                                    extended_left = f'<div style="position: absolute; top: 32px; left: 0; right: {(1 - p10_position) * 100}%; height: 16px; background: repeating-linear-gradient(45deg, #d1fae5, #d1fae5 4px, #a7f3d0 4px, #a7f3d0 8px); border-radius: 8px 0 0 8px; border: 2px dashed #10b981; opacity: 0.6;"></div>'
+
+                                extended_right = ''
+                                if p90_position < 0.98:
+                                    extended_right = f'<div style="position: absolute; top: 32px; left: {p90_position * 100}%; right: 0; height: 16px; background: repeating-linear-gradient(45deg, #fee2e2, #fee2e2 4px, #fecaca 4px, #fecaca 8px); border-radius: 0 8px 8px 0; border: 2px dashed #ef4444; opacity: 0.6;"></div>'
+
                                 st.markdown(f"""
                                 <div style='margin: 1rem 0; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;'>
                                     <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;'>
@@ -5841,8 +5850,8 @@ with tab5:
                                         <div style='position: absolute; top: 32px; left: {p10_position * 100}%; right: {(1 - p90_position) * 100}%; height: 16px; background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 15%, #fef3c7 50%, #fecaca 85%, #fee2e2 100%); border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);'></div>
 
                                         <!-- Extended range indicators (if needed) -->
-                                        {f'<div style="position: absolute; top: 32px; left: 0; right: {(1 - p10_position) * 100}%; height: 16px; background: repeating-linear-gradient(45deg, #d1fae5, #d1fae5 4px, #a7f3d0 4px, #a7f3d0 8px); border-radius: 8px 0 0 8px; border: 2px dashed #10b981; opacity: 0.6;"></div>' if p10_position > 0.02 else ''}
-                                        {f'<div style="position: absolute; top: 32px; left: {p90_position * 100}%; right: 0; height: 16px; background: repeating-linear-gradient(45deg, #fee2e2, #fee2e2 4px, #fecaca 4px, #fecaca 8px); border-radius: 0 8px 8px 0; border: 2px dashed #ef4444; opacity: 0.6;"></div>' if p90_position < 0.98 else ''}
+                                        {extended_left}
+                                        {extended_right}
 
                                         <!-- P10 marker -->
                                         <div style='position: absolute; left: {p10_position * 100}%; top: 28px;'>
