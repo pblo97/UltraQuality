@@ -5792,20 +5792,42 @@ with tab5:
                             # Visual range indicator - Professional design
                             range_span = range_p90 - range_p10
                             if range_span > 0:
-                                # Calculate position of current price and FV in the range
-                                price_position = max(0, min(1, (current_price - range_p10) / range_span))
-                                fv_position = max(0, min(1, (fair_value_robust - range_p10) / range_span))
+                                # Determine if price or FV fall outside the p10-p90 range
+                                # If so, extend the visualization range to accommodate them
+                                vis_min = min(range_p10, current_price, fair_value_robust)
+                                vis_max = max(range_p90, current_price, fair_value_robust)
 
-                                # Determine zone for current price
-                                if price_position < 0.33:
+                                # Add 5% padding on extended sides for better visualization
+                                if vis_min < range_p10:
+                                    vis_min = vis_min - (range_p10 - vis_min) * 0.05
+                                if vis_max > range_p90:
+                                    vis_max = vis_max + (vis_max - range_p90) * 0.05
+
+                                vis_span = vis_max - vis_min
+
+                                # Calculate positions in the extended range
+                                price_position = (current_price - vis_min) / vis_span
+                                fv_position = (fair_value_robust - vis_min) / vis_span
+                                p10_position = (range_p10 - vis_min) / vis_span
+                                p90_position = (range_p90 - vis_min) / vis_span
+                                p50_position = ((range_p10 + range_p90) / 2 - vis_min) / vis_span
+
+                                # Determine zone based on position relative to p10-p90 range (not visual range)
+                                if current_price < range_p10:
+                                    zone_label = "Deeply Undervalued"
+                                    zone_color = "#059669"
+                                elif current_price < range_p10 + range_span * 0.33:
                                     zone_label = "Undervalued Zone"
                                     zone_color = "#10b981"
-                                elif price_position < 0.67:
+                                elif current_price < range_p10 + range_span * 0.67:
                                     zone_label = "Fair Value Zone"
                                     zone_color = "#f59e0b"
-                                else:
+                                elif current_price <= range_p90:
                                     zone_label = "Overvalued Zone"
                                     zone_color = "#ef4444"
+                                else:
+                                    zone_label = "Extremely Overvalued"
+                                    zone_color = "#dc2626"
 
                                 st.markdown(f"""
                                 <div style='margin: 1rem 0; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;'>
@@ -5814,37 +5836,58 @@ with tab5:
                                         <div style='display: inline-block; padding: 3px 8px; background: {zone_color}; color: white; border-radius: 4px; font-size: 0.65rem; font-weight: 700;'>{zone_label}</div>
                                     </div>
 
-                                    <div style='position: relative; height: 48px; margin: 0.5rem 0;'>
-                                        <!-- Price labels top -->
-                                        <div style='position: absolute; left: 0; top: 0; font-size: 0.7rem; font-weight: 600; color: #10b981;'>${range_p10:.0f}</div>
-                                        <div style='position: absolute; left: 50%; transform: translateX(-50%); top: 0; font-size: 0.7rem; font-weight: 600; color: #64748b;'>p50: ${(range_p10 + range_p90) / 2:.0f}</div>
-                                        <div style='position: absolute; right: 0; top: 0; font-size: 0.7rem; font-weight: 600; color: #ef4444;'>${range_p90:.0f}</div>
+                                    <div style='position: relative; height: 60px; margin: 0.5rem 0;'>
+                                        <!-- Range bar with gradient (represents p10-p90 core range) -->
+                                        <div style='position: absolute; top: 32px; left: {p10_position * 100}%; right: {(1 - p90_position) * 100}%; height: 16px; background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 15%, #fef3c7 50%, #fecaca 85%, #fee2e2 100%); border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);'></div>
 
-                                        <!-- Range bar with gradient -->
-                                        <div style='position: absolute; top: 24px; left: 0; right: 0; height: 16px; background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 15%, #fef3c7 50%, #fecaca 85%, #fee2e2 100%); border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);'>
-                                            <!-- Current Price marker -->
-                                            <div style='position: absolute; left: {price_position * 100}%; top: 50%; transform: translate(-50%, -50%);'>
-                                                <div style='width: 4px; height: 28px; background: #0f172a; border-radius: 2px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);'></div>
-                                                <div style='position: absolute; top: -24px; left: 50%; transform: translateX(-50%); font-size: 0.6rem; font-weight: 700; color: #0f172a; white-space: nowrap; background: white; padding: 2px 4px; border-radius: 3px; border: 1px solid #cbd5e1;'>${current_price:.0f}</div>
-                                            </div>
+                                        <!-- Extended range indicators (if needed) -->
+                                        {'<div style="position: absolute; top: 32px; left: 0; right: ' + str((1 - p10_position) * 100) + '%; height: 16px; background: repeating-linear-gradient(45deg, #d1fae5, #d1fae5 4px, #a7f3d0 4px, #a7f3d0 8px); border-radius: 8px 0 0 8px; border: 2px dashed #10b981; opacity: 0.6;"></div>' if p10_position > 0.02 else ''}
+                                        {'<div style="position: absolute; top: 32px; left: ' + str(p90_position * 100) + '%; right: 0; height: 16px; background: repeating-linear-gradient(45deg, #fee2e2, #fee2e2 4px, #fecaca 4px, #fecaca 8px); border-radius: 0 8px 8px 0; border: 2px dashed #ef4444; opacity: 0.6;"></div>' if p90_position < 0.98 else ''}
 
-                                            <!-- Fair Value marker -->
-                                            <div style='position: absolute; left: {fv_position * 100}%; top: 50%; transform: translate(-50%, -50%);'>
-                                                <div style='width: 12px; height: 12px; background: #3b82f6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);'></div>
-                                                <div style='position: absolute; bottom: -24px; left: 50%; transform: translateX(-50%); font-size: 0.6rem; font-weight: 700; color: #3b82f6; white-space: nowrap; background: white; padding: 2px 4px; border-radius: 3px; border: 1px solid #93c5fd;'>${fair_value_robust:.0f}</div>
-                                            </div>
+                                        <!-- P10 marker -->
+                                        <div style='position: absolute; left: {p10_position * 100}%; top: 28px;'>
+                                            <div style='width: 2px; height: 24px; background: #10b981;'></div>
+                                            <div style='position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 600; color: #10b981; white-space: nowrap;'>p10: ${range_p10:.0f}</div>
+                                        </div>
+
+                                        <!-- P50 marker -->
+                                        <div style='position: absolute; left: {p50_position * 100}%; top: 28px;'>
+                                            <div style='width: 2px; height: 24px; background: #64748b;'></div>
+                                            <div style='position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 600; color: #64748b; white-space: nowrap;'>p50: ${(range_p10 + range_p90) / 2:.0f}</div>
+                                        </div>
+
+                                        <!-- P90 marker -->
+                                        <div style='position: absolute; left: {p90_position * 100}%; top: 28px;'>
+                                            <div style='width: 2px; height: 24px; background: #ef4444;'></div>
+                                            <div style='position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 600; color: #ef4444; white-space: nowrap;'>p90: ${range_p90:.0f}</div>
+                                        </div>
+
+                                        <!-- Current Price marker (prominent) -->
+                                        <div style='position: absolute; left: {price_position * 100}%; top: 24px; z-index: 10;'>
+                                            <div style='width: 5px; height: 32px; background: #0f172a; border-radius: 2px; box-shadow: 0 3px 8px rgba(0,0,0,0.4);'></div>
+                                            <div style='position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 0.7rem; font-weight: 800; color: #0f172a; white-space: nowrap; background: white; padding: 3px 6px; border-radius: 4px; border: 2px solid #0f172a; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>${current_price:.0f}</div>
+                                        </div>
+
+                                        <!-- Fair Value marker -->
+                                        <div style='position: absolute; left: {fv_position * 100}%; top: 32px; z-index: 9;'>
+                                            <div style='width: 14px; height: 14px; background: #3b82f6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);'></div>
+                                            <div style='position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 700; color: #3b82f6; white-space: nowrap; background: white; padding: 2px 5px; border-radius: 3px; border: 1px solid #93c5fd;'>FV: ${fair_value_robust:.0f}</div>
                                         </div>
                                     </div>
 
                                     <!-- Legend -->
-                                    <div style='margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; gap: 1.5rem;'>
+                                    <div style='margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap;'>
                                         <div style='display: flex; align-items: center; gap: 0.35rem;'>
-                                            <div style='width: 4px; height: 14px; background: #0f172a; border-radius: 2px;'></div>
+                                            <div style='width: 5px; height: 16px; background: #0f172a; border-radius: 2px;'></div>
                                             <span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>Current Price</span>
                                         </div>
                                         <div style='display: flex; align-items: center; gap: 0.35rem;'>
-                                            <div style='width: 12px; height: 12px; background: #3b82f6; border: 2px solid white; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.2);'></div>
-                                            <span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>Fair Value (p50)</span>
+                                            <div style='width: 14px; height: 14px; background: #3b82f6; border: 2px solid white; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.2);'></div>
+                                            <span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>Fair Value</span>
+                                        </div>
+                                        <div style='display: flex; align-items: center; gap: 0.35rem;'>
+                                            <div style='width: 20px; height: 12px; background: linear-gradient(90deg, #d1fae5, #fecaca); border-radius: 2px; border: 1px solid #cbd5e1;'></div>
+                                            <span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>p10–p90 Range</span>
                                         </div>
                                     </div>
                                 </div>
