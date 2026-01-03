@@ -5789,29 +5789,66 @@ with tab5:
                                 label_prefix = "Downside to p90" if "Downside" in downside_label else "Upside to p90"
                                 st.metric(label_prefix, delta_display, help=downside_label)
 
-                            # Visual range indicator
+                            # Visual range indicator - Professional design
                             range_span = range_p90 - range_p10
                             if range_span > 0:
                                 # Calculate position of current price and FV in the range
                                 price_position = max(0, min(1, (current_price - range_p10) / range_span))
                                 fv_position = max(0, min(1, (fair_value_robust - range_p10) / range_span))
 
-                                st.markdown("""
-                                <div style='margin: 0.75rem 0 0.25rem 0;'>
-                                    <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;'>VALUE RANGE (p10–p90)</div>
-                                    <div style='position: relative; height: 32px; background: linear-gradient(90deg, #dcfce7 0%, #fef3c7 50%, #fee2e2 100%); border-radius: 4px; border: 1px solid #e2e8f0;'>
-                                        <div style='position: absolute; left: {}%; top: 50%; transform: translate(-50%, -50%); width: 3px; height: 24px; background: #0f172a; border-radius: 2px;'></div>
-                                        <div style='position: absolute; left: {}%; top: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px; background: #3b82f6; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);'></div>
-                                        <div style='position: absolute; left: 0; top: -18px; font-size: 0.65rem; color: #64748b;'>${:.0f}</div>
-                                        <div style='position: absolute; left: 50%; transform: translateX(-50%); top: -18px; font-size: 0.65rem; color: #64748b;'>${:.0f}</div>
-                                        <div style='position: absolute; right: 0; top: -18px; font-size: 0.65rem; color: #64748b;'>${:.0f}</div>
+                                # Determine zone for current price
+                                if price_position < 0.33:
+                                    zone_label = "Undervalued Zone"
+                                    zone_color = "#10b981"
+                                elif price_position < 0.67:
+                                    zone_label = "Fair Value Zone"
+                                    zone_color = "#f59e0b"
+                                else:
+                                    zone_label = "Overvalued Zone"
+                                    zone_color = "#ef4444"
+
+                                st.markdown(f"""
+                                <div style='margin: 1rem 0; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;'>
+                                    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;'>
+                                        <div style='font-size: 0.75rem; font-weight: 700; color: #0f172a; letter-spacing: 0.5px;'>VALUE RANGE SPECTRUM</div>
+                                        <div style='display: inline-block; padding: 3px 8px; background: {zone_color}; color: white; border-radius: 4px; font-size: 0.65rem; font-weight: 700;'>{zone_label}</div>
                                     </div>
-                                    <div style='margin-top: 0.25rem; font-size: 0.65rem; color: #64748b;'>
-                                        <span style='margin-right: 1rem;'>█ Current Price</span>
-                                        <span>● Fair Value (p50)</span>
+
+                                    <div style='position: relative; height: 48px; margin: 0.5rem 0;'>
+                                        <!-- Price labels top -->
+                                        <div style='position: absolute; left: 0; top: 0; font-size: 0.7rem; font-weight: 600; color: #10b981;'>${range_p10:.0f}</div>
+                                        <div style='position: absolute; left: 50%; transform: translateX(-50%); top: 0; font-size: 0.7rem; font-weight: 600; color: #64748b;'>p50: ${(range_p10 + range_p90) / 2:.0f}</div>
+                                        <div style='position: absolute; right: 0; top: 0; font-size: 0.7rem; font-weight: 600; color: #ef4444;'>${range_p90:.0f}</div>
+
+                                        <!-- Range bar with gradient -->
+                                        <div style='position: absolute; top: 24px; left: 0; right: 0; height: 16px; background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 15%, #fef3c7 50%, #fecaca 85%, #fee2e2 100%); border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);'>
+                                            <!-- Current Price marker -->
+                                            <div style='position: absolute; left: {price_position * 100}%; top: 50%; transform: translate(-50%, -50%);'>
+                                                <div style='width: 4px; height: 28px; background: #0f172a; border-radius: 2px; box-shadow: 0 2px 6px rgba(0,0,0,0.3);'></div>
+                                                <div style='position: absolute; top: -24px; left: 50%; transform: translateX(-50%); font-size: 0.6rem; font-weight: 700; color: #0f172a; white-space: nowrap; background: white; padding: 2px 4px; border-radius: 3px; border: 1px solid #cbd5e1;'>${current_price:.0f}</div>
+                                            </div>
+
+                                            <!-- Fair Value marker -->
+                                            <div style='position: absolute; left: {fv_position * 100}%; top: 50%; transform: translate(-50%, -50%);'>
+                                                <div style='width: 12px; height: 12px; background: #3b82f6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);'></div>
+                                                <div style='position: absolute; bottom: -24px; left: 50%; transform: translateX(-50%); font-size: 0.6rem; font-weight: 700; color: #3b82f6; white-space: nowrap; background: white; padding: 2px 4px; border-radius: 3px; border: 1px solid #93c5fd;'>${fair_value_robust:.0f}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Legend -->
+                                    <div style='margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; gap: 1.5rem;'>
+                                        <div style='display: flex; align-items: center; gap: 0.35rem;'>
+                                            <div style='width: 4px; height: 14px; background: #0f172a; border-radius: 2px;'></div>
+                                            <span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>Current Price</span>
+                                        </div>
+                                        <div style='display: flex; align-items: center; gap: 0.35rem;'>
+                                            <div style='width: 12px; height: 12px; background: #3b82f6; border: 2px solid white; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.2);'></div>
+                                            <span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>Fair Value (p50)</span>
+                                        </div>
                                     </div>
                                 </div>
-                                """.format(price_position * 100, fv_position * 100, range_p10, (range_p10 + range_p90) / 2, range_p90), unsafe_allow_html=True)
+                                """, unsafe_allow_html=True)
 
                             # Range and consensus info with badges
                             consensus_color = {'High': '#10b981', 'Medium': '#f59e0b', 'Low': '#ef4444'}.get(consensus_tightness, '#64748b')
