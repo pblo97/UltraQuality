@@ -6088,11 +6088,6 @@ with tab5:
                             rev_growth = growth_engine['revenue_growth_5y']
 
                             st.markdown("<br>", unsafe_allow_html=True)
-                            st.markdown("""
-                            <div style='font-weight: 700; color: #0f172a; font-size: 0.95rem; margin-bottom: 0.75rem;'>
-                                Growth Engine 5Y (Revenue)
-                            </div>
-                            """, unsafe_allow_html=True)
 
                             # Extract growth values
                             bear = rev_growth.get('bear', 0) * 100
@@ -6101,52 +6096,79 @@ with tab5:
                             volatility = rev_growth.get('volatility', 0)
                             weights = rev_growth.get('weights', {})
 
-                            # Three-column metrics
-                            col_g1, col_g2, col_g3 = st.columns(3)
+                            # Build complete Growth Engine HTML using string concatenation
+                            growth_html = "<div style='margin: 1rem 0; padding: 1.25rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;'>"
+                            growth_html += "<div style='font-weight: 700; color: #0f172a; font-size: 0.95rem; margin-bottom: 1rem;'>Growth Engine 5Y (Revenue)</div>"
 
-                            with col_g1:
-                                st.metric("Bear Case", f"{bear:.1f}%", help="Base - volatility")
+                            # Three scenario cards in a row
+                            growth_html += "<div style='display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;'>"
 
-                            with col_g2:
-                                st.metric("Base Case", f"{base:.1f}%", help="Blended estimate")
+                            # Bear Case Card
+                            growth_html += "<div style='background: white; padding: 1rem; border-radius: 6px; border: 2px solid #fecaca; text-align: center;'>"
+                            growth_html += "<div style='font-size: 0.65rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>BEAR CASE</div>"
+                            growth_html += f"<div style='font-size: 1.75rem; font-weight: 700; color: #ef4444; margin-bottom: 0.25rem;'>{bear:.1f}%</div>"
+                            growth_html += "<div style='font-size: 0.65rem; color: #94a3b8;'>Base - volatility</div>"
+                            growth_html += "</div>"
 
-                            with col_g3:
-                                st.metric("Bull Case", f"{bull:.1f}%", help="Base + volatility")
+                            # Base Case Card
+                            growth_html += "<div style='background: white; padding: 1rem; border-radius: 6px; border: 2px solid #93c5fd; text-align: center;'>"
+                            growth_html += "<div style='font-size: 0.65rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>BASE CASE</div>"
+                            growth_html += f"<div style='font-size: 1.75rem; font-weight: 700; color: #3b82f6; margin-bottom: 0.25rem;'>{base:.1f}%</div>"
+                            growth_html += "<div style='font-size: 0.65rem; color: #94a3b8;'>Blended estimate</div>"
+                            growth_html += "</div>"
 
-                            # Visual growth spectrum bar
-                            max_val = max(abs(bear), abs(bull), 25)  # At least 25% for scale
-                            bear_width = max(1, abs(bear) / max_val * 100) if bear >= 0 else 0
-                            base_width = max(1, abs(base) / max_val * 100) if base >= 0 else 0
-                            bull_width = max(1, abs(bull) / max_val * 100) if bull >= 0 else 0
+                            # Bull Case Card
+                            growth_html += "<div style='background: white; padding: 1rem; border-radius: 6px; border: 2px solid #6ee7b7; text-align: center;'>"
+                            growth_html += "<div style='font-size: 0.65rem; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>BULL CASE</div>"
+                            growth_html += f"<div style='font-size: 1.75rem; font-weight: 700; color: #10b981; margin-bottom: 0.25rem;'>{bull:.1f}%</div>"
+                            growth_html += "<div style='font-size: 0.65rem; color: #94a3b8;'>Base + volatility</div>"
+                            growth_html += "</div>"
 
-                            st.markdown(f"""
-                            <div style='margin: 0.75rem 0;'>
-                                <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-bottom: 0.5rem;'>GROWTH SCENARIO SPECTRUM</div>
-                                <div style='display: flex; gap: 0.5rem; align-items: flex-end;'>
-                                    <div style='flex: 1; text-align: center;'>
-                                        <div style='height: 80px; display: flex; align-items: flex-end; justify-content: center;'>
-                                            <div style='width: 60%; background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%); height: {bear_width}%; min-height: 4px; border-radius: 4px 4px 0 0; box-shadow: 0 -2px 4px rgba(239, 68, 68, 0.3);'></div>
-                                        </div>
-                                        <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 0.25rem;'>Bear</div>
-                                        <div style='font-size: 0.75rem; font-weight: 700; color: #ef4444;'>{bear:.1f}%</div>
-                                    </div>
-                                    <div style='flex: 1; text-align: center;'>
-                                        <div style='height: 80px; display: flex; align-items: flex-end; justify-content: center;'>
-                                            <div style='width: 60%; background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%); height: {base_width}%; min-height: 4px; border-radius: 4px 4px 0 0; box-shadow: 0 -2px 4px rgba(59, 130, 246, 0.3);'></div>
-                                        </div>
-                                        <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 0.25rem;'>Base</div>
-                                        <div style='font-size: 0.75rem; font-weight: 700; color: #3b82f6;'>{base:.1f}%</div>
-                                    </div>
-                                    <div style='flex: 1; text-align: center;'>
-                                        <div style='height: 80px; display: flex; align-items: flex-end; justify-content: center;'>
-                                            <div style='width: 60%; background: linear-gradient(180deg, #10b981 0%, #059669 100%); height: {bull_width}%; min-height: 4px; border-radius: 4px 4px 0 0; box-shadow: 0 -2px 4px rgba(16, 185, 129, 0.3);'></div>
-                                        </div>
-                                        <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 0.25rem;'>Bull</div>
-                                        <div style='font-size: 0.75rem; font-weight: 700; color: #10b981;'>{bull:.1f}%</div>
-                                    </div>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            growth_html += "</div>"
+
+                            # Growth Scenario Spectrum - Horizontal bars
+                            growth_html += "<div style='margin-top: 1rem;'>"
+                            growth_html += "<div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;'>GROWTH SCENARIO SPECTRUM</div>"
+
+                            # Calculate max value for consistent scale
+                            max_val = max(abs(bear), abs(base), abs(bull), 25)
+                            bear_width_pct = (abs(bear) / max_val * 100) if bear >= 0 else 0
+                            base_width_pct = (abs(base) / max_val * 100) if base >= 0 else 0
+                            bull_width_pct = (abs(bull) / max_val * 100) if bull >= 0 else 0
+
+                            # Bear bar
+                            growth_html += "<div style='margin-bottom: 0.75rem;'>"
+                            growth_html += "<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;'>"
+                            growth_html += "<span style='font-size: 0.7rem; font-weight: 600; color: #475569;'>Bear</span>"
+                            growth_html += f"<span style='font-size: 0.7rem; font-weight: 700; color: #ef4444;'>{bear:.1f}%</span>"
+                            growth_html += "</div>"
+                            growth_html += "<div style='height: 10px; background: #fee2e2; border-radius: 5px; overflow: hidden;'>"
+                            growth_html += f"<div style='height: 100%; width: {bear_width_pct}%; background: linear-gradient(90deg, #ef4444, #dc2626); border-radius: 5px;'></div>"
+                            growth_html += "</div></div>"
+
+                            # Base bar
+                            growth_html += "<div style='margin-bottom: 0.75rem;'>"
+                            growth_html += "<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;'>"
+                            growth_html += "<span style='font-size: 0.7rem; font-weight: 600; color: #475569;'>Base</span>"
+                            growth_html += f"<span style='font-size: 0.7rem; font-weight: 700; color: #3b82f6;'>{base:.1f}%</span>"
+                            growth_html += "</div>"
+                            growth_html += "<div style='height: 10px; background: #dbeafe; border-radius: 5px; overflow: hidden;'>"
+                            growth_html += f"<div style='height: 100%; width: {base_width_pct}%; background: linear-gradient(90deg, #3b82f6, #2563eb); border-radius: 5px;'></div>"
+                            growth_html += "</div></div>"
+
+                            # Bull bar
+                            growth_html += "<div style='margin-bottom: 0.5rem;'>"
+                            growth_html += "<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;'>"
+                            growth_html += "<span style='font-size: 0.7rem; font-weight: 600; color: #475569;'>Bull</span>"
+                            growth_html += f"<span style='font-size: 0.7rem; font-weight: 700; color: #10b981;'>{bull:.1f}%</span>"
+                            growth_html += "</div>"
+                            growth_html += "<div style='height: 10px; background: #d1fae5; border-radius: 5px; overflow: hidden;'>"
+                            growth_html += f"<div style='height: 100%; width: {bull_width_pct}%; background: linear-gradient(90deg, #10b981, #059669); border-radius: 5px;'></div>"
+                            growth_html += "</div></div>"
+
+                            growth_html += "</div></div>"
+
+                            st.markdown(growth_html, unsafe_allow_html=True)
 
                             # Estimator weights with visual bars
                             if weights:
