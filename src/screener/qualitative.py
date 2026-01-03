@@ -478,14 +478,25 @@ class QualitativeAnalyzer:
                             else:
                                 cap_range = 'any size'
 
+                            # Adaptive reliability for mega caps
+                            # For companies >$500B, sector match is reasonably reliable
+                            # because there are very few companies at that scale globally
+                            if market_cap > 500e9:  # >$500B
+                                reliability = 'Medium'
+                                detail_suffix = 'Mega cap: sector-level peers are comparable at this scale'
+                                logger.info(f"✓ Mega cap detected (${market_cap/1e9:.0f}B) - upgrading reliability to MEDIUM")
+                            else:
+                                reliability = 'Medium-Low'
+                                detail_suffix = 'Level 3 fallback: widest range for maximum coverage'
+
                             metadata = {
                                 'sector': sector,
                                 'industry': industry or 'not specified',
                                 'market_cap_min': cap_min,
                                 'market_cap_max': cap_max,
-                                'method_detail': f'Sector: {sector} | Market cap: {cap_range} | Level 3 fallback: widest range for maximum coverage'
+                                'method_detail': f'Sector: {sector} | Market cap: {cap_range} | {detail_suffix}'
                             }
-                            return peers_list, 'screener_sector', 'Medium-Low', metadata
+                            return peers_list, 'screener_sector', reliability, metadata
                 except Exception as e:
                     logger.debug(f"Sector screener failed for {symbol}: {e}")
 
@@ -3452,7 +3463,8 @@ class QualitativeAnalyzer:
                                 robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers | {method_detail}' if method_detail else f'{len(peers_list)} peers from sector screener (tight cap range)'
                                 robust_valuation['peer_selection_method'] = 'screener_sector_tight'
                             elif peer_method == 'screener_sector':
-                                robust_valuation['multiples_reliability'] = 'Medium-Low'
+                                # Use the reliability from peer selection (can be Medium for mega caps or Medium-Low for others)
+                                robust_valuation['multiples_reliability'] = peer_reliability if peer_reliability in ['Medium', 'Medium-Low'] else 'Medium-Low'
                                 robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers | {method_detail}' if method_detail else f'{len(peers_list)} peers from sector screener'
                                 robust_valuation['peer_selection_method'] = 'screener_sector'
                             else:
