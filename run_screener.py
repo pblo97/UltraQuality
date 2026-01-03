@@ -5905,26 +5905,26 @@ with tab5:
                                     <div style='font-size: 0.7rem; color: {colors['text']}; margin-left: 1rem;'>{reliability_reason}</div>
                                 """, unsafe_allow_html=True)
 
-                                    # Family divergence warning (if present)
-                                    if method_disagreement:
-                                        if 'divergence' in method_disagreement.lower():
-                                            # Extract divergence percentage if present
-                                            import re
-                                            divergence_match = re.search(r'(\d+\.?\d*)%', method_disagreement)
-                                            divergence_pct = divergence_match.group(1) if divergence_match else None
+                                # Family divergence warning (if present)
+                                if method_disagreement:
+                                    if 'divergence' in method_disagreement.lower():
+                                        # Extract divergence percentage if present
+                                        import re
+                                        divergence_match = re.search(r'(\d+\.?\d*)%', method_disagreement)
+                                        divergence_pct = divergence_match.group(1) if divergence_match else None
 
-                                            # Add separator if showing both peer info and divergence
-                                            st.markdown("<div style='margin: 0.5rem 0; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 0.5rem;'></div>", unsafe_allow_html=True)
+                                        # Add separator if showing both peer info and divergence
+                                        st.markdown("<div style='margin: 0.5rem 0; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 0.5rem;'></div>", unsafe_allow_html=True)
 
-                                            st.markdown(f"""
-                                            <div style='display: flex; align-items: center; margin-bottom: 0.35rem;'>
-                                                <div style='width: 6px; height: 6px; background: #f59e0b; border-radius: 50%; margin-right: 0.5rem;'></div>
-                                                <span style='font-weight: 700; color: #92400e; font-size: 0.75rem;'>FAMILY DIVERGENCE: {divergence_pct + '%' if divergence_pct else 'DETECTED'}</span>
-                                            </div>
-                                            <div style='font-size: 0.7rem; color: #78350f; margin-left: 1rem;'>{method_disagreement}</div>
-                                            """, unsafe_allow_html=True)
+                                        st.markdown(f"""
+                                        <div style='display: flex; align-items: center; margin-bottom: 0.35rem;'>
+                                            <div style='width: 6px; height: 6px; background: #f59e0b; border-radius: 50%; margin-right: 0.5rem;'></div>
+                                            <span style='font-weight: 700; color: #92400e; font-size: 0.75rem;'>FAMILY DIVERGENCE: {divergence_pct + '%' if divergence_pct else 'DETECTED'}</span>
+                                        </div>
+                                        <div style='font-size: 0.7rem; color: #78350f; margin-left: 1rem;'>{method_disagreement}</div>
+                                        """, unsafe_allow_html=True)
 
-                                    st.markdown("</div>", unsafe_allow_html=True)
+                                st.markdown("</div>", unsafe_allow_html=True)
 
                             # Family divergence shown separately if no peer info
                             elif method_disagreement:
