@@ -5764,27 +5764,33 @@ with tab5:
                             multiples_reliability = robust_val.get('multiples_reliability', 'Medium')
                             reliability_reason = robust_val.get('multiples_reliability_reason', '')
 
-                            # Compact display (as suggested)
-                            st.markdown(f"""
-                            <div style='background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-                                        padding: 0.9rem 1.15rem; border-radius: 10px; margin-bottom: 1rem;
-                                        box-shadow: 0 4px 6px rgba(99,102,241,0.2);'>
-                                <div style='color: white; font-size: 0.85rem; line-height: 1.5;'>
-                                    <div style='margin-bottom: 0.4rem;'>
-                                        <strong style='font-size: 0.9rem;'>Robust FV (p50):</strong> <span style='font-size: 1.15rem; font-weight: 700;'>${fair_value_robust:.2f}</span>
-                                    </div>
-                                    <div style='margin-bottom: 0.4rem;'>
-                                        <strong>Range (p10–p90):</strong> ${range_p10:.2f}–${range_p90:.2f} | <strong>Consensus:</strong> {consensus_tightness} (post-trim)
-                                    </div>
-                                    <div style='margin-bottom: 0.4rem;'>
-                                        <strong>Price:</strong> ${current_price:.2f} | <em>{positioning}</em>
-                                    </div>
-                                    <div style='margin-bottom: 0.2rem;'>
-                                        <strong>{downside_label}</strong>
-                                    </div>
-                                </div>
+                            # Panel-based display (matching Growth Engine style)
+                            st.markdown("""
+                            <div style='font-weight: 700; color: #0f172a; font-size: 0.95rem; margin-bottom: 0.75rem;'>
+                                Robust Fair Value
                             </div>
                             """, unsafe_allow_html=True)
+
+                            col_fv1, col_fv2, col_fv3 = st.columns(3)
+
+                            with col_fv1:
+                                st.metric("Robust FV (p50)", f"${fair_value_robust:.2f}", help="Median fair value from robust multi-method consensus")
+
+                            with col_fv2:
+                                st.metric("Price", f"${current_price:.2f}", help=f"{positioning}")
+
+                            with col_fv3:
+                                # Extract the downside/upside percentage from downside_label
+                                # downside_label format: "Downside to robust p90: -20.5%" or "Upside to p90: +25.0%"
+                                import re
+                                match = re.search(r'([+-]?\d+\.?\d*)%', downside_label)
+                                delta_value = match.group(1) if match else "0"
+                                delta_display = f"{delta_value}%"
+                                label_prefix = "Downside to p90" if "Downside" in downside_label else "Upside to p90"
+                                st.metric(label_prefix, delta_display, help=downside_label)
+
+                            # Range and consensus caption
+                            st.caption(f"Range (p10–p90): ${range_p10:.2f}–${range_p90:.2f} | Consensus: {consensus_tightness} (post-trim)")
 
                             # Multiples reliability flag
                             if multiples_reliability == 'Low':
@@ -6349,35 +6355,26 @@ with tab5:
                                 border_color = '#f59e0b'
                                 badge_bg = '#f59e0b'
 
-                            st.markdown(f"""
-                            <div style='background: {bg_gradient};
-                                        padding: 1.5rem;
-                                        border-radius: 12px;
-                                        border-left: 6px solid {border_color};
-                                        margin: 1rem 0;
-                                        box-shadow: 0 4px 8px rgba(0,0,0,0.15);'>
-                                <div style='display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;'>
-                                    <div style='font-size: 2rem; font-weight: 800; color: {text_color};'>
-                                        {emoji} {display_assessment}
-                                    </div>
-                                    <div style='background: {badge_bg}; color: white; padding: 0.35rem 0.75rem;
-                                                border-radius: 6px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.3px;'>
-                                        CONVICTION: {conviction_display}
-                                    </div>
-                                </div>
-                                <div style='font-size: 2.8rem; font-weight: 900; color: {text_color}; margin-bottom: 0.5rem; letter-spacing: -0.5px;'>
-                                    {upside_display}
-                                </div>
-                                <div style='display: flex; gap: 1.5rem; margin-top: 1rem; padding-top: 0.75rem; border-top: 2px solid rgba(0,0,0,0.1);'>
-                                    <div style='color: {text_color}; font-size: 0.9rem;'>
-                                        <span style='opacity: 0.7;'>Industry:</span> <strong>{industry_profile}</strong>
-                                    </div>
-                                    <div style='color: {text_color}; font-size: 0.9rem;'>
-                                        <span style='opacity: 0.7;'>Primary Metric:</span> <strong>{primary_metric}</strong>
-                                    </div>
-                                </div>
+                            # Panel-based display for valuation verdict
+                            st.markdown("""
+                            <div style='font-weight: 700; color: #0f172a; font-size: 0.95rem; margin-bottom: 0.75rem; margin-top: 1rem;'>
+                                Valuation Verdict
                             </div>
                             """, unsafe_allow_html=True)
+
+                            col_val1, col_val2, col_val3 = st.columns(3)
+
+                            with col_val1:
+                                st.metric("Assessment", display_assessment, help=f"{emoji}")
+
+                            with col_val2:
+                                st.metric("Conviction", conviction_display, help="Confidence level in the valuation")
+
+                            with col_val3:
+                                st.metric("Target vs Price", upside_display, help=downside_label_full if downside_label_full else "Upside/Downside from current price")
+
+                            # Industry and metric caption
+                            st.caption(f"Industry: {industry_profile} | Primary Metric: {primary_metric}")
 
                             # Show PEG Hammer explanation if applied
                             if growth_override_applied and growth_override_reason:
@@ -6469,7 +6466,7 @@ with tab5:
                             st.markdown(f"""
                             <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                                         padding: 0.7rem 1.1rem; border-radius: 10px; margin-bottom: 1rem;'>
-                                <div style='display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem;'>
+                                <div style='display: flex; align-items: center; gap: 0.5rem;'>
                                     <span style='background: rgba(255,255,255,0.2); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.6rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
                                         PROJECTIONS
                                     </span>
@@ -6478,9 +6475,6 @@ with tab5:
                                     </h4>
                                     {source_badge}
                                 </div>
-                                <p style='margin: 0; color: white; opacity: 0.9; font-size: 0.75rem;'>
-                                    {source_text}
-                                </p>
                             </div>
                             """, unsafe_allow_html=True)
 
