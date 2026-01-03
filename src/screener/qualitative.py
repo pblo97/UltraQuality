@@ -247,15 +247,16 @@ class QualitativeAnalyzer:
 
     def _get_peers_robust(self, symbol: str) -> tuple:
         """
-        Robust peer selection with 3-level fallback system.
+        Robust peer selection with 4-level fallback system.
 
-        Level 1: FMP Stock Peers API (if available)
-        Level 2: Stock Screener with industry + market cap filters
-        Level 3: Stock Screener with sector-only filter
+        Level 1 (High): FMP Stock Peers API - curated industry peers
+        Level 2 (Medium): Stock Screener with industry + market cap (±70%)
+        Level 2.5 (Medium): Stock Screener with sector + tight market cap (±70%) - if industry fails
+        Level 3 (Medium-Low): Stock Screener with sector + wide market cap (±80%)
 
         Returns: (peers_list, peer_method, peer_reliability, selection_metadata)
         - peers_list: List of peer symbols
-        - peer_method: 'stock_peers_api' | 'screener_industry' | 'screener_sector' | 'no_peers'
+        - peer_method: 'stock_peers_api' | 'screener_industry' | 'screener_sector_tight' | 'screener_sector' | 'no_peers'
         - peer_reliability: 'High' | 'Medium' | 'Medium-Low' | 'Low'
         - selection_metadata: Dict with selection criteria details
         """
@@ -368,6 +369,55 @@ class QualitativeAnalyzer:
                         logger.info(f"✗ Level 2 FAILED for {symbol}: Industry screener returned no results for industry='{industry}'")
                 except Exception as e:
                     logger.warning(f"✗ Level 2 ERROR for {symbol}: {e}")
+
+            # ============================================================================
+            # LEVEL 2.5: Stock Screener with Sector + Market Cap (No Industry Filter)
+            # ============================================================================
+            # If Level 2 (industry) failed, try sector-only but with tighter market cap range
+            # This gives better quality than Level 3 (which uses ±80% cap range)
+            if market_cap > 0 and sector:
+                try:
+                    # Same market cap range as Level 2: ±70% (tighter than Level 3's ±80%)
+                    cap_min = int(market_cap * 0.3)
+                    cap_max = int(market_cap * 3.0)
+
+                    logger.debug(f"Level 2.5 screening for {symbol}: sector={sector}, cap_range=${cap_min/1e9:.1f}B-${cap_max/1e9:.1f}B (NO industry filter)")
+
+                    screener_results = self.fmp.get_stock_screener(
+                        market_cap_more_than=cap_min,
+                        market_cap_lower_than=cap_max,
+                        sector=sector,
+                        is_actively_trading=True,
+                        is_etf=False,
+                        is_fund=False,
+                        limit=50
+                    )
+
+                    if screener_results and len(screener_results) > 0:
+                        # Filter and sort by market cap similarity
+                        candidates = [
+                            (r['symbol'], abs(r.get('mktCap', 0) - market_cap))
+                            for r in screener_results
+                            if r.get('symbol') != symbol and r.get('mktCap', 0) > 0
+                        ]
+
+                        candidates.sort(key=lambda x: x[1])
+                        peers_list = [c[0] for c in candidates[:5]]
+
+                        if len(peers_list) > 0:
+                            logger.info(f"✓ Level 2.5 SUCCESS for {symbol}: Found {len(peers_list)} peers via Sector Screener (tight cap range) → {peers_list}")
+                            cap_min_b = cap_min / 1e9
+                            cap_max_b = cap_max / 1e9
+                            metadata = {
+                                'sector': sector,
+                                'industry': industry or 'not matched',
+                                'market_cap_min': cap_min,
+                                'market_cap_max': cap_max,
+                                'method_detail': f'Sector: {sector} | Market cap: ${cap_min_b:.1f}B-${cap_max_b:.1f}B (±70%) | Industry-specific filter not available'
+                            }
+                            return peers_list, 'screener_sector_tight', 'Medium', metadata
+                except Exception as e:
+                    logger.warning(f"✗ Level 2.5 ERROR for {symbol}: {e}")
 
             # ============================================================================
             # LEVEL 3: Stock Screener with Sector-Only (Broad Fallback)
@@ -3367,7 +3417,7 @@ class QualitativeAnalyzer:
                             method_detail = peer_metadata.get('method_detail', '')
 
                             # Map peer_reliability to multiples_reliability
-                            # Peer reliability: High (stock_peers_api) > Medium (screener_industry) > Medium-Low (screener_sector) > Low (no_peers)
+                            # Peer reliability: High (stock_peers_api) > Medium (screener_industry, screener_sector_tight) > Medium-Low (screener_sector) > Low (no_peers)
                             if not has_peers or peer_method == 'no_peers':
                                 robust_valuation['multiples_reliability'] = 'Low'
                                 robust_valuation['multiples_reliability_reason'] = method_detail or 'No peers available - using sector fallback multiples'
@@ -3380,6 +3430,10 @@ class QualitativeAnalyzer:
                                 robust_valuation['multiples_reliability'] = 'Medium'
                                 robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers | {method_detail}' if method_detail else f'{len(peers_list)} peers from industry screener'
                                 robust_valuation['peer_selection_method'] = 'screener_industry'
+                            elif peer_method == 'screener_sector_tight':
+                                robust_valuation['multiples_reliability'] = 'Medium'
+                                robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers | {method_detail}' if method_detail else f'{len(peers_list)} peers from sector screener (tight cap range)'
+                                robust_valuation['peer_selection_method'] = 'screener_sector_tight'
                             elif peer_method == 'screener_sector':
                                 robust_valuation['multiples_reliability'] = 'Medium-Low'
                                 robust_valuation['multiples_reliability_reason'] = f'{len(peers_list)} peers | {method_detail}' if method_detail else f'{len(peers_list)} peers from sector screener'
