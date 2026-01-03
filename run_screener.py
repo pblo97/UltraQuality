@@ -5829,70 +5829,49 @@ with tab5:
                                     zone_label = "Extremely Overvalued"
                                     zone_color = "#dc2626"
 
-                                # Pre-calculate extended range HTML to avoid nested f-strings
-                                extended_left = ''
+                                # Pre-build HTML parts with all values calculated
+                                extended_left_html = ''
                                 if p10_position > 0.02:
-                                    extended_left = f'<div style="position: absolute; top: 32px; left: 0; right: {(1 - p10_position) * 100}%; height: 16px; background: repeating-linear-gradient(45deg, #d1fae5, #d1fae5 4px, #a7f3d0 4px, #a7f3d0 8px); border-radius: 8px 0 0 8px; border: 2px dashed #10b981; opacity: 0.6;"></div>'
+                                    left_right_pct = (1 - p10_position) * 100
+                                    extended_left_html = f"<div style='position: absolute; top: 32px; left: 0; right: {left_right_pct}%; height: 16px; background: repeating-linear-gradient(45deg, #d1fae5, #d1fae5 4px, #a7f3d0 4px, #a7f3d0 8px); border-radius: 8px 0 0 8px; border: 2px dashed #10b981; opacity: 0.6;'></div>"
 
-                                extended_right = ''
+                                extended_right_html = ''
                                 if p90_position < 0.98:
-                                    extended_right = f'<div style="position: absolute; top: 32px; left: {p90_position * 100}%; right: 0; height: 16px; background: repeating-linear-gradient(45deg, #fee2e2, #fee2e2 4px, #fecaca 4px, #fecaca 8px); border-radius: 0 8px 8px 0; border: 2px dashed #ef4444; opacity: 0.6;"></div>'
+                                    right_left_pct = p90_position * 100
+                                    extended_right_html = f"<div style='position: absolute; top: 32px; left: {right_left_pct}%; right: 0; height: 16px; background: repeating-linear-gradient(45deg, #fee2e2, #fee2e2 4px, #fecaca 4px, #fecaca 8px); border-radius: 0 8px 8px 0; border: 2px dashed #ef4444; opacity: 0.6;'></div>"
 
-                                st.markdown(f"""
-                                <div style='margin: 1rem 0; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;'>
-                                    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;'>
-                                        <div style='font-size: 0.75rem; font-weight: 700; color: #0f172a; letter-spacing: 0.5px;'>VALUE RANGE SPECTRUM</div>
-                                        <div style='display: inline-block; padding: 3px 8px; background: {zone_color}; color: white; border-radius: 4px; font-size: 0.65rem; font-weight: 700;'>{zone_label}</div>
-                                    </div>
+                                # Calculate all percentage positions
+                                p10_pct = p10_position * 100
+                                p50_pct = p50_position * 100
+                                p90_pct = p90_position * 100
+                                price_pct = price_position * 100
+                                fv_pct = fv_position * 100
+                                p10_right_pct = (1 - p90_position) * 100
+                                p50_value = (range_p10 + range_p90) / 2
 
-                                    <div style='position: relative; height: 60px; margin: 0.5rem 0;'>
-                                        <div style='position: absolute; top: 32px; left: {p10_position * 100}%; right: {(1 - p90_position) * 100}%; height: 16px; background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 15%, #fef3c7 50%, #fecaca 85%, #fee2e2 100%); border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);'></div>
+                                # Build HTML using string concatenation to avoid f-string issues
+                                html_content = "<div style='margin: 1rem 0; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;'>"
+                                html_content += "<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;'>"
+                                html_content += "<div style='font-size: 0.75rem; font-weight: 700; color: #0f172a; letter-spacing: 0.5px;'>VALUE RANGE SPECTRUM</div>"
+                                html_content += f"<div style='display: inline-block; padding: 3px 8px; background: {zone_color}; color: white; border-radius: 4px; font-size: 0.65rem; font-weight: 700;'>{zone_label}</div>"
+                                html_content += "</div>"
+                                html_content += "<div style='position: relative; height: 60px; margin: 0.5rem 0;'>"
+                                html_content += f"<div style='position: absolute; top: 32px; left: {p10_pct}%; right: {p10_right_pct}%; height: 16px; background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 15%, #fef3c7 50%, #fecaca 85%, #fee2e2 100%); border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: inset 0 2px 4px rgba(0,0,0,0.06);'></div>"
+                                html_content += extended_left_html
+                                html_content += extended_right_html
+                                html_content += f"<div style='position: absolute; left: {p10_pct}%; top: 28px;'><div style='width: 2px; height: 24px; background: #10b981;'></div><div style='position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 600; color: #10b981; white-space: nowrap;'>p10: ${range_p10:.0f}</div></div>"
+                                html_content += f"<div style='position: absolute; left: {p50_pct}%; top: 28px;'><div style='width: 2px; height: 24px; background: #64748b;'></div><div style='position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 600; color: #64748b; white-space: nowrap;'>p50: ${p50_value:.0f}</div></div>"
+                                html_content += f"<div style='position: absolute; left: {p90_pct}%; top: 28px;'><div style='width: 2px; height: 24px; background: #ef4444;'></div><div style='position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 600; color: #ef4444; white-space: nowrap;'>p90: ${range_p90:.0f}</div></div>"
+                                html_content += f"<div style='position: absolute; left: {price_pct}%; top: 24px; z-index: 10;'><div style='width: 5px; height: 32px; background: #0f172a; border-radius: 2px; box-shadow: 0 3px 8px rgba(0,0,0,0.4);'></div><div style='position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 0.7rem; font-weight: 800; color: #0f172a; white-space: nowrap; background: white; padding: 3px 6px; border-radius: 4px; border: 2px solid #0f172a; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>${current_price:.0f}</div></div>"
+                                html_content += f"<div style='position: absolute; left: {fv_pct}%; top: 32px; z-index: 9;'><div style='width: 14px; height: 14px; background: #3b82f6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);'></div><div style='position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 700; color: #3b82f6; white-space: nowrap; background: white; padding: 2px 5px; border-radius: 3px; border: 1px solid #93c5fd;'>FV: ${fair_value_robust:.0f}</div></div>"
+                                html_content += "</div>"
+                                html_content += "<div style='margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap;'>"
+                                html_content += "<div style='display: flex; align-items: center; gap: 0.35rem;'><div style='width: 5px; height: 16px; background: #0f172a; border-radius: 2px;'></div><span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>Current Price</span></div>"
+                                html_content += "<div style='display: flex; align-items: center; gap: 0.35rem;'><div style='width: 14px; height: 14px; background: #3b82f6; border: 2px solid white; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.2);'></div><span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>Fair Value</span></div>"
+                                html_content += "<div style='display: flex; align-items: center; gap: 0.35rem;'><div style='width: 20px; height: 12px; background: linear-gradient(90deg, #d1fae5, #fecaca); border-radius: 2px; border: 1px solid #cbd5e1;'></div><span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>p10–p90 Range</span></div>"
+                                html_content += "</div></div>"
 
-                                        {extended_left}
-                                        {extended_right}
-
-                                        <div style='position: absolute; left: {p10_position * 100}%; top: 28px;'>
-                                            <div style='width: 2px; height: 24px; background: #10b981;'></div>
-                                            <div style='position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 600; color: #10b981; white-space: nowrap;'>p10: ${range_p10:.0f}</div>
-                                        </div>
-
-                                        <div style='position: absolute; left: {p50_position * 100}%; top: 28px;'>
-                                            <div style='width: 2px; height: 24px; background: #64748b;'></div>
-                                            <div style='position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 600; color: #64748b; white-space: nowrap;'>p50: ${(range_p10 + range_p90) / 2:.0f}</div>
-                                        </div>
-
-                                        <div style='position: absolute; left: {p90_position * 100}%; top: 28px;'>
-                                            <div style='width: 2px; height: 24px; background: #ef4444;'></div>
-                                            <div style='position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 600; color: #ef4444; white-space: nowrap;'>p90: ${range_p90:.0f}</div>
-                                        </div>
-
-                                        <div style='position: absolute; left: {price_position * 100}%; top: 24px; z-index: 10;'>
-                                            <div style='width: 5px; height: 32px; background: #0f172a; border-radius: 2px; box-shadow: 0 3px 8px rgba(0,0,0,0.4);'></div>
-                                            <div style='position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 0.7rem; font-weight: 800; color: #0f172a; white-space: nowrap; background: white; padding: 3px 6px; border-radius: 4px; border: 2px solid #0f172a; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'>${current_price:.0f}</div>
-                                        </div>
-
-                                        <div style='position: absolute; left: {fv_position * 100}%; top: 32px; z-index: 9;'>
-                                            <div style='width: 14px; height: 14px; background: #3b82f6; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.5);'></div>
-                                            <div style='position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 0.65rem; font-weight: 700; color: #3b82f6; white-space: nowrap; background: white; padding: 2px 5px; border-radius: 3px; border: 1px solid #93c5fd;'>FV: ${fair_value_robust:.0f}</div>
-                                        </div>
-                                    </div>
-
-                                    <div style='margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; gap: 1.5rem; flex-wrap: wrap;'>
-                                        <div style='display: flex; align-items: center; gap: 0.35rem;'>
-                                            <div style='width: 5px; height: 16px; background: #0f172a; border-radius: 2px;'></div>
-                                            <span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>Current Price</span>
-                                        </div>
-                                        <div style='display: flex; align-items: center; gap: 0.35rem;'>
-                                            <div style='width: 14px; height: 14px; background: #3b82f6; border: 2px solid white; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,0.2);'></div>
-                                            <span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>Fair Value</span>
-                                        </div>
-                                        <div style='display: flex; align-items: center; gap: 0.35rem;'>
-                                            <div style='width: 20px; height: 12px; background: linear-gradient(90deg, #d1fae5, #fecaca); border-radius: 2px; border: 1px solid #cbd5e1;'></div>
-                                            <span style='font-size: 0.7rem; color: #475569; font-weight: 500;'>p10–p90 Range</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                st.markdown(html_content, unsafe_allow_html=True)
 
                             # Range and consensus info with badges
                             consensus_color = {'High': '#10b981', 'Medium': '#f59e0b', 'Low': '#ef4444'}.get(consensus_tightness, '#64748b')
