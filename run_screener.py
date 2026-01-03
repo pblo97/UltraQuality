@@ -5885,39 +5885,65 @@ with tab5:
                             # Get method disagreement early for use in conditional
                             method_disagreement = robust_val.get('method_disagreement', '')
 
-                            # Multiples reliability and family divergence - professional indicators
-                            if multiples_reliability == 'Low' or method_disagreement:
+                            # Peer selection info - always show for transparency
+                            if reliability_reason:
+                                # Color scheme based on reliability level
+                                reliability_colors = {
+                                    'High': {'bg': '#d1fae5', 'border': '#10b981', 'text': '#065f46', 'dot': '#10b981'},
+                                    'Medium': {'bg': '#dbeafe', 'border': '#3b82f6', 'text': '#1e3a8a', 'dot': '#3b82f6'},
+                                    'Medium-Low': {'bg': '#fef3c7', 'border': '#f59e0b', 'text': '#78350f', 'dot': '#f59e0b'},
+                                    'Low': {'bg': '#fef3c7', 'border': '#f59e0b', 'text': '#92400e', 'dot': '#f59e0b'}
+                                }
+                                colors = reliability_colors.get(multiples_reliability, reliability_colors['Medium'])
+
+                                st.markdown(f"""
+                                <div style='background: {colors['bg']}; border-left: 4px solid {colors['border']}; padding: 0.75rem; border-radius: 4px; margin: 0.5rem 0;'>
+                                    <div style='display: flex; align-items: center; margin-bottom: 0.35rem;'>
+                                        <div style='width: 6px; height: 6px; background: {colors['dot']}; border-radius: 50%; margin-right: 0.5rem;'></div>
+                                        <span style='font-weight: 700; color: {colors['text']}; font-size: 0.75rem;'>PEER SELECTION: {multiples_reliability.upper()}</span>
+                                    </div>
+                                    <div style='font-size: 0.7rem; color: {colors['text']}; margin-left: 1rem;'>{reliability_reason}</div>
+                                """, unsafe_allow_html=True)
+
+                                    # Family divergence warning (if present)
+                                    if method_disagreement:
+                                        if 'divergence' in method_disagreement.lower():
+                                            # Extract divergence percentage if present
+                                            import re
+                                            divergence_match = re.search(r'(\d+\.?\d*)%', method_disagreement)
+                                            divergence_pct = divergence_match.group(1) if divergence_match else None
+
+                                            # Add separator if showing both peer info and divergence
+                                            st.markdown("<div style='margin: 0.5rem 0; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 0.5rem;'></div>", unsafe_allow_html=True)
+
+                                            st.markdown(f"""
+                                            <div style='display: flex; align-items: center; margin-bottom: 0.35rem;'>
+                                                <div style='width: 6px; height: 6px; background: #f59e0b; border-radius: 50%; margin-right: 0.5rem;'></div>
+                                                <span style='font-weight: 700; color: #92400e; font-size: 0.75rem;'>FAMILY DIVERGENCE: {divergence_pct + '%' if divergence_pct else 'DETECTED'}</span>
+                                            </div>
+                                            <div style='font-size: 0.7rem; color: #78350f; margin-left: 1rem;'>{method_disagreement}</div>
+                                            """, unsafe_allow_html=True)
+
+                                    st.markdown("</div>", unsafe_allow_html=True)
+
+                            # Family divergence shown separately if no peer info
+                            elif method_disagreement:
                                 st.markdown("""
                                 <div style='background: #fef3c7; border-left: 4px solid #f59e0b; padding: 0.75rem; border-radius: 4px; margin: 0.5rem 0;'>
                                 """, unsafe_allow_html=True)
 
-                                if multiples_reliability == 'Low':
+                                if 'divergence' in method_disagreement.lower():
+                                    import re
+                                    divergence_match = re.search(r'(\d+\.?\d*)%', method_disagreement)
+                                    divergence_pct = divergence_match.group(1) if divergence_match else None
+
                                     st.markdown(f"""
                                     <div style='display: flex; align-items: center; margin-bottom: 0.35rem;'>
                                         <div style='width: 6px; height: 6px; background: #f59e0b; border-radius: 50%; margin-right: 0.5rem;'></div>
-                                        <span style='font-weight: 700; color: #92400e; font-size: 0.75rem;'>MULTIPLES RELIABILITY: LOW</span>
+                                        <span style='font-weight: 700; color: #92400e; font-size: 0.75rem;'>FAMILY DIVERGENCE: {divergence_pct + '%' if divergence_pct else 'DETECTED'}</span>
                                     </div>
-                                    <div style='font-size: 0.7rem; color: #78350f; margin-left: 1rem;'>{reliability_reason}</div>
+                                    <div style='font-size: 0.7rem; color: #78350f; margin-left: 1rem;'>{method_disagreement}</div>
                                     """, unsafe_allow_html=True)
-
-                                # Method disagreement / family divergence
-                                if method_disagreement:
-                                    if 'divergence' in method_disagreement.lower():
-                                        # Extract divergence percentage if present
-                                        import re
-                                        divergence_match = re.search(r'(\d+\.?\d*)%', method_disagreement)
-                                        divergence_pct = divergence_match.group(1) if divergence_match else None
-
-                                        if multiples_reliability == 'Low':
-                                            st.markdown("<div style='margin: 0.5rem 0; border-top: 1px solid #fcd34d; padding-top: 0.5rem;'></div>", unsafe_allow_html=True)
-
-                                        st.markdown(f"""
-                                        <div style='display: flex; align-items: center; margin-bottom: 0.35rem;'>
-                                            <div style='width: 6px; height: 6px; background: #f59e0b; border-radius: 50%; margin-right: 0.5rem;'></div>
-                                            <span style='font-weight: 700; color: #92400e; font-size: 0.75rem;'>FAMILY DIVERGENCE: {divergence_pct + '%' if divergence_pct else 'DETECTED'}</span>
-                                        </div>
-                                        <div style='font-size: 0.7rem; color: #78350f; margin-left: 1rem;'>{method_disagreement}</div>
-                                        """, unsafe_allow_html=True)
 
                                 st.markdown("</div>", unsafe_allow_html=True)
 
