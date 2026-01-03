@@ -384,13 +384,14 @@ class QualitativeAnalyzer:
                         cap_min = int(market_cap * 0.1)  # 10% of current
                         cap_max = int(market_cap * 10.0)  # 10x current
                         cap_label = "±90% (mega cap adjusted)"
+                        logger.info(f"🚀 MEGA CAP DETECTED for {symbol}: ${market_cap/1e12:.2f}T - using adaptive range")
                     else:
                         # Standard range: ±70% (same as Level 2)
                         cap_min = int(market_cap * 0.3)
                         cap_max = int(market_cap * 3.0)
                         cap_label = "±70%"
 
-                    logger.debug(f"Level 2.5 screening for {symbol}: sector={sector}, cap_range=${cap_min/1e9:.1f}B-${cap_max/1e9:.1f}B (NO industry filter)")
+                    logger.info(f"▶ Level 2.5 EXECUTING for {symbol}: sector={sector}, cap_range=${cap_min/1e9:.1f}B-${cap_max/1e9:.1f}B")
 
                     screener_results = self.fmp.get_stock_screener(
                         market_cap_more_than=cap_min,
@@ -402,6 +403,8 @@ class QualitativeAnalyzer:
                         limit=50
                     )
 
+                    logger.info(f"Level 2.5: Screener returned {len(screener_results) if screener_results else 0} total results")
+
                     if screener_results and len(screener_results) > 0:
                         # Filter and sort by market cap similarity
                         candidates = [
@@ -410,11 +413,12 @@ class QualitativeAnalyzer:
                             if r.get('symbol') != symbol and r.get('mktCap', 0) > 0
                         ]
 
+                        logger.info(f"Level 2.5: After filtering got {len(candidates)} candidates")
                         candidates.sort(key=lambda x: x[1])
                         peers_list = [c[0] for c in candidates[:5]]
 
                         if len(peers_list) > 0:
-                            logger.info(f"✓ Level 2.5 SUCCESS for {symbol}: Found {len(peers_list)} peers via Sector Screener (tight cap range) → {peers_list}")
+                            logger.info(f"✓✓✓ Level 2.5 SUCCESS for {symbol}: Found {len(peers_list)} peers → {peers_list}")
                             cap_min_b = cap_min / 1e9
                             cap_max_b = cap_max / 1e9
                             metadata = {
@@ -425,8 +429,12 @@ class QualitativeAnalyzer:
                                 'method_detail': f'Sector: {sector} | Market cap: ${cap_min_b:.1f}B-${cap_max_b:.1f}B ({cap_label}) | Industry-specific peers not available in this size range'
                             }
                             return peers_list, 'screener_sector_tight', 'Medium', metadata
+                        else:
+                            logger.info(f"✗ Level 2.5 FAILED for {symbol}: Got candidates but none in top 5")
+                    else:
+                        logger.info(f"✗ Level 2.5 FAILED for {symbol}: Screener returned no results")
                 except Exception as e:
-                    logger.warning(f"✗ Level 2.5 ERROR for {symbol}: {e}")
+                    logger.warning(f"✗✗✗ Level 2.5 ERROR for {symbol}: {e}")
 
             # ============================================================================
             # LEVEL 3: Stock Screener with Sector-Only (Broad Fallback)
@@ -475,7 +483,7 @@ class QualitativeAnalyzer:
                                 'industry': industry or 'not specified',
                                 'market_cap_min': cap_min,
                                 'market_cap_max': cap_max,
-                                'method_detail': f'Sector: {sector} | Market cap: {cap_range} | Industry filter not applied (broad sector match for wider coverage)'
+                                'method_detail': f'Sector: {sector} | Market cap: {cap_range} | Level 3 fallback: widest range for maximum coverage'
                             }
                             return peers_list, 'screener_sector', 'Medium-Low', metadata
                 except Exception as e:
