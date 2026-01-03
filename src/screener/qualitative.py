@@ -306,6 +306,9 @@ class QualitativeAnalyzer:
                     cap_min = int(market_cap * 0.3)
                     cap_max = int(market_cap * 3.0)
 
+                    logger.debug(f"Level 2 screening for {symbol}: industry={industry}, sector={sector}, cap_range=${cap_min/1e9:.1f}B-${cap_max/1e9:.1f}B, exchange={exchange}")
+
+                    # Try WITH exchange filter first (most restrictive)
                     screener_results = self.fmp.get_stock_screener(
                         market_cap_more_than=cap_min,
                         market_cap_lower_than=cap_max,
@@ -317,6 +320,21 @@ class QualitativeAnalyzer:
                         is_fund=False,
                         limit=50
                     )
+
+                    # If no results with exchange filter, try without it
+                    if (not screener_results or len(screener_results) < 3) and exchange:
+                        logger.info(f"Level 2: Exchange filter found only {len(screener_results) if screener_results else 0} results for {symbol}, retrying without exchange filter")
+                        screener_results = self.fmp.get_stock_screener(
+                            market_cap_more_than=cap_min,
+                            market_cap_lower_than=cap_max,
+                            sector=sector,
+                            industry=industry,
+                            is_actively_trading=True,
+                            is_etf=False,
+                            is_fund=False,
+                            limit=50
+                        )
+                        logger.info(f"Level 2: Without exchange filter found {len(screener_results) if screener_results else 0} results for {symbol}")
 
                     if screener_results and len(screener_results) > 0:
                         # Filter out the symbol itself and select top peers by market cap similarity
@@ -331,7 +349,7 @@ class QualitativeAnalyzer:
                         peers_list = [c[0] for c in candidates[:5]]
 
                         if len(peers_list) > 0:
-                            logger.info(f"✓ Peers for {symbol}: Found {len(peers_list)} via Industry Screener (±70% cap)")
+                            logger.info(f"✓ Level 2 SUCCESS for {symbol}: Found {len(peers_list)} peers via Industry Screener → {peers_list}")
                             # Format market cap for display
                             cap_min_b = cap_min / 1e9
                             cap_max_b = cap_max / 1e9
@@ -341,11 +359,15 @@ class QualitativeAnalyzer:
                                 'exchange': exchange,
                                 'market_cap_min': cap_min,
                                 'market_cap_max': cap_max,
-                                'method_detail': f'Industry: {industry} | Sector: {sector} | Market cap: ${cap_min_b:.1f}B-${cap_max_b:.1f}B{(" | " + exchange) if exchange else ""}'
+                                'method_detail': f'Industry: {industry} | Sector: {sector} | Market cap: ${cap_min_b:.1f}B-${cap_max_b:.1f}B (any exchange)'
                             }
                             return peers_list, 'screener_industry', 'Medium', metadata
+                        else:
+                            logger.info(f"✗ Level 2 FAILED for {symbol}: Industry screener found {len(screener_results)} results but none after filtering")
+                    else:
+                        logger.info(f"✗ Level 2 FAILED for {symbol}: Industry screener returned no results for industry='{industry}'")
                 except Exception as e:
-                    logger.debug(f"Industry screener failed for {symbol}: {e}")
+                    logger.warning(f"✗ Level 2 ERROR for {symbol}: {e}")
 
             # ============================================================================
             # LEVEL 3: Stock Screener with Sector-Only (Broad Fallback)
@@ -355,6 +377,8 @@ class QualitativeAnalyzer:
                     # Wider market cap range: ±80%
                     cap_min = int(market_cap * 0.2) if market_cap > 0 else 0
                     cap_max = int(market_cap * 5.0) if market_cap > 0 else None
+
+                    logger.debug(f"Level 3 screening for {symbol}: sector={sector}, cap_range=${cap_min/1e9:.1f}B-${cap_max/1e9:.1f}B (NO industry filter)")
 
                     screener_results = self.fmp.get_stock_screener(
                         market_cap_more_than=cap_min if cap_min > 0 else None,
@@ -378,7 +402,7 @@ class QualitativeAnalyzer:
                         peers_list = [c[0] for c in candidates[:5]]
 
                         if len(peers_list) > 0:
-                            logger.info(f"✓ Peers for {symbol}: Found {len(peers_list)} via Sector Screener (broad)")
+                            logger.info(f"✓ Level 3 SUCCESS for {symbol}: Found {len(peers_list)} peers via Sector Screener → {peers_list}")
                             # Format market cap for display
                             if market_cap > 0:
                                 cap_min_b = cap_min / 1e9 if cap_min > 0 else 0
