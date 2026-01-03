@@ -6355,23 +6355,38 @@ with tab5:
                                 border_color = '#f59e0b'
                                 badge_bg = '#f59e0b'
 
-                            # Panel-based display for valuation verdict
+                            # Professional panel-based display for valuation verdict
                             st.markdown("""
                             <div style='font-weight: 700; color: #0f172a; font-size: 0.95rem; margin-bottom: 0.75rem; margin-top: 1rem;'>
                                 Valuation Verdict
                             </div>
                             """, unsafe_allow_html=True)
 
+                            # Extract percentage value for delta display
+                            import re
+                            delta_match = re.search(r'([+-]?\d+\.?\d*)%', upside_display)
+                            delta_value = delta_match.group(1) if delta_match else None
+
                             col_val1, col_val2, col_val3 = st.columns(3)
 
                             with col_val1:
-                                st.metric("Assessment", display_assessment, help=f"{emoji}")
+                                st.metric("Assessment", display_assessment, help="Valuation assessment based on robust multi-method analysis")
 
                             with col_val2:
-                                st.metric("Conviction", conviction_display, help="Confidence level in the valuation")
+                                st.metric("Conviction", conviction_display, help="Confidence level in the valuation assessment")
 
                             with col_val3:
-                                st.metric("Target vs Price", upside_display, help=downside_label_full if downside_label_full else "Upside/Downside from current price")
+                                # Clean display for Target vs Price
+                                if delta_value:
+                                    delta_float = float(delta_value)
+                                    delta_display = f"{delta_float:+.1f}%"
+                                    label_text = "Downside to p90" if delta_float < 0 else "Upside to p90"
+                                else:
+                                    delta_display = upside_display
+                                    label_text = "Target vs Price"
+
+                                st.metric(label_text, delta_display,
+                                         help=downside_label_full if downside_label_full else "Return potential to robust p90 fair value")
 
                             # Industry and metric caption
                             st.caption(f"Industry: {industry_profile} | Primary Metric: {primary_metric}")
