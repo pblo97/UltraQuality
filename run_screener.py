@@ -5882,6 +5882,9 @@ with tab5:
                             </div>
                             """, unsafe_allow_html=True)
 
+                            # Get method disagreement early for use in conditional
+                            method_disagreement = robust_val.get('method_disagreement', '')
+
                             # Multiples reliability and family divergence - professional indicators
                             if multiples_reliability == 'Low' or method_disagreement:
                                 st.markdown("""
@@ -5898,7 +5901,6 @@ with tab5:
                                     """, unsafe_allow_html=True)
 
                                 # Method disagreement / family divergence
-                                method_disagreement = robust_val.get('method_disagreement', '')
                                 if method_disagreement:
                                     if 'divergence' in method_disagreement.lower():
                                         # Extract divergence percentage if present
