@@ -239,9 +239,22 @@ class FMPClient:
     def get_stock_screener(
         self,
         market_cap_more_than: Optional[int] = None,
+        market_cap_lower_than: Optional[int] = None,
+        sector: Optional[str] = None,
+        industry: Optional[str] = None,
+        beta_more_than: Optional[float] = None,
+        beta_lower_than: Optional[float] = None,
+        price_more_than: Optional[float] = None,
+        price_lower_than: Optional[float] = None,
         volume_more_than: Optional[int] = None,
+        volume_lower_than: Optional[int] = None,
+        dividend_more_than: Optional[float] = None,
+        dividend_lower_than: Optional[float] = None,
         exchange: Optional[str] = None,
         country: Optional[str] = None,
+        is_etf: Optional[bool] = None,
+        is_fund: Optional[bool] = None,
+        is_actively_trading: Optional[bool] = None,
         limit: int = 10000
     ) -> List[Dict]:
         """
@@ -249,6 +262,18 @@ class FMPClient:
         Returns list of stocks matching criteria.
 
         Args:
+            market_cap_more_than: Minimum market cap threshold
+            market_cap_lower_than: Maximum market cap threshold
+            sector: Filter by sector (e.g., 'Technology', 'Healthcare')
+            industry: Filter by industry (e.g., 'Consumer Electronics', 'Biotechnology')
+            beta_more_than: Minimum beta value
+            beta_lower_than: Maximum beta value
+            price_more_than: Minimum stock price
+            price_lower_than: Maximum stock price
+            volume_more_than: Minimum trading volume
+            volume_lower_than: Maximum trading volume
+            dividend_more_than: Minimum dividend yield
+            dividend_lower_than: Maximum dividend yield
             exchange: Exchange code (RECOMMENDED - this works reliably)
                      API parameter accepts both upper/lowercase, but use UPPERCASE for consistency
                      with exchangeShortName field in returned data (needed for filtering)
@@ -256,16 +281,47 @@ class FMPClient:
                      Also supports: 'NYSE', 'NASDAQ', 'AMEX', 'EURONEXT', 'XETRA'
             country: Country code (NOT RECOMMENDED - FMP API implementation is unreliable)
                     2-letter ISO codes like 'US', 'CA', 'GB', 'DE', 'IN', 'VN' - may not work
+            is_etf: Filter for ETFs (True/False)
+            is_fund: Filter for funds (True/False)
+            is_actively_trading: Filter for actively trading securities (True/False)
+            limit: Maximum number of results (default 10000, max 10000)
         """
         params = {'limit': limit}
+
         if market_cap_more_than:
             params['marketCapMoreThan'] = market_cap_more_than
+        if market_cap_lower_than:
+            params['marketCapLowerThan'] = market_cap_lower_than
+        if sector:
+            params['sector'] = sector
+        if industry:
+            params['industry'] = industry
+        if beta_more_than:
+            params['betaMoreThan'] = beta_more_than
+        if beta_lower_than:
+            params['betaLowerThan'] = beta_lower_than
+        if price_more_than:
+            params['priceMoreThan'] = price_more_than
+        if price_lower_than:
+            params['priceLowerThan'] = price_lower_than
         if volume_more_than:
             params['volumeMoreThan'] = volume_more_than
+        if volume_lower_than:
+            params['volumeLowerThan'] = volume_lower_than
+        if dividend_more_than:
+            params['dividendMoreThan'] = dividend_more_than
+        if dividend_lower_than:
+            params['dividendLowerThan'] = dividend_lower_than
         if exchange:
             params['exchange'] = exchange
         if country:
             params['country'] = country
+        if is_etf is not None:
+            params['isEtf'] = is_etf
+        if is_fund is not None:
+            params['isFund'] = is_fund
+        if is_actively_trading is not None:
+            params['isActivelyTrading'] = is_actively_trading
 
         return self._request('stock-screener', params, cache=self.cache_universe)
 
