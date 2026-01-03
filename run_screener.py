@@ -6659,32 +6659,17 @@ with tab5:
                             estimators_used = projections.get('estimators_used', {})
 
                             if projection_source == 'growth_engine':
-                                source_badge = """
-                                <span style='background: #10b981; color: white; padding: 0.2rem 0.5rem; border-radius: 4px;
-                                             font-size: 0.6rem; font-weight: 700; margin-left: 0.5rem;'>
-                                    GROWTH ENGINE
-                                </span>
-                                """
+                                source_badge = "<span style='background: #10b981; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.6rem; font-weight: 700; margin-left: 0.5rem;'>GROWTH ENGINE</span>"
                                 source_text = "Robust scenarios using 3 estimators (historical, fundamental, consensus)"
                             else:
-                                source_badge = """
-                                <span style='background: #6b7280; color: white; padding: 0.2rem 0.5rem; border-radius: 4px;
-                                             font-size: 0.6rem; font-weight: 700; margin-left: 0.5rem;'>
-                                    SIMPLE
-                                </span>
-                                """
+                                source_badge = "<span style='background: #6b7280; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.6rem; font-weight: 700; margin-left: 0.5rem;'>SIMPLE</span>"
                                 source_text = "Basic scenarios from recent revenue growth"
 
                             st.markdown(f"""
-                            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                        padding: 0.7rem 1.1rem; border-radius: 10px; margin-bottom: 1rem;'>
+                            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 0.7rem 1.1rem; border-radius: 10px; margin-bottom: 1rem;'>
                                 <div style='display: flex; align-items: center; gap: 0.5rem;'>
-                                    <span style='background: rgba(255,255,255,0.2); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.6rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>
-                                        PROJECTIONS
-                                    </span>
-                                    <h4 style='margin: 0; color: white; font-weight: 600; font-size: 0.95rem;'>
-                                        Price Projections by Scenario
-                                    </h4>
+                                    <span style='background: rgba(255,255,255,0.2); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.6rem; font-weight: 700; color: white; letter-spacing: 0.5px;'>PROJECTIONS</span>
+                                    <h4 style='margin: 0; color: white; font-weight: 600; font-size: 0.95rem;'>Price Projections by Scenario</h4>
                                     {source_badge}
                                 </div>
                             </div>
