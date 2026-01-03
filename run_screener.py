@@ -5764,7 +5764,7 @@ with tab5:
                             multiples_reliability = robust_val.get('multiples_reliability', 'Medium')
                             reliability_reason = robust_val.get('multiples_reliability_reason', '')
 
-                            # Panel-based display (matching Growth Engine style)
+                            # Professional panel header
                             st.markdown("""
                             <div style='font-weight: 700; color: #0f172a; font-size: 0.95rem; margin-bottom: 0.75rem;'>
                                 Robust Fair Value
@@ -5789,25 +5789,80 @@ with tab5:
                                 label_prefix = "Downside to p90" if "Downside" in downside_label else "Upside to p90"
                                 st.metric(label_prefix, delta_display, help=downside_label)
 
-                            # Range and consensus caption
-                            st.caption(f"Range (p10–p90): ${range_p10:.2f}–${range_p90:.2f} | Consensus: {consensus_tightness} (post-trim)")
+                            # Visual range indicator
+                            range_span = range_p90 - range_p10
+                            if range_span > 0:
+                                # Calculate position of current price and FV in the range
+                                price_position = max(0, min(1, (current_price - range_p10) / range_span))
+                                fv_position = max(0, min(1, (fair_value_robust - range_p10) / range_span))
 
-                            # Multiples reliability flag
-                            if multiples_reliability == 'Low':
-                                st.warning(f"**Multiples Reliability: Low** – {reliability_reason}")
+                                st.markdown("""
+                                <div style='margin: 0.75rem 0 0.25rem 0;'>
+                                    <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem;'>VALUE RANGE (p10–p90)</div>
+                                    <div style='position: relative; height: 32px; background: linear-gradient(90deg, #dcfce7 0%, #fef3c7 50%, #fee2e2 100%); border-radius: 4px; border: 1px solid #e2e8f0;'>
+                                        <div style='position: absolute; left: {}%; top: 50%; transform: translate(-50%, -50%); width: 3px; height: 24px; background: #0f172a; border-radius: 2px;'></div>
+                                        <div style='position: absolute; left: {}%; top: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px; background: #3b82f6; border: 2px solid white; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);'></div>
+                                        <div style='position: absolute; left: 0; top: -18px; font-size: 0.65rem; color: #64748b;'>${:.0f}</div>
+                                        <div style='position: absolute; left: 50%; transform: translateX(-50%); top: -18px; font-size: 0.65rem; color: #64748b;'>${:.0f}</div>
+                                        <div style='position: absolute; right: 0; top: -18px; font-size: 0.65rem; color: #64748b;'>${:.0f}</div>
+                                    </div>
+                                    <div style='margin-top: 0.25rem; font-size: 0.65rem; color: #64748b;'>
+                                        <span style='margin-right: 1rem;'>█ Current Price</span>
+                                        <span>● Fair Value (p50)</span>
+                                    </div>
+                                </div>
+                                """.format(price_position * 100, fv_position * 100, range_p10, (range_p10 + range_p90) / 2, range_p90), unsafe_allow_html=True)
+
+                            # Range and consensus info with badges
+                            consensus_color = {'High': '#10b981', 'Medium': '#f59e0b', 'Low': '#ef4444'}.get(consensus_tightness, '#64748b')
+                            st.markdown(f"""
+                            <div style='margin: 0.5rem 0; font-size: 0.75rem; color: #475569;'>
+                                Range (p10–p90): <span style='font-weight: 600;'>${range_p10:.2f}–${range_p90:.2f}</span> |
+                                Consensus: <span style='display: inline-block; padding: 2px 6px; background: {consensus_color}; color: white; border-radius: 3px; font-weight: 600; font-size: 0.7rem;'>{consensus_tightness}</span> <span style='color: #94a3b8;'>(post-trim)</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Multiples reliability and family divergence - professional indicators
+                            if multiples_reliability == 'Low' or method_disagreement:
+                                st.markdown("""
+                                <div style='background: #fef3c7; border-left: 4px solid #f59e0b; padding: 0.75rem; border-radius: 4px; margin: 0.5rem 0;'>
+                                """, unsafe_allow_html=True)
+
+                                if multiples_reliability == 'Low':
+                                    st.markdown(f"""
+                                    <div style='display: flex; align-items: center; margin-bottom: 0.35rem;'>
+                                        <div style='width: 6px; height: 6px; background: #f59e0b; border-radius: 50%; margin-right: 0.5rem;'></div>
+                                        <span style='font-weight: 700; color: #92400e; font-size: 0.75rem;'>MULTIPLES RELIABILITY: LOW</span>
+                                    </div>
+                                    <div style='font-size: 0.7rem; color: #78350f; margin-left: 1rem;'>{reliability_reason}</div>
+                                    """, unsafe_allow_html=True)
+
+                                # Method disagreement / family divergence
+                                method_disagreement = robust_val.get('method_disagreement', '')
+                                if method_disagreement:
+                                    if 'divergence' in method_disagreement.lower():
+                                        # Extract divergence percentage if present
+                                        import re
+                                        divergence_match = re.search(r'(\d+\.?\d*)%', method_disagreement)
+                                        divergence_pct = divergence_match.group(1) if divergence_match else None
+
+                                        if multiples_reliability == 'Low':
+                                            st.markdown("<div style='margin: 0.5rem 0; border-top: 1px solid #fcd34d; padding-top: 0.5rem;'></div>", unsafe_allow_html=True)
+
+                                        st.markdown(f"""
+                                        <div style='display: flex; align-items: center; margin-bottom: 0.35rem;'>
+                                            <div style='width: 6px; height: 6px; background: #f59e0b; border-radius: 50%; margin-right: 0.5rem;'></div>
+                                            <span style='font-weight: 700; color: #92400e; font-size: 0.75rem;'>FAMILY DIVERGENCE: {divergence_pct + '%' if divergence_pct else 'DETECTED'}</span>
+                                        </div>
+                                        <div style='font-size: 0.7rem; color: #78350f; margin-left: 1rem;'>{method_disagreement}</div>
+                                        """, unsafe_allow_html=True)
+
+                                st.markdown("</div>", unsafe_allow_html=True)
 
                             # Consensus explanation if exists (clarifies consensus vs disagreement)
                             consensus_explanation = robust_val.get('consensus_explanation')
                             if consensus_explanation:
                                 st.info(f"{consensus_explanation}")
-
-                            # Method disagreement if exists
-                            method_disagreement = robust_val.get('method_disagreement', '')
-                            if method_disagreement:
-                                if 'divergence' in method_disagreement.lower() or 'raw methods' in method_disagreement.lower():
-                                    st.warning(f"{method_disagreement}")
-                                else:
-                                    st.success(f"{method_disagreement}")
 
                             # Outliers display (micro-panels for each outlier)
                             outliers_display = robust_val.get('outliers_display')
@@ -5979,31 +6034,111 @@ with tab5:
                             </div>
                             """, unsafe_allow_html=True)
 
+                            # Extract growth values
+                            bear = rev_growth.get('bear', 0) * 100
+                            base = rev_growth.get('base', 0) * 100
+                            bull = rev_growth.get('bull', 0) * 100
+                            volatility = rev_growth.get('volatility', 0)
+                            weights = rev_growth.get('weights', {})
+
+                            # Three-column metrics
                             col_g1, col_g2, col_g3 = st.columns(3)
 
                             with col_g1:
-                                bear = rev_growth.get('bear', 0) * 100
                                 st.metric("Bear Case", f"{bear:.1f}%", help="Base - volatility")
 
                             with col_g2:
-                                base = rev_growth.get('base', 0) * 100
                                 st.metric("Base Case", f"{base:.1f}%", help="Blended estimate")
 
                             with col_g3:
-                                bull = rev_growth.get('bull', 0) * 100
                                 st.metric("Bull Case", f"{bull:.1f}%", help="Base + volatility")
 
-                            # Estimator breakdown
-                            weights = rev_growth.get('weights', {})
-                            if weights:
-                                st.caption("Estimator Weights:")
-                                weight_text = " | ".join([f"{k.title()}: {v:.1%}" for k, v in weights.items()])
-                                st.caption(weight_text)
+                            # Visual growth spectrum bar
+                            max_val = max(abs(bear), abs(bull), 25)  # At least 25% for scale
+                            bear_width = max(1, abs(bear) / max_val * 100) if bear >= 0 else 0
+                            base_width = max(1, abs(base) / max_val * 100) if base >= 0 else 0
+                            bull_width = max(1, abs(bull) / max_val * 100) if bull >= 0 else 0
 
-                            # Volatility
-                            volatility = rev_growth.get('volatility', 0)
+                            st.markdown(f"""
+                            <div style='margin: 0.75rem 0;'>
+                                <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-bottom: 0.5rem;'>GROWTH SCENARIO SPECTRUM</div>
+                                <div style='display: flex; gap: 0.5rem; align-items: flex-end;'>
+                                    <div style='flex: 1; text-align: center;'>
+                                        <div style='height: 80px; display: flex; align-items: flex-end; justify-content: center;'>
+                                            <div style='width: 60%; background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%); height: {bear_width}%; min-height: 4px; border-radius: 4px 4px 0 0; box-shadow: 0 -2px 4px rgba(239, 68, 68, 0.3);'></div>
+                                        </div>
+                                        <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 0.25rem;'>Bear</div>
+                                        <div style='font-size: 0.75rem; font-weight: 700; color: #ef4444;'>{bear:.1f}%</div>
+                                    </div>
+                                    <div style='flex: 1; text-align: center;'>
+                                        <div style='height: 80px; display: flex; align-items: flex-end; justify-content: center;'>
+                                            <div style='width: 60%; background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%); height: {base_width}%; min-height: 4px; border-radius: 4px 4px 0 0; box-shadow: 0 -2px 4px rgba(59, 130, 246, 0.3);'></div>
+                                        </div>
+                                        <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 0.25rem;'>Base</div>
+                                        <div style='font-size: 0.75rem; font-weight: 700; color: #3b82f6;'>{base:.1f}%</div>
+                                    </div>
+                                    <div style='flex: 1; text-align: center;'>
+                                        <div style='height: 80px; display: flex; align-items: flex-end; justify-content: center;'>
+                                            <div style='width: 60%; background: linear-gradient(180deg, #10b981 0%, #059669 100%); height: {bull_width}%; min-height: 4px; border-radius: 4px 4px 0 0; box-shadow: 0 -2px 4px rgba(16, 185, 129, 0.3);'></div>
+                                        </div>
+                                        <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin-top: 0.25rem;'>Bull</div>
+                                        <div style='font-size: 0.75rem; font-weight: 700; color: #10b981;'>{bull:.1f}%</div>
+                                    </div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Estimator weights with visual bars
+                            if weights:
+                                st.markdown("""
+                                <div style='font-size: 0.7rem; font-weight: 600; color: #64748b; margin: 1rem 0 0.5rem 0;'>ESTIMATOR WEIGHTS</div>
+                                """, unsafe_allow_html=True)
+
+                                for estimator, weight in weights.items():
+                                    weight_pct = weight * 100
+                                    bar_color = {'historical': '#8b5cf6', 'fundamental': '#06b6d4', 'consensus': '#f59e0b'}.get(estimator.lower(), '#64748b')
+                                    st.markdown(f"""
+                                    <div style='margin-bottom: 0.5rem;'>
+                                        <div style='display: flex; justify-content: space-between; margin-bottom: 0.15rem;'>
+                                            <span style='font-size: 0.7rem; font-weight: 600; color: #475569;'>{estimator.title()}</span>
+                                            <span style='font-size: 0.7rem; font-weight: 700; color: {bar_color};'>{weight_pct:.1f}%</span>
+                                        </div>
+                                        <div style='height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;'>
+                                            <div style='height: 100%; width: {weight_pct}%; background: {bar_color}; border-radius: 3px;'></div>
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                            # Volatility indicator with gauge
                             if volatility:
-                                st.caption(f"Growth Volatility (σ): {volatility:.1%}")
+                                volatility_pct = volatility * 100
+                                # Determine volatility level
+                                if volatility_pct < 5:
+                                    vol_level = "Low"
+                                    vol_color = "#10b981"
+                                elif volatility_pct < 10:
+                                    vol_level = "Medium"
+                                    vol_color = "#f59e0b"
+                                else:
+                                    vol_level = "High"
+                                    vol_color = "#ef4444"
+
+                                vol_bar_width = min(volatility_pct * 4, 100)  # Scale for visual
+
+                                st.markdown(f"""
+                                <div style='margin: 1rem 0 0.5rem 0;'>
+                                    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;'>
+                                        <span style='font-size: 0.7rem; font-weight: 600; color: #64748b;'>GROWTH VOLATILITY (σ)</span>
+                                        <span style='display: inline-block; padding: 2px 6px; background: {vol_color}; color: white; border-radius: 3px; font-weight: 600; font-size: 0.65rem;'>{vol_level}</span>
+                                    </div>
+                                    <div style='display: flex; align-items: center; gap: 0.5rem;'>
+                                        <div style='flex: 1; height: 8px; background: linear-gradient(90deg, #10b981 0%, #f59e0b 50%, #ef4444 100%); border-radius: 4px; position: relative;'>
+                                            <div style='position: absolute; left: {vol_bar_width}%; top: 50%; transform: translate(-50%, -50%); width: 4px; height: 14px; background: white; border: 2px solid #0f172a; border-radius: 2px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);'></div>
+                                        </div>
+                                        <span style='font-size: 0.75rem; font-weight: 700; color: {vol_color}; min-width: 3rem; text-align: right;'>{volatility_pct:.1f}%</span>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
 
                         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -6367,6 +6502,36 @@ with tab5:
                             delta_match = re.search(r'([+-]?\d+\.?\d*)%', upside_display)
                             delta_value = delta_match.group(1) if delta_match else None
 
+                            # Determine colors based on assessment
+                            if 'undervalued' in display_assessment.lower():
+                                assessment_color = '#10b981'
+                                assessment_bg = '#d1fae5'
+                                assessment_icon = '▲'
+                            elif 'overvalued' in display_assessment.lower():
+                                assessment_color = '#ef4444'
+                                assessment_bg = '#fee2e2'
+                                assessment_icon = '▼'
+                            else:
+                                assessment_color = '#f59e0b'
+                                assessment_bg = '#fef3c7'
+                                assessment_icon = '●'
+
+                            # Conviction badge color
+                            conviction_colors = {
+                                'HIGH': '#10b981',
+                                'MEDIUM-HIGH': '#3b82f6',
+                                'MEDIUM': '#f59e0b',
+                                'LOW': '#ef4444'
+                            }
+                            conviction_bg_colors = {
+                                'HIGH': '#d1fae5',
+                                'MEDIUM-HIGH': '#dbeafe',
+                                'MEDIUM': '#fef3c7',
+                                'LOW': '#fee2e2'
+                            }
+                            conviction_color = conviction_colors.get(conviction_display, '#64748b')
+                            conviction_bg = conviction_bg_colors.get(conviction_display, '#f1f5f9')
+
                             col_val1, col_val2, col_val3 = st.columns(3)
 
                             with col_val1:
@@ -6388,8 +6553,40 @@ with tab5:
                                 st.metric(label_text, delta_display,
                                          help=downside_label_full if downside_label_full else "Return potential to robust p90 fair value")
 
-                            # Industry and metric caption
-                            st.caption(f"Industry: {industry_profile} | Primary Metric: {primary_metric}")
+                            # Visual verdict card with assessment indicator
+                            if delta_value:
+                                delta_float = float(delta_value)
+                                delta_arrow = '↑' if delta_float > 0 else '↓'
+                                delta_color = '#10b981' if delta_float > 0 else '#ef4444'
+                            else:
+                                delta_arrow = ''
+                                delta_color = '#64748b'
+
+                            st.markdown(f"""
+                            <div style='background: {assessment_bg}; border-left: 4px solid {assessment_color}; padding: 0.75rem; border-radius: 4px; margin: 0.75rem 0;'>
+                                <div style='display: flex; align-items: center; justify-content: space-between;'>
+                                    <div style='display: flex; align-items: center; gap: 0.5rem;'>
+                                        <div style='font-size: 1.25rem; color: {assessment_color};'>{assessment_icon}</div>
+                                        <div>
+                                            <div style='font-weight: 700; color: {assessment_color}; font-size: 0.85rem;'>{display_assessment.upper()}</div>
+                                            <div style='font-size: 0.65rem; color: #64748b; margin-top: 0.15rem;'>Industry: {industry_profile}</div>
+                                        </div>
+                                    </div>
+                                    <div style='text-align: right;'>
+                                        <div style='display: inline-block; padding: 3px 8px; background: {conviction_color}; color: white; border-radius: 4px; font-weight: 700; font-size: 0.7rem;'>{conviction_display}</div>
+                                        <div style='font-size: 0.65rem; color: #64748b; margin-top: 0.15rem;'>Conviction Level</div>
+                                    </div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Primary metric indicator
+                            st.markdown(f"""
+                            <div style='display: inline-block; padding: 4px 10px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.7rem; margin-bottom: 0.5rem;'>
+                                <span style='font-weight: 600; color: #475569;'>Primary Metric:</span>
+                                <span style='font-weight: 700; color: #0f172a; margin-left: 0.25rem;'>{primary_metric}</span>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # Show PEG Hammer explanation if applied
                             if growth_override_applied and growth_override_reason:
