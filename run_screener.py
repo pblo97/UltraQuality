@@ -9581,40 +9581,53 @@ with tab6:
                             st.markdown("#### Price Projections by Scenario")
 
                             projections = intrinsic.get('price_projections', {})
-                            if projections and projections.get('target_5y'):
-                                target_5y = projections['target_5y']
+                            scenarios = projections.get('scenarios', {})
 
-                                # Show projection metrics
+                            if scenarios:
+                                # Extract targets from scenarios
+                                base_case = scenarios.get('Base Case', {})
+                                bull_case = scenarios.get('Bull Case', {})
+                                bear_case = scenarios.get('Bear Case', {})
+
+                                # Show 5Y projection metrics
                                 col_p1, col_p2, col_p3 = st.columns(3)
                                 with col_p1:
-                                    base_target = target_5y.get('base')
-                                    if base_target:
-                                        st.metric("Base Target (5Y)", f"${base_target:.2f}")
-                                    else:
-                                        st.metric("Base Target (5Y)", "N/A")
-                                with col_p2:
-                                    bull_target = target_5y.get('bull')
-                                    if bull_target:
-                                        st.metric("Bull Target (5Y)", f"${bull_target:.2f}")
-                                    else:
-                                        st.metric("Bull Target (5Y)", "N/A")
-                                with col_p3:
-                                    bear_target = target_5y.get('bear')
+                                    bear_target = bear_case.get('5Y_target')
                                     if bear_target:
                                         st.metric("Bear Target (5Y)", f"${bear_target:.2f}")
-                                    else:
-                                        st.metric("Bear Target (5Y)", "N/A")
+                                        st.caption(bear_case.get('description', ''))
+                                with col_p2:
+                                    base_target = base_case.get('5Y_target')
+                                    if base_target:
+                                        st.metric("Base Target (5Y)", f"${base_target:.2f}")
+                                        st.caption(base_case.get('description', ''))
+                                with col_p3:
+                                    bull_target = bull_case.get('5Y_target')
+                                    if bull_target:
+                                        st.metric("Bull Target (5Y)", f"${bull_target:.2f}")
+                                        st.caption(bull_case.get('description', ''))
 
-                                # Show annual returns if available
-                                if current_price > 0 and base_target:
-                                    total_return = ((base_target - current_price) / current_price) * 100
-                                    annual_return = total_return / 5
-                                    st.markdown(f"**Base Case:** {total_return:+.1f}% total return ({annual_return:+.1f}% annualized)")
+                                # Show returns for base case
+                                if base_case:
+                                    st.markdown(f"**Base Case Returns:** 1Y: {base_case.get('1Y_return', 'N/A')} | 3Y: {base_case.get('3Y_return', 'N/A')} ({base_case.get('3Y_cagr', 'N/A')} CAGR) | 5Y: {base_case.get('5Y_return', 'N/A')} ({base_case.get('5Y_cagr', 'N/A')} CAGR)")
 
-                                # Source
+                                # Source and methodology
                                 source = projections.get('source', '')
-                                if source:
-                                    st.caption(f"Projection method: {source}")
+                                if source == 'growth_engine':
+                                    st.caption("Projection method: Growth Engine (multi-estimator consensus)")
+                                elif source == 'simple_revenue':
+                                    st.caption("Projection method: Historical revenue trends")
+
+                                # Show all scenarios in expandable table
+                                with st.expander("All Scenarios Details"):
+                                    for scenario_name, scenario_data in scenarios.items():
+                                        st.markdown(f"**{scenario_name}**")
+                                        st.write(f"- Growth: {scenario_data.get('growth_assumption', 'N/A')}")
+                                        st.write(f"- Blended Return: {scenario_data.get('blended_return', 'N/A')}")
+                                        st.write(f"- 1Y Target: ${scenario_data.get('1Y_target', 0):.2f} ({scenario_data.get('1Y_return', 'N/A')})")
+                                        st.write(f"- 3Y Target: ${scenario_data.get('3Y_target', 0):.2f} ({scenario_data.get('3Y_cagr', 'N/A')} CAGR)")
+                                        st.write(f"- 5Y Target: ${scenario_data.get('5Y_target', 0):.2f} ({scenario_data.get('5Y_cagr', 'N/A')} CAGR)")
+                                        st.write("")
                             else:
                                 st.warning("Price Projections data not available for this ticker.")
 
