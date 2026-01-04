@@ -9213,6 +9213,10 @@ with tab6:
         # Get recalculated results with current slider values
         df = get_results_with_current_params()
 
+        # Initialize valuation cache in session state if not exists
+        if 'valuation_cache' not in st.session_state:
+            st.session_state['valuation_cache'] = {}
+
         st.markdown("""
         **Dashboard Overview** - View valuation metrics for all screened stocks in one place.
         Use filters to quickly identify stocks of interest, then click on a row to see detailed analysis.
@@ -9325,10 +9329,6 @@ with tab6:
             st.metric("AVOID", avoid_count)
 
         st.markdown("---")
-
-        # Initialize valuation cache in session state if not exists
-        if 'valuation_cache' not in st.session_state:
-            st.session_state['valuation_cache'] = {}
 
         # Batch calculation section
         st.markdown("### 💎 Advanced Valuations")
