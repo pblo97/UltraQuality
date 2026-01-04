@@ -9395,18 +9395,31 @@ with tab6:
                                 try:
                                     status_text.text(f"Analyzing {ticker} ({idx + 1}/{len(missing_tickers)})...")
 
-                                    # Run analysis
-                                    result = analyzer.analyze(ticker)
+                                    # Get company type from screener results
+                                    stock_data = df[df['ticker'] == ticker].iloc[0] if ticker in df['ticker'].values else None
+                                    company_type = stock_data.get('company_type', 'non_financial') if stock_data is not None else 'non_financial'
 
-                                    if result:
-                                        # Extract key metrics
-                                        robust_val = result.get('robust_valuation', {})
-                                        growth_engine = result.get('growth_engine', {})
+                                    # Run analysis
+                                    result = analyzer.analyze_symbol(
+                                        ticker,
+                                        company_type=company_type,
+                                        peers_df=df
+                                    )
+
+                                    if result and 'error' not in result:
+                                        # Extract key metrics from intrinsic_value section
+                                        intrinsic = result.get('intrinsic_value', {})
+                                        robust_val = intrinsic.get('robust_valuation', {})
+                                        growth_engine = intrinsic.get('growth_engine', {})
+
+                                        # Extract growth base from revenue_growth_5y
+                                        growth_5y_data = growth_engine.get('revenue_growth_5y', {})
+                                        growth_base = growth_5y_data.get('base')
 
                                         valuation_data = {
-                                            'fair_value_p50': robust_val.get('fair_value_p50'),
-                                            'current_price': robust_val.get('current_price'),
-                                            'growth_base': growth_engine.get('growth_5y_base'),
+                                            'fair_value_p50': robust_val.get('fair_value_robust'),  # p50 median
+                                            'current_price': intrinsic.get('current_price'),
+                                            'growth_base': growth_base,
                                             'timestamp': datetime.now()
                                         }
 
@@ -9414,6 +9427,8 @@ with tab6:
                                         st.session_state['valuation_cache'][ticker] = valuation_data
                                         success_count += 1
                                     else:
+                                        error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
+                                        st.warning(f"Analysis returned error for {ticker}: {error_msg}")
                                         error_count += 1
 
                                 except Exception as e:
@@ -9623,7 +9638,7 @@ with tab6:
                         api_key = os.getenv('FMP_API_KEY')
 
                     if not api_key:
-                        st.error("⚠️ FMP API key not found. Please set FMP_API_KEY in Streamlit secrets or environment variables.")
+                        st.error("FMP API key not found. Please set FMP_API_KEY in Streamlit secrets or environment variables.")
                     else:
                         # Initialize clients
                         fmp_client = FMPClient(api_key, config)
@@ -9632,49 +9647,87 @@ with tab6:
                             config=config
                         )
 
-                        # Run analysis
-                        result = analyzer.analyze(selected_detail_ticker)
+                        # Get company type from filtered results
+                        stock_data = df_filtered[df_filtered['ticker'] == selected_detail_ticker].iloc[0]
+                        company_type = stock_data.get('company_type', 'non_financial')
 
-                        if result:
+                        # Run analysis
+                        result = analyzer.analyze_symbol(
+                            selected_detail_ticker,
+                            company_type=company_type,
+                            peers_df=df
+                        )
+
+                        if result and 'error' not in result:
+                            # Extract intrinsic value section
+                            intrinsic = result.get('intrinsic_value', {})
+
                             # Display Robust Fair Value section
                             st.markdown("#### Robust Fair Value Estimation")
 
-                            robust_val = result.get('robust_valuation', {})
+                            robust_val = intrinsic.get('robust_valuation', {})
                             if robust_val:
                                 st.markdown(robust_val.get('summary_html', 'No summary available'))
 
                                 # Show detailed metrics
-                                if 'fair_value_p10' in robust_val and 'fair_value_p50' in robust_val and 'fair_value_p90' in robust_val:
+                                current_price = intrinsic.get('current_price', 0)
+                                p10 = robust_val.get('range_p10', 0)
+                                p50 = robust_val.get('fair_value_robust', 0)  # Median
+                                p90 = robust_val.get('range_p90', 0)
+
+                                if p10 and p50 and p90:
                                     col_fv1, col_fv2, col_fv3, col_fv4 = st.columns(4)
                                     with col_fv1:
-                                        st.metric("Fair Value (p10)", f"${robust_val['fair_value_p10']:.2f}")
+                                        st.metric("Fair Value (p10)", f"${p10:.2f}")
                                     with col_fv2:
-                                        st.metric("Fair Value (p50)", f"${robust_val['fair_value_p50']:.2f}")
+                                        st.metric("Fair Value (p50)", f"${p50:.2f}")
                                     with col_fv3:
-                                        st.metric("Fair Value (p90)", f"${robust_val['fair_value_p90']:.2f}")
+                                        st.metric("Fair Value (p90)", f"${p90:.2f}")
                                     with col_fv4:
-                                        current_price = robust_val.get('current_price', 0)
                                         st.metric("Current Price", f"${current_price:.2f}")
+
+                                    # Calculate and show upside/downside
+                                    if current_price > 0:
+                                        upside = ((p50 - current_price) / current_price) * 100
+                                        st.markdown(f"**Upside/Downside vs p50:** {upside:+.1f}%")
 
                             # Display Growth Engine section
                             st.markdown("---")
                             st.markdown("#### Growth Engine")
 
-                            growth_engine = result.get('growth_engine', {})
+                            growth_engine = intrinsic.get('growth_engine', {})
                             if growth_engine:
                                 st.markdown(growth_engine.get('summary_html', 'No summary available'))
+
+                                # Show growth metrics
+                                growth_5y = growth_engine.get('revenue_growth_5y', {})
+                                if growth_5y:
+                                    col_g1, col_g2, col_g3 = st.columns(3)
+                                    with col_g1:
+                                        base = growth_5y.get('base')
+                                        if base:
+                                            st.metric("Base Scenario", f"{base:.1f}%")
+                                    with col_g2:
+                                        bull = growth_5y.get('bull')
+                                        if bull:
+                                            st.metric("Bull Scenario", f"{bull:.1f}%")
+                                    with col_g3:
+                                        bear = growth_5y.get('bear')
+                                        if bear:
+                                            st.metric("Bear Scenario", f"{bear:.1f}%")
 
                             # Display Price Projections section
                             st.markdown("---")
                             st.markdown("#### Price Projections by Scenario")
 
-                            projections = result.get('price_projections', {})
+                            projections = intrinsic.get('price_projections', {})
                             if projections:
                                 st.markdown(projections.get('summary_html', 'No summary available'))
 
-                            st.success(f"✅ Analysis complete for {selected_detail_ticker}")
+                            st.success(f"Analysis complete for {selected_detail_ticker}")
                         else:
-                            st.warning(f"No analysis results returned for {selected_detail_ticker}")
+                            error_msg = result.get('error', 'Unknown error') if result else 'No result returned'
+                            st.error(f"Analysis error for {selected_detail_ticker}: {error_msg}")
 
                 except Exception as e:
                     st.error(f"Error running analysis: {str(e)}")
