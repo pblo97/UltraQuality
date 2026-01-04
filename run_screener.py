@@ -5595,17 +5595,29 @@ with tab5:
                         st.markdown("<br>", unsafe_allow_html=True)
                         st.markdown("**Overall Cycle Assessment:**")
 
-                        # Count signals
-                        danger_count = sum(1 for tool in timing_tools.values() if tool.get('signal') in ['DANGER', 'SELL'])
-                        caution_count = sum(1 for tool in timing_tools.values() if tool.get('signal') == 'CAUTION')
-                        opportunity_count = sum(1 for tool in timing_tools.values() if tool.get('signal') in ['OPPORTUNITY', 'BUY', 'RECOVERY'])
-                        watch_count = sum(1 for tool in timing_tools.values() if tool.get('signal') == 'WATCH')
+                        # Filter out tools with no data
+                        valid_tools = {k: v for k, v in timing_tools.items()
+                                      if v.get('interpretation', 'No data') != 'No data'}
+
+                        # Count signals only from tools with valid data
+                        danger_count = sum(1 for tool in valid_tools.values() if tool.get('signal') in ['DANGER', 'SELL'])
+                        caution_count = sum(1 for tool in valid_tools.values() if tool.get('signal') == 'CAUTION')
+                        opportunity_count = sum(1 for tool in valid_tools.values() if tool.get('signal') in ['OPPORTUNITY', 'BUY', 'RECOVERY'])
+                        watch_count = sum(1 for tool in valid_tools.values() if tool.get('signal') == 'WATCH')
 
                         # Calculate combined scores for assessment
                         peak_score = danger_count + (caution_count * 0.5)  # CAUTION counts as half DANGER
                         trough_score = opportunity_count + (watch_count * 0.5)  # WATCH counts as half OPPORTUNITY
 
-                        if peak_score >= 2:
+                        # Total valid tools with data
+                        total_valid_tools = len(valid_tools)
+
+                        # Only show assessment if we have at least 2 tools with valid data
+                        if total_valid_tools < 2:
+                            assessment_color = '#f3f4f6'
+                            assessment_border = '#9ca3af'
+                            assessment_text = "**INSUFFICIENT DATA:** Not enough timing indicators have data available for a reliable cycle assessment. At least 2 indicators with valid data are required."
+                        elif peak_score >= 2:
                             assessment_color = '#fef3c7'
                             assessment_border = '#f59e0b'
                             assessment_text = f"**CAUTION:** {danger_count} DANGER + {caution_count} CAUTION signals suggest this stock may be at or near peak cycle. Traditional 'low P/E = bargain' logic may not apply. Consider waiting for cycle downturn."
