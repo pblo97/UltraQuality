@@ -9235,7 +9235,7 @@ with tab6:
         """)
 
         # Filters section
-        st.markdown("### 🔍 Filters")
+        st.markdown("### Filters")
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
@@ -9343,7 +9343,7 @@ with tab6:
         st.markdown("---")
 
         # Batch calculation section
-        st.markdown("### 💎 Advanced Valuations")
+        st.markdown("### Advanced Valuations")
 
         # Count how many stocks in filtered set have valuations calculated
         filtered_tickers = df_filtered['ticker'].tolist()
@@ -9362,92 +9362,99 @@ with tab6:
 
         with col_calc2:
             if len(missing_tickers) > 0:
-                if st.button(f"📊 Calculate {len(missing_tickers)} Valuations", type="primary", use_container_width=True):
+                if st.button(f"Calculate {len(missing_tickers)} Valuations", type="primary", use_container_width=True, key='calc_valuations_btn'):
                     # Force reload modules
                     modules_to_reload = ['screener.ingest', 'screener.qualitative']
                     for module_name in modules_to_reload:
                         if module_name in sys.modules:
                             del sys.modules[module_name]
 
-                    from screener.qualitative import QualitativeAnalyzer
-                    from screener.ingest import FMPClient
+                    try:
+                        from screener.qualitative import QualitativeAnalyzer
+                        from screener.ingest import FMPClient
 
-                    # Load config
-                    config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
-                    with open(config_file, 'r') as f:
-                        config = yaml.safe_load(f)
+                        # Load config
+                        config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+                        with open(config_file, 'r') as f:
+                            config = yaml.safe_load(f)
 
-                    # Get API key
-                    api_key = None
-                    if 'FMP_API_KEY' in st.secrets:
-                        api_key = st.secrets['FMP_API_KEY']
-                    elif 'FMP' in st.secrets:
-                        api_key = st.secrets['FMP']
-                    if not api_key:
-                        api_key = os.getenv('FMP_API_KEY')
+                        st.info(f"Using config: {config_file}")
 
-                    if not api_key:
-                        st.error("⚠️ FMP API key not found.")
-                    else:
-                        # Initialize clients
-                        fmp_client = FMPClient(api_key, config)
-                        analyzer = QualitativeAnalyzer(fmp_client=fmp_client, config=config)
+                        # Get API key
+                        api_key = None
+                        if 'FMP_API_KEY' in st.secrets:
+                            api_key = st.secrets['FMP_API_KEY']
+                        elif 'FMP' in st.secrets:
+                            api_key = st.secrets['FMP']
+                        if not api_key:
+                            api_key = os.getenv('FMP_API_KEY')
 
-                        # Progress bar
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
+                        if not api_key:
+                            st.error("FMP API key not found.")
+                        else:
+                            # Initialize clients
+                            fmp_client = FMPClient(api_key, config)
+                            analyzer = QualitativeAnalyzer(fmp_client=fmp_client, config=config)
 
-                        success_count = 0
-                        error_count = 0
+                            # Progress bar
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
 
-                        for idx, ticker in enumerate(missing_tickers):
-                            try:
-                                status_text.text(f"Analyzing {ticker} ({idx + 1}/{len(missing_tickers)})...")
+                            success_count = 0
+                            error_count = 0
 
-                                # Run analysis
-                                result = analyzer.analyze(ticker)
+                            for idx, ticker in enumerate(missing_tickers):
+                                try:
+                                    status_text.text(f"Analyzing {ticker} ({idx + 1}/{len(missing_tickers)})...")
 
-                                if result:
-                                    # Extract key metrics
-                                    robust_val = result.get('robust_valuation', {})
-                                    growth_engine = result.get('growth_engine', {})
+                                    # Run analysis
+                                    result = analyzer.analyze(ticker)
 
-                                    valuation_data = {
-                                        'fair_value_p50': robust_val.get('fair_value_p50'),
-                                        'current_price': robust_val.get('current_price'),
-                                        'growth_base': growth_engine.get('growth_5y_base'),
-                                        'timestamp': datetime.now()
-                                    }
+                                    if result:
+                                        # Extract key metrics
+                                        robust_val = result.get('robust_valuation', {})
+                                        growth_engine = result.get('growth_engine', {})
 
-                                    # Cache the result
-                                    st.session_state['valuation_cache'][ticker] = valuation_data
-                                    success_count += 1
-                                else:
+                                        valuation_data = {
+                                            'fair_value_p50': robust_val.get('fair_value_p50'),
+                                            'current_price': robust_val.get('current_price'),
+                                            'growth_base': growth_engine.get('growth_5y_base'),
+                                            'timestamp': datetime.now()
+                                        }
+
+                                        # Cache the result
+                                        st.session_state['valuation_cache'][ticker] = valuation_data
+                                        success_count += 1
+                                    else:
+                                        error_count += 1
+
+                                except Exception as e:
+                                    st.warning(f"Failed to analyze {ticker}: {str(e)}")
                                     error_count += 1
 
-                            except Exception as e:
-                                st.warning(f"Failed to analyze {ticker}: {str(e)}")
-                                error_count += 1
+                                # Update progress
+                                progress_bar.progress((idx + 1) / len(missing_tickers))
 
-                            # Update progress
-                            progress_bar.progress((idx + 1) / len(missing_tickers))
+                            status_text.empty()
+                            progress_bar.empty()
 
-                        status_text.empty()
-                        progress_bar.empty()
+                            if success_count > 0:
+                                st.success(f"Successfully calculated {success_count} valuations!")
+                            if error_count > 0:
+                                st.warning(f"{error_count} stocks failed to calculate.")
 
-                        if success_count > 0:
-                            st.success(f"✅ Successfully calculated {success_count} valuations!")
-                        if error_count > 0:
-                            st.warning(f"⚠️ {error_count} stocks failed to calculate.")
+                            st.rerun()
 
-                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error initializing analysis: {str(e)}")
+                        st.exception(e)
             else:
-                st.success("✅ All valuations calculated!")
+                st.success("All valuations calculated!")
 
         st.markdown("---")
 
         # Main table
-        st.markdown("### 📊 Valuation Overview")
+        st.markdown("### Valuation Overview")
 
         # Create display dataframe (df_filtered already has valuation data enriched above)
         display_cols = ['ticker', 'name', 'sector', 'decision', 'composite_0_100', 'value_score_0_100', 'quality_score_0_100']
@@ -9565,7 +9572,7 @@ with tab6:
         st.markdown("---")
 
         # Expandable section for detailed analysis
-        st.markdown("### 🔬 Detailed Valuation Analysis")
+        st.markdown("### Detailed Valuation Analysis")
         st.markdown("""
         Select a ticker below to run comprehensive valuation analysis including:
         - **Robust Fair Value** with multi-method consensus
@@ -9597,7 +9604,7 @@ with tab6:
                 with col_info3:
                     st.metric("Guardrail", stock_info.get('guardrail', 'N/A'))
 
-        if selected_detail_ticker and st.button(f"🔍 Run Deep Analysis for {selected_detail_ticker}", type="primary", use_container_width=True, key='dashboard_analyze_btn'):
+        if selected_detail_ticker and st.button(f"Run Deep Analysis for {selected_detail_ticker}", type="primary", use_container_width=True, key='dashboard_analyze_btn'):
             # Force reload modules to get latest code
             modules_to_reload = [
                 'screener.ingest',
@@ -9642,7 +9649,7 @@ with tab6:
 
                         if result:
                             # Display Robust Fair Value section
-                            st.markdown("#### 💰 Robust Fair Value Estimation")
+                            st.markdown("#### Robust Fair Value Estimation")
 
                             robust_val = result.get('robust_valuation', {})
                             if robust_val:
@@ -9663,7 +9670,7 @@ with tab6:
 
                             # Display Growth Engine section
                             st.markdown("---")
-                            st.markdown("#### 📈 Growth Engine")
+                            st.markdown("#### Growth Engine")
 
                             growth_engine = result.get('growth_engine', {})
                             if growth_engine:
@@ -9671,7 +9678,7 @@ with tab6:
 
                             # Display Price Projections section
                             st.markdown("---")
-                            st.markdown("#### 🎯 Price Projections by Scenario")
+                            st.markdown("#### Price Projections by Scenario")
 
                             projections = result.get('price_projections', {})
                             if projections:
