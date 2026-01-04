@@ -2870,7 +2870,7 @@ def get_market_regime_display(regime: str) -> str:
 # ========== MAIN CONTENT ==========
 
 # Main content
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["Home", "Results", "Analytics", "Calibration", "Qualitative", "Complete Analysis", "Technical", "About"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs(["Home", "Results", "Analytics", "Calibration", "Qualitative", "Valuation Dashboard", "Complete Analysis", "Technical", "About"])
 
 with tab1:
     # Welcome section with modern card design
@@ -9202,6 +9202,313 @@ with tab6:
     st.markdown("""
     <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+        <h2 style='margin: 0; color: white; font-weight: 700;'>Valuation Dashboard</h2>
+        <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
+            Quick overview of all screened stocks with valuation metrics and growth projections
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if 'results' in st.session_state:
+        # Get recalculated results with current slider values
+        df = get_results_with_current_params()
+
+        st.markdown("""
+        **Dashboard Overview** - View valuation metrics for all screened stocks in one place.
+        Use filters to quickly identify stocks of interest, then click on a row to see detailed analysis.
+        """)
+
+        # Filters section
+        st.markdown("### 🔍 Filters")
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            filter_decision = st.selectbox(
+                "Decision",
+                options=['All', 'BUY', 'MONITOR', 'AVOID'],
+                index=0,
+                key='dashboard_decision'
+            )
+
+        with col2:
+            # Get unique sectors
+            sectors = ['All'] + sorted(df['sector'].dropna().unique().tolist()) if 'sector' in df.columns else ['All']
+            filter_sector = st.selectbox(
+                "Sector",
+                options=sectors,
+                index=0,
+                key='dashboard_sector'
+            )
+
+        with col3:
+            # Get unique industries
+            industries = ['All'] + sorted(df['industry'].dropna().unique().tolist()) if 'industry' in df.columns else ['All']
+            filter_industry = st.selectbox(
+                "Industry",
+                options=industries,
+                index=0,
+                key='dashboard_industry'
+            )
+
+        with col4:
+            sort_by = st.selectbox(
+                "Sort by",
+                options=['Composite Score ↓', 'Value Score ↓', 'Quality Score ↓', 'Ticker ↑', 'Market Cap ↓'],
+                index=0,
+                key='dashboard_sort'
+            )
+
+        # Apply filters
+        df_filtered = df.copy()
+
+        if filter_decision != 'All':
+            df_filtered = df_filtered[df_filtered['decision'] == filter_decision]
+
+        if filter_sector != 'All':
+            df_filtered = df_filtered[df_filtered['sector'] == filter_sector] if 'sector' in df_filtered.columns else df_filtered
+
+        if filter_industry != 'All':
+            df_filtered = df_filtered[df_filtered['industry'] == filter_industry] if 'industry' in df_filtered.columns else df_filtered
+
+        # Apply sorting
+        if sort_by == 'Composite Score ↓':
+            df_filtered = df_filtered.sort_values('composite_0_100', ascending=False)
+        elif sort_by == 'Value Score ↓':
+            df_filtered = df_filtered.sort_values('value_score_0_100', ascending=False)
+        elif sort_by == 'Quality Score ↓':
+            df_filtered = df_filtered.sort_values('quality_score_0_100', ascending=False)
+        elif sort_by == 'Ticker ↑':
+            df_filtered = df_filtered.sort_values('ticker')
+        elif sort_by == 'Market Cap ↓':
+            if 'market_cap' in df_filtered.columns:
+                df_filtered = df_filtered.sort_values('market_cap', ascending=False)
+
+        st.markdown("---")
+
+        # Summary metrics
+        col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
+        with col_metric1:
+            st.metric("Total Stocks", len(df_filtered))
+        with col_metric2:
+            buy_count = (df_filtered['decision'] == 'BUY').sum()
+            st.metric("BUY", buy_count)
+        with col_metric3:
+            monitor_count = (df_filtered['decision'] == 'MONITOR').sum()
+            st.metric("MONITOR", monitor_count)
+        with col_metric4:
+            avoid_count = (df_filtered['decision'] == 'AVOID').sum()
+            st.metric("AVOID", avoid_count)
+
+        st.markdown("---")
+
+        # Main table
+        st.markdown("### 📊 Valuation Overview")
+
+        # Create display dataframe
+        display_cols = ['ticker', 'name', 'sector', 'decision', 'composite_0_100', 'value_score_0_100', 'quality_score_0_100']
+
+        # Add optional columns if they exist
+        optional_cols = ['price', 'market_cap', 'guardrail']
+        for col in optional_cols:
+            if col in df_filtered.columns:
+                display_cols.append(col)
+
+        # Filter to available columns
+        display_cols = [col for col in display_cols if col in df_filtered.columns]
+
+        df_display = df_filtered[display_cols].copy()
+
+        # Rename columns for better display
+        column_mapping = {
+            'ticker': 'Ticker',
+            'name': 'Company',
+            'sector': 'Sector',
+            'decision': 'Decision',
+            'composite_0_100': 'Composite',
+            'value_score_0_100': 'Value',
+            'quality_score_0_100': 'Quality',
+            'price': 'Price',
+            'market_cap': 'Market Cap',
+            'guardrail': 'Guardrail'
+        }
+
+        df_display = df_display.rename(columns=column_mapping)
+
+        # Format numeric columns
+        if 'Composite' in df_display.columns:
+            df_display['Composite'] = df_display['Composite'].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/A")
+        if 'Value' in df_display.columns:
+            df_display['Value'] = df_display['Value'].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/A")
+        if 'Quality' in df_display.columns:
+            df_display['Quality'] = df_display['Quality'].apply(lambda x: f"{x:.1f}" if pd.notna(x) else "N/A")
+        if 'Price' in df_display.columns:
+            df_display['Price'] = df_display['Price'].apply(lambda x: f"${x:.2f}" if pd.notna(x) else "N/A")
+        if 'Market Cap' in df_display.columns:
+            df_display['Market Cap'] = df_display['Market Cap'].apply(
+                lambda x: f"${x/1e9:.1f}B" if pd.notna(x) and x >= 1e9 else (f"${x/1e6:.1f}M" if pd.notna(x) else "N/A")
+            )
+
+        # Color coding for decisions
+        def color_decision(val):
+            if val == 'BUY':
+                return 'background-color: #d1fae5; color: #065f46; font-weight: 700;'
+            elif val == 'MONITOR':
+                return 'background-color: #dbeafe; color: #1e3a8a; font-weight: 700;'
+            elif val == 'AVOID':
+                return 'background-color: #fee2e2; color: #991b1b; font-weight: 700;'
+            return ''
+
+        def color_guardrail(val):
+            if val == 'VERDE':
+                return 'background-color: #d1fae5; color: #065f46; font-weight: 700;'
+            elif val == 'AMBAR':
+                return 'background-color: #fef3c7; color: #78350f; font-weight: 700;'
+            elif val == 'ROJO':
+                return 'background-color: #fee2e2; color: #991b1b; font-weight: 700;'
+            return ''
+
+        # Apply styling
+        styled_df = df_display.style.applymap(color_decision, subset=['Decision'] if 'Decision' in df_display.columns else [])
+        if 'Guardrail' in df_display.columns:
+            styled_df = styled_df.applymap(color_guardrail, subset=['Guardrail'])
+
+        # Display table
+        st.dataframe(
+            styled_df,
+            use_container_width=True,
+            height=600
+        )
+
+        st.markdown("---")
+
+        # Expandable section for detailed analysis
+        st.markdown("### 🔬 Detailed Valuation Analysis")
+        st.markdown("""
+        Select a ticker below to run comprehensive valuation analysis including:
+        - **Robust Fair Value** with multi-method consensus
+        - **Growth Engine** with 3-estimator system
+        - **Price Projections** by scenario
+        - **Peer comparison** and reliability metrics
+        """)
+
+        # Ticker selection for detailed analysis
+        col_detail1, col_detail2 = st.columns([1, 3])
+
+        with col_detail1:
+            selected_detail_ticker = st.selectbox(
+                "Select ticker for detailed analysis",
+                options=df_filtered['ticker'].tolist(),
+                key='dashboard_detail_ticker'
+            )
+
+        with col_detail2:
+            if selected_detail_ticker:
+                stock_info = df_filtered[df_filtered['ticker'] == selected_detail_ticker].iloc[0]
+                st.markdown(f"**{stock_info['name']}** ({selected_detail_ticker})")
+
+                col_info1, col_info2, col_info3 = st.columns(3)
+                with col_info1:
+                    st.metric("Decision", stock_info['decision'])
+                with col_info2:
+                    st.metric("Composite Score", f"{stock_info['composite_0_100']:.1f}")
+                with col_info3:
+                    st.metric("Guardrail", stock_info.get('guardrail', 'N/A'))
+
+        if selected_detail_ticker and st.button(f"🔍 Run Deep Analysis for {selected_detail_ticker}", type="primary", use_container_width=True, key='dashboard_analyze_btn'):
+            # Force reload modules to get latest code
+            modules_to_reload = [
+                'screener.ingest',
+                'screener.qualitative'
+            ]
+            for module_name in modules_to_reload:
+                if module_name in sys.modules:
+                    del sys.modules[module_name]
+
+            with st.spinner(f"Analyzing {selected_detail_ticker}... This may take 30-60 seconds"):
+                try:
+                    from screener.qualitative import QualitativeAnalyzer
+                    from screener.ingest import FMPClient
+
+                    # Load config
+                    config_file = 'settings_premium.yaml' if os.path.exists('settings_premium.yaml') else 'settings.yaml'
+                    with open(config_file, 'r') as f:
+                        config = yaml.safe_load(f)
+
+                    # Get API key
+                    api_key = None
+                    if 'FMP_API_KEY' in st.secrets:
+                        api_key = st.secrets['FMP_API_KEY']
+                    elif 'FMP' in st.secrets:
+                        api_key = st.secrets['FMP']
+
+                    if not api_key:
+                        api_key = os.getenv('FMP_API_KEY')
+
+                    if not api_key:
+                        st.error("⚠️ FMP API key not found. Please set FMP_API_KEY in Streamlit secrets or environment variables.")
+                    else:
+                        # Initialize clients
+                        fmp_client = FMPClient(api_key=api_key)
+                        analyzer = QualitativeAnalyzer(
+                            fmp_client=fmp_client,
+                            config=config
+                        )
+
+                        # Run analysis
+                        result = analyzer.analyze(selected_detail_ticker)
+
+                        if result:
+                            # Display Robust Fair Value section
+                            st.markdown("#### 💰 Robust Fair Value Estimation")
+
+                            robust_val = result.get('robust_valuation', {})
+                            if robust_val:
+                                st.markdown(robust_val.get('summary_html', 'No summary available'))
+
+                                # Show detailed metrics
+                                if 'fair_value_p10' in robust_val and 'fair_value_p50' in robust_val and 'fair_value_p90' in robust_val:
+                                    col_fv1, col_fv2, col_fv3, col_fv4 = st.columns(4)
+                                    with col_fv1:
+                                        st.metric("Fair Value (p10)", f"${robust_val['fair_value_p10']:.2f}")
+                                    with col_fv2:
+                                        st.metric("Fair Value (p50)", f"${robust_val['fair_value_p50']:.2f}")
+                                    with col_fv3:
+                                        st.metric("Fair Value (p90)", f"${robust_val['fair_value_p90']:.2f}")
+                                    with col_fv4:
+                                        current_price = robust_val.get('current_price', 0)
+                                        st.metric("Current Price", f"${current_price:.2f}")
+
+                            # Display Growth Engine section
+                            st.markdown("---")
+                            st.markdown("#### 📈 Growth Engine")
+
+                            growth_engine = result.get('growth_engine', {})
+                            if growth_engine:
+                                st.markdown(growth_engine.get('summary_html', 'No summary available'))
+
+                            # Display Price Projections section
+                            st.markdown("---")
+                            st.markdown("#### 🎯 Price Projections by Scenario")
+
+                            projections = result.get('price_projections', {})
+                            if projections:
+                                st.markdown(projections.get('summary_html', 'No summary available'))
+
+                            st.success(f"✅ Analysis complete for {selected_detail_ticker}")
+                        else:
+                            st.warning(f"No analysis results returned for {selected_detail_ticker}")
+
+                except Exception as e:
+                    st.error(f"Error running analysis: {str(e)}")
+                    st.exception(e)
+
+    else:
+        st.info("👈 Run the screener first to access the valuation dashboard")
+
+with tab7:
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
         <h2 style='margin: 0; color: white; font-weight: 700;'>Complete Analysis</h2>
         <p style='margin: 0.5rem 0 0 0; opacity: 0.95;'>
             Standalone qualitative + technical analysis - No screener required
@@ -11019,7 +11326,7 @@ with tab6:
         else:
             st.info(f" Enter a ticker above and click 'Analyze' to see detailed quality and valuation analysis")
 
-with tab8:
+with tab9:
     st.markdown("""
     <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 padding: 2rem; border-radius: 12px; color: white; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
@@ -11301,7 +11608,7 @@ with tab8:
     **UltraQuality** - Combining the best of fundamental and technical analysis, backed by academic research.
     """)
 
-with tab7:
+with tab8:
     # Modern header with gradient
     st.markdown("""
     <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
