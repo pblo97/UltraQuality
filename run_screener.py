@@ -5429,9 +5429,16 @@ with tab5:
                         # TOOL 1: P/E PARADOX
                         with col1:
                             pe_paradox = timing_tools.get('pe_paradox', {})
-                            pe_signal = pe_paradox.get('signal', 'NEUTRAL')
-                            pe_value = pe_paradox.get('pe_ratio')
-                            pe_interpretation = pe_paradox.get('interpretation', 'No data')
+
+                            # Check if data exists or if there was an attempt
+                            if not pe_paradox:
+                                pe_signal = 'NEUTRAL'
+                                pe_value = None
+                                pe_interpretation = 'No P/E data available from FMP API. Check if company has earnings or if premium endpoint is accessible.'
+                            else:
+                                pe_signal = pe_paradox.get('signal', 'NEUTRAL')
+                                pe_value = pe_paradox.get('pe_ratio')
+                                pe_interpretation = pe_paradox.get('interpretation', 'No data')
 
                             # Color based on signal
                             if pe_signal == 'DANGER':
@@ -5464,12 +5471,20 @@ with tab5:
                         # TOOL 2: P/B BANDS
                         with col2:
                             pb_bands = timing_tools.get('pb_bands', {})
-                            pb_signal = pb_bands.get('signal', 'NEUTRAL')
-                            pb_current = pb_bands.get('pb_current')
-                            pb_avg = pb_bands.get('pb_avg')
-                            pb_lower = pb_bands.get('pb_lower_band')
-                            pb_upper = pb_bands.get('pb_upper_band')
-                            pb_interpretation = pb_bands.get('interpretation', 'No data')
+
+                            # Check if data exists
+                            if not pb_bands:
+                                pb_signal = 'NEUTRAL'
+                                pb_current = None
+                                pb_avg = None
+                                pb_interpretation = 'No P/B data available from FMP API. Check if historical key metrics endpoint is accessible.'
+                            else:
+                                pb_signal = pb_bands.get('signal', 'NEUTRAL')
+                                pb_current = pb_bands.get('pb_current')
+                                pb_avg = pb_bands.get('pb_avg')
+                                pb_lower = pb_bands.get('pb_lower_band')
+                                pb_upper = pb_bands.get('pb_upper_band')
+                                pb_interpretation = pb_bands.get('interpretation', 'No data')
 
                             # Format values for display
                             pb_current_str = f"{pb_current:.2f}" if pb_current else "N/A"
@@ -5508,10 +5523,18 @@ with tab5:
                         # TOOL 3: INVENTORY (DIO)
                         with col3:
                             dio_analysis = timing_tools.get('inventory_dio', {})
-                            dio_signal = dio_analysis.get('signal', 'NEUTRAL')
-                            dio_current = dio_analysis.get('dio_current')
-                            dio_avg = dio_analysis.get('dio_avg_3y')
-                            dio_interpretation = dio_analysis.get('interpretation', 'No data')
+
+                            # Check if data exists
+                            if not dio_analysis:
+                                dio_signal = 'NEUTRAL'
+                                dio_current = None
+                                dio_avg = None
+                                dio_interpretation = 'No inventory data available. Company may not have inventory, or FMP financial ratios endpoint may be inaccessible.'
+                            else:
+                                dio_signal = dio_analysis.get('signal', 'NEUTRAL')
+                                dio_current = dio_analysis.get('dio_current')
+                                dio_avg = dio_analysis.get('dio_avg_3y')
+                                dio_interpretation = dio_analysis.get('interpretation', 'No data')
 
                             # Format values for display
                             dio_current_str = f"{dio_current:.1f}" if dio_current else "N/A"
