@@ -9378,7 +9378,7 @@ with tab6:
                         st.error("⚠️ FMP API key not found.")
                     else:
                         # Initialize clients
-                        fmp_client = FMPClient(api_key=api_key)
+                        fmp_client = FMPClient(api_key, config)
                         analyzer = QualitativeAnalyzer(fmp_client=fmp_client, config=config)
 
                         # Progress bar
@@ -9619,7 +9619,7 @@ with tab6:
                         st.error("⚠️ FMP API key not found. Please set FMP_API_KEY in Streamlit secrets or environment variables.")
                     else:
                         # Initialize clients
-                        fmp_client = FMPClient(api_key=api_key)
+                        fmp_client = FMPClient(api_key, config)
                         analyzer = QualitativeAnalyzer(
                             fmp_client=fmp_client,
                             config=config
