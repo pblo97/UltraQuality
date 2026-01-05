@@ -5429,9 +5429,16 @@ with tab5:
                         # TOOL 1: P/E PARADOX
                         with col1:
                             pe_paradox = timing_tools.get('pe_paradox', {})
-                            pe_signal = pe_paradox.get('signal', 'NEUTRAL')
-                            pe_value = pe_paradox.get('pe_ratio')
-                            pe_interpretation = pe_paradox.get('interpretation', 'No data')
+
+                            # Check if data exists or if there was an attempt
+                            if not pe_paradox:
+                                pe_signal = 'NEUTRAL'
+                                pe_value = None
+                                pe_interpretation = 'No P/E data available from FMP API. Check if company has earnings or if premium endpoint is accessible.'
+                            else:
+                                pe_signal = pe_paradox.get('signal', 'NEUTRAL')
+                                pe_value = pe_paradox.get('pe_ratio')
+                                pe_interpretation = pe_paradox.get('interpretation', 'No data')
 
                             # Color based on signal
                             if pe_signal == 'DANGER':
@@ -5464,12 +5471,20 @@ with tab5:
                         # TOOL 2: P/B BANDS
                         with col2:
                             pb_bands = timing_tools.get('pb_bands', {})
-                            pb_signal = pb_bands.get('signal', 'NEUTRAL')
-                            pb_current = pb_bands.get('pb_current')
-                            pb_avg = pb_bands.get('pb_avg')
-                            pb_lower = pb_bands.get('pb_lower_band')
-                            pb_upper = pb_bands.get('pb_upper_band')
-                            pb_interpretation = pb_bands.get('interpretation', 'No data')
+
+                            # Check if data exists
+                            if not pb_bands:
+                                pb_signal = 'NEUTRAL'
+                                pb_current = None
+                                pb_avg = None
+                                pb_interpretation = 'No P/B data available from FMP API. Check if historical key metrics endpoint is accessible.'
+                            else:
+                                pb_signal = pb_bands.get('signal', 'NEUTRAL')
+                                pb_current = pb_bands.get('pb_current')
+                                pb_avg = pb_bands.get('pb_avg')
+                                pb_lower = pb_bands.get('pb_lower_band')
+                                pb_upper = pb_bands.get('pb_upper_band')
+                                pb_interpretation = pb_bands.get('interpretation', 'No data')
 
                             # Format values for display
                             pb_current_str = f"{pb_current:.2f}" if pb_current else "N/A"
@@ -5508,10 +5523,18 @@ with tab5:
                         # TOOL 3: INVENTORY (DIO)
                         with col3:
                             dio_analysis = timing_tools.get('inventory_dio', {})
-                            dio_signal = dio_analysis.get('signal', 'NEUTRAL')
-                            dio_current = dio_analysis.get('dio_current')
-                            dio_avg = dio_analysis.get('dio_avg_3y')
-                            dio_interpretation = dio_analysis.get('interpretation', 'No data')
+
+                            # Check if data exists
+                            if not dio_analysis:
+                                dio_signal = 'NEUTRAL'
+                                dio_current = None
+                                dio_avg = None
+                                dio_interpretation = 'No inventory data available. Company may not have inventory, or FMP financial ratios endpoint may be inaccessible.'
+                            else:
+                                dio_signal = dio_analysis.get('signal', 'NEUTRAL')
+                                dio_current = dio_analysis.get('dio_current')
+                                dio_avg = dio_analysis.get('dio_avg_3y')
+                                dio_interpretation = dio_analysis.get('interpretation', 'No data')
 
                             # Format values for display
                             dio_current_str = f"{dio_current:.1f}" if dio_current else "N/A"
@@ -11809,16 +11832,22 @@ with tab8:
         # Get results
         df = get_results_with_current_params()
 
-        # Filter to BUY and MONITOR only
-        df_technical = df[df['decision'].isin(['BUY', 'MONITOR'])].copy()
+        # Filter to AVOID only - use technical analysis as contrarian validator
+        df_technical = df[df['decision'] == 'AVOID'].copy()
 
         if len(df_technical) == 0:
-            st.warning(" No BUY or MONITOR signals found. Run screener with different parameters.")
+            st.warning("No AVOID signals found. Run screener with different parameters.")
         else:
-            st.success(f" Analyzing **{len(df_technical)}** stocks (BUY + MONITOR signals)")
+            st.info(f"Analyzing **{len(df_technical)}** stocks with fundamental AVOID signals")
+            st.markdown("""
+            **Strategy:** Use technical analysis to validate AVOID decisions or find contrarian opportunities.
+            - Strong downtrend + weak technicals = Confirm AVOID
+            - Oversold + positive divergence = Potential contrarian entry
+            - High momentum despite poor fundamentals = Momentum trade opportunity
+            """)
 
-            # Analyze technical for all BUY/MONITOR stocks
-            with st.spinner("Running technical analysis... This may take 30-60 seconds"):
+            # Analyze technical for all AVOID stocks
+            with st.spinner("Running technical analysis for AVOID signals... This may take 30-60 seconds"):
                 # Initialize analyzer (lazy import)
                 try:
                     from screener.technical import TechnicalAnalyzer
@@ -12194,28 +12223,28 @@ with tab8:
                                 del st.session_state[key]
 
                 with preset_col5:
-                    if st.button("Top Quality", help="BUY signal + 75+ score"):
+                    if st.button("Contrarian Setup", help="AVOID + BUY technical signal - potential reversal"):
                         st.session_state['tech_signal_filter'] = ['BUY']
-                        st.session_state['min_tech_score'] = 75
+                        st.session_state['min_tech_score'] = 70
+                        st.session_state['fund_decision_filter'] = ['AVOID']
 
                 # Second row of presets
                 st.markdown("")
                 preset2_col1, preset2_col2, preset2_col3, preset2_col4, preset2_col5 = st.columns(5)
 
                 with preset2_col1:
-                    if st.button("Buy Opportunities", help="Optimal buy setup: Bull market + Strong technicals + Good fundamentals", key='buy_opp_preset'):
-                        # Technical & Fundamental signals
-                        st.session_state['tech_signal_filter'] = ['BUY']
-                        st.session_state['fund_decision_filter'] = ['BUY', 'MONITOR']
-                        # Stop Loss States (favorable)
-                        st.session_state['sl_state_filter'] = ['BLUE_SKY_ATH', 'POWER_TREND', 'PULLBACK_FLAG']
-                        # Market Context
-                        st.session_state['regime_filter'] = ['BULL']
-                        st.session_state['sector_filter'] = ['LEADING', 'OUTPERFORMER', 'NEUTRAL']
-                        # Technical Components
-                        st.session_state['trend_filter'] = ['UPTREND', 'STRONG_UPTREND']
-                        st.session_state['volume_filter'] = ['ACCUMULATION', 'DISTRIBUTION', 'NEUTRAL']
-                        st.session_state['consistency_filter'] = ['VERY_CONSISTENT', 'CONSISTENT']
+                    if st.button("Confirm AVOID", help="AVOID + SELL technical - confirms fundamental weakness", key='confirm_avoid_preset'):
+                        # Technical & Fundamental signals align on AVOID
+                        st.session_state['tech_signal_filter'] = ['SELL', 'HOLD']
+                        st.session_state['fund_decision_filter'] = ['AVOID']
+                        # Stop Loss States (unfavorable)
+                        st.session_state['sl_state_filter'] = ['DANGER_ZONE', 'STOP_HIT']
+                        # Market Context (weakness)
+                        st.session_state['regime_filter'] = ['BEAR', 'NEUTRAL']
+                        st.session_state['sector_filter'] = ['LAGGARD', 'UNDERPERFORMER']
+                        # Technical Components (weakness)
+                        st.session_state['trend_filter'] = ['DOWNTREND', 'STRONG_DOWNTREND']
+                        st.session_state['volume_filter'] = ['DISTRIBUTION']
                         st.rerun()
 
                 st.markdown("---")
@@ -12252,9 +12281,9 @@ with tab8:
                 with col2:
                     fund_decision_filter = st.multiselect(
                         "Fundamental Decision",
-                        options=['BUY', 'MONITOR'],
-                        default=['BUY', 'MONITOR'],
-                        help="Fundamental quality+value decision",
+                        options=['AVOID'],
+                        default=['AVOID'],
+                        help="Showing only AVOID signals - using technical as contrarian validator",
                         key='fund_decision_filter'
                     )
 
