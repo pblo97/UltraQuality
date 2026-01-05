@@ -11820,16 +11820,22 @@ with tab8:
         # Get results
         df = get_results_with_current_params()
 
-        # Filter to BUY and MONITOR only
-        df_technical = df[df['decision'].isin(['BUY', 'MONITOR'])].copy()
+        # Filter to AVOID only - use technical analysis as contrarian validator
+        df_technical = df[df['decision'] == 'AVOID'].copy()
 
         if len(df_technical) == 0:
-            st.warning(" No BUY or MONITOR signals found. Run screener with different parameters.")
+            st.warning("No AVOID signals found. Run screener with different parameters.")
         else:
-            st.success(f" Analyzing **{len(df_technical)}** stocks (BUY + MONITOR signals)")
+            st.info(f"Analyzing **{len(df_technical)}** stocks with fundamental AVOID signals")
+            st.markdown("""
+            **Strategy:** Use technical analysis to validate AVOID decisions or find contrarian opportunities.
+            - Strong downtrend + weak technicals = Confirm AVOID
+            - Oversold + positive divergence = Potential contrarian entry
+            - High momentum despite poor fundamentals = Momentum trade opportunity
+            """)
 
-            # Analyze technical for all BUY/MONITOR stocks
-            with st.spinner("Running technical analysis... This may take 30-60 seconds"):
+            # Analyze technical for all AVOID stocks
+            with st.spinner("Running technical analysis for AVOID signals... This may take 30-60 seconds"):
                 # Initialize analyzer (lazy import)
                 try:
                     from screener.technical import TechnicalAnalyzer
@@ -12205,28 +12211,28 @@ with tab8:
                                 del st.session_state[key]
 
                 with preset_col5:
-                    if st.button("Top Quality", help="BUY signal + 75+ score"):
+                    if st.button("Contrarian Setup", help="AVOID + BUY technical signal - potential reversal"):
                         st.session_state['tech_signal_filter'] = ['BUY']
-                        st.session_state['min_tech_score'] = 75
+                        st.session_state['min_tech_score'] = 70
+                        st.session_state['fund_decision_filter'] = ['AVOID']
 
                 # Second row of presets
                 st.markdown("")
                 preset2_col1, preset2_col2, preset2_col3, preset2_col4, preset2_col5 = st.columns(5)
 
                 with preset2_col1:
-                    if st.button("Buy Opportunities", help="Optimal buy setup: Bull market + Strong technicals + Good fundamentals", key='buy_opp_preset'):
-                        # Technical & Fundamental signals
-                        st.session_state['tech_signal_filter'] = ['BUY']
-                        st.session_state['fund_decision_filter'] = ['BUY', 'MONITOR']
-                        # Stop Loss States (favorable)
-                        st.session_state['sl_state_filter'] = ['BLUE_SKY_ATH', 'POWER_TREND', 'PULLBACK_FLAG']
-                        # Market Context
-                        st.session_state['regime_filter'] = ['BULL']
-                        st.session_state['sector_filter'] = ['LEADING', 'OUTPERFORMER', 'NEUTRAL']
-                        # Technical Components
-                        st.session_state['trend_filter'] = ['UPTREND', 'STRONG_UPTREND']
-                        st.session_state['volume_filter'] = ['ACCUMULATION', 'DISTRIBUTION', 'NEUTRAL']
-                        st.session_state['consistency_filter'] = ['VERY_CONSISTENT', 'CONSISTENT']
+                    if st.button("Confirm AVOID", help="AVOID + SELL technical - confirms fundamental weakness", key='confirm_avoid_preset'):
+                        # Technical & Fundamental signals align on AVOID
+                        st.session_state['tech_signal_filter'] = ['SELL', 'HOLD']
+                        st.session_state['fund_decision_filter'] = ['AVOID']
+                        # Stop Loss States (unfavorable)
+                        st.session_state['sl_state_filter'] = ['DANGER_ZONE', 'STOP_HIT']
+                        # Market Context (weakness)
+                        st.session_state['regime_filter'] = ['BEAR', 'NEUTRAL']
+                        st.session_state['sector_filter'] = ['LAGGARD', 'UNDERPERFORMER']
+                        # Technical Components (weakness)
+                        st.session_state['trend_filter'] = ['DOWNTREND', 'STRONG_DOWNTREND']
+                        st.session_state['volume_filter'] = ['DISTRIBUTION']
                         st.rerun()
 
                 st.markdown("---")
@@ -12263,9 +12269,9 @@ with tab8:
                 with col2:
                     fund_decision_filter = st.multiselect(
                         "Fundamental Decision",
-                        options=['BUY', 'MONITOR'],
-                        default=['BUY', 'MONITOR'],
-                        help="Fundamental quality+value decision",
+                        options=['AVOID'],
+                        default=['AVOID'],
+                        help="Showing only AVOID signals - using technical as contrarian validator",
                         key='fund_decision_filter'
                     )
 
