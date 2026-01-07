@@ -228,7 +228,8 @@ class EnhancedTechnicalAnalyzer:
                 ema_20=ema_20,
                 rsi=None,
                 week_52_high=week_52_high,
-                tier=2  # Default to tier 2 for detection
+                tier=2,  # Default to tier 2 for detection
+                overextension_risk=overextension_risk  # Pass overextension_risk for PARABOLIC_CLIMAX detection
             )
 
             # 15. Generate warnings (including overextension)
@@ -1415,7 +1416,8 @@ class EnhancedTechnicalAnalyzer:
                 entry_price=None,
                 days_in_position=0,
                 current_return_pct=0,
-                rsi=None
+                rsi=None,
+                overextension_risk=overextension_risk
             )
         else:
             # Fallback to legacy method if no price data
@@ -2375,7 +2377,8 @@ class EnhancedTechnicalAnalyzer:
         ema_20: float = 0,
         rsi: float = None,
         week_52_high: float = 0,
-        tier: int = 2
+        tier: int = 2,
+        overextension_risk: int = 0
     ) -> Tuple[str, str]:
         """
         🧠 STATE MACHINE - Detect current market state for the stock.
@@ -2482,13 +2485,14 @@ class EnhancedTechnicalAnalyzer:
                 )
 
             # STATE 2B: PARABOLIC_CLIMAX (Standard Detection - Vertical Euforia) ⚠
-            # Tier-specific thresholds for overextension
-            climax_threshold = 20 if tier <= 2 else 30
-            if (rsi and rsi > 75) or (ma_50 > 0 and sma50_distance_pct > climax_threshold):
+            # Use sophisticated 7-factor overextension_risk meter instead of simple threshold
+            # Only trigger when overextension_risk >= 5 (HIGH or EXTREME risk)
+            # This aligns with the multi-dimensional overextension analysis (distance, volatility, momentum, etc.)
+            if overextension_risk >= 5:
                 return (
                     "PARABOLIC_CLIMAX",
                     "⚠",
-                    f"Vertical move! RSI={rsi or 'N/A'}, {sma50_distance_pct:+.1f}% above MA50. Unsustainable. Lock profits NOW."
+                    f"Overextension Risk: {overextension_risk}/7 (HIGH/EXTREME). Unsustainable price extension. Lock profits NOW."
                 )
 
             # STATE 3: BLUE_SKY_ATH (All-Time High - No Resistance) ★
@@ -2952,7 +2956,8 @@ class EnhancedTechnicalAnalyzer:
         entry_price: float = None,
         days_in_position: int = 0,
         current_return_pct: float = 0,
-        rsi: float = None
+        rsi: float = None,
+        overextension_risk: int = 0
     ) -> Dict:
         """
         SmartDynamicStopLoss - Advanced adaptive stop loss system.
@@ -3031,7 +3036,7 @@ class EnhancedTechnicalAnalyzer:
                     # Not zombie - detect normal state
                     market_state, state_emoji, state_rationale = self._detect_market_state(
                         prices, current_price, entry_price, days_in_position,
-                        ma_50, ema_20, rsi, week_52_high, tier_num
+                        ma_50, ema_20, rsi, week_52_high, tier_num, overextension_risk
                     )
 
                     # Calculate stop based on detected state
@@ -3045,7 +3050,7 @@ class EnhancedTechnicalAnalyzer:
                 # No entry price or recent entry - detect state
                 market_state, state_emoji, state_rationale = self._detect_market_state(
                     prices, current_price, entry_price, days_in_position,
-                    ma_50, ema_20, rsi, week_52_high, tier_num
+                    ma_50, ema_20, rsi, week_52_high, tier_num, overextension_risk
                 )
 
                 # Calculate stop based on detected state
