@@ -839,10 +839,11 @@ def generate_positions_excel(df_filtered, portfolio_size=420000):
                 'Fecha Earnings': earnings_date,
 
                 'Tech Score': row.get('technical_score', 0),
-                'Tech Signal': row.get('technical_signal', 'N/A'),
+                'Conviction': row.get('conviction', 0),
+                'Extension': row.get('extension_state', 'N/A'),
                 'Fund Score': row.get('fundamental_score', 0),
                 'Fund Decision': row.get('fundamental_decision', 'N/A'),
-                'Stop Loss State': row.get('stop_loss_state', 'N/A'),
+                'Trend State': row.get('trend_state', 'N/A'),
             })
 
         except Exception as e:
@@ -12230,49 +12231,38 @@ with tab8:
                                 del st.session_state[key]
 
                 with preset_col5:
-                    if st.button("Top Quality", help="BUY signal + 75+ score"):
-                        st.session_state['tech_signal_filter'] = ['BUY']
+                    if st.button("Top Quality", help="High conviction + high score"):
+                        st.session_state['min_conviction'] = 0.7
                         st.session_state['min_tech_score'] = 75
 
-                # Second row of presets
+                # Second row of presets (V2)
                 st.markdown("")
                 preset2_col1, preset2_col2, preset2_col3, preset2_col4, preset2_col5 = st.columns(5)
 
                 with preset2_col1:
-                    if st.button("Buy Opportunities", help="Optimal buy setup: Bull market + Strong technicals + Good fundamentals", key='buy_opp_preset'):
-                        # Technical & Fundamental signals
-                        st.session_state['tech_signal_filter'] = ['BUY']
+                    if st.button("Buy Opportunities", help="Optimal setup: Bull market + High conviction + Quality", key='buy_opp_preset'):
+                        # V2 Filters
+                        st.session_state['extension_filter'] = ['NORMAL', 'EXTENDED']  # Not overextended
                         st.session_state['fund_decision_filter'] = ['BUY', 'MONITOR']
-                        # Stop Loss States (favorable)
-                        st.session_state['sl_state_filter'] = ['BLUE_SKY_ATH', 'POWER_TREND', 'PULLBACK_FLAG']
-                        # Market Context
+                        st.session_state['min_conviction'] = 0.5  # At least moderate
                         st.session_state['regime_filter'] = ['BULL']
-                        st.session_state['sector_filter'] = ['LEADING', 'OUTPERFORMER', 'NEUTRAL']
-                        # Technical Components
-                        st.session_state['trend_filter'] = ['UPTREND', 'STRONG_UPTREND']
-                        st.session_state['volume_filter'] = ['ACCUMULATION', 'DISTRIBUTION', 'NEUTRAL']
-                        st.session_state['consistency_filter'] = ['VERY_CONSISTENT', 'CONSISTENT']
+                        st.session_state['trend_filter'] = ['UPTREND']
+                        st.session_state['volume_filter'] = ['ACCUMULATION', 'NEUTRAL']
                         st.rerun()
 
                 with preset2_col2:
-                    if st.button("Contrarian Setup", help="AVOID + BUY technical - potential reversal", key='contrarian_preset'):
-                        st.session_state['tech_signal_filter'] = ['BUY']
+                    if st.button("Contrarian Setup", help="AVOID fundamentals + good technicals", key='contrarian_preset'):
                         st.session_state['fund_decision_filter'] = ['AVOID']
+                        st.session_state['min_conviction'] = 0.5
                         st.session_state['min_tech_score'] = 70
                         st.rerun()
 
                 with preset2_col3:
-                    if st.button("Confirm AVOID", help="AVOID + SELL technical - confirms fundamental weakness", key='confirm_avoid_preset'):
-                        # Technical & Fundamental signals align on AVOID
-                        st.session_state['tech_signal_filter'] = ['SELL', 'HOLD']
+                    if st.button("Confirm AVOID", help="AVOID + weak technicals", key='confirm_avoid_preset'):
+                        # Both fundamental and technical weakness
                         st.session_state['fund_decision_filter'] = ['AVOID']
-                        # Stop Loss States (unfavorable)
-                        st.session_state['sl_state_filter'] = ['DANGER_ZONE', 'STOP_HIT']
-                        # Market Context (weakness)
-                        st.session_state['regime_filter'] = ['BEAR', 'NEUTRAL']
-                        st.session_state['sector_filter'] = ['LAGGARD', 'UNDERPERFORMER']
-                        # Technical Components (weakness)
-                        st.session_state['trend_filter'] = ['DOWNTREND', 'STRONG_DOWNTREND']
+                        st.session_state['min_conviction'] = 0.0
+                        st.session_state['trend_filter'] = ['DOWNTREND', 'CHOP']
                         st.session_state['volume_filter'] = ['DISTRIBUTION']
                         st.rerun()
 
@@ -12559,21 +12549,18 @@ with tab8:
 
                 display_cols = [
                     'ticker', 'name', 'sector',
-                    'stop_loss_state',  # Added SmartDynamicStopLoss state
-                    'market_regime',
-                    'technical_score', 'technical_signal',
-                    'momentum_6m', 'momentum_consistency',
-                    'sharpe_12m', 'trend',
-                    'sector_status', 'market_status',
-                    'volume_profile',
+                    'technical_score', 'conviction',  # V2: Score + Conviction
+                    'extension_state', 'trend_state', 'regime_state',  # V2: States
+                    'rs_score', 'trend_score', 'risk_score', 'volume_score',  # V2: Component breakdown
+                    'sharpe_6m', 'volume_profile',  # V2: Key details
                     'fundamental_score', 'fundamental_decision',
                     'warnings_count'
                 ]
 
-                # Format for display
+                # Format for display (V2)
                 df_display = df_filtered[display_cols].copy()
-                df_display['momentum_6m'] = df_display['momentum_6m'].apply(lambda x: f"{x:+.1f}%")
-                df_display['sharpe_12m'] = df_display['sharpe_12m'].apply(lambda x: f"{x:.2f}")
+                df_display['conviction'] = df_display['conviction'].apply(lambda x: f"{x:.2f}")
+                df_display['sharpe_6m'] = df_display['sharpe_6m'].apply(lambda x: f"{x:.2f}")
 
                 st.dataframe(
                     df_display,
@@ -12583,26 +12570,39 @@ with tab8:
                         'ticker': 'Ticker',
                         'name': 'Company',
                         'sector': 'Sector',
-                        'stop_loss_state': st.column_config.Column(
-                            ' SL State',
-                            help='SmartDynamicStopLoss State Machine'
-                        ),
                         'technical_score': st.column_config.NumberColumn(
                             'Tech Score',
+                            help='Orthogonal: RS + Trend + Risk + Volume',
                             format='%.0f'
                         ),
-                        'technical_signal': st.column_config.Column(
-                            'Tech Signal'
+                        'conviction': st.column_config.Column(
+                            'Conviction',
+                            help='(Score - 60) / 30, for sizing'
                         ),
-                        'momentum_12m': '12M Return',
-                        'trend': 'Trend',
-                        'sector_status': 'Sector',
+                        'extension_state': st.column_config.Column(
+                            'Extension',
+                            help='Distance from MA200 - affects position size'
+                        ),
+                        'trend_state': st.column_config.Column(
+                            'Trend',
+                            help='Structural trend state'
+                        ),
+                        'regime_state': st.column_config.Column(
+                            'Regime',
+                            help='Market regime (affects sizing only)'
+                        ),
+                        'rs_score': st.column_config.NumberColumn('RS', format='%.0f'),
+                        'trend_score': st.column_config.NumberColumn('Trend', format='%.0f'),
+                        'risk_score': st.column_config.NumberColumn('Risk', format='%.0f'),
+                        'volume_score': st.column_config.NumberColumn('Vol', format='%.0f'),
+                        'sharpe_6m': 'Sharpe 6M',
+                        'volume_profile': 'Vol Profile',
                         'fundamental_score': st.column_config.NumberColumn(
                             'Fund Score',
                             format='%.0f'
                         ),
                         'fundamental_decision': 'Fund Decision',
-                        'warnings_count': ''
+                        'warnings_count': '⚠️'
                     }
                 )
 
@@ -12633,29 +12633,31 @@ with tab8:
                         with col2:
                             # Combined signal
                             fund_signal = stock_data['fundamental_decision']
-                            tech_signal = stock_data['technical_signal']
+                            conviction = stock_data.get('conviction', 0)
+                            extension = stock_data.get('extension_state', 'UNKNOWN')
 
-                            if fund_signal == 'BUY' and tech_signal == 'BUY':
+                            # V2: Use conviction instead of technical_signal
+                            if fund_signal == 'BUY' and conviction >= 0.7 and extension in ['NORMAL', 'EXTENDED']:
                                 st.markdown("""
                                 <div style='background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
                                             padding: 1rem; border-radius: 10px; text-align: center;'>
                                     <span class='badge badge-buy' style='font-size: 1.1rem;'>
                                         <i class="bi bi-check-circle-fill"></i> STRONG BUY
                                     </span>
-                                    <div style='color: white; margin-top: 0.5rem; font-size: 0.9rem;'>Fundamental + Technical</div>
+                                    <div style='color: white; margin-top: 0.5rem; font-size: 0.9rem;'>Quality + High Conviction + Good Entry</div>
                                 </div>
                                 """, unsafe_allow_html=True)
-                            elif fund_signal == 'BUY' and tech_signal == 'HOLD':
+                            elif fund_signal == 'BUY' and conviction >= 0.3:
                                 st.markdown("""
                                 <div style='background: #d1ecf1; padding: 1rem; border-radius: 10px; text-align: center;
                                             border-left: 4px solid #17a2b8;'>
                                     <span class='badge badge-buy'>
                                         <i class="bi bi-arrow-up-circle"></i> BUY
                                     </span>
-                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>Good fundamentals, wait for entry</div>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>Good fundamentals, moderate timing (Conv: {conviction:.2f})</div>
                                 </div>
-                                """, unsafe_allow_html=True)
-                            elif fund_signal == 'BUY' and tech_signal == 'SELL':
+                                """.format(conviction=conviction), unsafe_allow_html=True)
+                            elif fund_signal == 'BUY' and conviction < 0.3:
                                 st.markdown("""
                                 <div style='background: #fff3cd; padding: 1rem; border-radius: 10px; text-align: center;
                                             border-left: 4px solid #ffc107;'>
