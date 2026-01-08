@@ -13001,31 +13001,45 @@ with tab8:
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # Multi-Timeframe Momentum Display
-                            st.markdown("**Multi-Timeframe Returns:**")
+                            # V2: Relative Strength Display (replaces absolute returns)
+                            st.markdown("**Relative Strength vs Benchmarks:**")
 
-                            # Get momentum data
-                            mom_12m = full_analysis.get('momentum_12m', 0)
-                            mom_6m = full_analysis.get('momentum_6m', 0)
-                            mom_3m = full_analysis.get('momentum_3m', 0)
-                            mom_1m = full_analysis.get('momentum_1m', 0)
+                            # Get RS data from V2
+                            rs_details = full_analysis.get('component_details', {}).get('relative_strength', {})
+                            rs_12_1_spy = rs_details.get('rs_12_1_vs_spy', 0)
+                            rs_6_1_spy = rs_details.get('rs_6_1_vs_spy', 0)
+                            rs_6_1_sector = rs_details.get('rs_6_1_vs_sector', 0)
+                            rs_score = full_analysis.get('components', {}).get('relative_strength', 0)
 
-                            # Display each timeframe with color coding
-                            for period, value in [('12M', mom_12m), ('6M', mom_6m), ('3M', mom_3m), ('1M', mom_1m)]:
-                                mom_color = '#28a745' if value > 10 else '#ffc107' if value > 0 else '#dc3545'
-                                mom_norm = min(max((value + 50) / 100, 0), 1)
+                            # Display each RS metric with color coding
+                            for label, value, max_pts in [
+                                ('RS 12-1M vs SPY', rs_12_1_spy, 18),
+                                ('RS 6-1M vs SPY', rs_6_1_spy, 12),
+                                ('RS 6-1M vs Sector', rs_6_1_sector, 10)
+                            ]:
+                                rs_color = '#28a745' if value > 10 else '#ffc107' if value > 0 else '#dc3545'
+                                rs_norm = min(max((value + 30) / 60, 0), 1)  # Normalize -30 to +30
 
                                 st.markdown(f"""
                                 <div style='background: white; padding: 1rem; border-radius: 8px;
                                             box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 0.75rem;
-                                            border-left: 4px solid {mom_color};'>
+                                            border-left: 4px solid {rs_color};'>
                                     <div style='display: flex; justify-content: space-between; align-items: center;'>
-                                        <div style='font-size: 0.9rem; color: #6c757d; font-weight: 600;'>{period} RETURN</div>
-                                        <div style='font-size: 1.5rem; font-weight: 700; color: {mom_color};'>{value:+.1f}%</div>
+                                        <div style='font-size: 0.9rem; color: #6c757d; font-weight: 600;'>{label}</div>
+                                        <div style='font-size: 1.5rem; font-weight: 700; color: {rs_color};'>{value:+.1f}%</div>
                                     </div>
                                 </div>
                                 """, unsafe_allow_html=True)
-                                st.progress(mom_norm)
+                                st.progress(rs_norm)
+
+                            # Total RS Score
+                            st.markdown(f"""
+                            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                        padding: 1rem; border-radius: 8px; text-align: center; color: white;'>
+                                <div style='font-size: 0.9rem; opacity: 0.9;'>TOTAL RS SCORE</div>
+                                <div style='font-size: 2rem; font-weight: 700;'>{rs_score:.0f}/40</div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # V2: Conviction Badge (replaces consistency)
                             conviction = full_analysis.get('conviction', 0)
@@ -13118,18 +13132,17 @@ with tab8:
                             """, unsafe_allow_html=True)
                             st.progress(vol_normalized)
 
-                            # Distance from MA200
-                            dist_ma200 = full_analysis.get('distance_from_ma200', 0)
-                            dist_color = '#28a745' if -5 <= dist_ma200 <= 20 else '#ffc107' if -15 <= dist_ma200 <= 40 else '#dc3545'
+                            # Distance from MA200 (V2: use already-extracted distance_ma200)
+                            dist_color = '#28a745' if -5 <= distance_ma200 <= 20 else '#ffc107' if -15 <= distance_ma200 <= 40 else '#dc3545'
 
                             st.markdown(f"""
                             <div style='background: white; padding: 1rem; border-radius: 8px;
                                         box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 0.75rem;
                                         border-left: 4px solid {dist_color};'>
                                 <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>DISTANCE FROM MA200</div>
-                                <div style='font-size: 2rem; font-weight: 700; color: {dist_color}; text-align: center;'>{dist_ma200:+.1f}%</div>
+                                <div style='font-size: 2rem; font-weight: 700; color: {dist_color}; text-align: center;'>{distance_ma200:+.1f}%</div>
                                 <div style='font-size: 0.8rem; color: #6c757d; text-align: center;'>
-                                    {'Healthy' if -5 <= dist_ma200 <= 20 else 'Stretched' if -15 <= dist_ma200 <= 40 else 'Overextended'}
+                                    {'Healthy' if -5 <= distance_ma200 <= 20 else 'Stretched' if -15 <= distance_ma200 <= 40 else 'Overextended'}
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
@@ -13183,23 +13196,20 @@ with tab8:
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # Get risk management recommendations
-                        risk_mgmt = full_analysis.get('risk_management', {})
+                        # Get risk management recommendations (V2: direct fields)
+                        pos_sizing = full_analysis.get('position_sizing', {})
+                        stop_loss_data = full_analysis.get('stop_loss', {})
 
-                        if risk_mgmt:
-                            pos_sizing = risk_mgmt.get('position_sizing', {})
-                            if pos_sizing:
-                                # Use enhanced display function with dual constraint system
-                                display_position_sizing(
-                                    pos_sizing,
-                                    stop_loss_data=risk_mgmt.get('stop_loss'),
-                                    portfolio_size=portfolio_capital,
-                                    max_risk_dollars=max_risk_per_trade_dollars
-                                )
-                            else:
-                                st.warning("No position sizing data available")
+                        if pos_sizing:
+                            # Use enhanced display function with dual constraint system
+                            display_position_sizing(
+                                pos_sizing,
+                                stop_loss_data=stop_loss_data,
+                                portfolio_size=portfolio_capital,
+                                max_risk_dollars=max_risk_per_trade_dollars
+                            )
                         else:
-                            st.warning("No risk management data available")
+                            st.warning("No position sizing data available")
 
                         # ========== MÓDULO 4: EJECUCIÓN TÁCTICA ==========
                         st.markdown("""
@@ -13212,88 +13222,16 @@ with tab8:
                         </div>
                         """, unsafe_allow_html=True)
 
-                        if risk_mgmt:
-                            # Entry Strategy
-                            entry_strategy = risk_mgmt.get('entry_strategy', {})
-                            if entry_strategy:
-                                # Use new state-based entry strategy display
-                                display_entry_strategy(entry_strategy)
-                            else:
-                                st.warning("No entry strategy data available")
-
-                            st.markdown("---")
-
-                            # Stop Loss
-                            stop_loss = risk_mgmt.get('stop_loss', {})
-                            if stop_loss:
-                                # Get current price from full_analysis or stop_loss data
-                                current_price = full_analysis.get('current_price', 0)
-                                if current_price == 0:
-                                    current_price = stop_loss.get('current_price', stock_data.get('price', 0))
-                                display_smart_stop_loss(stop_loss, current_price)
-                            else:
-                                st.warning("No stop loss data available")
-
-                            # Optional: Profit Taking and Options as expandable sections
-                            st.markdown("---")
-
-                            with st.expander("Take Profit Strategy", expanded=False):
-                                profit_taking = risk_mgmt.get('profit_taking', {})
-                                if profit_taking:
-                                    # Use professional Take Profit display function
-                                    display_take_profit(profit_taking)
-                                else:
-                                    st.info("No take profit data available")
-
-                            with st.expander("Options Strategies", expanded=False):
-                                options_strategies = risk_mgmt.get('options_strategies', [])
-                                if options_strategies:
-                                    st.markdown(f"**{len(options_strategies)} Recommended Strategies:**")
-
-                                    for i, strategy in enumerate(options_strategies, 1):
-                                        st.markdown(f"### {i}. {strategy.get('name', 'Unknown Strategy')}")
-                                        
-                                        if 'description' in strategy:
-                                            st.write(strategy['description'])
-                                        
-                                        # Show setup
-                                        if 'setup' in strategy:
-                                            st.success(f"**Setup:** {strategy['setup']}")
-                                        
-                                        # Show max profit/loss
-                                        col1, col2 = st.columns(2)
-                                        with col1:
-                                            if 'max_profit' in strategy:
-                                                st.metric("Max Profit", strategy['max_profit'])
-                                        with col2:
-                                            if 'max_loss' in strategy:
-                                                st.metric("Max Loss", strategy['max_loss'])
-                                        
-                                        # Show when to use
-                                        if 'when_to_use' in strategy:
-                                            st.info(f"**When to Use:** {strategy['when_to_use']}")
-                                        
-                                        # Show risk warning if any
-                                        if 'risk' in strategy:
-                                            st.warning(f"**Risk:** {strategy['risk']}")
-                                        
-                                        # Show outcomes for certain strategies
-                                        if 'outcome_1' in strategy:
-                                            st.write(f"**Outcome 1:** {strategy['outcome_1']}")
-                                        if 'outcome_2' in strategy:
-                                            st.write(f"**Outcome 2:** {strategy['outcome_2']}")
-                                        
-                                        # Show evidence
-                                        if 'evidence' in strategy:
-                                            st.caption(f"Evidence: {strategy['evidence']}")
-                                        
-                                        # Show additional notes
-                                        if 'note' in strategy:
-                                            st.info(f"{strategy['note']}")
-                                else:
-                                    st.info("No specific options strategies recommended for this setup.")
+                        # V2: Stop Loss (direct field, no entry_strategy or options in V2)
+                        if stop_loss_data:
+                            # Get current price from metadata
+                            current_price = full_analysis.get('metadata', {}).get('current_price', stock_data.get('price', 0))
+                            display_smart_stop_loss(stop_loss_data, current_price)
                         else:
-                            st.warning("No risk management data available")
+                            st.warning("No stop loss data available")
+
+                        # V2 Note: Entry strategy and options are not part of V2 orthogonal analysis
+                        st.info("V2 uses ATR-based stop loss with automatic position sizing. Entry strategy is based on extension state and conviction level.")
 
                         # ========== INSIDER TRADING & INSTITUTIONAL HOLDINGS ==========
                         # Check if qualitative data is available
@@ -13681,13 +13619,15 @@ with tab8:
 
                         fund_score = stock_data['fundamental_score']
                         tech_score = full_analysis['score']
-                        overextension_risk = full_analysis.get('overextension_risk', 0)
-                        distance_ma200 = full_analysis.get('distance_from_ma200', 0)
+
+                        # V2: Map extension_state to numeric risk for display
+                        ext_risk_values = {'NORMAL': 1, 'EXTENDED': 3, 'STRETCHED': 5, 'OVEREXTENDED': 7}
+                        overextension_risk = ext_risk_values.get(extension_state, 1)
+                        # distance_ma200 already extracted from metadata earlier
 
                         # ========== KILL SWITCH: STATE MACHINE VETO ==========
-                        # CRITICAL: If State Machine detects DOWNTREND, override all recommendations
-                        stop_loss_data = full_analysis.get('smart_stop_loss', {})
-                        market_state = stop_loss_data.get('market_state', 'UNKNOWN')
+                        # V2: Use trend_state from states (not market_state from smart_stop_loss)
+                        market_state = trend  # trend was extracted from states earlier
 
                         if market_state == "DOWNTREND":
                             # VETO: Structure is broken - show critical warning FIRST
