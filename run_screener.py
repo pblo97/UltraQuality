@@ -13113,11 +13113,19 @@ with tab8:
                             if conv_breakdown:
                                 st.markdown("**Conviction Breakdown:**")
 
+                                # Get values from breakdown and full_analysis
                                 setup_str = conv_breakdown.get('setup_strength', 0)
                                 market_f = conv_breakdown.get('market_factor', 1.0)
                                 timing_f = conv_breakdown.get('timing_factor', 1.0)
                                 data_f = conv_breakdown.get('data_factor', 1.0)
                                 final_conv = conv_breakdown.get('conviction', 0)
+
+                                # Get context variables for display
+                                tech_score_val = full_analysis.get('score', 0)
+                                states_data = full_analysis.get('states', {})
+                                market_regime_val = states_data.get('regime', 'UNKNOWN')
+                                extension_state_val = states_data.get('extension', 'UNKNOWN')
+                                volume_profile_val = full_analysis.get('volume_profile', 'UNKNOWN')
 
                                 st.markdown(f"""
                                 <div style='background: white; padding: 1rem; border-radius: 8px;
@@ -13129,10 +13137,10 @@ with tab8:
                                         <strong>{final_conv:.3f}</strong> = {setup_str:.2f} × {market_f:.2f} × {timing_f:.2f} × {data_f:.2f}
                                     </div>
                                     <div style='font-size: 0.8rem; color: #6c757d;'>
-                                        Setup: {setup_str:.2f} (from tech score {tech_score:.0f}/100)<br>
-                                        Market: {market_f:.2f} (regime: {market_regime})<br>
-                                        Timing: {timing_f:.2f} (extension: {extension_state})<br>
-                                        Data: {data_f:.2f} (volume: {volume_profile})
+                                        Setup: {setup_str:.2f} (from tech score {tech_score_val:.0f}/100)<br>
+                                        Market: {market_f:.2f} (regime: {market_regime_val})<br>
+                                        Timing: {timing_f:.2f} (extension: {extension_state_val})<br>
+                                        Data: {data_f:.2f} (volume: {volume_profile_val})
                                     </div>
                                 </div>
                                 """, unsafe_allow_html=True)
