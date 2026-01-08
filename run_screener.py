@@ -11350,11 +11350,12 @@ with tab7:
                             st.write(f"- Risk Status: {tech_analysis.get('risk_adjusted_status', 'N/A')}")
 
                         with col2:
-                            st.markdown("**Relative Strength:**")
-                            st.write(f"- vs Sector: {tech_analysis.get('sector_relative', 0):+.1f}%")
-                            st.write(f"- vs Market (SPY): {tech_analysis.get('market_relative', 0):+.1f}%")
-                            st.write(f"- Sector Status: {tech_analysis.get('sector_status', 'N/A')}")
-                            st.write(f"- Market Status: {tech_analysis.get('market_status', 'N/A')}")
+                            st.markdown("**Relative Strength (V2):**")
+                            rs_details = tech_analysis.get('component_details', {}).get('relative_strength', {})
+                            st.write(f"- RS 12-1 vs SPY: {rs_details.get('rs_12_1_vs_spy', 0):+.1f}%")
+                            st.write(f"- RS 6-1 vs SPY: {rs_details.get('rs_6_1_vs_spy', 0):+.1f}%")
+                            st.write(f"- RS 6-1 vs Sector: {rs_details.get('rs_6_1_vs_sector', 0):+.1f}%")
+                            st.write(f"- Total RS Score: {tech_analysis.get('components', {}).get('relative_strength', 0):.0f}/40")
 
                     with tab3:
                         col1, col2 = st.columns(2)
@@ -12814,7 +12815,8 @@ with tab8:
                                     'bg': 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
                                     'effectiveness': '+20%',
                                     'risk': 'LOW',
-                                    'risk_color': '#28a745'
+                                    'risk_color': '#28a745',
+                                    'size_factor': '1.0x'
                                 },
                                 'BEAR': {
                                     'icon': '<i class="bi bi-graph-down-arrow" style="font-size: 3rem;"></i>',
@@ -12822,7 +12824,8 @@ with tab8:
                                     'bg': 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)',
                                     'effectiveness': '-60%',
                                     'risk': 'HIGH',
-                                    'risk_color': '#dc3545'
+                                    'risk_color': '#dc3545',
+                                    'size_factor': '0.4x'
                                 },
                                 'SIDEWAYS': {
                                     'icon': '<i class="bi bi-arrow-left-right" style="font-size: 3rem;"></i>',
@@ -12830,7 +12833,8 @@ with tab8:
                                     'bg': 'linear-gradient(135deg, #ffc107 0%, #ff9800 100%)',
                                     'effectiveness': '-30%',
                                     'risk': 'MEDIUM',
-                                    'risk_color': '#ffc107'
+                                    'risk_color': '#ffc107',
+                                    'size_factor': '0.7x'
                                 }
                             }
 
@@ -12840,7 +12844,8 @@ with tab8:
                                 'bg': 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
                                 'effectiveness': 'N/A',
                                 'risk': 'UNKNOWN',
-                                'risk_color': '#6c757d'
+                                'risk_color': '#6c757d',
+                                'size_factor': 'N/A'
                             })
 
                             st.markdown(f"""
@@ -12860,27 +12865,29 @@ with tab8:
                                     <div style='font-size: 1.5rem; font-weight: 700;'>{reg_info['risk']}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px;'>
-                                    <div style='font-size: 0.75rem; opacity: 0.9;'>SCORE ADJUSTMENT</div>
-                                    <div style='font-size: 1.5rem; font-weight: 700;'>{regime_adj:+.0f} pts</div>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>POSITION SIZE FACTOR</div>
+                                    <div style='font-size: 1.5rem; font-weight: 700;'>{reg_info.get('size_factor', '1.0x')}</div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
 
                         with col2:
-                            # TARJETA 2: SECTOR RELATIVE STRENGTH
-                            # Determine sector and market colors
-                            sector_perf = full_analysis.get('sector_relative', 0)
-                            market_perf = full_analysis.get('market_relative', 0)
+                            # TARJETA 2: RELATIVE STRENGTH (V2)
+                            # Use numeric RS scores from V2 component details
+                            rs_details = full_analysis.get('component_details', {}).get('relative_strength', {})
+                            rs_spy = rs_details.get('rs_12_1_vs_spy', 0)  # 12-1 month RS vs SPY
+                            rs_sector = rs_details.get('rs_6_1_vs_sector', 0)  # 6-1 month RS vs Sector
 
-                            sector_color = '#28a745' if sector_status in ['LEADING', 'OUTPERFORMER'] else '#dc3545' if sector_status in ['LAGGING', 'UNDERPERFORMER'] else '#ffc107'
-                            market_color = '#28a745' if market_status in ['LEADING', 'OUTPERFORMER'] else '#dc3545' if market_status in ['LAGGING', 'UNDERPERFORMER'] else '#ffc107'
+                            # Determine colors based on RS values (positive = outperforming)
+                            spy_color = '#28a745' if rs_spy > 10 else '#dc3545' if rs_spy < -10 else '#ffc107'
+                            sector_color = '#28a745' if rs_sector > 5 else '#dc3545' if rs_sector < -5 else '#ffc107'
 
-                            # Overall verdict
-                            if sector_status in ['LEADING', 'OUTPERFORMER'] and market_status in ['LEADING', 'OUTPERFORMER']:
+                            # Overall verdict based on RS strength
+                            if rs_spy > 10 and rs_sector > 5:
                                 verdict = 'DOUBLE LEADER'
                                 verdict_icon = '<i class="bi bi-star-fill"></i>'
                                 verdict_color = '#28a745'
-                            elif sector_status in ['LAGGING', 'UNDERPERFORMER'] or market_status in ['LAGGING', 'UNDERPERFORMER']:
+                            elif rs_spy < -10 or rs_sector < -5:
                                 verdict = 'WEAK'
                                 verdict_icon = '<i class="bi bi-exclamation-triangle"></i>'
                                 verdict_color = '#dc3545'
@@ -12898,14 +12905,14 @@ with tab8:
                                     <div style='font-size: 2.5rem;'>{verdict_icon}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
-                                    <div style='font-size: 0.75rem; opacity: 0.9;'>SECTOR vs MARKET</div>
-                                    <div style='font-size: 1.3rem; font-weight: 700;'>{sector_status}</div>
-                                    <div style='font-size: 1rem; opacity: 0.9;'>{sector_perf:+.1f}%</div>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>STOCK vs SPY (12-1M)</div>
+                                    <div style='font-size: 1.8rem; font-weight: 700; color: {spy_color};'>{rs_spy:+.1f}%</div>
+                                    <div style='font-size: 0.85rem; opacity: 0.9;'>{'Outperforming' if rs_spy > 0 else 'Underperforming'}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
-                                    <div style='font-size: 0.75rem; opacity: 0.9;'>STOCK vs SECTOR</div>
-                                    <div style='font-size: 1.3rem; font-weight: 700;'>{market_status}</div>
-                                    <div style='font-size: 1rem; opacity: 0.9;'>{market_perf:+.1f}%</div>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>STOCK vs SECTOR (6-1M)</div>
+                                    <div style='font-size: 1.8rem; font-weight: 700; color: {sector_color};'>{rs_sector:+.1f}%</div>
+                                    <div style='font-size: 0.85rem; opacity: 0.9;'>{'Sector Leader' if rs_sector > 0 else 'Sector Laggard'}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.25); padding: 1rem; border-radius: 8px; text-align: center;'>
                                     <div style='font-size: 1.5rem; font-weight: 700;'>{verdict}</div>
