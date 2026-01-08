@@ -17,6 +17,11 @@ from io import BytesIO
 import os
 import traceback
 import yaml
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file (if exists)
 from dotenv import load_dotenv
