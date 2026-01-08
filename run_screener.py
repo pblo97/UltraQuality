@@ -11287,29 +11287,35 @@ with tab7:
                     col1, col2, col3, col4, col5 = st.columns(5)
 
                     with col1:
-                        st.metric("Multi-TF Momentum", f"{components.get('momentum', 0):.0f}/25")
-                        st.caption(f"{tech_analysis.get('momentum_consistency', 'N/A')}")
+                        st.metric("Relative Strength", f"{components.get('relative_strength', 0):.0f}/40")
+                        rs_details = tech_analysis.get('component_details', {}).get('relative_strength', {})
+                        st.caption(f"RS 12-1: {rs_details.get('rs_12_1_vs_spy', 0):.1f}%")
 
                     with col2:
-                        st.metric("Risk-Adjusted", f"{components.get('risk_adjusted', 0):.0f}/15")
-                        st.caption(f"Sharpe: {tech_analysis.get('sharpe_12m', 0):.2f}")
+                        st.metric("Trend/Structure", f"{components.get('trend_structure', 0):.0f}/25")
+                        trend_details = tech_analysis.get('component_details', {}).get('trend_structure', {})
+                        st.caption(f"Slope: {trend_details.get('ma200_slope_deg', 0):.1f}°")
 
                     with col3:
-                        st.metric("Sector Relative", f"{components.get('sector_relative', 0):.0f}/15")
-                        st.caption(tech_analysis.get('sector_status', 'N/A'))
+                        st.metric("Risk Quality", f"{components.get('risk_quality', 0):.0f}/20")
+                        risk_details = tech_analysis.get('component_details', {}).get('risk_quality', {})
+                        st.caption(f"Sharpe 6M: {risk_details.get('sharpe_6m', 0):.2f}")
 
                     with col4:
-                        st.metric("Market Relative", f"{components.get('market_relative', 0):.0f}/10")
-                        st.caption(tech_analysis.get('market_status', 'N/A'))
-
-                    with col5:
-                        st.metric("Volume Profile", f"{components.get('volume', 0):.0f}/10")
+                        st.metric("Volume/Participation", f"{components.get('volume_participation', 0):.0f}/15")
                         st.caption(tech_analysis.get('volume_profile', 'N/A'))
 
-                    # Regime Adjustment
-                    regime_adj = components.get('regime_adjustment', 0)
-                    if regime_adj != 0:
-                        st.info(f"Market Regime Adjustment: {regime_adj:+.0f} pts ({market_regime} market)")
+                    with col5:
+                        # V2: Show conviction in 5th column
+                        conviction = tech_analysis.get('conviction', 0)
+                        st.metric("Conviction", f"{conviction:.2f}")
+                        states = tech_analysis.get('states', {})
+                        st.caption(f"{states.get('extension', 'N/A')}")
+
+                    # V2: States Info
+                    st.markdown("**States:** Extension: " + states.get('extension', 'N/A') +
+                               " | Regime: " + states.get('regime', 'N/A') +
+                               " | Trend: " + states.get('trend', 'N/A'))
 
                     # Detailed Metrics
                     st.markdown("---")
@@ -11329,8 +11335,10 @@ with tab7:
                         with col4:
                             st.metric("1M Return", f"{tech_analysis.get('momentum_1m', 0):+.1f}%")
 
-                        st.write(f"**Consistency:** {tech_analysis.get('momentum_consistency', 'N/A')}")
-                        st.write(f"**Status:** {tech_analysis.get('momentum_status', 'N/A')}")
+                        # V2: Show RS details instead
+                        rs_details = tech_analysis.get('component_details', {}).get('relative_strength', {})
+                        st.write(f"**RS 6-1 vs SPY:** {rs_details.get('rs_6_1_vs_spy', 0):+.1f}%")
+                        st.write(f"**RS 6-1 vs Sector:** {rs_details.get('rs_6_1_vs_sector', 0):+.1f}%")
 
                     with tab2:
                         col1, col2 = st.columns(2)
@@ -11353,9 +11361,12 @@ with tab7:
 
                         with col1:
                             st.markdown("**Trend Analysis:**")
-                            st.write(f"- Trend: {tech_analysis.get('trend', 'N/A')}")
-                            st.write(f"- Distance from MA200: {tech_analysis.get('distance_from_ma200', 0):+.1f}%")
-                            st.write(f"- Golden Cross: {'' if tech_analysis.get('golden_cross') else ''}")
+                            states = tech_analysis.get('states', {})
+                            st.write(f"- Trend State: {states.get('trend', 'N/A')}")
+                            metadata = tech_analysis.get('metadata', {})
+                            st.write(f"- Distance from MA200: {metadata.get('distance_ma200_pct', 0):+.1f}%")
+                            trend_details = tech_analysis.get('component_details', {}).get('trend_structure', {})
+                            st.write(f"- Golden Cross: {'✓' if trend_details.get('golden_cross') else '✗'}")
 
                         with col2:
                             st.markdown("**Volume Analysis:**")
@@ -12393,15 +12404,8 @@ with tab8:
                     col7, col8, col9 = st.columns(3)
 
                     with col7:
-                        all_trends = sorted(df_tech['trend'].unique().tolist())
-                        trend_filter = st.multiselect(
-                            "Trend (Contributes ~15pts)",
-                            options=all_trends,
-                            default=all_trends,
-                            help="REDUNDANT with Technical Score. Trend status already contributes +15 pts if UPTREND. "
-                                "Use this ONLY to diagnose why stocks have certain scores, not for primary filtering.",
-                            key='trend_filter'
-                        )
+                        # V2: No trend field anymore, use volume_profile only
+                        st.info("Component filters removed in V2 - use component score sliders instead")
 
                     with col8:
                         all_volumes = sorted(df_tech['volume_profile'].unique().tolist())
@@ -12415,14 +12419,12 @@ with tab8:
                         )
 
                     with col9:
-                        all_consistency = sorted(df_tech['momentum_consistency'].unique().tolist())
-                        consistency_filter = st.multiselect(
-                            "Momentum (Contributes ~35pts)",
-                            options=all_consistency,
-                            default=all_consistency,
-                            help="REDUNDANT with Technical Score. Momentum consistency already contributes ~35-40 pts to score. "
-                                "Use this ONLY to diagnose why stocks have certain scores.",
-                            key='consistency_filter'
+                        # V2: momentum_consistency doesn't exist, show min score sliders instead
+                        min_component_score = st.slider(
+                            "Min Any Component",
+                            0, 100, 0,
+                            help="V2: Filter by minimum score in any single component",
+                            key='min_any_component'
                         )
 
                 # LEVEL 4: DATA QUALITY FILTER
@@ -12446,11 +12448,11 @@ with tab8:
                     )
 
                 with col_dq2:
-                    # Count stocks with incomplete data
+                    # Count stocks with incomplete data (V2 fields)
                     incomplete_mask = (
-                        (df_tech['market_regime'] == 'UNKNOWN') |
-                        (df_tech['trend'] == 'UNKNOWN') |
-                        (df_tech['sector_status'] == 'UNKNOWN')
+                        (df_tech['regime_state'] == 'UNKNOWN') |
+                        (df_tech['trend_state'] == 'UNKNOWN') |
+                        (df_tech['extension_state'] == 'UNKNOWN')
                     )
                     incomplete_count = incomplete_mask.sum()
                     st.markdown(f"""
@@ -12735,16 +12737,18 @@ with tab8:
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # Get data for the 3 cards
-                        market_regime = full_analysis.get('market_regime', 'UNKNOWN')
-                        sector_status = full_analysis.get('sector_status', 'UNKNOWN')
-                        market_status = full_analysis.get('market_status', 'UNKNOWN')
-                        trend = full_analysis.get('trend', 'UNKNOWN')
-                        distance_ma200 = full_analysis.get('distance_from_ma200', 0)
+                        # Get data for the 3 cards (V2)
+                        states = full_analysis.get('states', {})
+                        market_regime = states.get('regime', 'UNKNOWN')
+                        trend = states.get('trend', 'UNKNOWN')
+                        extension_state = states.get('extension', 'UNKNOWN')
+
+                        metadata = full_analysis.get('metadata', {})
+                        distance_ma200 = metadata.get('distance_ma200_pct', 0)
+
                         volume_profile = full_analysis.get('volume_profile', 'UNKNOWN')
-                        overextension_level = full_analysis.get('overextension_level', 'LOW')
                         components = full_analysis.get('component_scores', {})
-                        regime_adj = components.get('regime_adjustment', 0)
+                        conviction = full_analysis.get('conviction', 0)
 
                         # Create 3 horizontal KPI cards
                         col1, col2, col3 = st.columns(3)
@@ -12964,36 +12968,43 @@ with tab8:
                                 """, unsafe_allow_html=True)
                                 st.progress(mom_norm)
 
-                            # Consistency Badge
-                            consistency = full_analysis.get('momentum_consistency', 'N/A')
-                            momentum_status = full_analysis.get('momentum_status', 'N/A')
+                            # V2: Conviction Badge (replaces consistency)
+                            conviction = full_analysis.get('conviction', 0)
+                            # Map conviction to status labels
+                            if conviction >= 0.7:
+                                conviction_status = 'HIGH'
+                            elif conviction >= 0.3:
+                                conviction_status = 'MEDIUM'
+                            else:
+                                conviction_status = 'LOW'
 
-                            consist_config = {
-                                'VERY_CONSISTENT': {'color': '#28a745', 'icon': '<i class="bi bi-gem"></i>', 'label': 'VERY CONSISTENT'},
-                                'CONSISTENT': {'color': '#28a745', 'icon': '<i class="bi bi-check-circle"></i>', 'label': 'CONSISTENT'},
-                                'MODERATE': {'color': '#ffc107', 'icon': '<i class="bi bi-exclamation-triangle"></i>', 'label': 'MODERATE'},
-                                'CHOPPY': {'color': '#dc3545', 'icon': '<i class="bi bi-exclamation-triangle"></i>', 'label': 'CHOPPY'},
-                                'INCONSISTENT': {'color': '#dc3545', 'icon': '<i class="bi bi-x-circle"></i>', 'label': 'INCONSISTENT'}
+                            # V2: Conviction config
+                            conviction_config = {
+                                'HIGH': {'color': '#28a745', 'icon': '<i class="bi bi-gem"></i>', 'label': 'HIGH CONVICTION'},
+                                'MEDIUM': {'color': '#ffc107', 'icon': '<i class="bi bi-check-circle"></i>', 'label': 'MEDIUM CONVICTION'},
+                                'LOW': {'color': '#dc3545', 'icon': '<i class="bi bi-x-circle"></i>', 'label': 'LOW CONVICTION'}
                             }
 
-                            consist_info = consist_config.get(consistency, {'color': '#6c757d', 'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'label': consistency})
+                            conviction_info = conviction_config.get(conviction_status, {'color': '#6c757d', 'icon': '<i class="bi bi-question-circle"></i>', 'label': conviction_status})
 
                             st.markdown("<br>", unsafe_allow_html=True)
                             st.markdown(f"""
-                            <div style='background: {consist_info['color']}; padding: 1.25rem; border-radius: 10px;
+                            <div style='background: {conviction_info['color']}; padding: 1.25rem; border-radius: 10px;
                                         text-align: center; color: white; margin-bottom: 1rem;'>
-                                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>{consist_info['icon']}</div>
-                                <div style='font-size: 1.2rem; font-weight: 700;'>{consist_info['label']}</div>
-                                <div style='font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem;'>Consistency</div>
+                                <div style='font-size: 2rem; margin-bottom: 0.5rem;'>{conviction_info['icon']}</div>
+                                <div style='font-size: 1.2rem; font-weight: 700;'>{conviction_info['label']}</div>
+                                <div style='font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem;'>Conviction Score: {conviction:.2f}</div>
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # Momentum Status
+                            # RS Status (V2)
+                            rs_details = full_analysis.get('component_details', {}).get('relative_strength', {})
+                            rs_12_1 = rs_details.get('rs_12_1_vs_spy', 0)
                             st.markdown(f"""
                             <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;
-                                        border-left: 4px solid {consist_info['color']};'>
-                                <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.25rem;'>STATUS</div>
-                                <div style='font-size: 1.1rem; font-weight: 600; color: #495057;'>{momentum_status}</div>
+                                        border-left: 4px solid {conviction_info['color']};'>
+                                <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.25rem;'>RS 12-1 vs SPY</div>
+                                <div style='font-size: 1.1rem; font-weight: 600; color: #495057;'>{rs_12_1:+.1f}%</div>
                             </div>
                             """, unsafe_allow_html=True)
 
