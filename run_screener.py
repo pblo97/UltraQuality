@@ -13106,6 +13106,37 @@ with tab8:
                             </div>
                             """, unsafe_allow_html=True)
 
+                            st.markdown("<br>", unsafe_allow_html=True)
+
+                            # V2: Conviction Breakdown
+                            conv_breakdown = full_analysis.get('conviction_breakdown', {})
+                            if conv_breakdown:
+                                st.markdown("**Conviction Breakdown:**")
+
+                                setup_str = conv_breakdown.get('setup_strength', 0)
+                                market_f = conv_breakdown.get('market_factor', 1.0)
+                                timing_f = conv_breakdown.get('timing_factor', 1.0)
+                                data_f = conv_breakdown.get('data_factor', 1.0)
+                                final_conv = conv_breakdown.get('conviction', 0)
+
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px;
+                                            box-shadow: 0 2px 6px rgba(0,0,0,0.08);'>
+                                    <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.75rem;'>
+                                        conviction = setup × market × timing × data
+                                    </div>
+                                    <div style='font-size: 1rem; color: #495057; margin-bottom: 0.5rem;'>
+                                        <strong>{final_conv:.3f}</strong> = {setup_str:.2f} × {market_f:.2f} × {timing_f:.2f} × {data_f:.2f}
+                                    </div>
+                                    <div style='font-size: 0.8rem; color: #6c757d;'>
+                                        Setup: {setup_str:.2f} (from tech score {tech_score:.0f}/100)<br>
+                                        Market: {market_f:.2f} (regime: {market_regime})<br>
+                                        Timing: {timing_f:.2f} (extension: {extension_state})<br>
+                                        Data: {data_f:.2f} (volume: {volume_profile})
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
                             # V2: Conviction Badge (replaces consistency)
                             conviction = full_analysis.get('conviction', 0)
                             # Map conviction to status labels
