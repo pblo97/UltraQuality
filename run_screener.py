@@ -887,8 +887,94 @@ def display_smart_stop_loss(stop_loss_data, current_price):
         stop_loss_data: Stop loss dict from risk_management
         current_price: Current stock price
     """
-    # Check if it's the new SmartDynamicStopLoss format
-    if 'tier' in stop_loss_data:
+    # Check if it's V2 ATR-based format
+    if stop_loss_data.get('method') == 'ATR' and 'extension_adjusted' in stop_loss_data:
+        # === V2 FORMAT: ATR-Based Stop Loss ===
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
+            <h3 style='margin: 0; color: white;'><i class="bi bi-shield-check"></i> ATR-Based Stop Loss</h3>
+            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                Extension-Adjusted Volatility Stop
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Get data
+        stop_price = stop_loss_data.get('stop_price', 0)
+        stop_distance_pct = stop_loss_data.get('stop_distance_pct', 0)
+        atr_14d_pct = stop_loss_data.get('atr_14d_pct', 0)
+        atr_multiplier = stop_loss_data.get('atr_multiplier', 2.5)
+
+        # Calculate risk in dollars
+        risk_dollars = current_price - stop_price if current_price > 0 else 0
+        risk_pct = (risk_dollars / current_price * 100) if current_price > 0 else 0
+
+        # Main display card
+        st.markdown(f"""
+        <div style='background: white; padding: 2rem; border-radius: 12px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 1.5rem;'>
+            <div style='display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2rem; text-align: center;'>
+                <div>
+                    <div style='font-size: 0.85rem; color: #6c757d; font-weight: 600; margin-bottom: 0.5rem;'>
+                        STOP PRICE
+                    </div>
+                    <div style='font-size: 2.5rem; font-weight: 700; color: #dc3545;'>
+                        ${stop_price:.2f}
+                    </div>
+                    <div style='font-size: 0.8rem; color: #6c757d; margin-top: 0.25rem;'>
+                        Entry: ${current_price:.2f}
+                    </div>
+                </div>
+                <div>
+                    <div style='font-size: 0.85rem; color: #6c757d; font-weight: 600; margin-bottom: 0.5rem;'>
+                        DISTANCE
+                    </div>
+                    <div style='font-size: 2.5rem; font-weight: 700; color: #495057;'>
+                        {stop_distance_pct:.1f}%
+                    </div>
+                    <div style='font-size: 0.8rem; color: #dc3545; margin-top: 0.25rem; font-weight: 600;'>
+                        Risk: ${risk_dollars:.2f}
+                    </div>
+                </div>
+                <div>
+                    <div style='font-size: 0.85rem; color: #6c757d; font-weight: 600; margin-bottom: 0.5rem;'>
+                        ATR MULTIPLIER
+                    </div>
+                    <div style='font-size: 2.5rem; font-weight: 700; color: #495057;'>
+                        {atr_multiplier:.1f}x
+                    </div>
+                    <div style='font-size: 0.8rem; color: #6c757d; margin-top: 0.25rem;'>
+                        ATR: {atr_14d_pct:.2f}%
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Technical details
+        with st.expander("Technical Details"):
+            st.markdown(f"""
+            **Formula:** Stop Distance = {atr_multiplier}x × ATR(14)
+
+            **Calculation:**
+            - ATR (14-day): {atr_14d_pct:.2f}% of price
+            - Multiplier: {atr_multiplier}x (extension-adjusted)
+            - Stop Distance: {stop_distance_pct:.1f}%
+            - Stop Price: ${stop_price:.2f}
+
+            **Extension Adjustment:**
+            The ATR multiplier is automatically adjusted based on price extension state:
+            - NORMAL/EXTENDED: 2.5x (tight)
+            - STRETCHED: 3.0x (moderate air)
+            - OVEREXTENDED: 3.5x (max air)
+
+            This ensures stops aren't too tight during volatile periods while maintaining
+            discipline during normal conditions.
+            """)
+
+    # Check if it's the legacy SmartDynamicStopLoss format
+    elif 'tier' in stop_loss_data:
         # === NEW FORMAT: Smart Dynamic StopLoss ===
         st.markdown("""
         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -2515,42 +2601,62 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         st.caption(pos_sizing.get('calculation_breakdown', ''))
         return
 
-    # Get data
-    base_pct = pos_sizing.get('base_pct', 0)
-    final_pct = pos_sizing.get('final_pct', 0)
-    quality_tier = pos_sizing.get('quality_tier', 'UNKNOWN')
+    # Get data (V2: different field names)
+    # V2 uses position_pct_of_portfolio instead of final_pct
+    final_pct = pos_sizing.get('position_pct_of_portfolio', 0)
+    base_pct = pos_sizing.get('base_pct', final_pct)  # Fallback to final if no base
+    quality_tier = pos_sizing.get('quality_tier', 'CONVICTION-BASED')
     penalties = pos_sizing.get('penalties', [])
     bonuses = pos_sizing.get('bonuses', [])
     bear_market = pos_sizing.get('bear_market_adjustment', False)
 
-    # ========== MÉTODO A: QUALITY-BASED (ya calculado) ==========
-    quality_based_dollars = portfolio_size * (final_pct / 100)
+    # ========== MÉTODO A: QUALITY-BASED CAP ==========
+    # Simple conviction-based cap: higher conviction = larger max allocation
+    # Get conviction from pos_sizing (V2 stores it there)
+    conviction_scalar = pos_sizing.get('conviction_scalar', 0.5)
 
-    # ========== MÉTODO B: RISK-BASED (calculamos ahora) ==========
+    # Quality cap: Scale 0-10% of portfolio based on conviction (0.0 to 1.0)
+    # conviction 1.0 → 10%, conviction 0.5 → 5%, conviction 0.0 → 0%
+    max_quality_pct = conviction_scalar * 10.0
+    quality_based_dollars = portfolio_size * (max_quality_pct / 100)
+
+    # ========== MÉTODO B: RISK-BASED (using stop loss) ==========
     risk_based_dollars = None
     stop_loss_pct = None
 
     if stop_loss_data:
         # Get stop loss distance as % (positive value, e.g., 5.0 means 5% below current price)
-        stop_loss_pct = stop_loss_data.get('stop_loss_pct')
+        # V2 uses 'stop_distance_pct' instead of 'stop_loss_pct'
+        stop_loss_pct = stop_loss_data.get('stop_distance_pct', stop_loss_data.get('stop_loss_pct'))
 
         if stop_loss_pct and stop_loss_pct != 0:
-            # Convert to positive distance (e.g., -5.0 5.0)
+            # Convert to positive distance (e.g., -5.0 → 5.0)
             stop_distance = abs(stop_loss_pct)
 
             # Risk-Based Position Size = Max Risk $ / (Stop Distance / 100)
             # Example: $1,000 / (4% / 100) = $1,000 / 0.04 = $25,000
             risk_based_dollars = max_risk_dollars / (stop_distance / 100)
 
-    # ========== DECISIÓN FINAL: MIN(A, B) ==========
-    if risk_based_dollars is not None:
+    # ========== DECISIÓN FINAL: MIN(A, B) with proper N/A handling ==========
+    # User requirement: If one is N/A, use the other (don't return $0)
+    if quality_based_dollars > 0 and risk_based_dollars is not None and risk_based_dollars > 0:
+        # Both exist → take MIN
         final_dollars = min(quality_based_dollars, risk_based_dollars)
         constraint = "Quality" if quality_based_dollars < risk_based_dollars else "Risk"
-    else:
+    elif quality_based_dollars > 0 and risk_based_dollars is None:
+        # Only quality exists
         final_dollars = quality_based_dollars
-        constraint = "Quality (no stop loss data)"
+        constraint = "Quality (risk method N/A)"
+    elif risk_based_dollars is not None and risk_based_dollars > 0 and quality_based_dollars <= 0:
+        # Only risk exists
+        final_dollars = risk_based_dollars
+        constraint = "Risk (quality method N/A)"
+    else:
+        # Neither exists or both are 0
+        final_dollars = 0
+        constraint = "NO EJECUTABLE (insufficient data)"
 
-    final_pct_adjusted = (final_dollars / portfolio_size) * 100
+    final_pct_adjusted = (final_dollars / portfolio_size) * 100 if portfolio_size > 0 else 0
 
     # ========== DISPLAY ==========
 
@@ -2583,11 +2689,12 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
             <div style='font-size: 0.85rem; color: #1976d2; font-weight: 600;'>METHOD A: Quality-Based</div>
         </div>
         """, unsafe_allow_html=True)
-        st.metric("Allocation", f"{final_pct:.1f}%", delta=f"${quality_based_dollars:,.0f}")
-        st.caption(f"Quality Tier: **{quality_tier}**")
+        quality_pct = (quality_based_dollars / portfolio_size) * 100 if portfolio_size > 0 else 0
+        st.metric("Allocation", f"{quality_pct:.1f}%", delta=f"${quality_based_dollars:,.0f}")
+        st.caption(f"Conviction Cap: **{conviction_scalar:.2f}** → max {quality_pct:.1f}%")
 
         # Visual progress bar for quality allocation
-        quality_progress = min(final_pct / 10, 1.0)  # Normalize to 0-1 (assuming max 10%)
+        quality_progress = min(quality_pct / 10, 1.0)  # Normalize to 0-1 (assuming max 10%)
         st.progress(quality_progress)
 
     with col_b:
@@ -13222,7 +13329,7 @@ with tab8:
                             <div style='background: white; padding: 1rem; border-radius: 8px;
                                         box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 0.75rem;
                                         border-left: 4px solid {sharpe_color};'>
-                                <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>SHARPE RATIO (12M)</div>
+                                <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.5rem;'>SHARPE RATIO (6M)</div>
                                 <div style='font-size: 2rem; font-weight: 700; color: {sharpe_color}; text-align: center;'>{sharpe:.2f}</div>
                                 <div style='font-size: 0.8rem; color: #6c757d; text-align: center;'>
                                     {'Excellent' if sharpe > 1.0 else 'Good' if sharpe > 0.5 else 'Poor'}
