@@ -12717,13 +12717,15 @@ with tab8:
                                 </div>
                                 """, unsafe_allow_html=True)
                             elif fund_signal == 'MONITOR':
+                                # V2: Show conviction and extension state
+                                conv_label = 'High' if conviction >= 0.7 else 'Med' if conviction >= 0.3 else 'Low'
                                 st.markdown(f"""
                                 <div style='background: #fff3cd; padding: 1rem; border-radius: 10px; text-align: center;
                                             border-left: 4px solid #ffc107;'>
                                     <span class='badge badge-monitor'>
                                         <i class="bi bi-eye"></i> MONITOR
                                     </span>
-                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>Tech Signal: {tech_signal}</div>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>Conviction: {conv_label} ({conviction:.2f}) | Extension: {extension}</div>
                                 </div>
                                 """, unsafe_allow_html=True)
 
@@ -12733,10 +12735,13 @@ with tab8:
                         col1, col2, col3 = st.columns(3)
 
                         with col1:
+                            # V2: Show conviction as delta instead of signal
+                            conviction_val = full_analysis.get('conviction', 0)
+                            conv_delta = f"Conv: {conviction_val:.2f}"
                             st.metric(
                                 "Technical Score",
                                 f"{full_analysis['score']:.0f}/100",
-                                delta=full_analysis['signal']
+                                delta=conv_delta
                             )
 
                         with col2:
