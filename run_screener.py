@@ -12933,15 +12933,15 @@ with tab8:
 
                             trend_info = trend_config.get(trend, {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': '#6c757d', 'label': 'UNKNOWN'})
 
-                            # Extension level colors (matching technical analyzer output)
+                            # Extension level colors (V2 states)
                             ext_config = {
-                                'LOW': {'color': '#28a745', 'label': 'HEALTHY'},
-                                'MEDIUM': {'color': '#ffc107', 'label': 'STRETCHED'},
-                                'HIGH': {'color': '#ff6b35', 'label': 'OVEREXTENDED'},
-                                'EXTREME': {'color': '#dc3545', 'label': 'EXTREME'}
+                                'NORMAL': {'color': '#28a745', 'label': 'NORMAL', 'desc': '≤25% from MA200'},
+                                'EXTENDED': {'color': '#ffc107', 'label': 'EXTENDED', 'desc': '25-40% from MA200'},
+                                'STRETCHED': {'color': '#ff6b35', 'label': 'STRETCHED', 'desc': '40-55% from MA200'},
+                                'OVEREXTENDED': {'color': '#dc3545', 'label': 'OVEREXTENDED', 'desc': '>55% from MA200'}
                             }
 
-                            ext_info = ext_config.get(overextension_level, {'color': '#6c757d', 'label': 'UNKNOWN'})
+                            ext_info = ext_config.get(extension_state, {'color': '#6c757d', 'label': 'UNKNOWN', 'desc': 'N/A'})
 
                             # Volume profile
                             vol_config = {
@@ -13077,11 +13077,12 @@ with tab8:
                             """, unsafe_allow_html=True)
 
                             # Get risk data
-                            sharpe = full_analysis.get('sharpe_12m', 0)
-                            volatility = full_analysis.get('volatility_12m', 0)
-                            risk_status = full_analysis.get('risk_adjusted_status', 'N/A')
-                            overext_risk = full_analysis.get('overextension_risk', 0)
-                            overext_level = full_analysis.get('overextension_level', 'LOW')
+                            # V2: Get risk metrics from component_details
+                            risk_details = full_analysis.get('component_details', {}).get('risk_quality', {})
+                            sharpe = risk_details.get('sharpe_6m', 0)
+                            sortino = risk_details.get('sortino_6m', 0)
+                            max_dd = risk_details.get('max_drawdown_6m_pct', 0)
+                            volatility = risk_details.get('realized_vol_pct', 0)
 
                             # Sharpe Ratio
                             sharpe_color = '#28a745' if sharpe > 1.0 else '#ffc107' if sharpe > 0.5 else '#dc3545'
@@ -13133,32 +13134,41 @@ with tab8:
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # Overextension Risk Gauge
+                            # Extension Risk Gauge (V2)
                             st.markdown("<br>", unsafe_allow_html=True)
-                            st.markdown("**Overextension Risk:**")
+                            st.markdown("**Extension Risk:**")
 
-                            overext_color = '#28a745' if overext_risk < 2 else '#ffc107' if overext_risk < 4 else '#dc3545'
-                            overext_norm = overext_risk / 7  # Normalize 0-7 to 0-1
+                            # Map extension_state to numeric risk for display
+                            ext_risk_map = {
+                                'NORMAL': (1, 'LOW', '#28a745'),
+                                'EXTENDED': (3, 'MEDIUM', '#ffc107'),
+                                'STRETCHED': (5, 'HIGH', '#ff6b35'),
+                                'OVEREXTENDED': (7, 'EXTREME', '#dc3545')
+                            }
+                            ext_risk_val, ext_risk_label, ext_risk_color = ext_risk_map.get(
+                                extension_state, (1, 'UNKNOWN', '#6c757d')
+                            )
+                            ext_risk_norm = ext_risk_val / 7  # Normalize 0-7 to 0-1
 
                             st.markdown(f"""
-                            <div style='background: {overext_color}; padding: 1.25rem; border-radius: 10px;
+                            <div style='background: {ext_risk_color}; padding: 1.25rem; border-radius: 10px;
                                         text-align: center; color: white; margin-bottom: 1rem;'>
-                                <div style='font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem;'>{overext_risk}/7</div>
-                                <div style='font-size: 1.2rem; font-weight: 600;'>{overext_level}</div>
-                                <div style='font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem;'>Overextension Level</div>
+                                <div style='font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem;'>{extension_state}</div>
+                                <div style='font-size: 1.2rem; font-weight: 600;'>{distance_ma200:+.1f}% from MA200</div>
+                                <div style='font-size: 0.9rem; opacity: 0.9; margin-top: 0.5rem;'>Extension Level</div>
                             </div>
                             """, unsafe_allow_html=True)
-                            st.progress(overext_norm)
+                            st.progress(ext_risk_norm)
 
-                            # Risk interpretation
-                            if overext_risk >= 6:
+                            # Risk interpretation (V2)
+                            if extension_state == 'OVEREXTENDED':
                                 st.error("EXTREME: Alto riesgo de corrección 20-40%")
-                            elif overext_risk >= 4:
+                            elif extension_state == 'STRETCHED':
                                 st.warning("HIGH: Posible retroceso 10-20%")
-                            elif overext_risk >= 2:
+                            elif extension_state == 'EXTENDED':
                                 st.info("MEDIUM: Monitorear reversiones")
                             else:
-                                st.success("LOW: Riesgo controlado")
+                                st.success("NORMAL: Riesgo controlado")
 
                         st.markdown("---")
 
