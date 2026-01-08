@@ -9839,14 +9839,14 @@ with tab7:
                 # Import dependencies
                 from screener.orchestrator import ScreenerPipeline
                 from screener.qualitative import QualitativeAnalyzer
-                from screener.technical.analyzer import EnhancedTechnicalAnalyzer
+                from screener.technical.analyzer_v2 import TechnicalAnalyzerV2
 
                 # Initialize pipeline (this loads settings.yaml and sets up FMP client)
                 pipeline = ScreenerPipeline('settings.yaml')
 
                 # Initialize analyzers
                 qual_analyzer = QualitativeAnalyzer(pipeline.fmp, pipeline.config)
-                tech_analyzer = EnhancedTechnicalAnalyzer(pipeline.fmp)
+                tech_analyzer = TechnicalAnalyzerV2(pipeline.fmp)
 
                 # Get company info first for sector
                 profile = pipeline.fmp.get_quote(formatted_custom_ticker)
@@ -11844,7 +11844,7 @@ with tab8:
             with st.spinner("Running technical analysis... This may take 30-60 seconds"):
                 # Initialize analyzer (lazy import)
                 try:
-                    from screener.technical import TechnicalAnalyzer
+                    from screener.technical.analyzer_v2 import TechnicalAnalyzerV2
                     from screener.cache import CachedFMPClient
                     from screener.ingest import FMPClient
 
@@ -11880,7 +11880,7 @@ with tab8:
                     fmp = CachedFMPClient(fmp_base, cache_dir='.cache')
 
                     # Initialize analyzer
-                    tech_analyzer = TechnicalAnalyzer(fmp)
+                    tech_analyzer = TechnicalAnalyzerV2(fmp)
 
                     # Analyze each stock
                     technical_results = []
@@ -11896,50 +11896,61 @@ with tab8:
                             fundamental_decision = row.get('decision', None)
                             guardrails_status = row.get('guardrails_status', None)  # May not be in screener DF
 
-                            # Analyze with fundamental data
+                            # Analyze with fundamental data (V2 with orthogonal components)
                             tech_result = tech_analyzer.analyze(
                                 symbol,
                                 sector=sector,
                                 fundamental_score=fundamental_score,
                                 guardrails_status=guardrails_status,
-                                fundamental_decision=fundamental_decision
+                                fundamental_decision=fundamental_decision,
+                                portfolio_value=100000,  # Default $100k portfolio
+                                risk_per_trade=0.005  # Default 0.5% risk per trade
                             )
 
-                            # Fetch current price from FMP
-                            current_price = 0
-                            try:
-                                quote = fmp.get_quote(symbol)
-                                if quote and len(quote) > 0:
-                                    current_price = quote[0].get('price', 0)
-                            except:
-                                pass  # Use 0 if price fetch fails
+                            # Get current price from tech_result metadata
+                            current_price = tech_result.get('metadata', {}).get('current_price', 0)
 
-                            # Add to results (using NEW enhanced analyzer fields)
+                            # Extract V2 components
+                            components = tech_result.get('components', {})
+                            states = tech_result.get('states', {})
+                            component_details = tech_result.get('component_details', {})
+
+                            # Add to results (using NEW V2 orthogonal fields)
                             technical_results.append({
                                 'ticker': symbol,
                                 'name': row.get('name', ''),
                                 'sector': sector,
-                                'price': current_price,  # Use current price from FMP
+                                'price': current_price,
                                 'fundamental_decision': row['decision'],
                                 'fundamental_score': row['composite_0_100'],
+                                # V2 Orthogonal Components
                                 'technical_score': tech_result['score'],
-                                'technical_signal': tech_result['signal'],
-                                'market_regime': tech_result.get('market_regime', 'UNKNOWN'),
-                                'momentum_12m': tech_result.get('momentum_12m', 0),
-                                'momentum_6m': tech_result.get('momentum_6m', 0),
-                                'momentum_consistency': tech_result.get('momentum_consistency', 'N/A'),
-                                'sharpe_12m': tech_result.get('sharpe_12m', 0),
-                                'trend': tech_result.get('trend', 'UNKNOWN'),
-                                'sector_status': tech_result.get('sector_status', 'UNKNOWN'),
-                                'market_status': tech_result.get('market_status', 'UNKNOWN'),
-                                'volume_profile': tech_result.get('volume_profile', 'UNKNOWN'),
+                                'rs_score': components.get('relative_strength', 0),
+                                'trend_score': components.get('trend_structure', 0),
+                                'risk_score': components.get('risk_quality', 0),
+                                'volume_score': components.get('volume_participation', 0),
+                                # V2 States
+                                'extension_state': states.get('extension', 'UNKNOWN'),
+                                'regime_state': states.get('regime', 'UNKNOWN'),
+                                'trend_state': states.get('trend', 'UNKNOWN'),
+                                # V2 Conviction & Sizing
+                                'conviction': tech_result.get('conviction', 0),
+                                'position_size_pct': tech_result.get('position_sizing', {}).get('position_pct_of_portfolio', 0),
+                                # Component details (for drilling down)
+                                'rs_12_1': component_details.get('relative_strength', {}).get('rs_12_1_vs_spy', 0),
+                                'rs_6_1_spy': component_details.get('relative_strength', {}).get('rs_6_1_vs_spy', 0),
+                                'rs_6_1_sector': component_details.get('relative_strength', {}).get('rs_6_1_vs_sector', 0),
+                                'sharpe_6m': component_details.get('risk_quality', {}).get('sharpe_6m', 0),
+                                'max_dd_6m': component_details.get('risk_quality', {}).get('max_drawdown_6m_pct', 0),
+                                'volume_profile': component_details.get('volume_participation', {}).get('volume_profile', 'UNKNOWN'),
+                                'distance_ma200': tech_result.get('metadata', {}).get('distance_ma200_pct', 0),
                                 'warnings_count': len(tech_result.get('warnings', [])),
                                 'warnings': tech_result.get('warnings', []),
-                                # Extract SmartDynamicStopLoss state
-                                'stop_loss_state': tech_result.get('risk_management', {}).get('stop_loss', {}).get('market_state', 'UNKNOWN'),
-                                'stop_loss_emoji': tech_result.get('risk_management', {}).get('stop_loss', {}).get('state_emoji', ''),
-                                # IMPORTANT: Save error reason for debugging UNKNOWN issues
-                                'error_reason': tech_result.get('error', None),  # Captures "No quote data" / "No historical data" etc.
+                                # V2 Stop Loss (ATR-based)
+                                'stop_price': tech_result.get('stop_loss', {}).get('stop_price', 0),
+                                'stop_distance_pct': tech_result.get('stop_loss', {}).get('stop_distance_pct', 0),
+                                # IMPORTANT: Save error reason for debugging issues
+                                'error_reason': tech_result.get('error', None),
                                 'full_analysis': tech_result
                             })
                         except Exception as e:
@@ -11954,23 +11965,36 @@ with tab8:
                             except:
                                 pass  # Use 0 if price fetch fails
 
-                            # Add with error
+                            # Add with error (V2 defaults)
                             technical_results.append({
                                 'ticker': symbol,
                                 'name': row.get('name', ''),
                                 'sector': sector,
-                                'price': current_price,  # Use current price from FMP
+                                'price': current_price,
                                 'fundamental_decision': row['decision'],
                                 'fundamental_score': row['composite_0_100'],
                                 'technical_score': 50,
-                                'technical_signal': 'ERROR',
-                                'momentum_12m': 0,
-                                'trend': 'ERROR',
-                                'sector_status': 'ERROR',
+                                'rs_score': 0,
+                                'trend_score': 0,
+                                'risk_score': 0,
+                                'volume_score': 0,
+                                'extension_state': 'UNKNOWN',
+                                'regime_state': 'UNKNOWN',
+                                'trend_state': 'UNKNOWN',
+                                'conviction': 0,
+                                'position_size_pct': 0,
+                                'rs_12_1': 0,
+                                'rs_6_1_spy': 0,
+                                'rs_6_1_sector': 0,
+                                'sharpe_6m': 0,
+                                'max_dd_6m': 0,
+                                'volume_profile': 'UNKNOWN',
+                                'distance_ma200': 0,
+                                'stop_price': 0,
+                                'stop_distance_pct': 0,
                                 'warnings_count': 1,
-                                'warnings': [{'type': 'ERROR', 'message': str(e)}],
-                                'stop_loss_state': 'ERROR',
-                                'stop_loss_emoji': '',
+                                'warnings': [{'type': 'ERROR', 'category': 'SYSTEM', 'message': str(e)}],
+                                'error_reason': str(e),
                                 'full_analysis': None
                             })
 
@@ -12286,12 +12310,13 @@ with tab8:
                 col1, col2, col3, col4 = st.columns(4)
 
                 with col1:
-                    tech_signal_filter = st.multiselect(
-                        "Technical Signal",
-                        options=['BUY', 'HOLD', 'SELL'],
-                        default=['BUY', 'HOLD', 'SELL'],
-                        help="Final technical trading signal (BUY if score ≥75 AND uptrend)",
-                        key='tech_signal_filter'
+                    # V2: Extension State filter (replaces technical signal)
+                    extension_filter = st.multiselect(
+                        "Extension State",
+                        options=['NORMAL', 'EXTENDED', 'STRETCHED', 'OVEREXTENDED'],
+                        default=['NORMAL', 'EXTENDED', 'STRETCHED', 'OVEREXTENDED'],
+                        help="Distance from MA200 - affects position sizing",
+                        key='extension_filter'
                     )
 
                 with col2:
@@ -12307,19 +12332,18 @@ with tab8:
                     min_tech_score = st.slider(
                         "Min Technical Score",
                         0, 100, 0,
-                        help="Composite technical score (0-100)",
+                        help="Orthogonal score (RS + Trend + Risk + Volume)",
                         key='min_tech_score'
                     )
 
                 with col4:
-                    # Get unique stop loss states for filter
-                    all_sl_states = sorted(df_tech['stop_loss_state'].unique().tolist())
-                    sl_state_filter = st.multiselect(
-                        "Stop Loss State",
-                        options=all_sl_states,
-                        default=all_sl_states,
-                        help="SmartDynamicStopLoss state (execution layer)",
-                        key='sl_state_filter'
+                    # V2: Conviction filter (replaces stop loss state)
+                    min_conviction = st.slider(
+                        "Min Conviction",
+                        0.0, 1.0, 0.0,
+                        step=0.1,
+                        help="Conviction = (TechScore - 60) / 30, clamped 0-1",
+                        key='min_conviction'
                     )
 
                 # LEVEL 2: MARKET CONTEXT (External Factors)
@@ -12335,23 +12359,23 @@ with tab8:
                 col5, col6 = st.columns(2)
 
                 with col5:
-                    all_regimes = sorted(df_tech['market_regime'].unique().tolist())
+                    # V2: Regime State (renamed from market_regime)
                     regime_filter = st.multiselect(
                         "Market Regime",
-                        options=all_regimes,
-                        default=all_regimes,
-                        help="Overall market state (BULL/BEAR/SIDEWAYS) - affects regime adjustment in score",
+                        options=['BULL', 'SIDEWAYS', 'BEAR'],
+                        default=['BULL', 'SIDEWAYS', 'BEAR'],
+                        help="Overall market state - affects position sizing only (not score)",
                         key='regime_filter'
                     )
 
                 with col6:
-                    all_sector_status = sorted(df_tech['sector_status'].unique().tolist())
-                    sector_filter = st.multiselect(
-                        "Sector Status",
-                        options=all_sector_status,
-                        default=all_sector_status,
-                        help="Sector relative strength vs market - contributes to sector_score component",
-                        key='sector_filter'
+                    # V2: Trend State (replaces sector status)
+                    trend_filter = st.multiselect(
+                        "Trend State",
+                        options=['UPTREND', 'DOWNTREND', 'CHOP'],
+                        default=['UPTREND', 'DOWNTREND', 'CHOP'],
+                        help="Structural trend state - DOWNTREND triggers veto warnings",
+                        key='trend_filter'
                     )
 
                 # LEVEL 3: TECHNICAL COMPONENTS (Building Blocks) - ADVANCED DIAGNOSTIC FILTERS
@@ -12455,28 +12479,26 @@ with tab8:
                     </div>
                     """, unsafe_allow_html=True)
 
-                # Apply filters
+                # Apply filters (V2)
                 df_filtered = df_tech[
-                    # Level 1: Trading Signals
-                    (df_tech['technical_signal'].isin(tech_signal_filter)) &
+                    # Level 1: States & Scores
+                    (df_tech['extension_state'].isin(extension_filter)) &
                     (df_tech['fundamental_decision'].isin(fund_decision_filter)) &
-                    (df_tech['stop_loss_state'].isin(sl_state_filter)) &
                     (df_tech['technical_score'] >= min_tech_score) &
+                    (df_tech['conviction'] >= min_conviction) &
                     # Level 2: Market Context
-                    (df_tech['market_regime'].isin(regime_filter)) &
-                    (df_tech['sector_status'].isin(sector_filter)) &
-                    # Level 3: Technical Components
-                    (df_tech['trend'].isin(trend_filter)) &
-                    (df_tech['volume_profile'].isin(volume_filter)) &
-                    (df_tech['momentum_consistency'].isin(consistency_filter))
+                    (df_tech['regime_state'].isin(regime_filter)) &
+                    (df_tech['trend_state'].isin(trend_filter)) &
+                    # Level 3: Volume (keep this one as diagnostic)
+                    (df_tech['volume_profile'].isin(volume_filter))
                 ]
 
-                # Level 4: Data Quality Filter
+                # Level 4: Data Quality Filter (V2)
                 if hide_incomplete_data:
                     df_filtered = df_filtered[
-                        (df_filtered['market_regime'] != 'UNKNOWN') &
-                        (df_filtered['trend'] != 'UNKNOWN') &
-                        (df_filtered['sector_status'] != 'UNKNOWN')
+                        (df_filtered['regime_state'] != 'UNKNOWN') &
+                        (df_filtered['trend_state'] != 'UNKNOWN') &
+                        (df_filtered['extension_state'] != 'UNKNOWN')
                     ]
 
                 st.markdown(f"""
