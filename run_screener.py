@@ -2568,11 +2568,11 @@ with st.sidebar.expander("Cache Management", expanded=False):
 
 # ========== HELPER FUNCTIONS ==========
 
-def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=100000, max_risk_dollars=1000):
+def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=100000, max_risk_dollars=1000, current_price=None, selected_ticker=None):
     """
     Display enhanced position sizing with DUAL CONSTRAINT system.
 
-    Método A (Quality-Based): Ya calculado con penalties
+    Método A (Conviction Cap): conviction × 10% max allocation
     Método B (Risk-Based): max_risk_dollars / stop_loss_distance
 
     DECISIÓN FINAL = MIN(A, B)
@@ -2582,6 +2582,8 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         stop_loss_data: Stop loss dict with 'stop_loss_pct' key
         portfolio_size: Total portfolio size in dollars (default: $100k)
         max_risk_dollars: Maximum $ to risk per trade (default: $1k = 1% of $100k)
+        current_price: Current stock price (for share calculation)
+        selected_ticker: Ticker symbol (for FX conversion)
     """
     # Modern section header
     st.markdown("""
@@ -2589,7 +2591,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
                 border-radius: 8px; margin-bottom: 1rem;'>
         <h3 style='margin: 0; color: white;'><i class="bi bi-calculator"></i> Position Sizing Calculator</h3>
         <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
-            Dual Constraint System: MIN(Quality-Based, Risk-Based)
+            Dual Constraint System: MIN(Conviction Cap, Risk-Based)
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -2642,15 +2644,15 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     if quality_based_dollars > 0 and risk_based_dollars is not None and risk_based_dollars > 0:
         # Both exist → take MIN
         final_dollars = min(quality_based_dollars, risk_based_dollars)
-        constraint = "Quality" if quality_based_dollars < risk_based_dollars else "Risk"
+        constraint = "Conviction Cap" if quality_based_dollars < risk_based_dollars else "Risk-Based"
     elif quality_based_dollars > 0 and risk_based_dollars is None:
-        # Only quality exists
+        # Only conviction cap exists
         final_dollars = quality_based_dollars
-        constraint = "Quality (risk method N/A)"
+        constraint = "Conviction Cap (risk method N/A)"
     elif risk_based_dollars is not None and risk_based_dollars > 0 and quality_based_dollars <= 0:
         # Only risk exists
         final_dollars = risk_based_dollars
-        constraint = "Risk (quality method N/A)"
+        constraint = "Risk-Based (conviction N/A)"
     else:
         # Neither exists or both are 0
         final_dollars = 0
@@ -2678,6 +2680,36 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     </div>
     """, unsafe_allow_html=True)
 
+    # Display implicit risk (auditable)
+    if stop_loss_pct and stop_loss_pct > 0 and final_dollars > 0:
+        implicit_risk_dollars = final_dollars * (abs(stop_loss_pct) / 100)
+        risk_pct_of_portfolio = (implicit_risk_dollars / portfolio_size) * 100 if portfolio_size > 0 else 0
+
+        st.markdown(f"""
+        <div style='background: linear-gradient(to right, #fff5f5, #ffe5e5); padding: 1.25rem;
+                    border-radius: 10px; border-left: 5px solid #dc3545; margin-bottom: 1.5rem;'>
+            <div style='display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; align-items: center;'>
+                <div>
+                    <div style='font-size: 0.8rem; color: #6c757d; margin-bottom: 0.25rem;'>IMPLICIT RISK (Max Loss)</div>
+                    <div style='font-size: 1.1rem; color: #495057;'>
+                        Position × Stop Distance = <strong style='color: #dc3545;'>${implicit_risk_dollars:,.0f}</strong>
+                    </div>
+                    <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
+                        ${final_dollars:,.0f} × {abs(stop_loss_pct):.1f}% = ${implicit_risk_dollars:,.0f}
+                    </div>
+                </div>
+                <div style='text-align: center;'>
+                    <div style='font-size: 0.75rem; color: #6c757d;'>% of Portfolio</div>
+                    <div style='font-size: 1.8rem; font-weight: 700; color: #dc3545;'>{risk_pct_of_portfolio:.2f}%</div>
+                </div>
+                <div style='text-align: center;'>
+                    <div style='font-size: 0.75rem; color: #6c757d;'>Risk/Reward</div>
+                    <div style='font-size: 1.2rem; font-weight: 600; color: #495057;'>1:{(max_risk_dollars / implicit_risk_dollars):.1f}</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     # Show dual calculation with visual cards
     st.markdown("#### Calculation Breakdown")
     col_a, col_b, col_final = st.columns(3)
@@ -2686,7 +2718,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         st.markdown("""
         <div style='background: #e3f2fd; padding: 1rem; border-radius: 8px;
                     border: 2px solid #2196f3; margin-bottom: 0.5rem;'>
-            <div style='font-size: 0.85rem; color: #1976d2; font-weight: 600;'>METHOD A: Quality-Based</div>
+            <div style='font-size: 0.85rem; color: #1976d2; font-weight: 600;'>METHOD A: Conviction Cap</div>
         </div>
         """, unsafe_allow_html=True)
         quality_pct = (quality_based_dollars / portfolio_size) * 100 if portfolio_size > 0 else 0
@@ -2729,21 +2761,21 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         final_progress = min(final_pct_adjusted / 10, 1.0)
         st.progress(final_progress)
 
-        if constraint == "Risk":
+        if constraint.startswith("Risk"):
             st.markdown("""
             <div style='background: linear-gradient(to right, #e3f2fd, #bbdefb);
                         padding: 1rem; border-radius: 8px; border-left: 4px solid #2196f3;'>
                 <div style='color: #1565c0; font-weight: 600;'>
-                    <i class="bi bi-shield-check"></i> Risk limit is more conservative
+                    <i class="bi bi-shield-check"></i> Risk-Based limit is more conservative
                 </div>
             </div>
             """, unsafe_allow_html=True)
-        else:
+        elif constraint.startswith("Conviction"):
             st.markdown("""
             <div style='background: linear-gradient(to right, #fff8e1, #ffecb3);
                         padding: 1rem; border-radius: 8px; border-left: 4px solid #ffc107;'>
                 <div style='color: #f57c00; font-weight: 600;'>
-                    <i class="bi bi-star-fill"></i> Quality limit is more conservative
+                    <i class="bi bi-star-fill"></i> Conviction Cap is more conservative
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -2886,49 +2918,53 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         # Default: assume USD (NYSE, NASDAQ, etc.)
         return (price_local, 'USD', 1.0)
 
-    # Calculate shares (assuming we have current price in stop_loss_data)
-    if stop_loss_data and stop_loss_data.get('current_price'):
-        current_price_local = stop_loss_data.get('current_price', 0)
+    # Calculate shares using current_price parameter or fallback to stop_loss_data
+    # V2: current_price is passed as parameter from metadata
+    current_price_local = current_price or (stop_loss_data.get('current_price', 0) if stop_loss_data else 0)
 
-        if current_price_local > 0:
-            # FIX #9: Convert to USD if international stock
-            current_price_usd, currency, fx_rate = convert_to_usd(current_price_local, selected_ticker)
+    if current_price_local and current_price_local > 0:
+        # FIX #9: Convert to USD if international stock
+        current_price_usd, currency, fx_rate = convert_to_usd(current_price_local, selected_ticker or '')
 
-            # Calculate shares using USD price
-            shares = int(final_dollars / current_price_usd)
-            actual_cost_usd = shares * current_price_usd
+        # Calculate shares using USD price
+        shares = int(final_dollars / current_price_usd)
+        actual_cost_usd = shares * current_price_usd
 
-            # Visual execution card
-            st.markdown(f"""
-            <div style='background: linear-gradient(to right, #f8f9fa, #e9ecef); padding: 1.5rem;
-                        border-radius: 10px; border: 2px solid #667eea; margin-bottom: 1rem;'>
-                <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;'>
-                    <div>
-                        <div style='font-size: 0.8rem; color: #6c757d;'>SHARES TO BUY</div>
-                        <div style='font-size: 1.8rem; font-weight: 600; color: #495057;'>{shares:,}</div>
-                    </div>
-                    <div>
-                        <div style='font-size: 0.8rem; color: #6c757d;'>PRICE PER SHARE</div>
-                        <div style='font-size: 1.8rem; font-weight: 600; color: #495057;'>${current_price_usd:.2f}</div>
-                        <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>{current_price_local:,.2f} {currency}</div>
-                    </div>
-                    <div>
-                        <div style='font-size: 0.8rem; color: #6c757d;'>TOTAL INVESTMENT</div>
-                        <div style='font-size: 1.8rem; font-weight: 600; color: #667eea;'>${actual_cost_usd:,.0f}</div>
-                    </div>
+        # Visual execution card
+        st.markdown(f"""
+        <div style='background: linear-gradient(to right, #f8f9fa, #e9ecef); padding: 1.5rem;
+                    border-radius: 10px; border: 2px solid #667eea; margin-bottom: 1rem;'>
+            <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;'>
+                <div>
+                    <div style='font-size: 0.8rem; color: #6c757d;'>SHARES TO BUY</div>
+                    <div style='font-size: 1.8rem; font-weight: 600; color: #495057;'>{shares:,}</div>
+                </div>
+                <div>
+                    <div style='font-size: 0.8rem; color: #6c757d;'>PRICE PER SHARE</div>
+                    <div style='font-size: 1.8rem; font-weight: 600; color: #495057;'>${current_price_usd:.2f}</div>
+                    <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>{current_price_local:,.2f} {currency}</div>
+                </div>
+                <div>
+                    <div style='font-size: 0.8rem; color: #6c757d;'>TOTAL INVESTMENT</div>
+                    <div style='font-size: 1.8rem; font-weight: 600; color: #667eea;'>${actual_cost_usd:,.0f}</div>
                 </div>
             </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
 
-            # Currency conversion notice (if not USD)
-            if currency != 'USD':
-                st.caption(f"💱 FX Rate: 1 {currency} ≈ ${fx_rate:.6f} USD (approximate)")
+        # Currency conversion notice (if not USD)
+        if currency != 'USD':
+            st.caption(f"💱 FX Rate: 1 {currency} ≈ ${fx_rate:.6f} USD (approximate)")
 
-            # Trading fee estimate (use USD cost)
-            estimated_fee = actual_cost_usd * 0.001  # 0.1% typical commission
-            st.caption(f"Estimated trading fees: ${estimated_fee:.2f} (0.1% assumption)")
+        # Note about entry price
+        st.caption(f"📊 Latest close (${current_price_usd:.2f}) used as entry reference")
+
+        # Trading fee estimate (use USD cost)
+        estimated_fee = actual_cost_usd * 0.001  # 0.1% typical commission
+        st.caption(f"Estimated trading fees: ${estimated_fee:.2f} (0.1% assumption)")
     else:
-        st.info("Current price not available. Use recommended dollar amount: **${:,.0f}**".format(final_dollars))
+        # Fallback if no price available
+        st.info(f"💡 Use recommended dollar amount: **${final_dollars:,.0f}** (price data unavailable for share calculation)")
 
     # Rationale box
     st.markdown("""
@@ -2941,7 +2977,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     st.info(pos_sizing.get('rationale', 'N/A'))
 
     # Detailed breakdown (expandable)
-    with st.expander("Detailed Quality-Based Calculation", expanded=False):
+    with st.expander("Detailed Calculation Breakdown", expanded=False):
         st.caption(pos_sizing.get('calculation_breakdown', 'N/A'))
 
     # Risk management reminder
@@ -12780,13 +12816,13 @@ with tab8:
                 st.subheader("Detailed Analysis")
 
                 # Helper function: Unified recommendation logic
-                def calculate_final_action(fund_decision: str, conviction: float, extension: str, trend: str) -> dict:
+                def calculate_final_action(fund_decision: str, conviction: float, extension: str, trend: str, tech_score: float = 0) -> dict:
                     """
                     Single source of truth for recommendation.
 
                     Returns:
                         {
-                            'action': 'STRONG_BUY' | 'BUY' | 'WAIT' | 'MONITOR' | 'AVOID',
+                            'action': 'STRONG_BUY' | 'BUY' | 'TACTICAL_SCALE_IN' | 'WAIT' | 'MONITOR' | 'AVOID',
                             'label': display text,
                             'color': CSS color,
                             'reason': explanation
@@ -12827,13 +12863,23 @@ with tab8:
 
                     # MONITOR fundamentals path
                     elif fund_decision == 'MONITOR':
-                        conv_label = 'High' if conviction >= 0.5 else 'Med' if conviction >= 0.3 else 'Low'
-                        return {
-                            'action': 'MONITOR',
-                            'label': 'MONITOR',
-                            'color': '#ffc107',
-                            'reason': f'Fundamentals uncertain. Conv: {conv_label} ({conviction:.2f}) | Extension: {extension}'
-                        }
+                        # Policy B: If tech is strong (>= 75), conviction decent (>= 0.25), and UPTREND → allow tactical scale-in
+                        if tech_score >= 75 and conviction >= 0.25 and trend == 'UPTREND':
+                            return {
+                                'action': 'TACTICAL_SCALE_IN',
+                                'label': 'TACTICAL SCALE-IN',
+                                'color': '#17a2b8',
+                                'reason': f'Adequate fundamentals + Strong technicals ({int(tech_score)}/100) + Uptrend. Small position only (Conv: {conviction:.2f})'
+                            }
+                        # Otherwise, stay in MONITOR (wait for fundamental improvement)
+                        else:
+                            conv_label = 'High' if conviction >= 0.5 else 'Med' if conviction >= 0.3 else 'Low'
+                            return {
+                                'action': 'MONITOR',
+                                'label': 'MONITOR',
+                                'color': '#ffc107',
+                                'reason': f'Fundamentals adequate but not high conviction. Tech Conv: {conv_label} ({conviction:.2f}) | Extension: {extension}'
+                            }
 
                     # AVOID fundamentals
                     else:
@@ -12870,9 +12916,10 @@ with tab8:
                             conviction = stock_data.get('conviction', 0)
                             extension = stock_data.get('extension_state', 'UNKNOWN')
                             trend = stock_data.get('trend_state', 'UNKNOWN')
+                            tech_score = stock_data.get('technical_score', 0)
 
                             # Calculate final action using unified logic
-                            final_action = calculate_final_action(fund_signal, conviction, extension, trend)
+                            final_action = calculate_final_action(fund_signal, conviction, extension, trend, tech_score)
 
                             # Display badge based on final_action
                             if final_action['action'] == 'STRONG_BUY':
@@ -12901,6 +12948,16 @@ with tab8:
                                             border-left: 4px solid #ffc107;'>
                                     <span class='badge badge-monitor'>
                                         <i class="bi bi-pause-circle"></i> {final_action['label']}
+                                    </span>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            elif final_action['action'] == 'TACTICAL_SCALE_IN':
+                                st.markdown(f"""
+                                <div style='background: #d1ecf1; padding: 1rem; border-radius: 10px; text-align: center;
+                                            border-left: 4px solid #17a2b8;'>
+                                    <span class='badge badge-buy'>
+                                        <i class="bi bi-graph-up-arrow"></i> {final_action['label']}
                                     </span>
                                     <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
                                 </div>
@@ -13414,7 +13471,7 @@ with tab8:
                                     padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
                             <h3 style='margin: 0; color: white;'><i class="bi bi-calculator"></i> MÓDULO 3: CALCULADORA DE TAMAÑO</h3>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
-                                Dual Constraint System: MIN(Quality-Based, Risk-Based)
+                                Dual Constraint System: MIN(Conviction Cap, Risk-Based)
                             </p>
                         </div>
                         """, unsafe_allow_html=True)
@@ -13424,12 +13481,17 @@ with tab8:
                         stop_loss_data = full_analysis.get('stop_loss', {})
 
                         if pos_sizing:
+                            # Get current price from metadata for V2
+                            current_price = full_analysis.get('metadata', {}).get('current_price', stock_data.get('price', 0))
+
                             # Use enhanced display function with dual constraint system
                             display_position_sizing(
                                 pos_sizing,
                                 stop_loss_data=stop_loss_data,
                                 portfolio_size=portfolio_capital,
-                                max_risk_dollars=max_risk_per_trade_dollars
+                                max_risk_dollars=max_risk_per_trade_dollars,
+                                current_price=current_price,
+                                selected_ticker=selected_ticker
                             )
                         else:
                             st.warning("No position sizing data available")
@@ -13918,8 +13980,10 @@ with tab8:
                             """, unsafe_allow_html=True)
                             if fund_score >= 75:
                                 st.success(f" EXCELLENT ({fund_score}/100) - High-quality company with strong fundamentals")
-                            elif fund_score >= 60:
+                            elif fund_score >= 70:
                                 st.info(f" GOOD ({fund_score}/100) - Solid fundamentals")
+                            elif fund_score >= 60:
+                                st.info(f" ADEQUATE ({fund_score:.1f}/100) - Acceptable fundamentals but not high conviction")
                             elif fund_score >= 50:
                                 st.warning(f" MODERATE ({fund_score}/100) - Mixed fundamentals")
                             else:
