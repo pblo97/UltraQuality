@@ -12298,12 +12298,13 @@ with tab8:
                 col1, col2, col3, col4 = st.columns(4)
 
                 with col1:
-                    tech_signal_filter = st.multiselect(
-                        "Technical Signal",
-                        options=['BUY', 'HOLD', 'SELL'],
-                        default=['BUY', 'HOLD', 'SELL'],
-                        help="Final technical trading signal (BUY if score ≥75 AND uptrend)",
-                        key='tech_signal_filter'
+                    # V2: Extension State filter (replaces technical signal)
+                    extension_filter = st.multiselect(
+                        "Extension State",
+                        options=['NORMAL', 'EXTENDED', 'STRETCHED', 'OVEREXTENDED'],
+                        default=['NORMAL', 'EXTENDED', 'STRETCHED', 'OVEREXTENDED'],
+                        help="Distance from MA200 - affects position sizing",
+                        key='extension_filter'
                     )
 
                 with col2:
@@ -12319,19 +12320,18 @@ with tab8:
                     min_tech_score = st.slider(
                         "Min Technical Score",
                         0, 100, 0,
-                        help="Composite technical score (0-100)",
+                        help="Orthogonal score (RS + Trend + Risk + Volume)",
                         key='min_tech_score'
                     )
 
                 with col4:
-                    # Get unique stop loss states for filter
-                    all_sl_states = sorted(df_tech['stop_loss_state'].unique().tolist())
-                    sl_state_filter = st.multiselect(
-                        "Stop Loss State",
-                        options=all_sl_states,
-                        default=all_sl_states,
-                        help="SmartDynamicStopLoss state (execution layer)",
-                        key='sl_state_filter'
+                    # V2: Conviction filter (replaces stop loss state)
+                    min_conviction = st.slider(
+                        "Min Conviction",
+                        0.0, 1.0, 0.0,
+                        step=0.1,
+                        help="Conviction = (TechScore - 60) / 30, clamped 0-1",
+                        key='min_conviction'
                     )
 
                 # LEVEL 2: MARKET CONTEXT (External Factors)
@@ -12347,23 +12347,23 @@ with tab8:
                 col5, col6 = st.columns(2)
 
                 with col5:
-                    all_regimes = sorted(df_tech['market_regime'].unique().tolist())
+                    # V2: Regime State (renamed from market_regime)
                     regime_filter = st.multiselect(
                         "Market Regime",
-                        options=all_regimes,
-                        default=all_regimes,
-                        help="Overall market state (BULL/BEAR/SIDEWAYS) - affects regime adjustment in score",
+                        options=['BULL', 'SIDEWAYS', 'BEAR'],
+                        default=['BULL', 'SIDEWAYS', 'BEAR'],
+                        help="Overall market state - affects position sizing only (not score)",
                         key='regime_filter'
                     )
 
                 with col6:
-                    all_sector_status = sorted(df_tech['sector_status'].unique().tolist())
-                    sector_filter = st.multiselect(
-                        "Sector Status",
-                        options=all_sector_status,
-                        default=all_sector_status,
-                        help="Sector relative strength vs market - contributes to sector_score component",
-                        key='sector_filter'
+                    # V2: Trend State (replaces sector status)
+                    trend_filter = st.multiselect(
+                        "Trend State",
+                        options=['UPTREND', 'DOWNTREND', 'CHOP'],
+                        default=['UPTREND', 'DOWNTREND', 'CHOP'],
+                        help="Structural trend state - DOWNTREND triggers veto warnings",
+                        key='trend_filter'
                     )
 
                 # LEVEL 3: TECHNICAL COMPONENTS (Building Blocks) - ADVANCED DIAGNOSTIC FILTERS
@@ -12467,28 +12467,26 @@ with tab8:
                     </div>
                     """, unsafe_allow_html=True)
 
-                # Apply filters
+                # Apply filters (V2)
                 df_filtered = df_tech[
-                    # Level 1: Trading Signals
-                    (df_tech['technical_signal'].isin(tech_signal_filter)) &
+                    # Level 1: States & Scores
+                    (df_tech['extension_state'].isin(extension_filter)) &
                     (df_tech['fundamental_decision'].isin(fund_decision_filter)) &
-                    (df_tech['stop_loss_state'].isin(sl_state_filter)) &
                     (df_tech['technical_score'] >= min_tech_score) &
+                    (df_tech['conviction'] >= min_conviction) &
                     # Level 2: Market Context
-                    (df_tech['market_regime'].isin(regime_filter)) &
-                    (df_tech['sector_status'].isin(sector_filter)) &
-                    # Level 3: Technical Components
-                    (df_tech['trend'].isin(trend_filter)) &
-                    (df_tech['volume_profile'].isin(volume_filter)) &
-                    (df_tech['momentum_consistency'].isin(consistency_filter))
+                    (df_tech['regime_state'].isin(regime_filter)) &
+                    (df_tech['trend_state'].isin(trend_filter)) &
+                    # Level 3: Volume (keep this one as diagnostic)
+                    (df_tech['volume_profile'].isin(volume_filter))
                 ]
 
-                # Level 4: Data Quality Filter
+                # Level 4: Data Quality Filter (V2)
                 if hide_incomplete_data:
                     df_filtered = df_filtered[
-                        (df_filtered['market_regime'] != 'UNKNOWN') &
-                        (df_filtered['trend'] != 'UNKNOWN') &
-                        (df_filtered['sector_status'] != 'UNKNOWN')
+                        (df_filtered['regime_state'] != 'UNKNOWN') &
+                        (df_filtered['trend_state'] != 'UNKNOWN') &
+                        (df_filtered['extension_state'] != 'UNKNOWN')
                     ]
 
                 st.markdown(f"""
