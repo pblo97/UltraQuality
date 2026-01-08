@@ -121,6 +121,19 @@ class TechnicalAnalyzerV2:
         self._market_regime_cache = None
         self._market_regime_timestamp = None
 
+    def _get_from_date(self, days: int) -> str:
+        """
+        Helper to convert days lookback to from_date string for FMP API.
+
+        Args:
+            days: Number of days to look back
+
+        Returns:
+            Date string in YYYY-MM-DD format
+        """
+        from_date = datetime.now() - timedelta(days=days)
+        return from_date.strftime('%Y-%m-%d')
+
     # ============================================================================
     # MAIN ANALYSIS METHOD
     # ============================================================================
@@ -182,16 +195,28 @@ class TechnicalAnalyzerV2:
             logger.info(f"Analyzing {symbol} with TechnicalAnalyzerV2 (orthogonal)")
 
             # ========== STEP 1: Get price data ==========
-            prices = self.fmp.get_historical_prices(symbol, days=300)
-            if not prices or len(prices) < 250:
-                return {'error': f'Insufficient price data for {symbol}'}
+            # Need 300 days to ensure 252 trading days for 12-month RS calculation
+            from_date = self._get_from_date(days=365)  # Use 365 calendar days to get 252 trading days
 
+            price_data = self.fmp.get_historical_prices(symbol, from_date=from_date)
+            if not price_data or 'historical' not in price_data:
+                return {'error': f'No price data returned for {symbol}'}
+
+            prices = price_data.get('historical', [])
+            if not prices or len(prices) < 250:
+                return {'error': f'Insufficient price data for {symbol} (got {len(prices)} days, need 250+)'}
+
+            # Sort by date descending (newest first) - FMP returns oldest first
+            prices = sorted(prices, key=lambda x: x['date'], reverse=True)
             current_price = prices[0]['close']
 
             # ========== STEP 2: Get market data (SPY, VIX, Sector) ==========
-            spy_prices = self.fmp.get_historical_prices('SPY', days=300)
+            spy_data = self.fmp.get_historical_prices('SPY', from_date=from_date)
+            spy_prices = sorted(spy_data.get('historical', []), key=lambda x: x['date'], reverse=True) if spy_data else []
+
             sector_etf = self.SECTOR_ETFS.get(sector, 'SPY')
-            sector_prices = self.fmp.get_historical_prices(sector_etf, days=300)
+            sector_data = self.fmp.get_historical_prices(sector_etf, from_date=from_date)
+            sector_prices = sorted(sector_data.get('historical', []), key=lambda x: x['date'], reverse=True) if sector_data else []
 
             # ========== STEP 3: Calculate components (orthogonal) ==========
 
@@ -801,9 +826,14 @@ class TechnicalAnalyzerV2:
                 return self._market_regime_cache, {}
 
             # Get SPY and VIX data
-            spy_prices = self.fmp.get_historical_prices('SPY', days=210)
+            from_date = self._get_from_date(days=250)  # 250 calendar days for ~200 trading days
+            spy_data = self.fmp.get_historical_prices('SPY', from_date=from_date)
             vix_data = self.fmp.get_quote('^VIX')
 
+            if not spy_data or 'historical' not in spy_data:
+                return 'SIDEWAYS', {}
+
+            spy_prices = sorted(spy_data.get('historical', []), key=lambda x: x['date'], reverse=True)
             if not spy_prices or len(spy_prices) < 200:
                 return 'SIDEWAYS', {}
 
