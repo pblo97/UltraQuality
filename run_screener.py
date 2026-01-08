@@ -2568,12 +2568,12 @@ with st.sidebar.expander("Cache Management", expanded=False):
 
 # ========== HELPER FUNCTIONS ==========
 
-def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=100000, max_risk_dollars=1000, current_price=None, selected_ticker=None):
+def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=100000, max_risk_dollars=1000, current_price=None, selected_ticker=None, execution_mode='ENTER_NOW'):
     """
     Display enhanced position sizing with DUAL CONSTRAINT system.
 
-    Método A (Conviction Cap): conviction × 10% max allocation
-    Método B (Risk-Based): max_risk_dollars / stop_loss_distance
+    Método A (Risk Budget from conviction): conviction × 10% max allocation
+    Método B (Risk-Based from stop): max_risk_dollars / stop_loss_distance
 
     DECISIÓN FINAL = MIN(A, B)
 
@@ -2591,7 +2591,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
                 border-radius: 8px; margin-bottom: 1rem;'>
         <h3 style='margin: 0; color: white;'><i class="bi bi-calculator"></i> Position Sizing Calculator</h3>
         <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
-            Dual Constraint System: MIN(Conviction Cap, Risk-Based)
+            Dual Constraint System: MIN(Risk Budget, Risk-Based Stop)
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -2644,11 +2644,11 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     if quality_based_dollars > 0 and risk_based_dollars is not None and risk_based_dollars > 0:
         # Both exist → take MIN
         final_dollars = min(quality_based_dollars, risk_based_dollars)
-        constraint = "Conviction Cap" if quality_based_dollars < risk_based_dollars else "Risk-Based"
+        constraint = "Risk Budget (conviction)" if quality_based_dollars < risk_based_dollars else "Risk-Based (stop)"
     elif quality_based_dollars > 0 and risk_based_dollars is None:
         # Only conviction cap exists
         final_dollars = quality_based_dollars
-        constraint = "Conviction Cap (risk method N/A)"
+        constraint = "Risk Budget (stop method N/A)"
     elif risk_based_dollars is not None and risk_based_dollars > 0 and quality_based_dollars <= 0:
         # Only risk exists
         final_dollars = risk_based_dollars
@@ -2718,12 +2718,12 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         st.markdown("""
         <div style='background: #e3f2fd; padding: 1rem; border-radius: 8px;
                     border: 2px solid #2196f3; margin-bottom: 0.5rem;'>
-            <div style='font-size: 0.85rem; color: #1976d2; font-weight: 600;'>METHOD A: Conviction Cap</div>
+            <div style='font-size: 0.85rem; color: #1976d2; font-weight: 600;'>METHOD A: Risk Budget</div>
         </div>
         """, unsafe_allow_html=True)
         quality_pct = (quality_based_dollars / portfolio_size) * 100 if portfolio_size > 0 else 0
         st.metric("Allocation", f"{quality_pct:.1f}%", delta=f"${quality_based_dollars:,.0f}")
-        st.caption(f"Conviction Cap: **{conviction_scalar:.2f}** → max {quality_pct:.1f}%")
+        st.caption(f"Risk Budget (conviction {conviction_scalar:.2f}): max {quality_pct:.1f}%")
 
         # Visual progress bar for quality allocation
         quality_progress = min(quality_pct / 10, 1.0)  # Normalize to 0-1 (assuming max 10%)
@@ -2761,21 +2761,21 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         final_progress = min(final_pct_adjusted / 10, 1.0)
         st.progress(final_progress)
 
-        if constraint.startswith("Risk"):
+        if constraint.startswith("Risk-Based"):
             st.markdown("""
             <div style='background: linear-gradient(to right, #e3f2fd, #bbdefb);
                         padding: 1rem; border-radius: 8px; border-left: 4px solid #2196f3;'>
                 <div style='color: #1565c0; font-weight: 600;'>
-                    <i class="bi bi-shield-check"></i> Risk-Based limit is more conservative
+                    <i class="bi bi-shield-check"></i> Risk-Based (stop) limit is more conservative
                 </div>
             </div>
             """, unsafe_allow_html=True)
-        elif constraint.startswith("Conviction"):
+        elif constraint.startswith("Risk Budget"):
             st.markdown("""
             <div style='background: linear-gradient(to right, #fff8e1, #ffecb3);
                         padding: 1rem; border-radius: 8px; border-left: 4px solid #ffc107;'>
                 <div style='color: #f57c00; font-weight: 600;'>
-                    <i class="bi bi-star-fill"></i> Conviction Cap is more conservative
+                    <i class="bi bi-star-fill"></i> Risk Budget (conviction) is more conservative
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -2860,6 +2860,14 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     # Execution details card
     st.markdown("---")
     st.markdown("#### <i class='bi bi-card-checklist'></i> Execution Plan", unsafe_allow_html=True)
+
+    # Show execution context based on final_action
+    if execution_mode == 'ENTER_NOW':
+        st.info("✅ **Execution: ENTER NOW** - Sizing shown is actual shares to buy immediately")
+    elif execution_mode == 'WAIT_TRIGGER':
+        st.warning("⏸️ **Execution: WAIT FOR TRIGGER** - Sizing shown is PLANNED allocation if entry trigger happens")
+    else:
+        st.error("🛑 **Execution: NO ENTRY** - Do not execute")
 
     # FIX #9: Currency conversion helper for international stocks
     def convert_to_usd(price_local: float, ticker: str) -> tuple:
@@ -12810,10 +12818,11 @@ with tab8:
 
                     Returns:
                         {
-                            'action': 'STRONG_BUY' | 'BUY' | 'TACTICAL_SCALE_IN' | 'WAIT' | 'MONITOR' | 'AVOID',
+                            'action': 'STRONG_BUY' | 'BUY' | 'TACTICAL_SCALE_IN' | 'WAIT_PULLBACK' | 'WAIT' | 'MONITOR' | 'AVOID',
                             'label': display text,
                             'color': CSS color,
-                            'reason': explanation
+                            'reason': explanation,
+                            'execution': 'ENTER_NOW' | 'WAIT_TRIGGER' | 'NO_ENTRY'
                         }
                     """
                     # Kill switch: DOWNTREND vetos all
@@ -12822,7 +12831,8 @@ with tab8:
                             'action': 'AVOID',
                             'label': 'AVOID - Downtrend',
                             'color': '#dc3545',
-                            'reason': 'Structure broken (price < MA50). Wait for recovery.'
+                            'reason': 'Structure broken (price < MA50). Wait for recovery.',
+                            'execution': 'NO_ENTRY'
                         }
 
                     # BUY fundamentals path
@@ -12832,33 +12842,47 @@ with tab8:
                                 'action': 'STRONG_BUY',
                                 'label': 'STRONG BUY',
                                 'color': '#28a745',
-                                'reason': f'Quality + Strong Conviction ({conviction:.2f}) + Good Entry'
+                                'reason': f'Quality + Strong Conviction ({conviction:.2f}) + Good Entry',
+                                'execution': 'ENTER_NOW'
                             }
                         elif conviction >= 0.3:
                             return {
                                 'action': 'BUY',
                                 'label': 'BUY',
                                 'color': '#17a2b8',
-                                'reason': f'Good fundamentals, moderate timing (Conv: {conviction:.2f})'
+                                'reason': f'Good fundamentals, moderate timing (Conv: {conviction:.2f})',
+                                'execution': 'ENTER_NOW'
                             }
                         else:
                             return {
                                 'action': 'WAIT',
                                 'label': 'WAIT',
                                 'color': '#ffc107',
-                                'reason': f'Good company, weak timing (Conv: {conviction:.2f})'
+                                'reason': f'Good company, weak timing (Conv: {conviction:.2f})',
+                                'execution': 'WAIT_TRIGGER'
                             }
 
                     # MONITOR fundamentals path
                     elif fund_decision == 'MONITOR':
-                        # Policy B: If tech is strong (>= 75), conviction decent (>= 0.25), and UPTREND → allow tactical scale-in
+                        # Policy: If tech strong + uptrend BUT overextended → wait for pullback
                         if tech_score >= 75 and conviction >= 0.25 and trend == 'UPTREND':
-                            return {
-                                'action': 'TACTICAL_SCALE_IN',
-                                'label': 'TACTICAL SCALE-IN',
-                                'color': '#17a2b8',
-                                'reason': f'Adequate fundamentals + Strong technicals ({int(tech_score)}/100) + Uptrend. Small position only (Conv: {conviction:.2f})'
-                            }
+                            if extension in ['STRETCHED', 'OVEREXTENDED']:
+                                return {
+                                    'action': 'WAIT_PULLBACK',
+                                    'label': 'WAIT (Scale-in on pullback)',
+                                    'color': '#ffc107',
+                                    'reason': f'Adequate fundamentals + Strong technicals ({int(tech_score)}/100), but overextended ({extension}). Wait for pullback to EMA20/MA50 or extension drops to EXTENDED/NORMAL.',
+                                    'execution': 'WAIT_TRIGGER'
+                                }
+                            else:
+                                # NORMAL or EXTENDED → allow tactical entry
+                                return {
+                                    'action': 'TACTICAL_SCALE_IN',
+                                    'label': 'TACTICAL SCALE-IN (Small Now)',
+                                    'color': '#17a2b8',
+                                    'reason': f'Adequate fundamentals + Strong technicals ({int(tech_score)}/100) + Uptrend + Good entry. Small position only (Conv: {conviction:.2f})',
+                                    'execution': 'ENTER_NOW'
+                                }
                         # Otherwise, stay in MONITOR (wait for fundamental improvement)
                         else:
                             conv_label = 'High' if conviction >= 0.5 else 'Med' if conviction >= 0.3 else 'Low'
@@ -12866,7 +12890,8 @@ with tab8:
                                 'action': 'MONITOR',
                                 'label': 'MONITOR',
                                 'color': '#ffc107',
-                                'reason': f'Fundamentals adequate but not high conviction. Tech Conv: {conv_label} ({conviction:.2f}) | Extension: {extension}'
+                                'reason': f'Fundamentals adequate but not high conviction. Tech Conv: {conv_label} ({conviction:.2f}) | Extension: {extension}',
+                                'execution': 'NO_ENTRY'
                             }
 
                     # AVOID fundamentals
@@ -12875,7 +12900,8 @@ with tab8:
                             'action': 'AVOID',
                             'label': 'AVOID',
                             'color': '#dc3545',
-                            'reason': 'Weak fundamentals'
+                            'reason': 'Weak fundamentals',
+                            'execution': 'NO_ENTRY'
                         }
 
                 # Stock selector
@@ -12936,6 +12962,16 @@ with tab8:
                                             border-left: 4px solid #ffc107;'>
                                     <span class='badge badge-monitor'>
                                         <i class="bi bi-pause-circle"></i> {final_action['label']}
+                                    </span>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            elif final_action['action'] == 'WAIT_PULLBACK':
+                                st.markdown(f"""
+                                <div style='background: #fff3cd; padding: 1rem; border-radius: 10px; text-align: center;
+                                            border-left: 4px solid #ff9800;'>
+                                    <span class='badge badge-monitor'>
+                                        <i class="bi bi-arrow-down-up"></i> {final_action['label']}
                                     </span>
                                     <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
                                 </div>
@@ -13459,7 +13495,7 @@ with tab8:
                                     padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
                             <h3 style='margin: 0; color: white;'><i class="bi bi-calculator"></i> MÓDULO 3: CALCULADORA DE TAMAÑO</h3>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
-                                Dual Constraint System: MIN(Conviction Cap, Risk-Based)
+                                Dual Constraint System: MIN(Risk Budget, Risk-Based Stop)
                             </p>
                         </div>
                         """, unsafe_allow_html=True)
@@ -13479,7 +13515,8 @@ with tab8:
                                 portfolio_size=portfolio_capital,
                                 max_risk_dollars=max_risk_per_trade_dollars,
                                 current_price=current_price,
-                                selected_ticker=selected_ticker
+                                selected_ticker=selected_ticker,
+                                execution_mode=final_action.get('execution', 'ENTER_NOW')
                             )
                         else:
                             st.warning("No position sizing data available")
@@ -14059,6 +14096,31 @@ with tab8:
                                 - Tech Score: {tech_score:.0f}/100
                                 - Conviction: {conviction:.2f} (needs ≥0.3 for entry)
                                 - Set alerts for conviction improvement
+                                """)
+                            elif final_action['action'] == 'WAIT_PULLBACK':
+                                st.warning(f"""
+                                **{final_action['label']}**: {final_action['reason']}
+
+                                **Action**: Wait for pullback/de-extension, THEN scale in.
+                                - Entry trigger: Price pulls back to EMA20/MA50 OR extension drops to EXTENDED/NORMAL
+                                - Sizing shown above is PLANNED allocation if trigger happens
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision})
+                                - Tech Score: {tech_score:.0f}/100 (strong)
+                                - Conviction: {conviction:.2f}
+                                - Extension: {extension_state} (overextended - wait for de-extension)
+                                """)
+                            elif final_action['action'] == 'TACTICAL_SCALE_IN':
+                                st.info(f"""
+                                **{final_action['label']}**: {final_action['reason']}
+
+                                **Action**: Enter small position NOW.
+                                - Execute shares shown in Módulo 3 (small position only)
+                                - Set stop loss from Módulo 4 immediately
+                                - Consider adding more on pullback if opportunity arises
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision} - adequate but not high conviction)
+                                - Tech Score: {tech_score:.0f}/100 (strong)
+                                - Conviction: {conviction:.2f}
+                                - Extension: {extension_state}
                                 """)
                             elif final_action['action'] == 'MONITOR':
                                 st.info(f"""
