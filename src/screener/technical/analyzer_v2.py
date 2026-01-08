@@ -100,8 +100,8 @@ class TechnicalAnalyzerV2:
     # Regime factors for position sizing
     REGIME_FACTORS = {
         'BULL': 1.0,
-        'SIDEWAYS': 0.7,
-        'BEAR': 0.4,
+        'SIDEWAYS': 0.75,
+        'BEAR': 0.5,
     }
 
     # Extension factors for position sizing
