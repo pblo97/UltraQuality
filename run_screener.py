@@ -12092,37 +12092,33 @@ with tab8:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # Group by stop_loss_state
-                    state_groups = df_tech.groupby('stop_loss_state')['ticker'].apply(list).to_dict()
+                    # Group by extension_state (V2)
+                    extension_groups = df_tech.groupby('extension_state')['ticker'].apply(list).to_dict()
 
-                    # Define state order and styling
-                    state_config = {
-                        'DOWNTREND': {'icon': '', 'color': 'error', 'label': 'Tendencia Bajista - Evitar Entrada', 'priority': 1},
-                        'PARABOLIC_CLIMAX': {'icon': '', 'color': 'warning', 'label': 'Sobreextendido - Alto Riesgo de Corrección', 'priority': 2},
-                        'CHOPPY_SIDEWAYS': {'icon': '', 'color': 'info', 'label': 'Lateral - Esperar Definición', 'priority': 3},
-                        'PULLBACK_FLAG': {'icon': '', 'color': 'success', 'label': 'Retroceso Saludable - Zona de Compra', 'priority': 4},
-                        'ENTRY_BREAKOUT': {'icon': '', 'color': 'success', 'label': 'Breakout Confirmado - Entrada Activa', 'priority': 5},
-                        'POWER_TREND': {'icon': '', 'color': 'success', 'label': 'Tendencia Potente - Mantener Posición', 'priority': 6},
-                        'BLUE_SKY_ATH': {'icon': '', 'color': 'success', 'label': 'Máximos Históricos - Sin Resistencia', 'priority': 7},
-                        'UNKNOWN': {'icon': '', 'color': 'info', 'label': 'Datos Incompletos', 'priority': 99},
-                        'ERROR': {'icon': '', 'color': 'error', 'label': 'Error en Análisis', 'priority': 100}
+                    # Define state order and styling (V2)
+                    extension_config = {
+                        'NORMAL': {'icon': '✅', 'color': 'success', 'label': 'Normal (≤25% from MA200) - Full Size', 'priority': 1},
+                        'EXTENDED': {'icon': '⚠️', 'color': 'warning', 'label': 'Extended (25-40%) - 70% Size', 'priority': 2},
+                        'STRETCHED': {'icon': '🔶', 'color': 'warning', 'label': 'Stretched (40-55%) - 40% Size', 'priority': 3},
+                        'OVEREXTENDED': {'icon': '🚨', 'color': 'error', 'label': 'Overextended (>55%) - 20% Size', 'priority': 4},
+                        'UNKNOWN': {'icon': '❓', 'color': 'info', 'label': 'Unknown - Insufficient Data', 'priority': 99}
                     }
 
                     # Sort states by priority
-                    sorted_states = sorted(
-                        state_groups.keys(),
-                        key=lambda x: state_config.get(x, {'priority': 999})['priority']
+                    sorted_extensions = sorted(
+                        extension_groups.keys(),
+                        key=lambda x: extension_config.get(x, {'priority': 999})['priority']
                     )
 
                     # Display in columns (2 per row for better visibility)
-                    for i in range(0, len(sorted_states), 2):
+                    for i in range(0, len(sorted_extensions), 2):
                         cols = st.columns(2)
 
                         for j, col in enumerate(cols):
-                            if i + j < len(sorted_states):
-                                state = sorted_states[i + j]
-                                tickers = state_groups[state]
-                                config = state_config.get(state, {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': 'info', 'label': state, 'priority': 999})
+                            if i + j < len(sorted_extensions):
+                                extension = sorted_extensions[i + j]
+                                tickers = extension_groups[extension]
+                                config = extension_config.get(extension, {'icon': '❓', 'color': 'info', 'label': extension, 'priority': 999})
 
                                 with col:
                                     # Use appropriate streamlit component for color
@@ -12147,10 +12143,10 @@ with tab8:
                     with st.expander(" Analysis Summary", expanded=False):
                         col1, col2, col3 = st.columns(3)
                         with col1:
-                            st.write("**Signal Distribution:**")
-                            signal_counts = df_tech['technical_signal'].value_counts()
-                            for signal, count in signal_counts.items():
-                                st.write(f"- {signal}: {count} ({count/len(df_tech)*100:.1f}%)")
+                            st.write("**Conviction Distribution:**")
+                            st.write(f"- High (≥0.7): {len(df_tech[df_tech['conviction'] >= 0.7])}")
+                            st.write(f"- Med (0.3-0.7): {len(df_tech[(df_tech['conviction'] >= 0.3) & (df_tech['conviction'] < 0.7)])}")
+                            st.write(f"- Low (<0.3): {len(df_tech[df_tech['conviction'] < 0.3])}")
 
                         with col2:
                             st.write("**Score Stats:**")
@@ -12159,10 +12155,10 @@ with tab8:
                             st.write(f"- Max: {df_tech['technical_score'].max():.1f}")
 
                         with col3:
-                            st.write("**Top 3 Stocks:**")
-                            top3 = df_tech.nlargest(3, 'technical_score')
+                            st.write("**Top 3 by Conviction:**")
+                            top3 = df_tech.nlargest(3, 'conviction')
                             for _, row in top3.iterrows():
-                                st.write(f"- {row['ticker']}: {row['technical_score']:.0f} ({row['technical_signal']})")
+                                st.write(f"- {row['ticker']}: Conv {row['conviction']:.2f} (Score {row['technical_score']:.0f})")
 
                 except Exception as e:
                     st.error(f"Error initializing technical analysis: {str(e)}")
@@ -12187,24 +12183,24 @@ with tab8:
                 col1, col2, col3, col4 = st.columns(4)
 
                 with col1:
-                    tech_buys = len(df_tech[df_tech['technical_signal'] == 'BUY'])
-                    st.metric(" Tech BUY", tech_buys, f"{tech_buys/len(df_tech)*100:.0f}%")
+                    high_conviction = len(df_tech[df_tech['conviction'] >= 0.7])
+                    st.metric("🔥 High Conviction", high_conviction, f"{high_conviction/len(df_tech)*100:.0f}%")
 
                 with col2:
-                    tech_holds = len(df_tech[df_tech['technical_signal'] == 'HOLD'])
-                    st.metric(" Tech HOLD", tech_holds, f"{tech_holds/len(df_tech)*100:.0f}%")
+                    med_conviction = len(df_tech[(df_tech['conviction'] >= 0.3) & (df_tech['conviction'] < 0.7)])
+                    st.metric("⚖️ Med Conviction", med_conviction, f"{med_conviction/len(df_tech)*100:.0f}%")
 
                 with col3:
                     avg_tech_score = df_tech['technical_score'].mean()
                     st.metric("Avg Tech Score", f"{avg_tech_score:.1f}")
 
                 with col4:
-                    # Strong buys (both fundamental and technical)
-                    strong_buys = len(df_tech[
+                    # High quality + high conviction
+                    strong_setups = len(df_tech[
                         (df_tech['fundamental_decision'] == 'BUY') &
-                        (df_tech['technical_signal'] == 'BUY')
+                        (df_tech['conviction'] >= 0.5)
                     ])
-                    st.metric(" Strong BUY", strong_buys, "Fund + Tech")
+                    st.metric("💎 Quality + Conv", strong_setups, "Fund + Tech")
 
                 st.markdown("---")
 
