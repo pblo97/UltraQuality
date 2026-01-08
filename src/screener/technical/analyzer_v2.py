@@ -252,10 +252,25 @@ class TechnicalAnalyzerV2:
             trend_state = trend_data['trend_state']
 
             # ========== STEP 5: Calculate Conviction ==========
-            conviction = self._calculate_conviction(total_score)
+            # Get volume profile from volume component
+            volume_profile = volume_data.get('volume_profile', 'UNKNOWN')
+
+            conviction_result = self._calculate_conviction(
+                tech_score=total_score,
+                regime_state=regime_state,
+                extension_state=extension_state,
+                volume_profile=volume_profile
+            )
+            conviction = conviction_result['conviction']
 
             # ========== STEP 6: Position Sizing ==========
             atr_14 = self._calculate_atr(prices, period=14)
+
+            # Check if ATR is available (fallback if missing data)
+            if atr_14 == 0 or atr_14 is None:
+                # Fallback: use 2% of price as proxy
+                atr_14 = current_price * 0.02
+                logger.warning(f"{symbol}: ATR unavailable, using 2% price fallback")
 
             position_sizing = self._calculate_position_size(
                 portfolio_value=portfolio_value,
@@ -306,6 +321,8 @@ class TechnicalAnalyzerV2:
                     'trend': trend_state
                 },
                 'conviction': round(conviction, 3),
+                'conviction_breakdown': conviction_result,  # Include full breakdown
+                'volume_profile': volume_profile,  # Make available at top level
                 'position_sizing': position_sizing,
                 'stop_loss': stop_loss,
                 'warnings': warnings,
@@ -315,7 +332,7 @@ class TechnicalAnalyzerV2:
                     'current_price': current_price,
                     'distance_ma200_pct': round(distance_ma200, 1),
                     'regime_data': regime_data,
-                    'analysis_version': 'V2_ORTHOGONAL'
+                    'analysis_version': 'V2_ORTHOGONAL_INTEGRATED_CONVICTION'
                 }
             }
 
@@ -870,18 +887,61 @@ class TechnicalAnalyzerV2:
     # CONVICTION & POSITION SIZING
     # ============================================================================
 
-    def _calculate_conviction(self, tech_score: float) -> float:
+    def _calculate_conviction(
+        self,
+        tech_score: float,
+        regime_state: str,
+        extension_state: str,
+        volume_profile: str
+    ) -> Dict:
         """
-        Calculate conviction scalar from tech score.
+        Calculate conviction with integrated factors: setup × market × timing × data.
 
-        Formula: conviction = clip((TechScore - 60) / 30, 0, 1)
+        Formula:
+        conviction = f(tech_score) × market_factor × timing_factor × data_factor
 
-        60 → 0.0 (no conviction)
-        75 → 0.5 (moderate)
-        90 → 1.0 (high conviction)
+        Args:
+            tech_score: Technical score (0-100)
+            regime_state: BULL/SIDEWAYS/BEAR
+            extension_state: NORMAL/EXTENDED/STRETCHED/OVEREXTENDED
+            volume_profile: ACCUMULATION/NEUTRAL/DISTRIBUTION/UNKNOWN
+
+        Returns:
+            Dict with conviction and factors breakdown
         """
-        conviction = (tech_score - 60) / 30
-        return max(0.0, min(1.0, conviction))
+        # 1. Setup strength (tech score mapped to 0-1)
+        setup_strength = (tech_score - 60) / 30
+        setup_strength = max(0.0, min(1.0, setup_strength))
+
+        # 2. Market factor
+        market_factor = self.REGIME_FACTORS.get(regime_state, 0.7)
+
+        # 3. Timing factor (by extension)
+        timing_factors = {
+            'NORMAL': 1.0,
+            'EXTENDED': 0.8,
+            'STRETCHED': 0.55,
+            'OVEREXTENDED': 0.35
+        }
+        timing_factor = timing_factors.get(extension_state, 0.8)
+
+        # 4. Data quality factor
+        # Start at 1.0, reduce for missing data
+        data_factor = 1.0
+        if volume_profile == 'UNKNOWN':
+            data_factor *= 0.85  # 15% reduction for missing volume
+
+        # Final conviction
+        final_conviction = setup_strength * market_factor * timing_factor * data_factor
+        final_conviction = max(0.0, min(1.0, final_conviction))
+
+        return {
+            'conviction': round(final_conviction, 3),
+            'setup_strength': round(setup_strength, 3),
+            'market_factor': round(market_factor, 2),
+            'timing_factor': round(timing_factor, 2),
+            'data_factor': round(data_factor, 2)
+        }
 
     def _calculate_position_size(
         self,

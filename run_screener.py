@@ -12672,6 +12672,71 @@ with tab8:
                 st.markdown("---")
                 st.subheader("Detailed Analysis")
 
+                # Helper function: Unified recommendation logic
+                def calculate_final_action(fund_decision: str, conviction: float, extension: str, trend: str) -> dict:
+                    """
+                    Single source of truth for recommendation.
+
+                    Returns:
+                        {
+                            'action': 'STRONG_BUY' | 'BUY' | 'WAIT' | 'MONITOR' | 'AVOID',
+                            'label': display text,
+                            'color': CSS color,
+                            'reason': explanation
+                        }
+                    """
+                    # Kill switch: DOWNTREND vetos all
+                    if trend == 'DOWNTREND':
+                        return {
+                            'action': 'AVOID',
+                            'label': 'AVOID - Downtrend',
+                            'color': '#dc3545',
+                            'reason': 'Structure broken (price < MA50). Wait for recovery.'
+                        }
+
+                    # BUY fundamentals path
+                    if fund_decision == 'BUY':
+                        if conviction >= 0.5 and extension in ['NORMAL', 'EXTENDED']:
+                            return {
+                                'action': 'STRONG_BUY',
+                                'label': 'STRONG BUY',
+                                'color': '#28a745',
+                                'reason': f'Quality + Strong Conviction ({conviction:.2f}) + Good Entry'
+                            }
+                        elif conviction >= 0.3:
+                            return {
+                                'action': 'BUY',
+                                'label': 'BUY',
+                                'color': '#17a2b8',
+                                'reason': f'Good fundamentals, moderate timing (Conv: {conviction:.2f})'
+                            }
+                        else:
+                            return {
+                                'action': 'WAIT',
+                                'label': 'WAIT',
+                                'color': '#ffc107',
+                                'reason': f'Good company, weak timing (Conv: {conviction:.2f})'
+                            }
+
+                    # MONITOR fundamentals path
+                    elif fund_decision == 'MONITOR':
+                        conv_label = 'High' if conviction >= 0.5 else 'Med' if conviction >= 0.3 else 'Low'
+                        return {
+                            'action': 'MONITOR',
+                            'label': 'MONITOR',
+                            'color': '#ffc107',
+                            'reason': f'Fundamentals uncertain. Conv: {conv_label} ({conviction:.2f}) | Extension: {extension}'
+                        }
+
+                    # AVOID fundamentals
+                    else:
+                        return {
+                            'action': 'AVOID',
+                            'label': 'AVOID',
+                            'color': '#dc3545',
+                            'reason': 'Weak fundamentals'
+                        }
+
                 # Stock selector
                 selected_ticker = st.selectbox(
                     "Select stock for detailed analysis:",
@@ -12693,52 +12758,64 @@ with tab8:
                             st.caption(f"Sector: {stock_data['sector']}")
 
                         with col2:
-                            # Combined signal
+                            # Get unified recommendation (single source of truth)
                             fund_signal = stock_data['fundamental_decision']
                             conviction = stock_data.get('conviction', 0)
                             extension = stock_data.get('extension_state', 'UNKNOWN')
+                            trend = stock_data.get('trend_state', 'UNKNOWN')
 
-                            # V2: Use conviction instead of technical_signal
-                            if fund_signal == 'BUY' and conviction >= 0.7 and extension in ['NORMAL', 'EXTENDED']:
-                                st.markdown("""
+                            # Calculate final action using unified logic
+                            final_action = calculate_final_action(fund_signal, conviction, extension, trend)
+
+                            # Display badge based on final_action
+                            if final_action['action'] == 'STRONG_BUY':
+                                st.markdown(f"""
                                 <div style='background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
                                             padding: 1rem; border-radius: 10px; text-align: center;'>
                                     <span class='badge badge-buy' style='font-size: 1.1rem;'>
-                                        <i class="bi bi-check-circle-fill"></i> STRONG BUY
+                                        <i class="bi bi-check-circle-fill"></i> {final_action['label']}
                                     </span>
-                                    <div style='color: white; margin-top: 0.5rem; font-size: 0.9rem;'>Quality + High Conviction + Good Entry</div>
+                                    <div style='color: white; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
                                 </div>
                                 """, unsafe_allow_html=True)
-                            elif fund_signal == 'BUY' and conviction >= 0.3:
-                                st.markdown("""
+                            elif final_action['action'] == 'BUY':
+                                st.markdown(f"""
                                 <div style='background: #d1ecf1; padding: 1rem; border-radius: 10px; text-align: center;
                                             border-left: 4px solid #17a2b8;'>
                                     <span class='badge badge-buy'>
-                                        <i class="bi bi-arrow-up-circle"></i> BUY
+                                        <i class="bi bi-arrow-up-circle"></i> {final_action['label']}
                                     </span>
-                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>Good fundamentals, moderate timing (Conv: {conviction:.2f})</div>
-                                </div>
-                                """.format(conviction=conviction), unsafe_allow_html=True)
-                            elif fund_signal == 'BUY' and conviction < 0.3:
-                                st.markdown("""
-                                <div style='background: #fff3cd; padding: 1rem; border-radius: 10px; text-align: center;
-                                            border-left: 4px solid #ffc107;'>
-                                    <span class='badge badge-monitor'>
-                                        <i class="bi bi-pause-circle"></i> WAIT
-                                    </span>
-                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>Good company, bad timing</div>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
                                 </div>
                                 """, unsafe_allow_html=True)
-                            elif fund_signal == 'MONITOR':
-                                # V2: Show conviction and extension state
-                                conv_label = 'High' if conviction >= 0.7 else 'Med' if conviction >= 0.3 else 'Low'
+                            elif final_action['action'] == 'WAIT':
                                 st.markdown(f"""
                                 <div style='background: #fff3cd; padding: 1rem; border-radius: 10px; text-align: center;
                                             border-left: 4px solid #ffc107;'>
                                     <span class='badge badge-monitor'>
-                                        <i class="bi bi-eye"></i> MONITOR
+                                        <i class="bi bi-pause-circle"></i> {final_action['label']}
                                     </span>
-                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>Conviction: {conv_label} ({conviction:.2f}) | Extension: {extension}</div>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            elif final_action['action'] == 'MONITOR':
+                                st.markdown(f"""
+                                <div style='background: #fff3cd; padding: 1rem; border-radius: 10px; text-align: center;
+                                            border-left: 4px solid #ffc107;'>
+                                    <span class='badge badge-monitor'>
+                                        <i class="bi bi-eye"></i> {final_action['label']}
+                                    </span>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:  # AVOID
+                                st.markdown(f"""
+                                <div style='background: #f8d7da; padding: 1rem; border-radius: 10px; text-align: center;
+                                            border-left: 4px solid #dc3545;'>
+                                    <span class='badge badge-avoid'>
+                                        <i class="bi bi-x-circle"></i> {final_action['label']}
+                                    </span>
+                                    <div style='color: #721c24; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
                                 </div>
                                 """, unsafe_allow_html=True)
 
@@ -13040,6 +13117,37 @@ with tab8:
                                 <div style='font-size: 2rem; font-weight: 700;'>{rs_score:.0f}/40</div>
                             </div>
                             """, unsafe_allow_html=True)
+
+                            st.markdown("<br>", unsafe_allow_html=True)
+
+                            # V2: Conviction Breakdown
+                            conv_breakdown = full_analysis.get('conviction_breakdown', {})
+                            if conv_breakdown:
+                                st.markdown("**Conviction Breakdown:**")
+
+                                setup_str = conv_breakdown.get('setup_strength', 0)
+                                market_f = conv_breakdown.get('market_factor', 1.0)
+                                timing_f = conv_breakdown.get('timing_factor', 1.0)
+                                data_f = conv_breakdown.get('data_factor', 1.0)
+                                final_conv = conv_breakdown.get('conviction', 0)
+
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px;
+                                            box-shadow: 0 2px 6px rgba(0,0,0,0.08);'>
+                                    <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.75rem;'>
+                                        conviction = setup × market × timing × data
+                                    </div>
+                                    <div style='font-size: 1rem; color: #495057; margin-bottom: 0.5rem;'>
+                                        <strong>{final_conv:.3f}</strong> = {setup_str:.2f} × {market_f:.2f} × {timing_f:.2f} × {data_f:.2f}
+                                    </div>
+                                    <div style='font-size: 0.8rem; color: #6c757d;'>
+                                        Setup: {setup_str:.2f} (from tech score {tech_score:.0f}/100)<br>
+                                        Market: {market_f:.2f} (regime: {market_regime})<br>
+                                        Timing: {timing_f:.2f} (extension: {extension_state})<br>
+                                        Data: {data_f:.2f} (volume: {volume_profile})
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
 
                             # V2: Conviction Badge (replaces consistency)
                             conviction = full_analysis.get('conviction', 0)
@@ -13750,92 +13858,59 @@ with tab8:
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # STRONG BUY: Great fundamentals + Great timing + Low overextension
-                            if fund_score >= 75 and tech_score >= 75 and overextension_risk < 2:
-                                st.success("""
-                                ** STRONG BUY**: Excellent fundamentals + favorable technical setup + low overextension.
-                                Both quality and timing are aligned. Consider building full position.
+                            # Use unified recommendation (same logic as header badge)
+                            # This ensures consistency between header and final recommendation
+                            fund_decision = stock_data['fundamental_decision']
+
+                            # Display final action with color coding
+                            if final_action['action'] == 'STRONG_BUY':
+                                st.success(f"""
+                                **{final_action['label']}**: {final_action['reason']}
+
+                                **Action**: Consider building full position.
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision})
+                                - Tech Score: {tech_score:.0f}/100
+                                - Conviction: {conviction:.2f}
+                                - Extension: {extension_state}
                                 """)
+                            elif final_action['action'] == 'BUY':
+                                st.info(f"""
+                                **{final_action['label']}**: {final_action['reason']}
 
-                            # STRONG fundamentals but HIGH overextension - WAIT or SCALE-IN
-                            elif fund_score >= 75 and overextension_risk >= 3:
-                                # Determine expected pullback range based on distance
-                                if abs_distance > 60:
-                                    pullback_range = "20-40%"
-                                    strategy_desc = "(minimal position now, majority on deep pullback)"
-                                elif abs_distance > 50:
-                                    pullback_range = "15-30%"
-                                    strategy_desc = "(40% now, 60% on pullback)"
-                                elif abs_distance > 40:
-                                    pullback_range = "10-20%"
-                                    strategy_desc = "(60% now, 40% on pullback)"
-                                else:
-                                    pullback_range = "8-15%"
-                                    strategy_desc = "(70% now, 30% on pullback)"
-
+                                **Action**: Consider position (50-75% size recommended).
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision})
+                                - Tech Score: {tech_score:.0f}/100
+                                - Conviction: {conviction:.2f}
+                                - Extension: {extension_state}
+                                """)
+                            elif final_action['action'] == 'WAIT':
                                 st.warning(f"""
-                                **STRONG COMPANY, WAIT FOR PULLBACK**: Excellent fundamentals but stock is overextended ({distance_ma200:+.1f}% from MA200).
-                                **Expected pullback**: {pullback_range}
-                                **Action**: Set alerts or use scale-in strategy {strategy_desc}.
-                                Consider cash-secured puts to enter at discount.
+                                **{final_action['label']}**: {final_action['reason']}
+
+                                **Action**: Wait for better technical setup or entry point.
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision})
+                                - Tech Score: {tech_score:.0f}/100
+                                - Conviction: {conviction:.2f} (needs ≥0.3 for entry)
+                                - Set alerts for conviction improvement
                                 """)
+                            elif final_action['action'] == 'MONITOR':
+                                st.info(f"""
+                                **{final_action['label']}**: {final_action['reason']}
 
-                            # STRONG fundamentals but poor tech score (not due to overextension)
-                            elif fund_score >= 75 and tech_score < 50:
-                                st.warning("""
-                                **WAIT**: Great company but poor technical timing.
-                                Consider waiting for pullback or better entry point.
-                                Set price alerts around MA200 support levels.
+                                **Action**: Watch for fundamental improvement before considering entry.
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision})
+                                - Tech Score: {tech_score:.0f}/100
+                                - Conviction: {conviction:.2f}
+                                - Extension: {extension_state}
                                 """)
+                            else:  # AVOID
+                                st.error(f"""
+                                **{final_action['label']}**: {final_action['reason']}
 
-                            # Good fundamentals + Strong technicals + Moderate overextension
-                            elif fund_score >= 60 and tech_score >= 75 and overextension_risk >= 2:
-                                st.info("""
-                                ** TACTICAL SCALE-IN**: Good fundamentals with strong momentum, but moderate overextension.
-                                Use scale-in strategy (e.g., 50% now, 50% on pullback).
-                                """)
-
-                            # Good fundamentals + Strong technicals + Low overextension
-                            elif fund_score >= 60 and tech_score >= 75 and overextension_risk < 2:
-                                st.info("""
-                                ** TACTICAL BUY**: Good fundamentals with strong technical momentum and low overextension.
-                                May be suitable for shorter-term trade, but monitor fundamentals closely.
-                                """)
-
-                            # Both GOOD (60-75 range) - Solid opportunity but not excellent
-                            elif fund_score >= 60 and tech_score >= 60:
-                                if overextension_risk >= 2:
-                                    st.info("""
-                                    ** BUY (Scale-in)**: Solid fundamentals and technical setup, but moderate overextension.
-                                    Consider scale-in approach (60-70% now, 30-40% on pullback).
-                                    """)
-                                else:
-                                    st.success("""
-                                    ** BUY**: Solid fundamentals and favorable technical timing.
-                                    Both quality and timing are good. Consider building position (75-100%).
-                                    Quality may not be "excellent" but setup is favorable for entry.
-                                    """)
-
-                            # Good fundamentals (60+) but moderate technicals (50-60)
-                            elif fund_score >= 60 and tech_score >= 50:
-                                st.info("""
-                                ** CAUTIOUS BUY**: Good fundamentals but moderate technical timing.
-                                Consider smaller position (50-60%) or wait for technical improvement.
-                                """)
-
-                            # Moderate fundamentals (50-60) but good technicals (60+)
-                            elif fund_score >= 50 and tech_score >= 60:
-                                st.info("""
-                                ** HOLD/TACTICAL**: Moderate fundamentals but favorable technicals.
-                                May be suitable for tactical trade with tight stops. Monitor fundamentals closely.
-                                Not a long-term core holding due to fundamental quality.
-                                """)
-
-                            # Weak on both or other mixed signals
-                            else:
-                                st.info("""
-                                **MONITOR**: Mixed or weak signals. Continue watching for improvement
-                                in either fundamentals or technicals before entry.
+                                **Action**: Do not enter. Wait for structure recovery.
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision})
+                                - Tech Score: {tech_score:.0f}/100
+                                - Trend: {trend} (needs UPTREND or CHOP for entry)
                                 """)
 
                     else:
