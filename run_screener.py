@@ -11912,6 +11912,53 @@ with tab8:
                                 risk_per_trade=0.005  # Default 0.5% risk per trade
                             )
 
+                            # Check if analysis returned an error
+                            if 'error' in tech_result:
+                                logger.warning(f"Tech analysis error for {symbol}: {tech_result['error']}")
+
+                                # Try to get current price from FMP
+                                current_price = 0
+                                try:
+                                    quote = fmp.get_quote(symbol)
+                                    if quote and len(quote) > 0:
+                                        current_price = quote[0].get('price', 0)
+                                except:
+                                    pass
+
+                                # Add with error defaults
+                                technical_results.append({
+                                    'ticker': symbol,
+                                    'name': row.get('name', ''),
+                                    'sector': sector,
+                                    'price': current_price,
+                                    'fundamental_decision': row['decision'],
+                                    'fundamental_score': row['composite_0_100'],
+                                    'technical_score': 50,
+                                    'rs_score': 0,
+                                    'trend_score': 0,
+                                    'risk_score': 0,
+                                    'volume_score': 0,
+                                    'extension_state': 'UNKNOWN',
+                                    'regime_state': 'UNKNOWN',
+                                    'trend_state': 'UNKNOWN',
+                                    'conviction': 0,
+                                    'position_size_pct': 0,
+                                    'rs_12_1': 0,
+                                    'rs_6_1_spy': 0,
+                                    'rs_6_1_sector': 0,
+                                    'sharpe_6m': 0,
+                                    'max_dd_6m': 0,
+                                    'volume_profile': 'UNKNOWN',
+                                    'distance_ma200': 0,
+                                    'stop_price': 0,
+                                    'stop_distance_pct': 0,
+                                    'warnings_count': 1,
+                                    'warnings': [{'type': 'ERROR', 'category': 'DATA', 'message': tech_result['error']}],
+                                    'error_reason': tech_result['error'],
+                                    'full_analysis': None
+                                })
+                                continue  # Skip to next stock
+
                             # Get current price from tech_result metadata
                             current_price = tech_result.get('metadata', {}).get('current_price', 0)
 
