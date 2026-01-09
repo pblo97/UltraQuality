@@ -12630,26 +12630,88 @@ with tab8:
 
                     st.markdown("---")
 
-                    # Debug info - show signal distribution
-                    with st.expander(" Analysis Summary", expanded=False):
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.write("**Conviction Distribution:**")
+                    # === ANALYSIS SUMMARY ===
+                    st.markdown("""
+                    <div style='background: #fff; padding: 1rem; border-radius: 8px;
+                                border: 2px solid #667eea; margin-bottom: 1rem;'>
+                        <div style='font-weight: 600; font-size: 0.95rem; color: #667eea;
+                                    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem;'>
+                            ANALYSIS SUMMARY
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # Summary metrics in clean cards
+                    col1, col2, col3, col4 = st.columns(4)
+
+                    with col1:
+                        high_conviction = len(df_tech[df_tech['conviction'] >= 0.7])
+                        st.markdown(f"""
+                        <div style='background: #f0fff4; padding: 1rem; border-radius: 8px;
+                                    border-left: 4px solid #28a745; text-align: center;'>
+                            <div style='font-size: 1.8rem; font-weight: 700; color: #28a745;'>{high_conviction}</div>
+                            <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>HIGH CONVICTION</div>
+                            <div style='font-size: 0.7rem; color: #28a745; font-weight: 600;'>{high_conviction/len(df_tech)*100:.0f}% of universe</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    with col2:
+                        med_conviction = len(df_tech[(df_tech['conviction'] >= 0.3) & (df_tech['conviction'] < 0.7)])
+                        st.markdown(f"""
+                        <div style='background: #fffbf0; padding: 1rem; border-radius: 8px;
+                                    border-left: 4px solid #ffc107; text-align: center;'>
+                            <div style='font-size: 1.8rem; font-weight: 700; color: #ffc107;'>{med_conviction}</div>
+                            <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>MED CONVICTION</div>
+                            <div style='font-size: 0.7rem; color: #ffc107; font-weight: 600;'>{med_conviction/len(df_tech)*100:.0f}% of universe</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    with col3:
+                        avg_tech_score = df_tech['technical_score'].mean()
+                        st.markdown(f"""
+                        <div style='background: #f0f9ff; padding: 1rem; border-radius: 8px;
+                                    border-left: 4px solid #17a2b8; text-align: center;'>
+                            <div style='font-size: 1.8rem; font-weight: 700; color: #17a2b8;'>{avg_tech_score:.1f}</div>
+                            <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>AVG TECH SCORE</div>
+                            <div style='font-size: 0.7rem; color: #17a2b8; font-weight: 600;'>out of 100</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    with col4:
+                        # High quality + high conviction
+                        strong_setups = len(df_tech[
+                            (df_tech['fundamental_decision'] == 'BUY') &
+                            (df_tech['conviction'] >= 0.5)
+                        ])
+                        st.markdown(f"""
+                        <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;
+                                    border-left: 4px solid #6c757d; text-align: center;'>
+                            <div style='font-size: 1.8rem; font-weight: 700; color: #6c757d;'>{strong_setups}</div>
+                            <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>QUALITY + CONV</div>
+                            <div style='font-size: 0.7rem; color: #6c757d; font-weight: 600;'>BUY + Conv≥0.5</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    # Additional details in expander
+                    with st.expander("View Detailed Statistics", expanded=False):
+                        col_d1, col_d2, col_d3 = st.columns(3)
+                        with col_d1:
+                            st.markdown("**Conviction Distribution:**")
                             st.write(f"- High (≥0.7): {len(df_tech[df_tech['conviction'] >= 0.7])}")
                             st.write(f"- Med (0.3-0.7): {len(df_tech[(df_tech['conviction'] >= 0.3) & (df_tech['conviction'] < 0.7)])}")
                             st.write(f"- Low (<0.3): {len(df_tech[df_tech['conviction'] < 0.3])}")
 
-                        with col2:
-                            st.write("**Score Stats:**")
+                        with col_d2:
+                            st.markdown("**Score Statistics:**")
                             st.write(f"- Min: {df_tech['technical_score'].min():.1f}")
                             st.write(f"- Avg: {df_tech['technical_score'].mean():.1f}")
                             st.write(f"- Max: {df_tech['technical_score'].max():.1f}")
 
-                        with col3:
-                            st.write("**Top 3 by Conviction:**")
+                        with col_d3:
+                            st.markdown("**Top 3 by Conviction:**")
                             top3 = df_tech.nlargest(3, 'conviction')
                             for _, row in top3.iterrows():
-                                st.write(f"- {row['ticker']}: Conv {row['conviction']:.2f} (Score {row['technical_score']:.0f})")
+                                st.write(f"- {row['ticker']}: {row['conviction']:.2f} (Score {row['technical_score']:.0f})")
 
                 except Exception as e:
                     st.error(f"Error initializing technical analysis: {str(e)}")
@@ -12670,67 +12732,39 @@ with tab8:
                     """)
                     st.info("**New in this version:** Detailed breakdown showing WHY each stock has UNKNOWN data (delisted, no history, API errors, etc.)")
 
-                # Summary metrics
-                col1, col2, col3, col4 = st.columns(4)
-
-                with col1:
-                    high_conviction = len(df_tech[df_tech['conviction'] >= 0.7])
-                    st.metric("High Conviction", high_conviction, f"{high_conviction/len(df_tech)*100:.0f}%")
-
-                with col2:
-                    med_conviction = len(df_tech[(df_tech['conviction'] >= 0.3) & (df_tech['conviction'] < 0.7)])
-                    st.metric("Med Conviction", med_conviction, f"{med_conviction/len(df_tech)*100:.0f}%")
-
-                with col3:
-                    avg_tech_score = df_tech['technical_score'].mean()
-                    st.metric("Avg Tech Score", f"{avg_tech_score:.1f}")
-
-                with col4:
-                    # High quality + high conviction
-                    strong_setups = len(df_tech[
-                        (df_tech['fundamental_decision'] == 'BUY') &
-                        (df_tech['conviction'] >= 0.5)
-                    ])
-                    st.metric("💎 Quality + Conv", strong_setups, "Fund + Tech")
-
                 st.markdown("---")
 
-                # Quick Preset Buttons
-                st.markdown("**Filter Presets (Quick Discovery):**")
+                # === FILTER PRESETS ===
+                st.markdown("""
+                <div style='background: #fff; padding: 1rem; border-radius: 8px;
+                            border: 2px solid #667eea; margin-bottom: 1rem;'>
+                    <div style='font-weight: 600; font-size: 0.95rem; color: #667eea;
+                                text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem;'>
+                        FILTER PRESETS (QUICK DISCOVERY)
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Quick Preset Buttons - Organized in 2 rows
                 preset_col1, preset_col2, preset_col3, preset_col4, preset_col5 = st.columns(5)
 
                 with preset_col1:
-                    if st.button("Bulls Only", help="BULL market + UPTREND"):
+                    if st.button("Bulls Only", help="BULL market + UPTREND", use_container_width=True):
                         st.session_state['regime_filter'] = ['BULL']
                         st.session_state['trend_filter'] = ['UPTREND', 'STRONG_UPTREND']
 
                 with preset_col2:
-                    if st.button("Leaders Only", help="Sector + Market leaders"):
-                        st.session_state['sector_filter'] = ['LEADING', 'OUTPERFORMER']
-
-                with preset_col3:
-                    if st.button("Strong Momentum", help="Consistent + Accumulation"):
+                    if st.button("Strong Momentum", help="Consistent + Accumulation", use_container_width=True):
                         st.session_state['consistency_filter'] = ['VERY_CONSISTENT', 'CONSISTENT']
                         st.session_state['volume_filter'] = ['ACCUMULATION']
 
-                with preset_col4:
-                    if st.button("Clear Filters", help="Reset all filters to defaults"):
-                        # Clear all filter states
-                        for key in ['regime_filter', 'sector_filter', 'trend_filter', 'volume_filter', 'consistency_filter', 'hide_incomplete_data']:
-                            if key in st.session_state:
-                                del st.session_state[key]
-
-                with preset_col5:
-                    if st.button("Top Quality", help="High conviction + high score"):
+                with preset_col3:
+                    if st.button("Top Quality", help="High conviction + high score", use_container_width=True):
                         st.session_state['min_conviction'] = 0.7
                         st.session_state['min_tech_score'] = 75
 
-                # Second row of presets (V2)
-                st.markdown("")
-                preset2_col1, preset2_col2, preset2_col3, preset2_col4, preset2_col5 = st.columns(5)
-
-                with preset2_col1:
-                    if st.button("Buy Opportunities", help="Optimal setup: Bull market + High conviction + Quality", key='buy_opp_preset'):
+                with preset_col4:
+                    if st.button("Buy Opportunities", help="Optimal setup: Bull + High conv + Quality", use_container_width=True):
                         # V2 Filters
                         st.session_state['extension_filter'] = ['NORMAL', 'EXTENDED']  # Not overextended
                         st.session_state['fund_decision_filter'] = ['BUY', 'MONITOR']
@@ -12740,21 +12774,35 @@ with tab8:
                         st.session_state['volume_filter'] = ['ACCUMULATION', 'NEUTRAL']
                         st.rerun()
 
-                with preset2_col2:
-                    if st.button("Contrarian Setup", help="AVOID fundamentals + good technicals", key='contrarian_preset'):
-                        st.session_state['fund_decision_filter'] = ['AVOID']
-                        st.session_state['min_conviction'] = 0.5
-                        st.session_state['min_tech_score'] = 70
-                        st.rerun()
+                with preset_col5:
+                    if st.button("Clear Filters", help="Reset all filters to defaults", use_container_width=True):
+                        # Clear all filter states
+                        for key in ['regime_filter', 'sector_filter', 'trend_filter', 'volume_filter', 'consistency_filter', 'hide_incomplete_data']:
+                            if key in st.session_state:
+                                del st.session_state[key]
 
-                with preset2_col3:
-                    if st.button("Confirm AVOID", help="AVOID + weak technicals", key='confirm_avoid_preset'):
-                        # Both fundamental and technical weakness
-                        st.session_state['fund_decision_filter'] = ['AVOID']
-                        st.session_state['min_conviction'] = 0.0
-                        st.session_state['trend_filter'] = ['DOWNTREND', 'CHOP']
-                        st.session_state['volume_filter'] = ['DISTRIBUTION']
-                        st.rerun()
+                # Second row of presets - Advanced
+                with st.expander("Advanced Presets", expanded=False):
+                    preset2_col1, preset2_col2, preset2_col3 = st.columns(3)
+
+                    with preset2_col1:
+                        if st.button("Contrarian Setup", help="AVOID fundamentals + good technicals", key='contrarian_preset', use_container_width=True):
+                            st.session_state['fund_decision_filter'] = ['AVOID']
+                            st.session_state['min_conviction'] = 0.5
+                            st.session_state['min_tech_score'] = 70
+                            st.rerun()
+
+                    with preset2_col2:
+                        if st.button("Confirm AVOID", help="AVOID + weak technicals", key='confirm_avoid_preset', use_container_width=True):
+                            # Both fundamental and technical weakness
+                            st.session_state['fund_decision_filter'] = ['AVOID']
+                            st.session_state['min_conviction'] = 0.0
+                            st.session_state['trend_filter'] = ['DOWNTREND', 'CHOP']
+                            st.session_state['volume_filter'] = ['DISTRIBUTION']
+                            st.rerun()
+
+                    with preset2_col3:
+                        st.info("More presets coming soon")
 
                 st.markdown("---")
 
@@ -12768,9 +12816,8 @@ with tab8:
 
                 # LEVEL 1: TRADING SIGNALS (High-Level Decisions)
                 st.markdown("""
-                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                            padding: 0.5rem 1rem; border-radius: 8px; margin-bottom: 0.5rem;'>
-                    <div style='color: white; font-weight: 600; font-size: 0.85rem;'>
+                <div style='background: #667eea; padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
+                    <div style='color: white; font-weight: 600; font-size: 0.9rem; letter-spacing: 0.5px;'>
                         TRADING SIGNALS (Decision Outputs)
                     </div>
                 </div>
@@ -12817,9 +12864,8 @@ with tab8:
 
                 # LEVEL 2: MARKET CONTEXT (External Factors)
                 st.markdown("""
-                <div style='background: #f8fafc; padding: 0.5rem 1rem; border-radius: 8px;
-                            margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #667eea;'>
-                    <div style='color: #475569; font-weight: 600; font-size: 0.85rem;'>
+                <div style='background: #11998e; padding: 0.75rem 1rem; border-radius: 8px; margin-top: 0.75rem; margin-bottom: 0.75rem;'>
+                    <div style='color: white; font-weight: 600; font-size: 0.9rem; letter-spacing: 0.5px;'>
                         MARKET CONTEXT (External Environment)
                     </div>
                 </div>
@@ -12851,15 +12897,13 @@ with tab8:
                 # These are the RAW INPUTS that make up the Technical Score
                 # Filtering by both Score AND Components is REDUNDANT
                 st.markdown("""
-                <div style='background: #fff3cd; padding: 0.75rem 1rem; border-radius: 8px;
-                            margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #ffc107;'>
-                    <div style='color: #856404; font-weight: 600; font-size: 0.85rem;'>
+                <div style='background: #ffc107; padding: 0.75rem 1rem; border-radius: 8px; margin-top: 0.75rem; margin-bottom: 0.5rem;'>
+                    <div style='color: #000; font-weight: 600; font-size: 0.9rem; letter-spacing: 0.5px;'>
                         ADVANCED: Diagnostic Component Filters
                     </div>
-                    <div style='color: #856404; font-size: 0.75rem; margin-top: 0.25rem;'>
+                    <div style='color: #000; font-size: 0.75rem; margin-top: 0.35rem; opacity: 0.85;'>
                         <strong>TIP:</strong> These components are ALREADY included in Technical Score and Signal.
-                        Use these filters only for advanced diagnostic analysis to understand WHY a stock has a certain score.
-                        Filtering by both Score ≥75 AND Trend=UPTREND is redundant (Trend already contributes 10-15 pts to Score).
+                        Use only for diagnostic analysis to understand WHY a stock has a certain score.
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -12896,48 +12940,53 @@ with tab8:
 
                 # LEVEL 4: DATA QUALITY FILTER
                 st.markdown("""
-                <div style='background: #fef3c7; padding: 0.5rem 1rem; border-radius: 8px;
-                            margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #f59e0b;'>
-                    <div style='color: #92400e; font-weight: 600; font-size: 0.85rem;'>
+                <div style='background: #dc3545; padding: 0.75rem 1rem; border-radius: 8px; margin-top: 0.75rem; margin-bottom: 0.75rem;'>
+                    <div style='color: white; font-weight: 600; font-size: 0.9rem; letter-spacing: 0.5px;'>
                         DATA QUALITY
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-                col_dq1, col_dq2, col_dq3 = st.columns([2, 2, 2])
+                # Count stocks with incomplete data (V2 fields) first for display
+                incomplete_mask = (
+                    (df_tech['regime_state'] == 'UNKNOWN') |
+                    (df_tech['trend_state'] == 'UNKNOWN') |
+                    (df_tech['extension_state'] == 'UNKNOWN')
+                )
+                incomplete_count = incomplete_mask.sum()
+                pct_incomplete = (incomplete_count / len(df_tech) * 100) if len(df_tech) > 0 else 0
+
+                col_dq1, col_dq2, col_dq3 = st.columns(3)
 
                 with col_dq1:
-                    hide_incomplete_data = st.checkbox(
-                        "Hide stocks with incomplete data",
-                        value=False,
-                        help="Exclude stocks with UNKNOWN market regime, trend, or sector status (usually due to insufficient price history)",
-                        key='hide_incomplete_data'
-                    )
+                    st.markdown(f"""
+                    <div style='background: #fff5f5; padding: 1rem; border-radius: 8px;
+                                border-left: 4px solid #dc3545; text-align: center;'>
+                        <div style='font-size: 1.8rem; font-weight: 700; color: #dc3545;'>{incomplete_count}</div>
+                        <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>INCOMPLETE DATA</div>
+                        <div style='font-size: 0.7rem; color: #dc3545; font-weight: 600;'>stocks affected</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                 with col_dq2:
-                    # Count stocks with incomplete data (V2 fields)
-                    incomplete_mask = (
-                        (df_tech['regime_state'] == 'UNKNOWN') |
-                        (df_tech['trend_state'] == 'UNKNOWN') |
-                        (df_tech['extension_state'] == 'UNKNOWN')
-                    )
-                    incomplete_count = incomplete_mask.sum()
                     st.markdown(f"""
-                    <div style='background: #fee2e2; padding: 0.5rem; border-radius: 6px; text-align: center;'>
-                        <div style='font-size: 1.2rem; font-weight: 700; color: #991b1b;'>{incomplete_count}</div>
-                        <div style='font-size: 0.7rem; color: #7f1d1d;'>stocks with incomplete data</div>
+                    <div style='background: #fffbf0; padding: 1rem; border-radius: 8px;
+                                border-left: 4px solid #ffc107; text-align: center;'>
+                        <div style='font-size: 1.8rem; font-weight: 700; color: #ffc107;'>{pct_incomplete:.1f}%</div>
+                        <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>OF UNIVERSE</div>
+                        <div style='font-size: 0.7rem; color: #ffc107; font-weight: 600;'>incomplete ratio</div>
                     </div>
                     """, unsafe_allow_html=True)
 
                 with col_dq3:
-                    # Show percentage
-                    pct_incomplete = (incomplete_count / len(df_tech) * 100) if len(df_tech) > 0 else 0
-                    st.markdown(f"""
-                    <div style='background: #fef3c7; padding: 0.5rem; border-radius: 6px; text-align: center;'>
-                        <div style='font-size: 1.2rem; font-weight: 700; color: #92400e;'>{pct_incomplete:.1f}%</div>
-                        <div style='font-size: 0.7rem; color: #78350f;'>of universe</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    hide_incomplete_data = st.checkbox(
+                        "Hide incomplete stocks",
+                        value=False,
+                        help="Exclude stocks with UNKNOWN market regime, trend, or extension state",
+                        key='hide_incomplete_data'
+                    )
+                    if incomplete_count > 0:
+                        st.caption(f"WARNING: {incomplete_count} stocks have UNKNOWN states (insufficient data)")
 
                 # Apply filters (V2)
                 df_filtered = df_tech[
@@ -12961,13 +13010,18 @@ with tab8:
                         (df_filtered['extension_state'] != 'UNKNOWN')
                     ]
 
+                st.markdown("---")
                 st.markdown(f"""
-                <div style='background: #dbeafe; padding: 0.75rem; border-radius: 8px; margin-top: 0.75rem;'>
-                    <div style='font-size: 1.1rem; font-weight: 600; color: #1e40af;'>
-                        {len(df_filtered)} stocks match filters
-                        <span style='font-size: 0.85rem; color: #3b82f6; font-weight: 400;'>
-                            (filtered from {len(df_tech)} total)
-                        </span>
+                <div style='background: #f0f9ff; padding: 1.25rem; border-radius: 8px; margin: 1rem 0;
+                            border: 2px solid #17a2b8; text-align: center;'>
+                    <div style='font-size: 2rem; font-weight: 700; color: #17a2b8; margin-bottom: 0.5rem;'>
+                        {len(df_filtered)}
+                    </div>
+                    <div style='font-size: 0.9rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;'>
+                        Stocks Match Filters
+                    </div>
+                    <div style='font-size: 0.8rem; color: #17a2b8; margin-top: 0.5rem;'>
+                        Filtered from {len(df_tech)} total stocks in universe
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
