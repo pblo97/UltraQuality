@@ -114,10 +114,35 @@ def render_price_levels_chart(
 
 
 def render_overextension_gauge(full_analysis: Dict):
-    """Render overextension risk gauge."""
-    overextension_risk = full_analysis.get('overextension_risk', 0)
-    overextension_level = full_analysis.get('overextension_level', 'LOW')
-    distance_ma200 = full_analysis.get('distance_from_ma200', 0)
+    """Render overextension risk gauge (V2 compatible)."""
+    # Extract V2 data structure
+    metadata = full_analysis.get('metadata', {})
+    states = full_analysis.get('states', {})
+
+    # Get distance from MA200
+    distance_ma200 = metadata.get('distance_ma200_pct', 0)
+
+    # Get extension state
+    extension_state = states.get('extension', 'NORMAL')
+
+    # Calculate overextension risk (0-7 scale) based on extension state and distance
+    # Map extension states to risk levels
+    extension_risk_map = {
+        'NORMAL': 0,          # ≤25% - Low risk
+        'EXTENDED': 2,        # 25-40% - Moderate risk
+        'STRETCHED': 5,       # 40-55% - High risk
+        'OVEREXTENDED': 7     # >55% - Extreme risk
+    }
+
+    overextension_risk = extension_risk_map.get(extension_state, 0)
+
+    # Determine level label
+    if overextension_risk >= 5:
+        overextension_level = 'HIGH'
+    elif overextension_risk >= 3:
+        overextension_level = 'MODERATE'
+    else:
+        overextension_level = 'LOW'
 
     fig = create_overextension_gauge(
         overextension_risk=overextension_risk,
