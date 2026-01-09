@@ -2577,20 +2577,20 @@ with st.sidebar.expander("Cache Management", expanded=False):
 
 # ========== HELPER FUNCTIONS ==========
 
-def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_spy: float) -> dict:
+def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_spy: float, regime_state: str = 'SIDEWAYS') -> dict:
     """
     Evaluate entry trigger using 2 of 3 criteria.
 
     Entry allowed when 2 of 3 conditions are met:
-    1. conviction >= min_threshold (dynamic based on extension)
+    1. conviction >= min_threshold (dynamic based on extension + regime)
     2. extension improved (not STRETCHED/OVEREXTENDED)
     3. RS 12-1 vs SPY > +5%
 
-    Dynamic conviction thresholds:
-    - NORMAL: 0.30
-    - EXTENDED: 0.35
-    - STRETCHED: 0.45
-    - OVEREXTENDED: 0.55
+    Dynamic conviction thresholds (softer in BULL, stricter in BEAR):
+    - NORMAL: BULL=0.30, SIDEWAYS=0.30, BEAR=0.35
+    - EXTENDED: BULL=0.33, SIDEWAYS=0.35, BEAR=0.40
+    - STRETCHED: BULL=0.40, SIDEWAYS=0.45, BEAR=0.55
+    - OVEREXTENDED: BULL=0.50, SIDEWAYS=0.55, BEAR=0.65
 
     Returns:
         {
@@ -2604,14 +2604,18 @@ def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_s
             'details': dict with values
         }
     """
-    # Dynamic conviction threshold based on extension
-    extension_thresholds = {
-        'NORMAL': 0.30,
-        'EXTENDED': 0.35,
-        'STRETCHED': 0.45,
-        'OVEREXTENDED': 0.55
-    }
-    min_conviction = extension_thresholds.get(extension_state, 0.30)
+    # Dynamic conviction threshold based on extension + regime
+    def get_min_conviction(extension: str, regime: str) -> float:
+        """Calculate minimum conviction threshold based on extension and regime."""
+        base_thresholds = {
+            'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
+            'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
+            'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
+            'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
+        }
+        return base_thresholds.get(extension, {}).get(regime, 0.30)
+
+    min_conviction = get_min_conviction(extension_state, regime_state)
 
     # Evaluate each criterion
     conviction_met = conviction >= min_conviction
@@ -2940,7 +2944,8 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
             trigger_result = evaluate_entry_trigger(
                 conviction=trigger_data['conviction'],
                 extension_state=trigger_data['extension_state'],
-                rs_12_1_vs_spy=trigger_data['rs_12_1_vs_spy']
+                rs_12_1_vs_spy=trigger_data['rs_12_1_vs_spy'],
+                regime_state=trigger_data.get('regime_state', 'SIDEWAYS')
             )
 
             criteria = trigger_result['criteria']
@@ -12992,22 +12997,27 @@ with tab8:
                             'execution': 'NO_ENTRY'
                         }
 
-                    # Kill switch #2: Dynamic conviction gating based on extension state
-                    # More overextended = higher conviction required to enter
-                    extension_thresholds = {
-                        'NORMAL': 0.30,
-                        'EXTENDED': 0.35,
-                        'STRETCHED': 0.45,
-                        'OVEREXTENDED': 0.55
-                    }
-                    min_conviction = extension_thresholds.get(extension, 0.30)
+                    # Kill switch #2: Dynamic conviction gating based on extension + regime
+                    # More overextended = higher conviction required
+                    # Adjusted by market regime (softer in BULL, stricter in BEAR)
+                    def get_min_conviction(extension: str, regime: str) -> float:
+                        """Calculate minimum conviction threshold based on extension and regime."""
+                        base_thresholds = {
+                            'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
+                            'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
+                            'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
+                            'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
+                        }
+                        return base_thresholds.get(extension, {}).get(regime, 0.30)
+
+                    min_conviction = get_min_conviction(extension, regime_state)
 
                     if conviction < min_conviction and fund_decision != 'BUY':
                         return {
-                            'action': 'MONITOR',
-                            'label': 'MONITOR',
+                            'action': 'WAIT_TECHNICAL',
+                            'label': 'WAIT (Technical)',
                             'color': '#ffc107',
-                            'reason': f'Conviction too low ({conviction:.2f} < {min_conviction:.2f} required for {extension}). Wait for setup improvement or fundamental upgrade.',
+                            'reason': f'Technical veto: Conviction too low ({conviction:.2f} < {min_conviction:.2f} required for {extension}). Wait for de-extension OR conviction improvement.',
                             'execution': 'NO_ENTRY'
                         }
 
@@ -13138,6 +13148,16 @@ with tab8:
                                             border-left: 4px solid #ffc107;'>
                                     <span class='badge badge-monitor'>
                                         <i class="bi bi-pause-circle"></i> {final_action['label']}
+                                    </span>
+                                    <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            elif final_action['action'] == 'WAIT_TECHNICAL':
+                                st.markdown(f"""
+                                <div style='background: #fff3cd; padding: 1rem; border-radius: 10px; text-align: center;
+                                            border-left: 4px solid #ff9800;'>
+                                    <span class='badge badge-monitor'>
+                                        <i class="bi bi-clock-history"></i> {final_action['label']}
                                     </span>
                                     <div style='color: #495057; margin-top: 0.5rem; font-size: 0.9rem;'>{final_action['reason']}</div>
                                 </div>
@@ -13686,10 +13706,12 @@ with tab8:
 
                             # Prepare trigger data for entry evaluation
                             rs_12_1_vs_spy = full_analysis.get('component_details', {}).get('relative_strength', {}).get('rs_12_1_vs_spy', 0)
+                            regime_state = stock_data.get('regime_state', 'SIDEWAYS')
                             trigger_data = {
                                 'conviction': conviction,
                                 'extension_state': extension,
-                                'rs_12_1_vs_spy': rs_12_1_vs_spy
+                                'rs_12_1_vs_spy': rs_12_1_vs_spy,
+                                'regime_state': regime_state
                             }
 
                             # Use enhanced display function with dual constraint system
@@ -14115,6 +14137,9 @@ with tab8:
                         fund_score = stock_data['fundamental_score']
                         tech_score = full_analysis['score']
 
+                        # Extract regime_state for dynamic conviction gating
+                        regime_state = stock_data.get('regime_state', 'SIDEWAYS')
+
                         # V2: Map extension_state to numeric risk for display
                         ext_risk_values = {'NORMAL': 1, 'EXTENDED': 3, 'STRETCHED': 5, 'OVEREXTENDED': 7}
                         overextension_risk = ext_risk_values.get(extension_state, 1)
@@ -14259,14 +14284,18 @@ with tab8:
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # Calculate dynamic conviction threshold based on extension state
-                            extension_thresholds = {
-                                'NORMAL': 0.30,
-                                'EXTENDED': 0.35,
-                                'STRETCHED': 0.45,
-                                'OVEREXTENDED': 0.55
-                            }
-                            min_entry_conviction = extension_thresholds.get(extension_state, 0.30)
+                            # Calculate dynamic conviction threshold based on extension + regime
+                            def get_min_conviction_display(extension: str, regime: str) -> float:
+                                """Calculate minimum conviction threshold based on extension and regime."""
+                                base_thresholds = {
+                                    'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
+                                    'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
+                                    'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
+                                    'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
+                                }
+                                return base_thresholds.get(extension, {}).get(regime, 0.30)
+
+                            min_entry_conviction = get_min_conviction_display(extension_state, regime_state)
 
                             # Use unified recommendation (same logic as header badge)
                             # This ensures consistency between header and final recommendation
@@ -14303,6 +14332,17 @@ with tab8:
                                 - Conviction: {conviction:.2f} (needs ≥{min_entry_conviction:.2f} for entry because {extension_state})
                                 - Set alerts for conviction improvement
                                 """)
+                            elif final_action['action'] == 'WAIT_TECHNICAL':
+                                st.warning(f"""
+                                **{final_action['label']}**: {final_action['reason']}
+
+                                **Action**: Wait for de-extension OR conviction improvement to ≥{min_entry_conviction:.2f} ({extension_state} threshold).
+                                - Primary blocker: Technical (conviction {conviction:.2f} < {min_entry_conviction:.2f})
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision} - fundamentals adequate)
+                                - Tech Score: {tech_score:.0f}/100
+                                - Extension: {extension_state} (requires higher conviction)
+                                - Secondary option: Fundamental upgrade to BUY would bypass conviction gate
+                                """)
                             elif final_action['action'] == 'WAIT_PULLBACK':
                                 st.warning(f"""
                                 **{final_action['label']}**: {final_action['reason']}
@@ -14332,8 +14372,9 @@ with tab8:
                                 st.info(f"""
                                 **{final_action['label']}**: {final_action['reason']}
 
-                                **Action**: Watch for fundamental improvement before considering entry.
-                                - Fund Score: {fund_score:.0f}/100 ({fund_decision})
+                                **Action**: Watch for fundamental improvement (quality, earnings, revenue growth).
+                                - Primary blocker: Fundamental quality not sufficient for high conviction
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision} - needs upgrade to BUY)
                                 - Tech Score: {tech_score:.0f}/100
                                 - Conviction: {conviction:.2f}
                                 - Extension: {extension_state}
