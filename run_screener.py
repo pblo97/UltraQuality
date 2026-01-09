@@ -2938,13 +2938,27 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         shares = int(final_dollars / current_price_usd)
         actual_cost_usd = shares * current_price_usd
 
+        # Conditional display based on execution mode
+        if execution_mode == 'ENTER_NOW':
+            shares_label = "SHARES TO BUY"
+            total_label = "TOTAL INVESTMENT"
+            border_color = "#28a745"  # Green
+        elif execution_mode == 'WAIT_TRIGGER':
+            shares_label = "PLANNED SHARES (if trigger)"
+            total_label = "PLANNED INVESTMENT (if trigger)"
+            border_color = "#ffc107"  # Yellow
+        else:  # NO_ENTRY
+            shares_label = "CONDITIONAL PLAN (if trigger occurs)"
+            total_label = "PLANNED INVESTMENT (if trigger)"
+            border_color = "#dc3545"  # Red
+
         # Visual execution card
         st.markdown(f"""
         <div style='background: linear-gradient(to right, #f8f9fa, #e9ecef); padding: 1.5rem;
-                    border-radius: 10px; border: 2px solid #667eea; margin-bottom: 1rem;'>
+                    border-radius: 10px; border: 2px solid {border_color}; margin-bottom: 1rem;'>
             <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;'>
                 <div>
-                    <div style='font-size: 0.8rem; color: #6c757d;'>SHARES TO BUY</div>
+                    <div style='font-size: 0.8rem; color: #6c757d;'>{shares_label}</div>
                     <div style='font-size: 1.8rem; font-weight: 600; color: #495057;'>{shares:,}</div>
                 </div>
                 <div>
@@ -2953,7 +2967,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
                     <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>{current_price_local:,.2f} {currency}</div>
                 </div>
                 <div>
-                    <div style='font-size: 0.8rem; color: #6c757d;'>TOTAL INVESTMENT</div>
+                    <div style='font-size: 0.8rem; color: #6c757d;'>{total_label}</div>
                     <div style='font-size: 1.8rem; font-weight: 600; color: #667eea;'>${actual_cost_usd:,.0f}</div>
                 </div>
             </div>
@@ -2964,8 +2978,11 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         if currency != 'USD':
             st.caption(f"💱 FX Rate: 1 {currency} ≈ ${fx_rate:.6f} USD (approximate)")
 
-        # Note about entry price
-        st.caption(f"📊 Latest close (${current_price_usd:.2f}) used as entry reference")
+        # Note about entry price (conditional)
+        if execution_mode == 'ENTER_NOW':
+            st.caption(f"📊 Latest close (${current_price_usd:.2f}) used as entry reference")
+        else:
+            st.caption(f"📊 Reference price: ${current_price_usd:.2f} (latest close) - DO NOT EXECUTE YET")
 
         # Trading fee estimate (use USD cost)
         estimated_fee = actual_cost_usd * 0.001  # 0.1% typical commission
@@ -12828,6 +12845,12 @@ with tab8:
                     """
                     Single source of truth for recommendation.
 
+                    Gating rules (in order):
+                    1. DOWNTREND → AVOID (structure veto)
+                    2. conviction < 0.30 → MONITOR/NO_ENTRY (conviction veto)
+                    3. extension in STRETCHED/OVEREXTENDED → WAIT_PULLBACK (timing veto)
+                    4. Otherwise → evaluate fundamentals + technicals
+
                     Returns:
                         {
                             'action': 'STRONG_BUY' | 'BUY' | 'TACTICAL_SCALE_IN' | 'WAIT_PULLBACK' | 'WAIT' | 'MONITOR' | 'AVOID',
@@ -12837,13 +12860,23 @@ with tab8:
                             'execution': 'ENTER_NOW' | 'WAIT_TRIGGER' | 'NO_ENTRY'
                         }
                     """
-                    # Kill switch: DOWNTREND vetos all
+                    # Kill switch #1: DOWNTREND vetos all
                     if trend == 'DOWNTREND':
                         return {
                             'action': 'AVOID',
                             'label': 'AVOID - Downtrend',
                             'color': '#dc3545',
                             'reason': 'Structure broken (price < MA50). Wait for recovery.',
+                            'execution': 'NO_ENTRY'
+                        }
+
+                    # Kill switch #2: Low conviction veto (except for BUY fundamentals with conviction >= 0.3)
+                    if conviction < 0.30 and fund_decision != 'BUY':
+                        return {
+                            'action': 'MONITOR',
+                            'label': 'MONITOR',
+                            'color': '#ffc107',
+                            'reason': f'Conviction too low ({conviction:.2f} < 0.30). Wait for setup improvement or fundamental upgrade.',
                             'execution': 'NO_ENTRY'
                         }
 
@@ -12870,14 +12903,14 @@ with tab8:
                                 'action': 'WAIT',
                                 'label': 'WAIT',
                                 'color': '#ffc107',
-                                'reason': f'Good company, weak timing (Conv: {conviction:.2f})',
+                                'reason': f'Good company, weak timing (Conv: {conviction:.2f} < 0.30)',
                                 'execution': 'WAIT_TRIGGER'
                             }
 
                     # MONITOR fundamentals path
                     elif fund_decision == 'MONITOR':
-                        # Policy: If tech strong + uptrend BUT overextended → wait for pullback
-                        if tech_score >= 75 and conviction >= 0.25 and trend == 'UPTREND':
+                        # Policy: If tech strong + uptrend + decent conviction → allow tactical entry
+                        if tech_score >= 75 and conviction >= 0.30 and trend == 'UPTREND':
                             if extension in ['STRETCHED', 'OVEREXTENDED']:
                                 return {
                                     'action': 'WAIT_PULLBACK',
@@ -14048,11 +14081,19 @@ with tab8:
                             elif abs_distance > 50 and not is_momentum_leader:
                                 # Severe overextension (non-leaders only)
                                 st.error(f" POOR TIMING - Severe overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
-                                st.caption(" Expect 15-30% correction. Scale-in recommended (majority capital on pullback).")
+                                # Conditional text based on execution mode
+                                if final_action.get('execution') in ['ENTER_NOW', 'WAIT_TRIGGER']:
+                                    st.caption(" Expect 15-30% correction. Scale-in recommended (majority capital on pullback).")
+                                else:
+                                    st.caption(" Expect 15-30% correction. Wait for pullback/de-extension before any entry.")
                             elif abs_distance > 40 and overextension_risk >= 2:
                                 # Significant overextension with moderate risk
                                 st.warning(f" CAUTIOUS TIMING - Significant overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
-                                st.caption(" Possible 10-20% pullback. Scale-in recommended.")
+                                # Conditional text based on execution mode
+                                if final_action.get('execution') in ['ENTER_NOW', 'WAIT_TRIGGER']:
+                                    st.caption(" Possible 10-20% pullback. Scale-in recommended.")
+                                else:
+                                    st.caption(" Possible 10-20% pullback. Wait for pullback/de-extension before any entry.")
                             elif overextension_risk >= 3:
                                 # Moderate overextension (from other factors like volatility)
                                 st.warning(f" CAUTIOUS TIMING - Moderate overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
