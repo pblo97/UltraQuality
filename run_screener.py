@@ -12484,14 +12484,31 @@ with tab8:
                     # Save to session state
                     st.session_state['technical_results'] = df_tech
 
-                    st.success(" Technical analysis complete!")
+                    st.markdown("""
+                    <div style='background: #f0fff4; padding: 1rem; border-radius: 8px;
+                                border-left: 4px solid #28a745; margin-bottom: 1rem;'>
+                        <div style='font-weight: 600; font-size: 0.95rem; color: #28a745;'>
+                            Technical analysis complete!
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
                     # === DATA QUALITY DIAGNOSTICS ===
                     # Only show if error_reason column exists (new version)
                     if 'error_reason' in df_tech.columns:
                         st.markdown("---")
-                        st.subheader("Data Quality Diagnostics")
-                        st.caption("Breakdown of stocks with incomplete technical data")
+                        st.markdown("""
+                        <div style='background: #fff; padding: 1rem; border-radius: 8px;
+                                    border: 2px solid #dc3545; margin-bottom: 1rem;'>
+                            <div style='font-weight: 600; font-size: 0.95rem; color: #dc3545;
+                                        text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
+                                DATA QUALITY DIAGNOSTICS
+                            </div>
+                            <div style='font-size: 0.85rem; color: #6c757d;'>
+                                Breakdown of stocks with incomplete technical data
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
                         # Count stocks with errors
                         stocks_with_errors = df_tech[df_tech['error_reason'].notna()]
@@ -12503,26 +12520,29 @@ with tab8:
                         col_diag1, col_diag2, col_diag3 = st.columns(3)
                         with col_diag1:
                             st.markdown(f"""
-                            <div style='background: {"#fee2e2" if error_pct > 30 else "#dbeafe"}; padding: 1rem; border-radius: 8px; text-align: center;'>
-                                <div style='font-size: 2rem; font-weight: 700; color: {"#991b1b" if error_pct > 30 else "#1e40af"};'>{error_count}</div>
-                                <div style='font-size: 0.9rem; color: {"#7f1d1d" if error_pct > 30 else "#3b82f6"};'>stocks with errors</div>
+                            <div style='background: {"#fff5f5" if error_pct > 30 else "#f0f9ff"}; padding: 1rem; border-radius: 8px;
+                                        border-left: 4px solid {"#dc3545" if error_pct > 30 else "#17a2b8"}; text-align: center;'>
+                                <div style='font-size: 1.8rem; font-weight: 700; color: {"#dc3545" if error_pct > 30 else "#17a2b8"};'>{error_count}</div>
+                                <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem; text-transform: uppercase;'>STOCKS WITH ERRORS</div>
                             </div>
                             """, unsafe_allow_html=True)
 
                         with col_diag2:
                             st.markdown(f"""
-                            <div style='background: {"#fef3c7" if error_pct > 30 else "#d1fae5"}; padding: 1rem; border-radius: 8px; text-align: center;'>
-                                <div style='font-size: 2rem; font-weight: 700; color: {"#92400e" if error_pct > 30 else "#065f46"};'>{error_pct:.1f}%</div>
-                                <div style='font-size: 0.9rem; color: {"#78350f" if error_pct > 30 else "#059669"};'>of universe</div>
+                            <div style='background: {"#fffbf0" if error_pct > 30 else "#f0fff4"}; padding: 1rem; border-radius: 8px;
+                                        border-left: 4px solid {"#ffc107" if error_pct > 30 else "#28a745"}; text-align: center;'>
+                                <div style='font-size: 1.8rem; font-weight: 700; color: {"#ffc107" if error_pct > 30 else "#28a745"};'>{error_pct:.1f}%</div>
+                                <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem; text-transform: uppercase;'>OF UNIVERSE</div>
                             </div>
                             """, unsafe_allow_html=True)
 
                         with col_diag3:
                             clean_count = total_stocks - error_count
                             st.markdown(f"""
-                            <div style='background: #d1fae5; padding: 1rem; border-radius: 8px; text-align: center;'>
-                                <div style='font-size: 2rem; font-weight: 700; color: #065f46;'>{clean_count}</div>
-                                <div style='font-size: 0.9rem; color: #059669;'>stocks with complete data</div>
+                            <div style='background: #f0fff4; padding: 1rem; border-radius: 8px;
+                                        border-left: 4px solid #28a745; text-align: center;'>
+                                <div style='font-size: 1.8rem; font-weight: 700; color: #28a745;'>{clean_count}</div>
+                                <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem; text-transform: uppercase;'>COMPLETE DATA</div>
                             </div>
                             """, unsafe_allow_html=True)
 
@@ -12534,7 +12554,12 @@ with tab8:
                             }).rename(columns={'error_reason': 'count'})
                             error_groups = error_groups.sort_values('count', ascending=False)
 
-                            st.markdown("### Error Breakdown")
+                            st.markdown("""
+                            <div style='font-weight: 600; font-size: 0.9rem; color: #495057;
+                                        margin-top: 1.5rem; margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;'>
+                                ERROR BREAKDOWN
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             for error_reason, row in error_groups.iterrows():
                                 count = row['count']
@@ -12557,17 +12582,18 @@ with tab8:
                         else:
                             st.success("All stocks have complete technical data!")
 
-                    # === SMARTDYNAMICSTOPLOSS STATE SUMMARY ===
+                    # === EXTENSION STATE SUMMARY ===
                     st.markdown("---")
                     st.markdown("""
-                    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                                padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
-                        <h3 style='margin: 0; color: white; font-weight: 600;'>
-                            Estado del Mercado por Acción
-                        </h3>
-                        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
-                            SmartDynamicStopLoss - Clasificación automática del estado técnico actual
-                        </p>
+                    <div style='background: #fff; padding: 1rem; border-radius: 8px;
+                                border: 2px solid #667eea; margin-bottom: 1rem;'>
+                        <div style='font-weight: 600; font-size: 0.95rem; color: #667eea;
+                                    text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
+                            EXTENSION STATE DISTRIBUTION
+                        </div>
+                        <div style='font-size: 0.85rem; color: #6c757d;'>
+                            Distance from MA200 classification - affects position sizing
+                        </div>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -12589,7 +12615,7 @@ with tab8:
                         key=lambda x: extension_config.get(x, {'priority': 999})['priority']
                     )
 
-                    # Display in columns (2 per row for better visibility)
+                    # Display extension state cards with professional design
                     for i in range(0, len(sorted_extensions), 2):
                         cols = st.columns(2)
 
@@ -12599,22 +12625,41 @@ with tab8:
                                 tickers = extension_groups[extension]
                                 config = extension_config.get(extension, {'icon': '', 'color': 'info', 'label': extension, 'priority': 999})
 
-                                with col:
-                                    # Use appropriate streamlit component for color
-                                    if config['color'] == 'error':
-                                        st.error(f"**{config['icon']} {config['label']}** ({len(tickers)})")
-                                    elif config['color'] == 'warning':
-                                        st.warning(f"**{config['icon']} {config['label']}** ({len(tickers)})")
-                                    elif config['color'] == 'success':
-                                        st.success(f"**{config['icon']} {config['label']}** ({len(tickers)})")
-                                    else:
-                                        st.info(f"**{config['icon']} {config['label']}** ({len(tickers)})")
+                                # Define colors based on config
+                                if config['color'] == 'error':
+                                    border_color = '#dc3545'
+                                    bg_color = '#fff5f5'
+                                    text_color = '#dc3545'
+                                elif config['color'] == 'warning':
+                                    border_color = '#ffc107'
+                                    bg_color = '#fffbf0'
+                                    text_color = '#856404'
+                                elif config['color'] == 'success':
+                                    border_color = '#28a745'
+                                    bg_color = '#f0fff4'
+                                    text_color = '#28a745'
+                                else:
+                                    border_color = '#17a2b8'
+                                    bg_color = '#f0f9ff'
+                                    text_color = '#17a2b8'
 
-                                    # Show tickers as comma-separated list (max 10 per line)
+                                with col:
+                                    # Show tickers as comma-separated list (max 15)
                                     ticker_display = ', '.join(tickers[:15])
                                     if len(tickers) > 15:
-                                        ticker_display += f" ... (+{len(tickers)-15} más)"
-                                    st.caption(ticker_display)
+                                        ticker_display += f" ... (+{len(tickers)-15} more)"
+
+                                    st.markdown(f"""
+                                    <div style='background: {bg_color}; padding: 1rem; border-radius: 8px;
+                                                border-left: 4px solid {border_color}; margin-bottom: 1rem;'>
+                                        <div style='font-weight: 600; font-size: 0.9rem; color: {text_color}; margin-bottom: 0.5rem;'>
+                                            {config['label']} ({len(tickers)})
+                                        </div>
+                                        <div style='font-size: 0.8rem; color: #6c757d; line-height: 1.4;'>
+                                            {ticker_display}
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
 
                     st.markdown("---")
 
