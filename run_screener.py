@@ -12968,7 +12968,7 @@ with tab8:
                 st.subheader("Detailed Analysis")
 
                 # Helper function: Unified recommendation logic
-                def calculate_final_action(fund_decision: str, conviction: float, extension: str, trend: str, tech_score: float = 0) -> dict:
+                def calculate_final_action(fund_decision: str, conviction: float, extension: str, trend: str, tech_score: float = 0, regime_state: str = 'SIDEWAYS') -> dict:
                     """
                     Single source of truth for recommendation.
 
@@ -13117,9 +13117,10 @@ with tab8:
                             extension = stock_data.get('extension_state', 'UNKNOWN')
                             trend = stock_data.get('trend_state', 'UNKNOWN')
                             tech_score = stock_data.get('technical_score', 0)
+                            regime_state = stock_data.get('regime_state', 'SIDEWAYS')
 
                             # Calculate final action using unified logic
-                            final_action = calculate_final_action(fund_signal, conviction, extension, trend, tech_score)
+                            final_action = calculate_final_action(fund_signal, conviction, extension, trend, tech_score, regime_state)
 
                             # Display badge based on final_action
                             if final_action['action'] == 'STRONG_BUY':
