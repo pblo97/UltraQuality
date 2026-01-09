@@ -2734,7 +2734,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         st.markdown(f"""
         <div style='background: linear-gradient(to right, #fff5f5, #ffe5e5); padding: 1.25rem;
                     border-radius: 10px; border-left: 5px solid #dc3545; margin-bottom: 1.5rem;'>
-            <div style='display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; align-items: center;'>
+            <div style='display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: center;'>
                 <div>
                     <div style='font-size: 0.8rem; color: #6c757d; margin-bottom: 0.25rem;'>IMPLICIT RISK (Max Loss)</div>
                     <div style='font-size: 1.1rem; color: #495057;'>
@@ -2745,12 +2745,9 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
                     </div>
                 </div>
                 <div style='text-align: center;'>
-                    <div style='font-size: 0.75rem; color: #6c757d;'>% of Portfolio</div>
+                    <div style='font-size: 0.75rem; color: #6c757d;'>% of Portfolio at Risk</div>
                     <div style='font-size: 1.8rem; font-weight: 700; color: #dc3545;'>{risk_pct_of_portfolio:.2f}%</div>
-                </div>
-                <div style='text-align: center;'>
-                    <div style='font-size: 0.75rem; color: #6c757d;'>Risk/Reward</div>
-                    <div style='font-size: 1.2rem; font-weight: 600; color: #495057;'>1:{(max_risk_dollars / implicit_risk_dollars):.1f}</div>
+                    <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>${implicit_risk_dollars:,.0f} of ${portfolio_size:,.0f}</div>
                 </div>
             </div>
         </div>
