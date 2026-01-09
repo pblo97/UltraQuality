@@ -1147,7 +1147,7 @@ def display_smart_stop_loss(stop_loss_data, current_price):
             status_icon = "▼"
         elif market_state == 'PARABOLIC_CLIMAX':
             status_display = "Clímax Parabólico"
-            status_icon = "⚠"
+            status_icon = ""
         elif market_state == 'POWER_TREND':
             status_display = "Tendencia Fuerte"
             status_icon = ""
@@ -2688,7 +2688,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
 
     # Check for VETO
     if pos_sizing.get('veto_active'):
-        st.error(f"🛑 **VETO ACTIVE**")
+        st.error(f"**VETO ACTIVE**")
         st.write(f"**Rationale:** {pos_sizing.get('rationale', 'N/A')}")
         st.caption(pos_sizing.get('calculation_breakdown', ''))
         return
@@ -3433,7 +3433,7 @@ with tab1:
     st.markdown("---")
 
     # Big run button with better design
-    if st.button("▶️ Run Screener Analysis", type="primary", use_container_width=True, help="Start comprehensive screening process"):
+    if st.button("Run Screener Analysis", type="primary", use_container_width=True, help="Start comprehensive screening process"):
 
         # Progress tracking
         progress_bar = st.progress(0)
@@ -3960,7 +3960,7 @@ with tab2:
                     st.info("Tip: Make sure the ticker exists in the screener results above.")
 
         # Download buttons
-        st.markdown("### 📥 Download Results")
+        st.markdown("### Download Results")
         col1, col2 = st.columns(2)
 
         with col1:
@@ -4382,7 +4382,7 @@ with tab4:
 
                     # Download button
                     st.download_button(
-                        label="📥 Download Report",
+                        label="Download Report",
                         data=report,
                         file_name=f"guardrail_analysis_{analysis_type.lower().replace(' ', '_').replace('/', '_')}.txt",
                         mime="text/plain"
@@ -9555,7 +9555,7 @@ with tab5:
 
                     # Export to Excel button
                     st.markdown("---")
-                    st.markdown("### 📥 Export Analysis")
+                    st.markdown("### Export Analysis")
 
                     try:
                         excel_data = create_qualitative_excel(analysis, selected_ticker, datetime.now())
@@ -11837,7 +11837,7 @@ with tab7:
 
             # Export to Excel
             st.markdown("---")
-            st.markdown("### 📥 Export Analysis")
+            st.markdown("### Export Analysis")
 
             try:
                 excel_data = create_qualitative_excel(analysis, custom_ticker, datetime.now())
@@ -12508,11 +12508,11 @@ with tab8:
 
                     # Define state order and styling (V2)
                     extension_config = {
-                        'NORMAL': {'icon': '✅', 'color': 'success', 'label': 'Normal (≤25% from MA200) - Full Size', 'priority': 1},
-                        'EXTENDED': {'icon': '⚠️', 'color': 'warning', 'label': 'Extended (25-40%) - 70% Size', 'priority': 2},
-                        'STRETCHED': {'icon': '🔶', 'color': 'warning', 'label': 'Stretched (40-55%) - 40% Size', 'priority': 3},
-                        'OVEREXTENDED': {'icon': '🚨', 'color': 'error', 'label': 'Overextended (>55%) - 20% Size', 'priority': 4},
-                        'UNKNOWN': {'icon': '❓', 'color': 'info', 'label': 'Unknown - Insufficient Data', 'priority': 99}
+                        'NORMAL': {'icon': '', 'color': 'success', 'label': 'Normal (≤25% from MA200) - Full Size', 'priority': 1},
+                        'EXTENDED': {'icon': '', 'color': 'warning', 'label': 'Extended (25-40%) - 70% Size', 'priority': 2},
+                        'STRETCHED': {'icon': '', 'color': 'warning', 'label': 'Stretched (40-55%) - 40% Size', 'priority': 3},
+                        'OVEREXTENDED': {'icon': '', 'color': 'error', 'label': 'Overextended (>55%) - 20% Size', 'priority': 4},
+                        'UNKNOWN': {'icon': '', 'color': 'info', 'label': 'Unknown - Insufficient Data', 'priority': 99}
                     }
 
                     # Sort states by priority
@@ -12529,7 +12529,7 @@ with tab8:
                             if i + j < len(sorted_extensions):
                                 extension = sorted_extensions[i + j]
                                 tickers = extension_groups[extension]
-                                config = extension_config.get(extension, {'icon': '❓', 'color': 'info', 'label': extension, 'priority': 999})
+                                config = extension_config.get(extension, {'icon': '', 'color': 'info', 'label': extension, 'priority': 999})
 
                                 with col:
                                     # Use appropriate streamlit component for color
@@ -12595,11 +12595,11 @@ with tab8:
 
                 with col1:
                     high_conviction = len(df_tech[df_tech['conviction'] >= 0.7])
-                    st.metric("🔥 High Conviction", high_conviction, f"{high_conviction/len(df_tech)*100:.0f}%")
+                    st.metric("High Conviction", high_conviction, f"{high_conviction/len(df_tech)*100:.0f}%")
 
                 with col2:
                     med_conviction = len(df_tech[(df_tech['conviction'] >= 0.3) & (df_tech['conviction'] < 0.7)])
-                    st.metric("⚖️ Med Conviction", med_conviction, f"{med_conviction/len(df_tech)*100:.0f}%")
+                    st.metric("Med Conviction", med_conviction, f"{med_conviction/len(df_tech)*100:.0f}%")
 
                 with col3:
                     avg_tech_score = df_tech['technical_score'].mean()
@@ -12740,7 +12740,7 @@ with tab8:
                 <div style='background: #f8fafc; padding: 0.5rem 1rem; border-radius: 8px;
                             margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #667eea;'>
                     <div style='color: #475569; font-weight: 600; font-size: 0.85rem;'>
-                        🌐 MARKET CONTEXT (External Environment)
+                        MARKET CONTEXT (External Environment)
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -12774,7 +12774,7 @@ with tab8:
                 <div style='background: #fff3cd; padding: 0.75rem 1rem; border-radius: 8px;
                             margin-top: 0.75rem; margin-bottom: 0.5rem; border-left: 4px solid #ffc107;'>
                     <div style='color: #856404; font-weight: 600; font-size: 0.85rem;'>
-                        ⚙️ ADVANCED: Diagnostic Component Filters
+                        ADVANCED: Diagnostic Component Filters
                     </div>
                     <div style='color: #856404; font-size: 0.75rem; margin-top: 0.25rem;'>
                         <strong>TIP:</strong> These components are ALREADY included in Technical Score and Signal.
@@ -12900,10 +12900,10 @@ with tab8:
                     col_excel1, col_excel2, col_excel3 = st.columns([2, 2, 2])
 
                     with col_excel1:
-                        st.info(f"💰 Portfolio: **${portfolio_capital:,}** (from sidebar)")
+                        st.info(f"Portfolio: **${portfolio_capital:,}** (from sidebar)")
 
                     with col_excel2:
-                        if st.button("📥 Generar Excel de Posiciones", type="primary", use_container_width=True):
+                        if st.button("Generar Excel de Posiciones", type="primary", use_container_width=True):
                             with st.spinner("Generando Excel..."):
                                 try:
                                     excel_buffer = generate_positions_excel(df_filtered, portfolio_capital)
@@ -12995,7 +12995,7 @@ with tab8:
                             format='%.0f'
                         ),
                         'fundamental_decision': 'Fund Decision',
-                        'warnings_count': '⚠️'
+                        'warnings_count': 'Warnings'
                     }
                 )
 
@@ -14134,39 +14134,41 @@ with tab8:
                             # Display in columns by severity
                             if high_warnings:
                                 st.markdown("""
-                                <div style='margin-bottom: 0.5rem;'>
-                                    <span style='font-weight: 600; font-size: 1.05rem;'>
-                                        <i class="bi bi-exclamation-circle-fill" style="color: #dc3545;"></i>
-                                        Critical Warnings
-                                    </span>
-                                </div>
+                                <div style='background: #fff; padding: 1rem; border-radius: 8px;
+                                            border: 2px solid #dc3545; margin-bottom: 1rem;'>
+                                    <div style='font-weight: 600; font-size: 0.85rem; color: #dc3545;
+                                                text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem;'>
+                                        CRITICAL WARNINGS
+                                    </div>
                                 """, unsafe_allow_html=True)
                                 for warning in high_warnings:
-                                    message = warning.get('message', '')
+                                    message = warning.get('message', '').replace('⚠️', '').replace('🚨', '').strip()
                                     st.markdown(f"""
-                                    <div style='background: #fff5f5; padding: 1rem; border-radius: 8px;
-                                                border-left: 4px solid #dc3545; margin-bottom: 0.75rem;'>
-                                        <div style='font-size: 0.95rem; color: #495057;'>{message}</div>
+                                    <div style='padding: 0.75rem; margin-bottom: 0.5rem; background: #fff5f5;
+                                                border-left: 3px solid #dc3545; border-radius: 4px;'>
+                                        <div style='font-size: 0.9rem; color: #495057; line-height: 1.5;'>{message}</div>
                                     </div>
                                     """, unsafe_allow_html=True)
+                                st.markdown("</div>", unsafe_allow_html=True)
 
                             if med_warnings:
                                 st.markdown("""
-                                <div style='margin-bottom: 0.5rem; margin-top: 1rem;'>
-                                    <span style='font-weight: 600; font-size: 1.05rem;'>
-                                        <i class="bi bi-exclamation-triangle-fill" style="color: #ffc107;"></i>
-                                        Moderate Warnings
-                                    </span>
-                                </div>
+                                <div style='background: #fff; padding: 1rem; border-radius: 8px;
+                                            border: 2px solid #ffc107; margin-bottom: 1rem; margin-top: 1rem;'>
+                                    <div style='font-weight: 600; font-size: 0.85rem; color: #f57c00;
+                                                text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem;'>
+                                        MODERATE WARNINGS
+                                    </div>
                                 """, unsafe_allow_html=True)
                                 for warning in med_warnings:
-                                    message = warning.get('message', '')
+                                    message = warning.get('message', '').replace('⚠️', '').replace('🚨', '').strip()
                                     st.markdown(f"""
-                                    <div style='background: #fffbf0; padding: 1rem; border-radius: 8px;
-                                                border-left: 4px solid #ffc107; margin-bottom: 0.75rem;'>
-                                        <div style='font-size: 0.95rem; color: #495057;'>{message}</div>
+                                    <div style='padding: 0.75rem; margin-bottom: 0.5rem; background: #fffbf0;
+                                                border-left: 3px solid #ffc107; border-radius: 4px;'>
+                                        <div style='font-size: 0.9rem; color: #495057; line-height: 1.5;'>{message}</div>
                                     </div>
                                     """, unsafe_allow_html=True)
+                                st.markdown("</div>", unsafe_allow_html=True)
 
                             if low_warnings:
                                 with st.expander("Low Priority Info", expanded=False):
@@ -14212,9 +14214,9 @@ with tab8:
                         if market_state == "DOWNTREND":
                             # VETO: Structure is broken - show critical warning FIRST
                             st.error("""
-                            ### 🛑 KILL SWITCH: DOWNTREND DETECTED
+                            ### KILL SWITCH: DOWNTREND DETECTED
 
-                            **⛔ State Machine Alert**: Precio < SMA 50 - Estructura rota
+                            **State Machine Alert**: Precio < SMA 50 - Estructura rota
 
                             **ACCIÓN REQUERIDA**:
                             - Si **NO** tienes la acción: **NO COMPRAR** (espera recuperación)
@@ -14268,28 +14270,61 @@ with tab8:
                             # Only show recommendations if NO veto is active
                             # Step 1: Fundamental Quality Assessment
                             st.markdown("""
-                            <div style='background: linear-gradient(to right, #667eea 0%, #764ba2 100%);
-                                        padding: 0.75rem 1rem; border-radius: 8px; margin: 1rem 0 0.75rem 0;'>
-                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'><i class="bi bi-bar-chart-line"></i> Fundamental Quality</div>
+                            <div style='background: #fff; padding: 1rem; border-radius: 8px;
+                                        border: 2px solid #667eea; margin: 1rem 0 0.75rem 0;'>
+                                <div style='font-weight: 600; font-size: 0.85rem; color: #667eea;
+                                            text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem;'>
+                                    FUNDAMENTAL QUALITY
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                            if fund_score >= 75:
+                                quality_label = "EXCELLENT"
+                                quality_desc = "High-quality company with strong fundamentals"
+                                quality_color = "#28a745"
+                                bg_color = "#f0fff4"
+                            elif fund_score >= 70:
+                                quality_label = "GOOD"
+                                quality_desc = "Solid fundamentals"
+                                quality_color = "#17a2b8"
+                                bg_color = "#f0f9ff"
+                            elif fund_score >= 60:
+                                quality_label = "ADEQUATE"
+                                quality_desc = "Acceptable fundamentals but not high conviction"
+                                quality_color = "#17a2b8"
+                                bg_color = "#f0f9ff"
+                            elif fund_score >= 50:
+                                quality_label = "MODERATE"
+                                quality_desc = "Mixed fundamentals"
+                                quality_color = "#ffc107"
+                                bg_color = "#fffbf0"
+                            else:
+                                quality_label = "WEAK"
+                                quality_desc = "Fundamental concerns"
+                                quality_color = "#dc3545"
+                                bg_color = "#fff5f5"
+
+                            st.markdown(f"""
+                                <div style='padding: 0.75rem; background: {bg_color};
+                                            border-left: 3px solid {quality_color}; border-radius: 4px;'>
+                                    <div style='font-weight: 600; color: {quality_color}; margin-bottom: 0.25rem;'>
+                                        {quality_label} ({fund_score:.1f}/100)
+                                    </div>
+                                    <div style='font-size: 0.9rem; color: #495057; line-height: 1.5;'>
+                                        {quality_desc}
+                                    </div>
+                                </div>
                             </div>
                             """, unsafe_allow_html=True)
-                            if fund_score >= 75:
-                                st.success(f" EXCELLENT ({fund_score}/100) - High-quality company with strong fundamentals")
-                            elif fund_score >= 70:
-                                st.info(f" GOOD ({fund_score}/100) - Solid fundamentals")
-                            elif fund_score >= 60:
-                                st.info(f" ADEQUATE ({fund_score:.1f}/100) - Acceptable fundamentals but not high conviction")
-                            elif fund_score >= 50:
-                                st.warning(f" MODERATE ({fund_score}/100) - Mixed fundamentals")
-                            else:
-                                st.error(f"WEAK ({fund_score}/100) - Fundamental concerns")
 
                             # Step 2: Technical Timing Assessment (includes overextension)
                             st.markdown("""
-                            <div style='background: linear-gradient(to right, #11998e 0%, #38ef7d 100%);
-                                        padding: 0.75rem 1rem; border-radius: 8px; margin: 1rem 0 0.75rem 0;'>
-                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'><i class="bi bi-clock-history"></i> Technical Timing</div>
-                            </div>
+                            <div style='background: #fff; padding: 1rem; border-radius: 8px;
+                                        border: 2px solid #11998e; margin: 1rem 0 0.75rem 0;'>
+                                <div style='font-weight: 600; font-size: 0.85rem; color: #11998e;
+                                            text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem;'>
+                                    TECHNICAL TIMING
+                                </div>
                             """, unsafe_allow_html=True)
                             abs_distance = abs(distance_ma200)
                             is_momentum_leader = tech_score > 80
@@ -14297,51 +14332,98 @@ with tab8:
                             # CRITICAL FIX: Check if Momentum Leader FIRST (overextension is a FEATURE not a BUG)
                             if is_momentum_leader and overextension_risk < 2:
                                 # Quality Momentum Leader with low overextension risk (despite high distance)
-                                st.success(f" EXCELLENT TIMING ({tech_score}/100) - Quality Momentum Leader with {distance_ma200:+.1f}% from MA200")
-                                st.caption(f" Low overextension risk ({overextension_risk}/7). Strong trend can persist. Use Trailing Stop (EMA 20) to protect gains.")
+                                timing_label = f"EXCELLENT TIMING ({tech_score}/100)"
+                                timing_desc = f"Quality Momentum Leader with {distance_ma200:+.1f}% from MA200"
+                                timing_note = f"Low overextension risk ({overextension_risk}/7). Strong trend can persist. Use Trailing Stop (EMA 20) to protect gains."
+                                timing_color = "#28a745"
+                                bg_color = "#f0fff4"
                             elif abs_distance > 60 and not is_momentum_leader:
                                 # Extreme overextension (non-leaders only)
-                                st.error(f" POOR TIMING - Extreme overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
-                                st.caption(" Expect 20-40% pullback. Wait for correction.")
+                                timing_label = "POOR TIMING"
+                                timing_desc = f"Extreme overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)"
+                                timing_note = "Expect 20-40% pullback. Wait for correction."
+                                timing_color = "#dc3545"
+                                bg_color = "#fff5f5"
                             elif abs_distance > 50 and not is_momentum_leader:
                                 # Severe overextension (non-leaders only)
-                                st.error(f" POOR TIMING - Severe overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                                timing_label = "POOR TIMING"
+                                timing_desc = f"Severe overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)"
                                 # Conditional text based on execution mode
                                 if final_action.get('execution') == 'ENTER_NOW':
-                                    st.caption(" Expect 15-30% correction. Scale-in recommended (majority capital on pullback).")
+                                    timing_note = "Expect 15-30% correction. Scale-in recommended (majority capital on pullback)."
                                 elif final_action.get('execution') == 'WAIT_TRIGGER':
-                                    st.caption(" Expect 15-30% correction. Wait for entry trigger; scale-in only after trigger met (majority capital on pullback).")
+                                    timing_note = "Expect 15-30% correction. Wait for entry trigger; scale-in only after trigger met (majority capital on pullback)."
                                 else:
-                                    st.caption(" Expect 15-30% correction. Wait for pullback/de-extension before any entry.")
+                                    timing_note = "Expect 15-30% correction. Wait for pullback/de-extension before any entry."
+                                timing_color = "#dc3545"
+                                bg_color = "#fff5f5"
                             elif abs_distance > 40 and overextension_risk >= 2:
                                 # Significant overextension with moderate risk
-                                st.warning(f" CAUTIOUS TIMING - Significant overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
+                                timing_label = "CAUTIOUS TIMING"
+                                timing_desc = f"Significant overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)"
                                 # Conditional text based on execution mode
                                 if final_action.get('execution') == 'ENTER_NOW':
-                                    st.caption(" Possible 10-20% pullback. Scale-in recommended.")
+                                    timing_note = "Possible 10-20% pullback. Scale-in recommended."
                                 elif final_action.get('execution') == 'WAIT_TRIGGER':
-                                    st.caption(" Possible 10-20% pullback. Wait for entry trigger; scale-in only after trigger met.")
+                                    timing_note = "Possible 10-20% pullback. Wait for entry trigger; scale-in only after trigger met."
                                 else:
-                                    st.caption(" Possible 10-20% pullback. Wait for pullback/de-extension before any entry.")
+                                    timing_note = "Possible 10-20% pullback. Wait for pullback/de-extension before any entry."
+                                timing_color = "#ffc107"
+                                bg_color = "#fffbf0"
                             elif overextension_risk >= 3:
                                 # Moderate overextension (from other factors like volatility)
-                                st.warning(f" CAUTIOUS TIMING - Moderate overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
-                                st.caption(" Possible 8-12% consolidation. Consider small reserve.")
+                                timing_label = "CAUTIOUS TIMING"
+                                timing_desc = f"Moderate overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)"
+                                timing_note = "Possible 8-12% consolidation. Consider small reserve."
+                                timing_color = "#ffc107"
+                                bg_color = "#fffbf0"
                             elif tech_score >= 75:
-                                st.success(f" EXCELLENT ({tech_score}/100) - Favorable technical setup, low overextension ({overextension_risk}/7)")
+                                timing_label = f"EXCELLENT ({tech_score}/100)"
+                                timing_desc = f"Favorable technical setup, low overextension ({overextension_risk}/7)"
+                                timing_note = ""
+                                timing_color = "#28a745"
+                                bg_color = "#f0fff4"
                             elif tech_score >= 60:
-                                st.info(f" GOOD ({tech_score}/100) - Decent technical setup")
+                                timing_label = f"GOOD ({tech_score}/100)"
+                                timing_desc = "Decent technical setup"
+                                timing_note = ""
+                                timing_color = "#17a2b8"
+                                bg_color = "#f0f9ff"
                             elif tech_score >= 50:
-                                st.warning(f" MODERATE ({tech_score}/100) - Mixed technical signals")
+                                timing_label = f"MODERATE ({tech_score}/100)"
+                                timing_desc = "Mixed technical signals"
+                                timing_note = ""
+                                timing_color = "#ffc107"
+                                bg_color = "#fffbf0"
                             else:
-                                st.error(f"WEAK ({tech_score}/100) - Unfavorable technicals")
+                                timing_label = f"WEAK ({tech_score}/100)"
+                                timing_desc = "Unfavorable technicals"
+                                timing_note = ""
+                                timing_color = "#dc3545"
+                                bg_color = "#fff5f5"
+
+                            st.markdown(f"""
+                                <div style='padding: 0.75rem; background: {bg_color};
+                                            border-left: 3px solid {timing_color}; border-radius: 4px;'>
+                                    <div style='font-weight: 600; color: {timing_color}; margin-bottom: 0.25rem;'>
+                                        {timing_label}
+                                    </div>
+                                    <div style='font-size: 0.9rem; color: #495057; line-height: 1.5;'>
+                                        {timing_desc}
+                                    </div>
+                                    {f"<div style='font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem; line-height: 1.4;'>{timing_note}</div>" if timing_note else ""}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                             # Step 3: Final Combined Recommendation
                             st.markdown("""
-                            <div style='background: linear-gradient(to right, #f093fb 0%, #f5576c 100%);
-                                        padding: 0.75rem 1rem; border-radius: 8px; margin: 1rem 0 0.75rem 0;'>
-                                <div style='color: white; font-size: 1.1rem; font-weight: 600;'><i class="bi bi-flag-fill"></i> Final Recommendation</div>
-                            </div>
+                            <div style='background: #fff; padding: 1rem; border-radius: 8px;
+                                        border: 2px solid #f093fb; margin: 1rem 0 0.75rem 0;'>
+                                <div style='font-weight: 600; font-size: 0.85rem; color: #f093fb;
+                                            text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem;'>
+                                    FINAL RECOMMENDATION
+                                </div>
                             """, unsafe_allow_html=True)
 
                             # Calculate dynamic conviction threshold based on extension + regime + fundamentals
@@ -14734,7 +14816,7 @@ with tab8:
 
                 # Download
                 st.markdown("---")
-                st.markdown("### 📥 Download Technical Analysis")
+                st.markdown("### Download Technical Analysis")
 
                 import csv as csv_module
                 csv = df_tech.to_csv(index=False, quoting=csv_module.QUOTE_NONNUMERIC).encode('utf-8')
