@@ -14802,12 +14802,14 @@ with tab8:
                             with col2:
                                 # Overextension Gauge with header
                                 st.markdown("""
-                                <div style='background: linear-gradient(to right, #f8f9fa, #e9ecef);
-                                            padding: 1rem; border-radius: 10px; margin-bottom: 1rem;
-                                            border-left: 4px solid #dc3545;'>
-                                    <div style='font-size: 1.1rem; font-weight: 700; color: #495057;'>
-                                        <i class="bi bi-speedometer2"></i> Overextension Risk
-                                    </div>
+                                <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                            padding: 1rem 1.5rem; border-radius: 12px; margin-bottom: 1.5rem;'>
+                                    <h3 style='margin: 0; color: white; font-weight: 600;'>
+                                        Overextension Risk
+                                    </h3>
+                                    <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                        Medidor de riesgo de sobreextensión técnica
+                                    </p>
                                 </div>
                                 """, unsafe_allow_html=True)
 
