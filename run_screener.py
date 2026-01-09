@@ -3166,27 +3166,95 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         # Fallback if no price available
         st.info(f"Use recommended dollar amount: **${final_dollars:,.0f}** (price data unavailable for share calculation)")
 
-    # Rationale box
+    # Rationale box with visual step-by-step
     st.markdown("""
     <div style='margin-top: 1.5rem;'>
         <div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; color: #495057;'>
-            Sizing Rationale
+            Sizing Calculation Flow
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     rationale_text = pos_sizing.get('rationale', 'Calculation details not available')
-    st.markdown(f"""
-    <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px; border-left: 4px solid #6c757d;'>
-        <div style='font-size: 0.9rem; color: #495057; line-height: 1.6;'>
-            {rationale_text}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
 
-    # Detailed breakdown (expandable)
-    with st.expander("Detailed Calculation Breakdown", expanded=False):
-        st.caption(pos_sizing.get('calculation_breakdown', 'N/A'))
+    # Parse rationale text to create visual steps
+    if '→' in rationale_text:
+        steps = [step.strip() for step in rationale_text.split('→')]
+
+        # Create visual flow with cards
+        for i, step in enumerate(steps):
+            # Determine card color based on step content
+            if 'Base risk' in step:
+                border_color = '#6c757d'
+                bg_color = '#f8f9fa'
+                icon = '1'
+            elif 'Adjusted by' in step:
+                border_color = '#17a2b8'
+                bg_color = '#f0f9ff'
+                icon = '2'
+            elif 'Stop distance' in step:
+                border_color = '#ffc107'
+                bg_color = '#fffbf0'
+                icon = '3'
+            elif 'Final position' in step:
+                border_color = '#28a745'
+                bg_color = '#f0fff4'
+                icon = '4'
+            else:
+                border_color = '#6c757d'
+                bg_color = '#f8f9fa'
+                icon = str(i + 1)
+
+            # Add arrow between steps
+            if i > 0:
+                st.markdown("""
+                <div style='text-align: center; margin: 0.5rem 0;'>
+                    <span style='font-size: 1.5rem; color: #6c757d;'>↓</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown(f"""
+            <div style='background: {bg_color}; padding: 1rem; border-radius: 8px;
+                        border-left: 4px solid {border_color}; margin-bottom: 0.5rem;'>
+                <div style='display: flex; align-items: center; gap: 0.75rem;'>
+                    <div style='background: {border_color}; color: white; width: 28px; height: 28px;
+                                border-radius: 50%; display: flex; align-items: center; justify-content: center;
+                                font-weight: 700; font-size: 0.9rem; flex-shrink: 0;'>
+                        {icon}
+                    </div>
+                    <div style='font-size: 0.95rem; color: #495057; line-height: 1.5; font-weight: 500;'>
+                        {step}
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        # Fallback to simple display if no arrows
+        st.markdown(f"""
+        <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px; border-left: 4px solid #6c757d;'>
+            <div style='font-size: 0.9rem; color: #495057; line-height: 1.6;'>
+                {rationale_text}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Detailed breakdown (expandable) with better styling
+    with st.expander("View Detailed Calculation Breakdown", expanded=False):
+        breakdown = pos_sizing.get('calculation_breakdown', None)
+        if breakdown and breakdown != 'N/A':
+            st.markdown(f"""
+            <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
+                <pre style='font-size: 0.85rem; color: #495057; margin: 0; white-space: pre-wrap;'>{breakdown}</pre>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
+                <div style='font-size: 0.9rem; color: #6c757d; font-style: italic;'>
+                    Detailed breakdown not available. The sizing calculation flow above shows the main steps.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
     # Risk management reminder
     st.markdown("---")
