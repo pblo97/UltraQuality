@@ -2776,22 +2776,45 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         risk_pct_of_portfolio = (implicit_risk_dollars / portfolio_size) * 100 if portfolio_size > 0 else 0
 
         st.markdown(f"""
-        <div style='background: linear-gradient(to right, #fff5f5, #ffe5e5); padding: 1.25rem;
-                    border-radius: 10px; border-left: 5px solid #dc3545; margin-bottom: 1.5rem;'>
-            <div style='display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: center;'>
-                <div>
-                    <div style='font-size: 0.8rem; color: #6c757d; margin-bottom: 0.25rem;'>IMPLICIT RISK (Max Loss)</div>
-                    <div style='font-size: 1.1rem; color: #495057;'>
-                        Position × Stop Distance = <strong style='color: #dc3545;'>${implicit_risk_dollars:,.0f}</strong>
+        <div style='background: #ffffff; padding: 1.5rem; border-radius: 10px;
+                    border: 2px solid #dc3545; margin-bottom: 1.5rem;
+                    box-shadow: 0 2px 4px rgba(220,53,69,0.1);'>
+            <div style='font-size: 0.85rem; color: #dc3545; font-weight: 600; margin-bottom: 1rem; text-transform: uppercase;'>
+                Implicit Risk Assessment
+            </div>
+            <div style='display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; align-items: stretch;'>
+                <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
+                    <div style='font-size: 0.75rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500;'>
+                        MAX LOSS (if stop hit)
                     </div>
-                    <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
-                        ${final_dollars:,.0f} × {abs(stop_loss_pct):.1f}% = ${implicit_risk_dollars:,.0f}
+                    <div style='font-size: 1.6rem; font-weight: 700; color: #dc3545;'>
+                        ${implicit_risk_dollars:,.0f}
+                    </div>
+                    <div style='font-size: 0.7rem; color: #6c757d; margin-top: 0.5rem; line-height: 1.3;'>
+                        Position ${final_dollars:,.0f}<br>× Stop {abs(stop_loss_pct):.1f}%
                     </div>
                 </div>
-                <div style='text-align: center;'>
-                    <div style='font-size: 0.75rem; color: #6c757d;'>% of Portfolio at Risk</div>
-                    <div style='font-size: 1.8rem; font-weight: 700; color: #dc3545;'>{risk_pct_of_portfolio:.2f}%</div>
-                    <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>${implicit_risk_dollars:,.0f} of ${portfolio_size:,.0f}</div>
+                <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
+                    <div style='font-size: 0.75rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500;'>
+                        % OF PORTFOLIO AT RISK
+                    </div>
+                    <div style='font-size: 1.6rem; font-weight: 700; color: #dc3545;'>
+                        {risk_pct_of_portfolio:.2f}%
+                    </div>
+                    <div style='font-size: 0.7rem; color: #6c757d; margin-top: 0.5rem; line-height: 1.3;'>
+                        ${implicit_risk_dollars:,.0f}<br>of ${portfolio_size:,.0f} portfolio
+                    </div>
+                </div>
+                <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
+                    <div style='font-size: 0.75rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500;'>
+                        POSITION SIZE
+                    </div>
+                    <div style='font-size: 1.6rem; font-weight: 700; color: #495057;'>
+                        ${final_dollars:,.0f}
+                    </div>
+                    <div style='font-size: 0.7rem; color: #6c757d; margin-top: 0.5rem; line-height: 1.3;'>
+                        {(final_dollars / portfolio_size * 100):.1f}%<br>of portfolio
+                    </div>
                 </div>
             </div>
         </div>
