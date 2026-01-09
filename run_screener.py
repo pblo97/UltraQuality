@@ -14255,6 +14255,15 @@ with tab8:
                             </div>
                             """, unsafe_allow_html=True)
 
+                            # Calculate dynamic conviction threshold based on extension state
+                            extension_thresholds = {
+                                'NORMAL': 0.30,
+                                'EXTENDED': 0.35,
+                                'STRETCHED': 0.45,
+                                'OVEREXTENDED': 0.55
+                            }
+                            min_entry_conviction = extension_thresholds.get(extension_state, 0.30)
+
                             # Use unified recommendation (same logic as header badge)
                             # This ensures consistency between header and final recommendation
                             fund_decision = stock_data['fundamental_decision']
@@ -14287,7 +14296,7 @@ with tab8:
                                 **Action**: Wait for better technical setup or entry point.
                                 - Fund Score: {fund_score:.0f}/100 ({fund_decision})
                                 - Tech Score: {tech_score:.0f}/100
-                                - Conviction: {conviction:.2f} (needs ≥0.3 for entry)
+                                - Conviction: {conviction:.2f} (needs ≥{min_entry_conviction:.2f} for entry because {extension_state})
                                 - Set alerts for conviction improvement
                                 """)
                             elif final_action['action'] == 'WAIT_PULLBACK':
