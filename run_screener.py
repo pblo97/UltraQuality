@@ -12843,25 +12843,17 @@ with tab8:
                 if len(df_filtered) > 0:
                     st.markdown("---")
 
-                    # Portfolio size input
+                    # Use portfolio_capital from sidebar (no duplicate input)
                     col_excel1, col_excel2, col_excel3 = st.columns([2, 2, 2])
 
                     with col_excel1:
-                        portfolio_size = st.number_input(
-                            "Tamaño Portfolio ($)",
-                            min_value=1000,
-                            max_value=10000000,
-                            value=420000,
-                            step=10000,
-                            help="Tamaño total del portfolio para calcular position sizing"
-                        )
+                        st.info(f"💰 Portfolio: **${portfolio_capital:,}** (from sidebar)")
 
                     with col_excel2:
-                        st.markdown("<br>", unsafe_allow_html=True)
                         if st.button("📥 Generar Excel de Posiciones", type="primary", use_container_width=True):
                             with st.spinner("Generando Excel..."):
                                 try:
-                                    excel_buffer = generate_positions_excel(df_filtered, portfolio_size)
+                                    excel_buffer = generate_positions_excel(df_filtered, portfolio_capital)
 
                                     # Generate filename with timestamp
                                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
