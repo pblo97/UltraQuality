@@ -659,6 +659,15 @@ def recalculate_scores(df, weight_quality, weight_value, threshold_buy, threshol
             return 'MONITOR', f'Score {composite:.0f} in range [{threshold_monitor}, {threshold_buy})'
 
         # Low score = AVOID
+        # TODO: STABILITY CONCERN - Fund scores can fluctuate significantly (e.g., 63→78)
+        # This causes rapid BUY↔MONITOR oscillations near threshold boundaries.
+        # Potential solutions:
+        # 1. Apply moving average smoothing to composite score (e.g., 3-period MA)
+        # 2. Implement "sticky tier" logic with hysteresis bands:
+        #    - To upgrade MONITOR→BUY: need composite >= threshold_buy + 3 pts
+        #    - To downgrade BUY→MONITOR: need composite < threshold_buy - 3 pts
+        # 3. Add "decision_history" field to track tier changes over time
+        # User observation: GOOGL jumped from fund_score=63 (MONITOR) to 78 (BUY)
         return 'AVOID', f'Score {composite:.0f} < {threshold_monitor}'
 
     # Apply decision logic and capture reason
