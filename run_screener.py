@@ -13537,7 +13537,7 @@ with tab8:
                                 ('RS 6-1M vs Sector', rs_6_1_sector, 10)
                             ]:
                                 rs_color = '#28a745' if value > 10 else '#ffc107' if value > 0 else '#dc3545'
-                                rs_norm = min(max((value + 30) / 60, 0), 1)  # Normalize -30 to +30
+                                rs_norm = min(max((value + 30) / 130, 0), 1)  # Normalize -30 to +100
 
                                 st.markdown(f"""
                                 <div style='background: white; padding: 1rem; border-radius: 8px;
