@@ -2513,7 +2513,7 @@ st.sidebar.markdown(f"""
 with st.sidebar.expander("Dual Constraint System", expanded=False):
     st.info("""
     **Dual Constraint System:**
-    Position Size = MIN(Quality-Based, Risk-Based)
+    Position Size = MIN(Quality-Based, Stop-Based Max Position)
 
     Ensures you never exceed EITHER:
     - Diversification limit (by quality tier)
@@ -2661,10 +2661,10 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     """
     Display enhanced position sizing with DUAL CONSTRAINT system.
 
-    Método A (Risk Budget from conviction): conviction × 10% max allocation
-    Método B (Risk-Based from stop): max_risk_dollars / stop_loss_distance
+    Method A (Conviction Allocation Cap): conviction × 10% max allocation
+    Method B (Stop-Based Max Position): max_risk_dollars / stop_loss_distance
 
-    DECISIÓN FINAL = MIN(A, B)
+    FINAL DECISION = MIN(A, B)
 
     Args:
         pos_sizing: Position sizing dict from risk_management
@@ -2681,7 +2681,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
                 border-radius: 8px; margin-bottom: 1rem;'>
         <h3 style='margin: 0; color: white;'><i class="bi bi-calculator"></i> Position Sizing Calculator</h3>
         <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
-            Dual Constraint System: MIN(Risk Budget, Risk-Based Stop)
+            Dual Constraint System: MIN(Conviction Cap, Stop-Based Max)
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -2725,7 +2725,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
             # Convert to positive distance (e.g., -5.0 → 5.0)
             stop_distance = abs(stop_loss_pct)
 
-            # Risk-Based Position Size = Max Risk $ / (Stop Distance / 100)
+            # Stop-Based Max Position Position Size = Max Risk $ / (Stop Distance / 100)
             # Example: $1,000 / (4% / 100) = $1,000 / 0.04 = $25,000
             risk_based_dollars = max_risk_dollars / (stop_distance / 100)
 
@@ -2734,15 +2734,15 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     if quality_based_dollars > 0 and risk_based_dollars is not None and risk_based_dollars > 0:
         # Both exist → take MIN
         final_dollars = min(quality_based_dollars, risk_based_dollars)
-        constraint = "Risk Budget (conviction)" if quality_based_dollars < risk_based_dollars else "Risk-Based (stop)"
+        constraint = "Conviction Allocation Cap" if quality_based_dollars < risk_based_dollars else "Stop-Based Max Position"
     elif quality_based_dollars > 0 and risk_based_dollars is None:
         # Only conviction cap exists
         final_dollars = quality_based_dollars
-        constraint = "Risk Budget (stop method N/A)"
+        constraint = "Conviction Allocation Cap (stop method N/A)"
     elif risk_based_dollars is not None and risk_based_dollars > 0 and quality_based_dollars <= 0:
         # Only risk exists
         final_dollars = risk_based_dollars
-        constraint = "Risk-Based (conviction N/A)"
+        constraint = "Stop-Based Max Position (conviction N/A)"
     else:
         # Neither exists or both are 0
         final_dollars = 0
@@ -2753,11 +2753,17 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     # ========== DISPLAY ==========
 
     # Big visual result card first
+    # Determine header text based on execution mode
+    if execution_mode == 'ENTER_NOW':
+        size_label = "RECOMMENDED POSITION SIZE"
+    else:
+        size_label = "PLANNED POSITION SIZE (if trigger)"
+
     st.markdown(f"""
     <div style='background: white; padding: 2rem; border-radius: 12px;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-bottom: 1.5rem;
                 border-left: 6px solid #28a745; text-align: center;'>
-        <div style='font-size: 0.9rem; color: #6c757d; margin-bottom: 0.5rem;'>RECOMMENDED POSITION SIZE</div>
+        <div style='font-size: 0.9rem; color: #6c757d; margin-bottom: 0.5rem;'>{size_label}</div>
         <div style='font-size: 3rem; font-weight: 700; color: #28a745; margin: 0.5rem 0;'>
             ${final_dollars:,.0f}
         </div>
@@ -2828,12 +2834,12 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         st.markdown("""
         <div style='background: #e3f2fd; padding: 1rem; border-radius: 8px;
                     border: 2px solid #2196f3; margin-bottom: 0.5rem;'>
-            <div style='font-size: 0.85rem; color: #1976d2; font-weight: 600;'>METHOD A: Risk Budget</div>
+            <div style='font-size: 0.85rem; color: #1976d2; font-weight: 600;'>METHOD A: Conviction Allocation Cap</div>
         </div>
         """, unsafe_allow_html=True)
         quality_pct = (quality_based_dollars / portfolio_size) * 100 if portfolio_size > 0 else 0
         st.metric("Allocation", f"{quality_pct:.1f}%", delta=f"${quality_based_dollars:,.0f}")
-        st.caption(f"Risk Budget (conviction {conviction_scalar:.2f}): max {quality_pct:.1f}%")
+        st.caption(f"Conviction-based cap (conviction {conviction_scalar:.2f}): max {quality_pct:.1f}% of portfolio")
 
         # Visual progress bar for quality allocation
         quality_progress = min(quality_pct / 10, 1.0)  # Normalize to 0-1 (assuming max 10%)
@@ -2843,7 +2849,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         st.markdown("""
         <div style='background: #fff3e0; padding: 1rem; border-radius: 8px;
                     border: 2px solid #ff9800; margin-bottom: 0.5rem;'>
-            <div style='font-size: 0.85rem; color: #f57c00; font-weight: 600;'>METHOD B: Risk-Based</div>
+            <div style='font-size: 0.85rem; color: #f57c00; font-weight: 600;'>METHOD B: Stop-Based Max Position</div>
         </div>
         """, unsafe_allow_html=True)
         if risk_based_dollars is not None and stop_loss_pct is not None:
@@ -2871,21 +2877,21 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         final_progress = min(final_pct_adjusted / 10, 1.0)
         st.progress(final_progress)
 
-        if constraint.startswith("Risk-Based"):
+        if constraint.startswith("Stop-Based Max Position"):
             st.markdown("""
             <div style='background: linear-gradient(to right, #e3f2fd, #bbdefb);
                         padding: 1rem; border-radius: 8px; border-left: 4px solid #2196f3;'>
                 <div style='color: #1565c0; font-weight: 600;'>
-                    <i class="bi bi-shield-check"></i> Risk-Based (stop) limit is more conservative
+                    <i class="bi bi-shield-check"></i> Stop-Based Max Position (stop) limit is more conservative
                 </div>
             </div>
             """, unsafe_allow_html=True)
-        elif constraint.startswith("Risk Budget"):
+        elif constraint.startswith("Conviction Allocation Cap"):
             st.markdown("""
             <div style='background: linear-gradient(to right, #fff8e1, #ffecb3);
                         padding: 1rem; border-radius: 8px; border-left: 4px solid #ffc107;'>
                 <div style='color: #f57c00; font-weight: 600;'>
-                    <i class="bi bi-star-fill"></i> Risk Budget (conviction) is more conservative
+                    <i class="bi bi-star-fill"></i> Conviction Allocation Cap is more conservative
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -13743,7 +13749,7 @@ with tab8:
                                     padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; margin-top: 2rem;'>
                             <h3 style='margin: 0; color: white;'><i class="bi bi-calculator"></i> MÓDULO 3: CALCULADORA DE TAMAÑO</h3>
                             <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
-                                Dual Constraint System: MIN(Risk Budget, Risk-Based Stop)
+                                Dual Constraint System: MIN(Conviction Allocation Cap, Stop-Based Max Position Stop)
                             </p>
                         </div>
                         """, unsafe_allow_html=True)
