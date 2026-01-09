@@ -13546,17 +13546,17 @@ with tab8:
                                     <div style='font-size: 2.5rem;'>{verdict_icon}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
-                                    <div style='font-size: 0.75rem; opacity: 0.9;'>STOCK vs SPY (12-1M)</div>
-                                    <div style='font-size: 1.8rem; font-weight: 700; color: {spy_color};'>{rs_spy:+.1f}%</div>
-                                    <div style='font-size: 0.85rem; opacity: 0.9;'>{'Outperforming' if rs_spy > 0 else 'Underperforming'}</div>
+                                    <div style='font-size: 0.75rem; opacity: 0.9; color: white;'>STOCK vs SPY (12-1M)</div>
+                                    <div style='font-size: 1.8rem; font-weight: 700; color: white;'>{rs_spy:+.1f}%</div>
+                                    <div style='font-size: 0.85rem; opacity: 0.9; color: white;'>{'Outperforming' if rs_spy > 0 else 'Underperforming'}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
-                                    <div style='font-size: 0.75rem; opacity: 0.9;'>STOCK vs SECTOR (6-1M)</div>
-                                    <div style='font-size: 1.8rem; font-weight: 700; color: {sector_color};'>{rs_sector:+.1f}%</div>
-                                    <div style='font-size: 0.85rem; opacity: 0.9;'>{'Sector Leader' if rs_sector > 0 else 'Sector Laggard'}</div>
+                                    <div style='font-size: 0.75rem; opacity: 0.9; color: white;'>STOCK vs SECTOR (6-1M)</div>
+                                    <div style='font-size: 1.8rem; font-weight: 700; color: white;'>{rs_sector:+.1f}%</div>
+                                    <div style='font-size: 0.85rem; opacity: 0.9; color: white;'>{'Sector Leader' if rs_sector > 0 else 'Sector Laggard'}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.25); padding: 1rem; border-radius: 8px; text-align: center;'>
-                                    <div style='font-size: 1.5rem; font-weight: 700;'>{verdict}</div>
+                                    <div style='font-size: 1.5rem; font-weight: 700; color: white;'>{verdict}</div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
