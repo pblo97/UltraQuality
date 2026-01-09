@@ -2573,9 +2573,15 @@ def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_s
     Evaluate entry trigger using 2 of 3 criteria.
 
     Entry allowed when 2 of 3 conditions are met:
-    1. conviction >= 0.30
+    1. conviction >= min_threshold (dynamic based on extension)
     2. extension improved (not STRETCHED/OVEREXTENDED)
     3. RS 12-1 vs SPY > +5%
+
+    Dynamic conviction thresholds:
+    - NORMAL: 0.30
+    - EXTENDED: 0.35
+    - STRETCHED: 0.45
+    - OVEREXTENDED: 0.55
 
     Returns:
         {
@@ -2589,8 +2595,17 @@ def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_s
             'details': dict with values
         }
     """
+    # Dynamic conviction threshold based on extension
+    extension_thresholds = {
+        'NORMAL': 0.30,
+        'EXTENDED': 0.35,
+        'STRETCHED': 0.45,
+        'OVEREXTENDED': 0.55
+    }
+    min_conviction = extension_thresholds.get(extension_state, 0.30)
+
     # Evaluate each criterion
-    conviction_met = conviction >= 0.30
+    conviction_met = conviction >= min_conviction
     extension_met = extension_state not in ['STRETCHED', 'OVEREXTENDED']
     rs_met = rs_12_1_vs_spy > 5.0
 
@@ -2607,6 +2622,7 @@ def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_s
         },
         'details': {
             'conviction': conviction,
+            'min_conviction': min_conviction,
             'extension_state': extension_state,
             'rs_12_1_vs_spy': rs_12_1_vs_spy
         }
@@ -2944,9 +2960,9 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
                     <div style='display: flex; align-items: center; padding: 0.5rem; background: {"#d4edda" if criteria["conviction"] else "#f8d7da"}; border-radius: 5px;'>
                         <span style='font-size: 1.2rem; margin-right: 0.5rem;'>{"✅" if criteria["conviction"] else "❌"}</span>
                         <div>
-                            <strong>Conviction ≥ 0.30:</strong>
+                            <strong>Conviction ≥ {details['min_conviction']:.2f} ({details['extension_state']}):</strong>
                             <span style='color: {"#155724" if criteria["conviction"] else "#721c24"}; font-weight: 600;'>
-                                {details['conviction']:.2f} {"✓" if criteria["conviction"] else f"(need {0.30 - details['conviction']:.2f} more)"}
+                                {details['conviction']:.2f} {"✓" if criteria["conviction"] else f"(need {details['min_conviction'] - details['conviction']:.2f} more)"}
                             </span>
                         </div>
                     </div>
@@ -12963,13 +12979,22 @@ with tab8:
                             'execution': 'NO_ENTRY'
                         }
 
-                    # Kill switch #2: Low conviction veto (except for BUY fundamentals with conviction >= 0.3)
-                    if conviction < 0.30 and fund_decision != 'BUY':
+                    # Kill switch #2: Dynamic conviction gating based on extension state
+                    # More overextended = higher conviction required to enter
+                    extension_thresholds = {
+                        'NORMAL': 0.30,
+                        'EXTENDED': 0.35,
+                        'STRETCHED': 0.45,
+                        'OVEREXTENDED': 0.55
+                    }
+                    min_conviction = extension_thresholds.get(extension, 0.30)
+
+                    if conviction < min_conviction and fund_decision != 'BUY':
                         return {
                             'action': 'MONITOR',
                             'label': 'MONITOR',
                             'color': '#ffc107',
-                            'reason': f'Conviction too low ({conviction:.2f} < 0.30). Wait for setup improvement or fundamental upgrade.',
+                            'reason': f'Conviction too low ({conviction:.2f} < {min_conviction:.2f} required for {extension}). Wait for setup improvement or fundamental upgrade.',
                             'execution': 'NO_ENTRY'
                         }
 
