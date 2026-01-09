@@ -2973,9 +2973,9 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
 
     # Show execution context based on final_action
     if execution_mode == 'ENTER_NOW':
-        st.info("✅ **Execution: ENTER NOW** - Sizing shown is actual shares to buy immediately")
+        st.info("**Execution: ENTER NOW** - Sizing shown is actual shares to buy immediately")
     elif execution_mode == 'WAIT_TRIGGER':
-        st.warning("⏸️ **Execution: WAIT FOR TRIGGER** - Sizing shown is PLANNED allocation if entry trigger happens")
+        st.warning("**Execution: WAIT FOR TRIGGER** - Sizing shown is PLANNED allocation if entry trigger happens")
 
         # Display entry trigger criteria (2 of 3)
         if trigger_data:
@@ -2993,47 +2993,42 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
             # Color coding for trigger status
             if trigger_result['trigger_met']:
                 trigger_color = "#28a745"  # Green
-                trigger_icon = "✅"
                 trigger_label = "TRIGGER MET"
             else:
                 trigger_color = "#ffc107"  # Yellow
-                trigger_icon = "⏳"
                 trigger_label = "WAITING FOR TRIGGER"
 
             st.markdown(f"""
             <div style='background: linear-gradient(to right, #fff9e6, #fffbf0); padding: 1.25rem;
                         border-radius: 10px; border-left: 5px solid {trigger_color}; margin-top: 1rem; margin-bottom: 1rem;'>
                 <div style='font-size: 1.1rem; font-weight: 600; color: #495057; margin-bottom: 0.75rem;'>
-                    {trigger_icon} <strong style='color: {trigger_color};'>{trigger_label}</strong> ({trigger_result['criteria_met']}/3 criteria met)
+                    <strong style='color: {trigger_color};'>{trigger_label}</strong> ({trigger_result['criteria_met']}/3 criteria met)
                 </div>
                 <div style='font-size: 0.9rem; color: #6c757d; margin-bottom: 0.75rem;'>
                     Entry allowed when <strong>2 of 3 criteria</strong> are met:
                 </div>
                 <div style='display: grid; gap: 0.5rem;'>
                     <div style='display: flex; align-items: center; padding: 0.5rem; background: {"#d4edda" if criteria["conviction"] else "#f8d7da"}; border-radius: 5px;'>
-                        <span style='font-size: 1.2rem; margin-right: 0.5rem;'>{"✅" if criteria["conviction"] else "❌"}</span>
                         <div>
                             <strong>Conviction ≥ {details['min_conviction']:.2f} ({details['extension_state']}):</strong>
                             <span style='color: {"#155724" if criteria["conviction"] else "#721c24"}; font-weight: 600;'>
-                                {details['conviction']:.2f} {"✓" if criteria["conviction"] else f"(need {details['min_conviction'] - details['conviction']:.2f} more)"}
+                                {details['conviction']:.2f} {"[MET]" if criteria["conviction"] else f"(need {details['min_conviction'] - details['conviction']:.2f} more)"}
                             </span>
                         </div>
                     </div>
                     <div style='display: flex; align-items: center; padding: 0.5rem; background: {"#d4edda" if criteria["extension"] else "#f8d7da"}; border-radius: 5px;'>
-                        <span style='font-size: 1.2rem; margin-right: 0.5rem;'>{"✅" if criteria["extension"] else "❌"}</span>
                         <div>
                             <strong>Extension Improved:</strong>
                             <span style='color: {"#155724" if criteria["extension"] else "#721c24"}; font-weight: 600;'>
-                                {details['extension_state']} {"✓" if criteria["extension"] else "(need EXTENDED or NORMAL)"}
+                                {details['extension_state']} {"[MET]" if criteria["extension"] else "(need EXTENDED or NORMAL)"}
                             </span>
                         </div>
                     </div>
                     <div style='display: flex; align-items: center; padding: 0.5rem; background: {"#d4edda" if criteria["rs_strength"] else "#f8d7da"}; border-radius: 5px;'>
-                        <span style='font-size: 1.2rem; margin-right: 0.5rem;'>{"✅" if criteria["rs_strength"] else "❌"}</span>
                         <div>
                             <strong>RS 12-1M vs SPY > +5%:</strong>
                             <span style='color: {"#155724" if criteria["rs_strength"] else "#721c24"}; font-weight: 600;'>
-                                {details['rs_12_1_vs_spy']:+.1f}% {"✓" if criteria["rs_strength"] else f"(need {5.0 - details['rs_12_1_vs_spy']:+.1f}% more)"}
+                                {details['rs_12_1_vs_spy']:+.1f}% {"[MET]" if criteria["rs_strength"] else f"(need {5.0 - details['rs_12_1_vs_spy']:+.1f}% more)"}
                             </span>
                         </div>
                     </div>
@@ -3041,7 +3036,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.error("🛑 **Execution: NO ENTRY** - Do not execute")
+        st.error("**Execution: NO ENTRY** - Do not execute")
 
     # FIX #9: Currency conversion helper for international stocks
     def convert_to_usd(price_local: float, ticker: str) -> tuple:
@@ -3154,26 +3149,34 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
 
         # Note about entry price (conditional)
         if execution_mode == 'ENTER_NOW':
-            st.caption(f"📊 Latest close (${current_price_usd:.2f}) used as entry reference")
+            st.caption(f"Latest close (${current_price_usd:.2f}) used as entry reference")
         else:
-            st.caption(f"📊 Reference price: ${current_price_usd:.2f} (latest close) - DO NOT EXECUTE YET")
+            st.caption(f"Reference price: ${current_price_usd:.2f} (latest close) - DO NOT EXECUTE YET")
 
         # Trading fee estimate (use USD cost)
         estimated_fee = actual_cost_usd * 0.001  # 0.1% typical commission
         st.caption(f"Estimated trading fees: ${estimated_fee:.2f} (0.1% assumption)")
     else:
         # Fallback if no price available
-        st.info(f"💡 Use recommended dollar amount: **${final_dollars:,.0f}** (price data unavailable for share calculation)")
+        st.info(f"Use recommended dollar amount: **${final_dollars:,.0f}** (price data unavailable for share calculation)")
 
     # Rationale box
     st.markdown("""
     <div style='margin-top: 1.5rem;'>
-        <div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem;'>
-            <i class="bi bi-lightbulb"></i> Sizing Rationale
+        <div style='font-size: 1.1rem; font-weight: 600; margin-bottom: 0.75rem; color: #495057;'>
+            Sizing Rationale
         </div>
     </div>
     """, unsafe_allow_html=True)
-    st.info(pos_sizing.get('rationale', 'N/A'))
+
+    rationale_text = pos_sizing.get('rationale', 'Calculation details not available')
+    st.markdown(f"""
+    <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px; border-left: 4px solid #6c757d;'>
+        <div style='font-size: 0.9rem; color: #495057; line-height: 1.6;'>
+            {rationale_text}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Detailed breakdown (expandable)
     with st.expander("Detailed Calculation Breakdown", expanded=False):
@@ -14347,22 +14350,39 @@ with tab8:
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # Calculate dynamic conviction threshold based on extension + regime
-                            def get_min_conviction_display(extension: str, regime: str) -> float:
-                                """Calculate minimum conviction threshold based on extension and regime."""
+                            # Calculate dynamic conviction threshold based on extension + regime + fundamentals
+                            def get_min_conviction_display(extension: str, regime: str, fund_decision: str) -> float:
+                                """
+                                Calculate minimum conviction threshold with partial bypass for BUY fundamentals.
+                                Returns the EFFECTIVE threshold (after any bypass applied).
+                                """
                                 base_thresholds = {
                                     'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
                                     'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
                                     'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
                                     'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
                                 }
-                                return base_thresholds.get(extension, {}).get(regime, 0.30)
+                                base_threshold = base_thresholds.get(extension, {}).get(regime, 0.30)
 
-                            min_entry_conviction = get_min_conviction_display(extension_state, regime_state)
+                                # Partial bypass for BUY fundamentals (quality lowers threshold but doesn't eliminate it)
+                                if fund_decision == 'BUY' and extension == 'STRETCHED':
+                                    # Reduce threshold by 0.05 for quality companies
+                                    return max(0.30, base_threshold - 0.05)
+                                elif extension == 'OVEREXTENDED':
+                                    # NO bypass - overextended is too dangerous regardless of quality
+                                    return base_threshold
+                                else:
+                                    # NORMAL/EXTENDED: apply base threshold
+                                    return base_threshold
+
+                            # Get fund_decision FIRST before calculating threshold
+                            fund_decision = stock_data['fundamental_decision']
+
+                            # Calculate EFFECTIVE threshold (with bypass already applied if applicable)
+                            min_entry_conviction = get_min_conviction_display(extension_state, regime_state, fund_decision)
 
                             # Use unified recommendation (same logic as header badge)
                             # This ensures consistency between header and final recommendation
-                            fund_decision = stock_data['fundamental_decision']
 
                             # Display final action with color coding
                             if final_action['action'] == 'STRONG_BUY':
@@ -14396,20 +14416,44 @@ with tab8:
                                 - Set alerts for conviction improvement
                                 """)
                             elif final_action['action'] == 'WAIT_TECHNICAL':
-                                # Calculate what would be needed for entry
+                                # Calculate base threshold (without bypass) for transparency
+                                base_thresholds = {
+                                    'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
+                                    'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
+                                    'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
+                                    'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
+                                }
+                                base_threshold = base_thresholds.get(extension_state, {}).get(regime_state, 0.30)
+
+                                # Determine bypass note based on current fund_decision and extension
                                 if fund_decision == 'BUY' and extension_state == 'STRETCHED':
-                                    bypass_note = f"Note: If fundamentals upgrade to BUY, threshold reduces to {min_entry_conviction - 0.05:.2f} (partial bypass for quality)"
+                                    # Already applied bypass
+                                    bypass_note = f"Base threshold {base_threshold:.2f}; reduced to {min_entry_conviction:.2f} due to BUY fundamentals. STRETCHED still requires de-extension awareness."
+                                elif fund_decision == 'MONITOR' and extension_state == 'STRETCHED':
+                                    # Could get bypass if upgraded
+                                    potential_threshold = max(0.30, base_threshold - 0.05)
+                                    bypass_note = f"If fundamentals improve to BUY, required conviction may decrease ({min_entry_conviction:.2f} → {potential_threshold:.2f}), but STRETCHED still requires de-extension awareness."
                                 elif extension_state == 'OVEREXTENDED':
-                                    bypass_note = "Note: OVEREXTENDED requires de-extension regardless of fundamental quality"
+                                    bypass_note = f"OVEREXTENDED requires de-extension regardless of fundamental quality (no bypass available)"
                                 else:
-                                    bypass_note = f"Note: Fundamental upgrade to BUY may reduce threshold slightly (quality helps but timing matters)"
+                                    bypass_note = f"If fundamentals improve to BUY, required conviction may decrease slightly, but extension state still requires awareness."
+
+                                # Determine fundamental quality label
+                                if fund_score >= 80:
+                                    fund_quality = "excellent fundamentals"
+                                elif fund_score >= 70:
+                                    fund_quality = "good fundamentals"
+                                elif fund_score >= 60:
+                                    fund_quality = "adequate fundamentals"
+                                else:
+                                    fund_quality = "mixed fundamentals"
 
                                 st.warning(f"""
                                 **{final_action['label']}**: {final_action['reason']}
 
-                                **Action**: Wait for de-extension OR conviction improvement to ≥{min_entry_conviction:.2f} ({extension_state} + {fund_decision} threshold).
-                                - Primary blocker: Technical (conviction {conviction:.2f} < {min_entry_conviction:.2f})
-                                - Fund Score: {fund_score:.0f}/100 ({fund_decision} - fundamentals adequate)
+                                **Action**: Wait for de-extension OR conviction improvement to ≥{min_entry_conviction:.2f}.
+                                - Primary blocker: Technical (conviction {conviction:.2f} < {min_entry_conviction:.2f} required for {extension_state} + {regime_state} + {fund_decision})
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision} - {fund_quality})
                                 - Tech Score: {tech_score:.0f}/100
                                 - Extension: {extension_state} (requires higher conviction)
                                 - {bypass_note}
