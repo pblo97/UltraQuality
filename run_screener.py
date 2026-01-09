@@ -14187,16 +14187,20 @@ with tab8:
                                 # Severe overextension (non-leaders only)
                                 st.error(f" POOR TIMING - Severe overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                                 # Conditional text based on execution mode
-                                if final_action.get('execution') in ['ENTER_NOW', 'WAIT_TRIGGER']:
+                                if final_action.get('execution') == 'ENTER_NOW':
                                     st.caption(" Expect 15-30% correction. Scale-in recommended (majority capital on pullback).")
+                                elif final_action.get('execution') == 'WAIT_TRIGGER':
+                                    st.caption(" Expect 15-30% correction. Wait for entry trigger; scale-in only after trigger met (majority capital on pullback).")
                                 else:
                                     st.caption(" Expect 15-30% correction. Wait for pullback/de-extension before any entry.")
                             elif abs_distance > 40 and overextension_risk >= 2:
                                 # Significant overextension with moderate risk
                                 st.warning(f" CAUTIOUS TIMING - Significant overextension ({overextension_risk}/7 risk, {distance_ma200:+.1f}% from MA200)")
                                 # Conditional text based on execution mode
-                                if final_action.get('execution') in ['ENTER_NOW', 'WAIT_TRIGGER']:
+                                if final_action.get('execution') == 'ENTER_NOW':
                                     st.caption(" Possible 10-20% pullback. Scale-in recommended.")
+                                elif final_action.get('execution') == 'WAIT_TRIGGER':
+                                    st.caption(" Possible 10-20% pullback. Wait for entry trigger; scale-in only after trigger met.")
                                 else:
                                     st.caption(" Possible 10-20% pullback. Wait for pullback/de-extension before any entry.")
                             elif overextension_risk >= 3:
