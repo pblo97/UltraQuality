@@ -2577,12 +2577,12 @@ with st.sidebar.expander("Cache Management", expanded=False):
 
 # ========== HELPER FUNCTIONS ==========
 
-def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_spy: float, regime_state: str = 'SIDEWAYS') -> dict:
+def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_spy: float, regime_state: str = 'SIDEWAYS', fund_decision: str = 'MONITOR') -> dict:
     """
     Evaluate entry trigger using 2 of 3 criteria.
 
     Entry allowed when 2 of 3 conditions are met:
-    1. conviction >= min_threshold (dynamic based on extension + regime)
+    1. conviction >= min_threshold (dynamic based on extension + regime + fundamentals)
     2. extension improved (not STRETCHED/OVEREXTENDED)
     3. RS 12-1 vs SPY > +5%
 
@@ -2591,6 +2591,10 @@ def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_s
     - EXTENDED: BULL=0.33, SIDEWAYS=0.35, BEAR=0.40
     - STRETCHED: BULL=0.40, SIDEWAYS=0.45, BEAR=0.55
     - OVEREXTENDED: BULL=0.50, SIDEWAYS=0.55, BEAR=0.65
+
+    Partial bypass for BUY fundamentals:
+    - STRETCHED + BUY: threshold reduced by 0.05
+    - OVEREXTENDED + BUY: NO bypass (always requires de-extension)
 
     Returns:
         {
@@ -2604,18 +2608,29 @@ def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_s
             'details': dict with values
         }
     """
-    # Dynamic conviction threshold based on extension + regime
-    def get_min_conviction(extension: str, regime: str) -> float:
-        """Calculate minimum conviction threshold based on extension and regime."""
+    # Dynamic conviction threshold based on extension + regime + fundamentals
+    def get_min_conviction(extension: str, regime: str, fund_decision: str) -> float:
+        """
+        Calculate minimum conviction threshold with partial bypass for BUY fundamentals.
+        """
         base_thresholds = {
             'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
             'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
             'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
             'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
         }
-        return base_thresholds.get(extension, {}).get(regime, 0.30)
+        base_threshold = base_thresholds.get(extension, {}).get(regime, 0.30)
 
-    min_conviction = get_min_conviction(extension_state, regime_state)
+        # Partial bypass for BUY fundamentals
+        if fund_decision == 'BUY' and extension == 'STRETCHED':
+            return max(0.30, base_threshold - 0.05)
+        elif extension == 'OVEREXTENDED':
+            # NO bypass for overextended
+            return base_threshold
+        else:
+            return base_threshold
+
+    min_conviction = get_min_conviction(extension_state, regime_state, fund_decision)
 
     # Evaluate each criterion
     conviction_met = conviction >= min_conviction
@@ -2761,22 +2776,45 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         risk_pct_of_portfolio = (implicit_risk_dollars / portfolio_size) * 100 if portfolio_size > 0 else 0
 
         st.markdown(f"""
-        <div style='background: linear-gradient(to right, #fff5f5, #ffe5e5); padding: 1.25rem;
-                    border-radius: 10px; border-left: 5px solid #dc3545; margin-bottom: 1.5rem;'>
-            <div style='display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; align-items: center;'>
-                <div>
-                    <div style='font-size: 0.8rem; color: #6c757d; margin-bottom: 0.25rem;'>IMPLICIT RISK (Max Loss)</div>
-                    <div style='font-size: 1.1rem; color: #495057;'>
-                        Position × Stop Distance = <strong style='color: #dc3545;'>${implicit_risk_dollars:,.0f}</strong>
+        <div style='background: #ffffff; padding: 1.5rem; border-radius: 10px;
+                    border: 2px solid #dc3545; margin-bottom: 1.5rem;
+                    box-shadow: 0 2px 4px rgba(220,53,69,0.1);'>
+            <div style='font-size: 0.85rem; color: #dc3545; font-weight: 600; margin-bottom: 1rem; text-transform: uppercase;'>
+                Implicit Risk Assessment
+            </div>
+            <div style='display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; align-items: stretch;'>
+                <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
+                    <div style='font-size: 0.75rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500;'>
+                        MAX LOSS (if stop hit)
                     </div>
-                    <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
-                        ${final_dollars:,.0f} × {abs(stop_loss_pct):.1f}% = ${implicit_risk_dollars:,.0f}
+                    <div style='font-size: 1.6rem; font-weight: 700; color: #dc3545;'>
+                        ${implicit_risk_dollars:,.0f}
+                    </div>
+                    <div style='font-size: 0.7rem; color: #6c757d; margin-top: 0.5rem; line-height: 1.3;'>
+                        Position ${final_dollars:,.0f}<br>× Stop {abs(stop_loss_pct):.1f}%
                     </div>
                 </div>
-                <div style='text-align: center;'>
-                    <div style='font-size: 0.75rem; color: #6c757d;'>% of Portfolio at Risk</div>
-                    <div style='font-size: 1.8rem; font-weight: 700; color: #dc3545;'>{risk_pct_of_portfolio:.2f}%</div>
-                    <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>${implicit_risk_dollars:,.0f} of ${portfolio_size:,.0f}</div>
+                <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
+                    <div style='font-size: 0.75rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500;'>
+                        % OF PORTFOLIO AT RISK
+                    </div>
+                    <div style='font-size: 1.6rem; font-weight: 700; color: #dc3545;'>
+                        {risk_pct_of_portfolio:.2f}%
+                    </div>
+                    <div style='font-size: 0.7rem; color: #6c757d; margin-top: 0.5rem; line-height: 1.3;'>
+                        ${implicit_risk_dollars:,.0f}<br>of ${portfolio_size:,.0f} portfolio
+                    </div>
+                </div>
+                <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
+                    <div style='font-size: 0.75rem; color: #6c757d; margin-bottom: 0.5rem; font-weight: 500;'>
+                        POSITION SIZE
+                    </div>
+                    <div style='font-size: 1.6rem; font-weight: 700; color: #495057;'>
+                        ${final_dollars:,.0f}
+                    </div>
+                    <div style='font-size: 0.7rem; color: #6c757d; margin-top: 0.5rem; line-height: 1.3;'>
+                        {(final_dollars / portfolio_size * 100):.1f}%<br>of portfolio
+                    </div>
                 </div>
             </div>
         </div>
@@ -2945,7 +2983,8 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
                 conviction=trigger_data['conviction'],
                 extension_state=trigger_data['extension_state'],
                 rs_12_1_vs_spy=trigger_data['rs_12_1_vs_spy'],
-                regime_state=trigger_data.get('regime_state', 'SIDEWAYS')
+                regime_state=trigger_data.get('regime_state', 'SIDEWAYS'),
+                fund_decision=trigger_data.get('fund_decision', 'MONITOR')
             )
 
             criteria = trigger_result['criteria']
@@ -13000,24 +13039,45 @@ with tab8:
                     # Kill switch #2: Dynamic conviction gating based on extension + regime
                     # More overextended = higher conviction required
                     # Adjusted by market regime (softer in BULL, stricter in BEAR)
-                    def get_min_conviction(extension: str, regime: str) -> float:
-                        """Calculate minimum conviction threshold based on extension and regime."""
+                    def get_min_conviction(extension: str, regime: str, fund_decision: str) -> float:
+                        """
+                        Calculate minimum conviction threshold based on extension, regime, and fundamentals.
+
+                        Partial bypass for BUY fundamentals:
+                        - STRETCHED + BUY: threshold reduced by 0.05 (quality helps but doesn't eliminate timing risk)
+                        - OVEREXTENDED + BUY: NO bypass (always requires de-extension)
+                        - NORMAL/EXTENDED: standard thresholds apply
+                        """
                         base_thresholds = {
                             'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
                             'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
                             'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
                             'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
                         }
-                        return base_thresholds.get(extension, {}).get(regime, 0.30)
+                        base_threshold = base_thresholds.get(extension, {}).get(regime, 0.30)
 
-                    min_conviction = get_min_conviction(extension, regime_state)
+                        # Partial bypass for BUY fundamentals (quality lowers threshold but doesn't eliminate it)
+                        if fund_decision == 'BUY':
+                            if extension == 'STRETCHED':
+                                # Reduce threshold by 0.05 for quality companies
+                                return max(0.30, base_threshold - 0.05)
+                            elif extension == 'OVEREXTENDED':
+                                # NO bypass - overextended is too dangerous regardless of quality
+                                return base_threshold
+                            else:
+                                # NORMAL/EXTENDED: apply base threshold
+                                return base_threshold
 
-                    if conviction < min_conviction and fund_decision != 'BUY':
+                        return base_threshold
+
+                    min_conviction = get_min_conviction(extension, regime_state, fund_decision)
+
+                    if conviction < min_conviction:
                         return {
                             'action': 'WAIT_TECHNICAL',
                             'label': 'WAIT (Technical)',
                             'color': '#ffc107',
-                            'reason': f'Technical veto: Conviction too low ({conviction:.2f} < {min_conviction:.2f} required for {extension}). Wait for de-extension OR conviction improvement.',
+                            'reason': f'Technical veto: Conviction too low ({conviction:.2f} < {min_conviction:.2f} required for {extension} + {fund_decision}). Wait for de-extension OR conviction improvement.',
                             'execution': 'NO_ENTRY'
                         }
 
@@ -13708,11 +13768,13 @@ with tab8:
                             # Prepare trigger data for entry evaluation
                             rs_12_1_vs_spy = full_analysis.get('component_details', {}).get('relative_strength', {}).get('rs_12_1_vs_spy', 0)
                             regime_state = stock_data.get('regime_state', 'SIDEWAYS')
+                            fund_decision = stock_data.get('fundamental_decision', 'MONITOR')
                             trigger_data = {
                                 'conviction': conviction,
                                 'extension_state': extension,
                                 'rs_12_1_vs_spy': rs_12_1_vs_spy,
-                                'regime_state': regime_state
+                                'regime_state': regime_state,
+                                'fund_decision': fund_decision
                             }
 
                             # Use enhanced display function with dual constraint system
@@ -14334,15 +14396,23 @@ with tab8:
                                 - Set alerts for conviction improvement
                                 """)
                             elif final_action['action'] == 'WAIT_TECHNICAL':
+                                # Calculate what would be needed for entry
+                                if fund_decision == 'BUY' and extension_state == 'STRETCHED':
+                                    bypass_note = f"Note: If fundamentals upgrade to BUY, threshold reduces to {min_entry_conviction - 0.05:.2f} (partial bypass for quality)"
+                                elif extension_state == 'OVEREXTENDED':
+                                    bypass_note = "Note: OVEREXTENDED requires de-extension regardless of fundamental quality"
+                                else:
+                                    bypass_note = f"Note: Fundamental upgrade to BUY may reduce threshold slightly (quality helps but timing matters)"
+
                                 st.warning(f"""
                                 **{final_action['label']}**: {final_action['reason']}
 
-                                **Action**: Wait for de-extension OR conviction improvement to ≥{min_entry_conviction:.2f} ({extension_state} threshold).
+                                **Action**: Wait for de-extension OR conviction improvement to ≥{min_entry_conviction:.2f} ({extension_state} + {fund_decision} threshold).
                                 - Primary blocker: Technical (conviction {conviction:.2f} < {min_entry_conviction:.2f})
                                 - Fund Score: {fund_score:.0f}/100 ({fund_decision} - fundamentals adequate)
                                 - Tech Score: {tech_score:.0f}/100
                                 - Extension: {extension_state} (requires higher conviction)
-                                - Secondary option: Fundamental upgrade to BUY would bypass conviction gate
+                                - {bypass_note}
                                 """)
                             elif final_action['action'] == 'WAIT_PULLBACK':
                                 st.warning(f"""
