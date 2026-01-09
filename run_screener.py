@@ -14335,22 +14335,39 @@ with tab8:
                             </div>
                             """, unsafe_allow_html=True)
 
-                            # Calculate dynamic conviction threshold based on extension + regime
-                            def get_min_conviction_display(extension: str, regime: str) -> float:
-                                """Calculate minimum conviction threshold based on extension and regime."""
+                            # Calculate dynamic conviction threshold based on extension + regime + fundamentals
+                            def get_min_conviction_display(extension: str, regime: str, fund_decision: str) -> float:
+                                """
+                                Calculate minimum conviction threshold with partial bypass for BUY fundamentals.
+                                Returns the EFFECTIVE threshold (after any bypass applied).
+                                """
                                 base_thresholds = {
                                     'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
                                     'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
                                     'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
                                     'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
                                 }
-                                return base_thresholds.get(extension, {}).get(regime, 0.30)
+                                base_threshold = base_thresholds.get(extension, {}).get(regime, 0.30)
 
-                            min_entry_conviction = get_min_conviction_display(extension_state, regime_state)
+                                # Partial bypass for BUY fundamentals (quality lowers threshold but doesn't eliminate it)
+                                if fund_decision == 'BUY' and extension == 'STRETCHED':
+                                    # Reduce threshold by 0.05 for quality companies
+                                    return max(0.30, base_threshold - 0.05)
+                                elif extension == 'OVEREXTENDED':
+                                    # NO bypass - overextended is too dangerous regardless of quality
+                                    return base_threshold
+                                else:
+                                    # NORMAL/EXTENDED: apply base threshold
+                                    return base_threshold
+
+                            # Get fund_decision FIRST before calculating threshold
+                            fund_decision = stock_data['fundamental_decision']
+
+                            # Calculate EFFECTIVE threshold (with bypass already applied if applicable)
+                            min_entry_conviction = get_min_conviction_display(extension_state, regime_state, fund_decision)
 
                             # Use unified recommendation (same logic as header badge)
                             # This ensures consistency between header and final recommendation
-                            fund_decision = stock_data['fundamental_decision']
 
                             # Display final action with color coding
                             if final_action['action'] == 'STRONG_BUY':
@@ -14384,20 +14401,44 @@ with tab8:
                                 - Set alerts for conviction improvement
                                 """)
                             elif final_action['action'] == 'WAIT_TECHNICAL':
-                                # Calculate what would be needed for entry
+                                # Calculate base threshold (without bypass) for transparency
+                                base_thresholds = {
+                                    'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
+                                    'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
+                                    'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
+                                    'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
+                                }
+                                base_threshold = base_thresholds.get(extension_state, {}).get(regime_state, 0.30)
+
+                                # Determine bypass note based on current fund_decision and extension
                                 if fund_decision == 'BUY' and extension_state == 'STRETCHED':
-                                    bypass_note = f"Note: If fundamentals upgrade to BUY, threshold reduces to {min_entry_conviction - 0.05:.2f} (partial bypass for quality)"
+                                    # Already applied bypass
+                                    bypass_note = f"Base threshold {base_threshold:.2f}; reduced to {min_entry_conviction:.2f} due to BUY fundamentals (partial bypass for quality)"
+                                elif fund_decision == 'MONITOR' and extension_state == 'STRETCHED':
+                                    # Could get bypass if upgraded
+                                    potential_threshold = max(0.30, base_threshold - 0.05)
+                                    bypass_note = f"Current threshold {min_entry_conviction:.2f}. If fundamentals upgrade to BUY, reduces to {potential_threshold:.2f} (partial bypass for quality)"
                                 elif extension_state == 'OVEREXTENDED':
-                                    bypass_note = "Note: OVEREXTENDED requires de-extension regardless of fundamental quality"
+                                    bypass_note = f"OVEREXTENDED requires de-extension regardless of fundamental quality (no bypass available)"
                                 else:
-                                    bypass_note = f"Note: Fundamental upgrade to BUY may reduce threshold slightly (quality helps but timing matters)"
+                                    bypass_note = f"Fundamental upgrade to BUY may reduce threshold slightly in stretched conditions"
+
+                                # Determine fundamental quality label
+                                if fund_score >= 80:
+                                    fund_quality = "excellent fundamentals"
+                                elif fund_score >= 70:
+                                    fund_quality = "good fundamentals"
+                                elif fund_score >= 60:
+                                    fund_quality = "adequate fundamentals"
+                                else:
+                                    fund_quality = "mixed fundamentals"
 
                                 st.warning(f"""
                                 **{final_action['label']}**: {final_action['reason']}
 
-                                **Action**: Wait for de-extension OR conviction improvement to ≥{min_entry_conviction:.2f} ({extension_state} + {fund_decision} threshold).
-                                - Primary blocker: Technical (conviction {conviction:.2f} < {min_entry_conviction:.2f})
-                                - Fund Score: {fund_score:.0f}/100 ({fund_decision} - fundamentals adequate)
+                                **Action**: Wait for de-extension OR conviction improvement to ≥{min_entry_conviction:.2f}.
+                                - Primary blocker: Technical (conviction {conviction:.2f} < {min_entry_conviction:.2f} required for {extension_state} + {regime_state} + {fund_decision})
+                                - Fund Score: {fund_score:.0f}/100 ({fund_decision} - {fund_quality})
                                 - Tech Score: {tech_score:.0f}/100
                                 - Extension: {extension_state} (requires higher conviction)
                                 - {bypass_note}
