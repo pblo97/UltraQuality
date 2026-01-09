@@ -991,6 +991,13 @@ class TechnicalAnalyzerV2:
         position_size_usd = (adjusted_risk_usd / stop_dist_pct) if stop_dist_pct > 0 else 0
         position_size_shares = int(position_size_usd / current_price) if current_price > 0 else 0
 
+        # Build rationale
+        rationale_parts = []
+        rationale_parts.append(f"Base risk ${base_risk_usd:,.0f} ({risk_per_trade*100:.1f}% of portfolio)")
+        rationale_parts.append(f"Adjusted by conviction {conviction:.2f}× regime {regime_factor:.2f}× extension {extension_factor:.2f} = ${adjusted_risk_usd:,.0f}")
+        rationale_parts.append(f"Stop distance {stop_dist_pct*100:.1f}% ({k:.1f}× ATR)")
+        rationale_parts.append(f"Final position: ${position_size_usd:,.0f} ({position_size_usd/portfolio_value*100:.1f}% of portfolio, {position_size_shares} shares)")
+
         return {
             'base_risk_usd': round(base_risk_usd, 2),
             'conviction_scalar': round(conviction, 3),
@@ -1001,7 +1008,8 @@ class TechnicalAnalyzerV2:
             'stop_distance_pct': round(stop_dist_pct * 100, 2),
             'position_size_usd': round(position_size_usd, 2),
             'position_size_shares': position_size_shares,
-            'position_pct_of_portfolio': round((position_size_usd / portfolio_value * 100), 2)
+            'position_pct_of_portfolio': round((position_size_usd / portfolio_value * 100), 2),
+            'rationale': ' → '.join(rationale_parts)
         }
 
     def _calculate_atr_stop_loss(
