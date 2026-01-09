@@ -2568,7 +2568,52 @@ with st.sidebar.expander("Cache Management", expanded=False):
 
 # ========== HELPER FUNCTIONS ==========
 
-def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=100000, max_risk_dollars=1000, current_price=None, selected_ticker=None, execution_mode='ENTER_NOW'):
+def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_spy: float) -> dict:
+    """
+    Evaluate entry trigger using 2 of 3 criteria.
+
+    Entry allowed when 2 of 3 conditions are met:
+    1. conviction >= 0.30
+    2. extension improved (not STRETCHED/OVEREXTENDED)
+    3. RS 12-1 vs SPY > +5%
+
+    Returns:
+        {
+            'trigger_met': bool,
+            'criteria_met': int (0-3),
+            'criteria': {
+                'conviction': bool,
+                'extension': bool,
+                'rs_strength': bool
+            },
+            'details': dict with values
+        }
+    """
+    # Evaluate each criterion
+    conviction_met = conviction >= 0.30
+    extension_met = extension_state not in ['STRETCHED', 'OVEREXTENDED']
+    rs_met = rs_12_1_vs_spy > 5.0
+
+    criteria_met_count = sum([conviction_met, extension_met, rs_met])
+    trigger_met = criteria_met_count >= 2
+
+    return {
+        'trigger_met': trigger_met,
+        'criteria_met': criteria_met_count,
+        'criteria': {
+            'conviction': conviction_met,
+            'extension': extension_met,
+            'rs_strength': rs_met
+        },
+        'details': {
+            'conviction': conviction,
+            'extension_state': extension_state,
+            'rs_12_1_vs_spy': rs_12_1_vs_spy
+        }
+    }
+
+
+def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=100000, max_risk_dollars=1000, current_price=None, selected_ticker=None, execution_mode='ENTER_NOW', trigger_data=None):
     """
     Display enhanced position sizing with DUAL CONSTRAINT system.
 
@@ -2584,6 +2629,7 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         max_risk_dollars: Maximum $ to risk per trade (default: $1k = 1% of $100k)
         current_price: Current stock price (for share calculation)
         selected_ticker: Ticker symbol (for FX conversion)
+        trigger_data: Dict with conviction, extension_state, rs_12_1_vs_spy for trigger evaluation
     """
     # Modern section header
     st.markdown("""
@@ -2866,6 +2912,68 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         st.info("✅ **Execution: ENTER NOW** - Sizing shown is actual shares to buy immediately")
     elif execution_mode == 'WAIT_TRIGGER':
         st.warning("⏸️ **Execution: WAIT FOR TRIGGER** - Sizing shown is PLANNED allocation if entry trigger happens")
+
+        # Display entry trigger criteria (2 of 3)
+        if trigger_data:
+            trigger_result = evaluate_entry_trigger(
+                conviction=trigger_data['conviction'],
+                extension_state=trigger_data['extension_state'],
+                rs_12_1_vs_spy=trigger_data['rs_12_1_vs_spy']
+            )
+
+            criteria = trigger_result['criteria']
+            details = trigger_result['details']
+
+            # Color coding for trigger status
+            if trigger_result['trigger_met']:
+                trigger_color = "#28a745"  # Green
+                trigger_icon = "✅"
+                trigger_label = "TRIGGER MET"
+            else:
+                trigger_color = "#ffc107"  # Yellow
+                trigger_icon = "⏳"
+                trigger_label = "WAITING FOR TRIGGER"
+
+            st.markdown(f"""
+            <div style='background: linear-gradient(to right, #fff9e6, #fffbf0); padding: 1.25rem;
+                        border-radius: 10px; border-left: 5px solid {trigger_color}; margin-top: 1rem; margin-bottom: 1rem;'>
+                <div style='font-size: 1.1rem; font-weight: 600; color: #495057; margin-bottom: 0.75rem;'>
+                    {trigger_icon} <strong style='color: {trigger_color};'>{trigger_label}</strong> ({trigger_result['criteria_met']}/3 criteria met)
+                </div>
+                <div style='font-size: 0.9rem; color: #6c757d; margin-bottom: 0.75rem;'>
+                    Entry allowed when <strong>2 of 3 criteria</strong> are met:
+                </div>
+                <div style='display: grid; gap: 0.5rem;'>
+                    <div style='display: flex; align-items: center; padding: 0.5rem; background: {"#d4edda" if criteria["conviction"] else "#f8d7da"}; border-radius: 5px;'>
+                        <span style='font-size: 1.2rem; margin-right: 0.5rem;'>{"✅" if criteria["conviction"] else "❌"}</span>
+                        <div>
+                            <strong>Conviction ≥ 0.30:</strong>
+                            <span style='color: {"#155724" if criteria["conviction"] else "#721c24"}; font-weight: 600;'>
+                                {details['conviction']:.2f} {"✓" if criteria["conviction"] else f"(need {0.30 - details['conviction']:.2f} more)"}
+                            </span>
+                        </div>
+                    </div>
+                    <div style='display: flex; align-items: center; padding: 0.5rem; background: {"#d4edda" if criteria["extension"] else "#f8d7da"}; border-radius: 5px;'>
+                        <span style='font-size: 1.2rem; margin-right: 0.5rem;'>{"✅" if criteria["extension"] else "❌"}</span>
+                        <div>
+                            <strong>Extension Improved:</strong>
+                            <span style='color: {"#155724" if criteria["extension"] else "#721c24"}; font-weight: 600;'>
+                                {details['extension_state']} {"✓" if criteria["extension"] else "(need EXTENDED or NORMAL)"}
+                            </span>
+                        </div>
+                    </div>
+                    <div style='display: flex; align-items: center; padding: 0.5rem; background: {"#d4edda" if criteria["rs_strength"] else "#f8d7da"}; border-radius: 5px;'>
+                        <span style='font-size: 1.2rem; margin-right: 0.5rem;'>{"✅" if criteria["rs_strength"] else "❌"}</span>
+                        <div>
+                            <strong>RS 12-1M vs SPY > +5%:</strong>
+                            <span style='color: {"#155724" if criteria["rs_strength"] else "#721c24"}; font-weight: 600;'>
+                                {details['rs_12_1_vs_spy']:+.1f}% {"✓" if criteria["rs_strength"] else f"(need {5.0 - details['rs_12_1_vs_spy']:+.1f}% more)"}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
     else:
         st.error("🛑 **Execution: NO ENTRY** - Do not execute")
 
@@ -13541,6 +13649,14 @@ with tab8:
                             # Get current price from metadata for V2
                             current_price = full_analysis.get('metadata', {}).get('current_price', stock_data.get('price', 0))
 
+                            # Prepare trigger data for entry evaluation
+                            rs_12_1_vs_spy = full_analysis.get('component_details', {}).get('relative_strength', {}).get('rs_12_1_vs_spy', 0)
+                            trigger_data = {
+                                'conviction': conviction,
+                                'extension_state': extension,
+                                'rs_12_1_vs_spy': rs_12_1_vs_spy
+                            }
+
                             # Use enhanced display function with dual constraint system
                             display_position_sizing(
                                 pos_sizing,
@@ -13549,7 +13665,8 @@ with tab8:
                                 max_risk_dollars=max_risk_per_trade_dollars,
                                 current_price=current_price,
                                 selected_ticker=selected_ticker,
-                                execution_mode=final_action.get('execution', 'ENTER_NOW')
+                                execution_mode=final_action.get('execution', 'ENTER_NOW'),
+                                trigger_data=trigger_data
                             )
                         else:
                             st.warning("No position sizing data available")
