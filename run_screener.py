@@ -12855,25 +12855,17 @@ with tab8:
                 if len(df_filtered) > 0:
                     st.markdown("---")
 
-                    # Portfolio size input
+                    # Use portfolio_capital from sidebar (no duplicate input)
                     col_excel1, col_excel2, col_excel3 = st.columns([2, 2, 2])
 
                     with col_excel1:
-                        portfolio_size = st.number_input(
-                            "Tamaño Portfolio ($)",
-                            min_value=1000,
-                            max_value=10000000,
-                            value=420000,
-                            step=10000,
-                            help="Tamaño total del portfolio para calcular position sizing"
-                        )
+                        st.info(f"💰 Portfolio: **${portfolio_capital:,}** (from sidebar)")
 
                     with col_excel2:
-                        st.markdown("<br>", unsafe_allow_html=True)
                         if st.button("📥 Generar Excel de Posiciones", type="primary", use_container_width=True):
                             with st.spinner("Generando Excel..."):
                                 try:
-                                    excel_buffer = generate_positions_excel(df_filtered, portfolio_size)
+                                    excel_buffer = generate_positions_excel(df_filtered, portfolio_capital)
 
                                     # Generate filename with timestamp
                                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -14267,6 +14259,15 @@ with tab8:
                             </div>
                             """, unsafe_allow_html=True)
 
+                            # Calculate dynamic conviction threshold based on extension state
+                            extension_thresholds = {
+                                'NORMAL': 0.30,
+                                'EXTENDED': 0.35,
+                                'STRETCHED': 0.45,
+                                'OVEREXTENDED': 0.55
+                            }
+                            min_entry_conviction = extension_thresholds.get(extension_state, 0.30)
+
                             # Use unified recommendation (same logic as header badge)
                             # This ensures consistency between header and final recommendation
                             fund_decision = stock_data['fundamental_decision']
@@ -14299,7 +14300,7 @@ with tab8:
                                 **Action**: Wait for better technical setup or entry point.
                                 - Fund Score: {fund_score:.0f}/100 ({fund_decision})
                                 - Tech Score: {tech_score:.0f}/100
-                                - Conviction: {conviction:.2f} (needs ≥0.3 for entry)
+                                - Conviction: {conviction:.2f} (needs ≥{min_entry_conviction:.2f} for entry because {extension_state})
                                 - Set alerts for conviction improvement
                                 """)
                             elif final_action['action'] == 'WAIT_PULLBACK':
