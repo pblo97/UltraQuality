@@ -13216,8 +13216,10 @@ with tab8:
                         }
 
                     # Gate 0: Technical quality minimum (hard block)
-                    # If tech_score < 50 → setup is broken, not just timing
-                    if tech_score < 50:
+                    # If tech_score < 60 → setup has negative value (conviction = 0)
+                    # Aligned with conviction formula: setup_strength = (tech_score - 60) / 30
+                    # This eliminates redundancy: scores below 60 would fail Gate 1 anyway
+                    if tech_score < 60:
                         if fund_decision == 'BUY':
                             return {
                                 'action': 'WAIT_TECHNICAL',
@@ -13236,7 +13238,7 @@ with tab8:
                             }
 
                     # Gate 1: Dynamic conviction gating based on extension + regime
-                    # Only applies if tech_score >= 50 (structure is intact)
+                    # Only applies if tech_score >= 60 (setup has positive value)
                     # More overextended = higher conviction required
                     # Adjusted by market regime (softer in BULL, stricter in BEAR)
                     def get_min_conviction(extension: str, regime: str, fund_decision: str) -> float:
@@ -14729,20 +14731,20 @@ with tab8:
                                     fund_quality = "mixed fundamentals"
 
                                 # Determine blocker type and triggers
-                                if tech_score < 50:
-                                    # Gate 0 failure: Setup is broken
+                                if tech_score < 60:
+                                    # Gate 0 failure: Setup has negative value
                                     blocker_type = "SETUP BREAKDOWN"
-                                    blocker_desc = f"Technical score too low: {tech_score:.0f}/100 (minimum 50 required)"
-                                    blocker_detail = f"Setup quality insufficient for trade regardless of timing"
+                                    blocker_desc = f"Technical score too low: {tech_score:.0f}/100 (minimum 60 required for positive conviction)"
+                                    blocker_detail = f"Setup below conviction threshold - would generate zero position size"
 
                                     action_title = "REVERSAL TRIGGERS"
                                     action_desc = "Wait for technical structure reconstruction"
-                                    trigger_list = f"""• Tech Score improves to ≥60/100
+                                    trigger_list = f"""• Tech Score improves to ≥60/100 (minimum for positive conviction)
 • Trend: {trend} → UPTREND or strong CHOP recovery
 • RS vs SPY: Turns positive or shows clear reversal
 • RS vs Sector: Improves from current negative position"""
 
-                                    logic_note = f"Gate 0 block: Tech score {tech_score:.0f} < 50. This is not a timing issue - setup must rebuild before considering entry."
+                                    logic_note = f"Gate 0 block: Tech score {tech_score:.0f} < 60. Conviction formula: (score - 60) / 30 → scores below 60 have zero conviction regardless of other factors."
 
                                 elif extension_state in ['STRETCHED', 'OVEREXTENDED']:
                                     # Extension-driven block
@@ -14837,7 +14839,7 @@ with tab8:
                 {tech_score:.0f}/100
             </div>
             <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
-                {'Critical - needs rebuild' if tech_score < 50 else 'Adequate structure' if tech_score < 70 else 'Strong'}
+                {'Zero conviction' if tech_score < 60 else 'Building conviction' if tech_score < 75 else 'Strong conviction'}
             </div>
         </div>
         <div style='background: rgba(255,255,255,0.9); padding: 0.75rem; border-radius: 6px; text-align: center;'>
