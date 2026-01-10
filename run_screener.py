@@ -14725,72 +14725,72 @@ with tab8:
 
                                 # Professional WAIT_TECHNICAL display
                                 st.markdown(f"""
-<div style='background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%); padding: 1.5rem; border-radius: 10px; border-left: 6px solid #ff9800; margin: 0.5rem 0 1rem 0; box-shadow: 0 2px 8px rgba(255,152,0,0.15);'>
-    <div style='font-size: 1.3rem; font-weight: 700; color: #e65100; margin-bottom: 0.75rem; line-height: 1.3;'>
+<div style='background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 1.5rem; border-radius: 10px; border-left: 6px solid #5c6bc0; margin: 0.5rem 0 1rem 0; box-shadow: 0 2px 8px rgba(92,107,192,0.15);'>
+    <div style='font-size: 1.3rem; font-weight: 700; color: #3f51b5; margin-bottom: 0.75rem; line-height: 1.3;'>
         {final_action['label']}
     </div>
-    <div style='font-size: 0.95rem; color: #f57c00; font-weight: 500; margin-bottom: 1.25rem; line-height: 1.5;'>
+    <div style='font-size: 0.95rem; color: #495057; font-weight: 500; margin-bottom: 1.25rem; line-height: 1.5;'>
         {final_action['reason']}
     </div>
-    <div style='background: rgba(255,255,255,0.7); padding: 1rem; border-radius: 8px; border-left: 4px solid #ff6f00; margin-bottom: 1.25rem;'>
-        <div style='font-weight: 600; font-size: 0.75rem; color: #ff6f00; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>
+    <div style='background: rgba(255,255,255,0.9); padding: 1rem; border-radius: 8px; border-left: 4px solid #5c6bc0; margin-bottom: 1.25rem;'>
+        <div style='font-weight: 600; font-size: 0.75rem; color: #5c6bc0; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>
             PRIMARY BLOCKER
         </div>
-        <div style='font-size: 0.95rem; color: #e65100; font-weight: 500;'>
+        <div style='font-size: 0.95rem; color: #3f51b5; font-weight: 500;'>
             Technical conviction too low: {conviction:.2f} &lt; {min_entry_conviction:.2f} required
         </div>
-        <div style='font-size: 0.85rem; color: #f57c00; margin-top: 0.5rem;'>
+        <div style='font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem;'>
             Requirements for {extension_state} + {regime_state} + {fund_decision}
         </div>
     </div>
-    <div style='background: rgba(255,255,255,0.7); padding: 1rem; border-radius: 8px; border-left: 4px solid #ffa726; margin-bottom: 1.25rem;'>
-        <div style='font-weight: 600; font-size: 0.75rem; color: #f57c00; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>
+    <div style='background: rgba(255,255,255,0.9); padding: 1rem; border-radius: 8px; border-left: 4px solid #7986cb; margin-bottom: 1.25rem;'>
+        <div style='font-weight: 600; font-size: 0.75rem; color: #5c6bc0; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>
             ACTION REQUIRED
         </div>
-        <div style='font-size: 0.95rem; color: #e65100; font-weight: 500;'>
+        <div style='font-size: 0.95rem; color: #3f51b5; font-weight: 500;'>
             Wait for de-extension OR conviction improvement to ≥{min_entry_conviction:.2f}
         </div>
-        <div style='font-size: 0.85rem; color: #f57c00; margin-top: 0.5rem;'>
+        <div style='font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem;'>
             Set alerts for conviction improvement or price de-extension
         </div>
     </div>
     <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem;'>
-        <div style='background: rgba(255,255,255,0.7); padding: 0.75rem; border-radius: 6px; text-align: center;'>
-            <div style='font-size: 0.7rem; color: #f57c00; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
+        <div style='background: rgba(255,255,255,0.9); padding: 0.75rem; border-radius: 6px; text-align: center;'>
+            <div style='font-size: 0.7rem; color: #6c757d; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
                 FUND SCORE
             </div>
-            <div style='font-size: 1.5rem; font-weight: 700; color: #e65100;'>
+            <div style='font-size: 1.5rem; font-weight: 700; color: #3f51b5;'>
                 {fund_score:.0f}/100
             </div>
-            <div style='font-size: 0.75rem; color: #f57c00; margin-top: 0.25rem;'>
+            <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
                 {fund_decision} - {fund_quality}
             </div>
         </div>
-        <div style='background: rgba(255,255,255,0.7); padding: 0.75rem; border-radius: 6px; text-align: center;'>
-            <div style='font-size: 0.7rem; color: #f57c00; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
+        <div style='background: rgba(255,255,255,0.9); padding: 0.75rem; border-radius: 6px; text-align: center;'>
+            <div style='font-size: 0.7rem; color: #6c757d; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
                 TECH SCORE
             </div>
-            <div style='font-size: 1.5rem; font-weight: 700; color: #e65100;'>
+            <div style='font-size: 1.5rem; font-weight: 700; color: #3f51b5;'>
                 {tech_score:.0f}/100
             </div>
-            <div style='font-size: 0.75rem; color: #f57c00; margin-top: 0.25rem;'>
+            <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
                 Needs improvement
             </div>
         </div>
-        <div style='background: rgba(255,255,255,0.7); padding: 0.75rem; border-radius: 6px; text-align: center;'>
-            <div style='font-size: 0.7rem; color: #f57c00; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
+        <div style='background: rgba(255,255,255,0.9); padding: 0.75rem; border-radius: 6px; text-align: center;'>
+            <div style='font-size: 0.7rem; color: #6c757d; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;'>
                 EXTENSION
             </div>
-            <div style='font-size: 1.5rem; font-weight: 700; color: #e65100;'>
+            <div style='font-size: 1.5rem; font-weight: 700; color: #3f51b5;'>
                 {extension_state}
             </div>
-            <div style='font-size: 0.75rem; color: #f57c00; margin-top: 0.25rem;'>
+            <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
                 Requires higher conviction
             </div>
         </div>
     </div>
-    <div style='background: rgba(255,255,255,0.5); padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,152,0,0.3);'>
-        <div style='font-size: 0.8rem; color: #f57c00; line-height: 1.5;'>
+    <div style='background: rgba(255,255,255,0.7); padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(92,107,192,0.3);'>
+        <div style='font-size: 0.8rem; color: #495057; line-height: 1.5;'>
             <strong>Threshold Logic:</strong> {bypass_note}
         </div>
     </div>
