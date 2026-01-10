@@ -2731,22 +2731,31 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
 
     # ========== DECISIÓN FINAL: MIN(A, B) with proper N/A handling ==========
     # User requirement: If one is N/A, use the other (don't return $0)
-    if quality_based_dollars > 0 and risk_based_dollars is not None and risk_based_dollars > 0:
-        # Both exist → take MIN
+    # But if one is $0, that IS the minimum (most conservative)
+    if quality_based_dollars >= 0 and risk_based_dollars is not None and risk_based_dollars > 0:
+        # Both exist (even if one is $0) → take MIN
         final_dollars = min(quality_based_dollars, risk_based_dollars)
-        constraint = "Conviction Allocation Cap" if quality_based_dollars < risk_based_dollars else "Stop-Based Max Position"
-    elif quality_based_dollars > 0 and risk_based_dollars is None:
+        if quality_based_dollars < risk_based_dollars:
+            constraint = "Conviction Allocation Cap"
+        elif risk_based_dollars < quality_based_dollars:
+            constraint = "Stop-Based Max Position"
+        else:
+            constraint = "Both methods equal"
+    elif quality_based_dollars > 0 and (risk_based_dollars is None or risk_based_dollars <= 0):
         # Only conviction cap exists
         final_dollars = quality_based_dollars
         constraint = "Conviction Allocation Cap (stop method N/A)"
-    elif risk_based_dollars is not None and risk_based_dollars > 0 and quality_based_dollars <= 0:
-        # Only risk exists
+    elif risk_based_dollars is not None and risk_based_dollars > 0 and quality_based_dollars < 0:
+        # Only risk exists (conviction is invalid/negative)
         final_dollars = risk_based_dollars
         constraint = "Stop-Based Max Position (conviction N/A)"
     else:
-        # Neither exists or both are 0
-        final_dollars = 0
-        constraint = "NO EJECUTABLE (insufficient data)"
+        # Neither exists or conviction is $0 with no stop
+        final_dollars = max(0, quality_based_dollars) if quality_based_dollars >= 0 else 0
+        if final_dollars == 0:
+            constraint = "NO EJECUTABLE (conviction too low or insufficient data)"
+        else:
+            constraint = "Conviction Allocation Cap"
 
     final_pct_adjusted = (final_dollars / portfolio_size) * 100 if portfolio_size > 0 else 0
 
@@ -2878,20 +2887,26 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
         st.progress(final_progress)
 
         if constraint.startswith("Stop-Based Max Position"):
-            st.markdown("""
+            st.markdown(f"""
             <div style='background: linear-gradient(to right, #e3f2fd, #bbdefb);
                         padding: 1rem; border-radius: 8px; border-left: 4px solid #2196f3;'>
                 <div style='color: #1565c0; font-weight: 600;'>
-                    <i class="bi bi-shield-check"></i> Stop-Based Max Position (stop) limit is more conservative
+                    <i class="bi bi-shield-check"></i> Limiting factor: Stop Loss Distance
+                </div>
+                <div style='color: #1976d2; font-size: 0.85rem; margin-top: 0.5rem;'>
+                    Stop-based limit (${risk_based_dollars:,.0f}) is smaller than conviction cap (${quality_based_dollars:,.0f})
                 </div>
             </div>
             """, unsafe_allow_html=True)
         elif constraint.startswith("Conviction Allocation Cap"):
-            st.markdown("""
+            st.markdown(f"""
             <div style='background: linear-gradient(to right, #fff8e1, #ffecb3);
                         padding: 1rem; border-radius: 8px; border-left: 4px solid #ffc107;'>
                 <div style='color: #f57c00; font-weight: 600;'>
-                    <i class="bi bi-star-fill"></i> Conviction Allocation Cap is more conservative
+                    <i class="bi bi-star-fill"></i> Limiting factor: Low Conviction
+                </div>
+                <div style='color: #f57c00; font-size: 0.85rem; margin-top: 0.5rem;'>
+                    Conviction cap (${quality_based_dollars:,.0f}) is smaller than stop-based limit ({f'${risk_based_dollars:,.0f}' if risk_based_dollars else 'N/A'})
                 </div>
             </div>
             """, unsafe_allow_html=True)
