@@ -13227,7 +13227,28 @@ with tab8:
                             'execution': 'NO_ENTRY'
                         }
 
-                    # Kill switch #2: Dynamic conviction gating based on extension + regime
+                    # Gate 0: Technical quality minimum (hard block)
+                    # If tech_score < 50 → setup is broken, not just timing
+                    if tech_score < 50:
+                        if fund_decision == 'BUY':
+                            return {
+                                'action': 'WAIT_TECHNICAL',
+                                'label': 'WAIT (Reversal Watchlist)',
+                                'color': '#ffc107',
+                                'reason': f'Technical veto: Setup score too low ({int(tech_score)}/100). No trade until trend/RS structure improves.',
+                                'execution': 'NO_ENTRY'
+                            }
+                        else:
+                            return {
+                                'action': 'AVOID',
+                                'label': 'AVOID - Weak Technical',
+                                'color': '#dc3545',
+                                'reason': f'Technical breakdown ({int(tech_score)}/100). Wait for reversal confirmation.',
+                                'execution': 'NO_ENTRY'
+                            }
+
+                    # Gate 1: Dynamic conviction gating based on extension + regime
+                    # Only applies if tech_score >= 50 (structure is intact)
                     # More overextended = higher conviction required
                     # Adjusted by market regime (softer in BULL, stricter in BEAR)
                     def get_min_conviction(extension: str, regime: str, fund_decision: str) -> float:
@@ -13264,11 +13285,17 @@ with tab8:
                     min_conviction = get_min_conviction(extension, regime_state, fund_decision)
 
                     if conviction < min_conviction:
+                        # Determine reason: extension-driven vs other timing factors
+                        if extension in ['STRETCHED', 'OVEREXTENDED']:
+                            wait_reason = f'Overextended ({extension}). Wait for de-extension OR conviction improvement to ≥{min_conviction:.2f}.'
+                        else:
+                            wait_reason = f'Weak timing setup (conviction {conviction:.2f} < {min_conviction:.2f} required). Wait for technical improvement.'
+
                         return {
                             'action': 'WAIT_TECHNICAL',
                             'label': 'WAIT (Technical)',
                             'color': '#ffc107',
-                            'reason': f'Technical veto: Conviction too low ({conviction:.2f} < {min_conviction:.2f} required for {extension} + {fund_decision}). Wait for de-extension OR conviction improvement.',
+                            'reason': f'Technical veto: {wait_reason}',
                             'execution': 'NO_ENTRY'
                         }
 
@@ -14703,28 +14730,6 @@ with tab8:
                                 - Set alerts for conviction improvement
                                 """)
                             elif final_action['action'] == 'WAIT_TECHNICAL':
-                                # Calculate base threshold (without bypass) for transparency
-                                base_thresholds = {
-                                    'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
-                                    'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
-                                    'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
-                                    'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
-                                }
-                                base_threshold = base_thresholds.get(extension_state, {}).get(regime_state, 0.30)
-
-                                # Determine bypass note based on current fund_decision and extension
-                                if fund_decision == 'BUY' and extension_state == 'STRETCHED':
-                                    # Already applied bypass
-                                    bypass_note = f"Base threshold {base_threshold:.2f}; reduced to {min_entry_conviction:.2f} due to BUY fundamentals. STRETCHED still requires de-extension awareness."
-                                elif fund_decision == 'MONITOR' and extension_state == 'STRETCHED':
-                                    # Could get bypass if upgraded
-                                    potential_threshold = max(0.30, base_threshold - 0.05)
-                                    bypass_note = f"If fundamentals improve to BUY, required conviction may decrease ({min_entry_conviction:.2f} → {potential_threshold:.2f}), but STRETCHED still requires de-extension awareness."
-                                elif extension_state == 'OVEREXTENDED':
-                                    bypass_note = f"OVEREXTENDED requires de-extension regardless of fundamental quality (no bypass available)"
-                                else:
-                                    bypass_note = f"If fundamentals improve to BUY, required conviction may decrease slightly, but extension state still requires awareness."
-
                                 # Determine fundamental quality label
                                 if fund_score >= 80:
                                     fund_quality = "excellent fundamentals"
@@ -14734,6 +14739,64 @@ with tab8:
                                     fund_quality = "adequate fundamentals"
                                 else:
                                     fund_quality = "mixed fundamentals"
+
+                                # Determine blocker type and triggers
+                                if tech_score < 50:
+                                    # Gate 0 failure: Setup is broken
+                                    blocker_type = "SETUP BREAKDOWN"
+                                    blocker_desc = f"Technical score too low: {tech_score:.0f}/100 (minimum 50 required)"
+                                    blocker_detail = f"Setup quality insufficient for trade regardless of timing"
+
+                                    action_title = "REVERSAL TRIGGERS"
+                                    action_desc = "Wait for technical structure reconstruction"
+                                    trigger_list = f"""• Tech Score improves to ≥60/100
+• Trend: {trend_state} → UPTREND or strong CHOP recovery
+• RS vs SPY: Turns positive or shows clear reversal
+• RS vs Sector: Improves from current negative position"""
+
+                                    logic_note = f"Gate 0 block: Tech score {tech_score:.0f} < 50. This is not a timing issue - setup must rebuild before considering entry."
+
+                                elif extension_state in ['STRETCHED', 'OVEREXTENDED']:
+                                    # Extension-driven block
+                                    blocker_type = "OVEREXTENSION"
+                                    blocker_desc = f"Price too extended: {extension_state}"
+                                    blocker_detail = f"Conviction {conviction:.2f} < {min_entry_conviction:.2f} required for {extension_state} entry"
+
+                                    action_title = "DE-EXTENSION TRIGGERS"
+                                    action_desc = f"Wait for pullback OR conviction improvement to ≥{min_entry_conviction:.2f}"
+                                    trigger_list = f"""• Price pulls back to EMA20/MA50 (extension → EXTENDED/NORMAL)
+• Conviction improves to ≥{min_entry_conviction:.2f} (RS/Trend/Risk strengthen)
+• Extension drops below {extension_state} threshold"""
+
+                                    # Determine bypass note
+                                    base_thresholds = {
+                                        'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
+                                        'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
+                                        'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
+                                        'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
+                                    }
+                                    base_threshold = base_thresholds.get(extension_state, {}).get(regime_state, 0.30)
+
+                                    if fund_decision == 'BUY' and extension_state == 'STRETCHED':
+                                        logic_note = f"Base threshold {base_threshold:.2f} reduced to {min_entry_conviction:.2f} due to BUY fundamentals (quality bypass). {extension_state} still requires caution."
+                                    elif extension_state == 'OVEREXTENDED':
+                                        logic_note = f"OVEREXTENDED requires de-extension regardless of quality (no bypass available). Base threshold: {base_threshold:.2f}"
+                                    else:
+                                        logic_note = f"Threshold {min_entry_conviction:.2f} for {extension_state} + {regime_state} + {fund_decision}"
+                                else:
+                                    # Gate 1 failure: Weak timing despite decent tech
+                                    blocker_type = "WEAK TIMING SETUP"
+                                    blocker_desc = f"Conviction too low despite decent tech score"
+                                    blocker_detail = f"Conviction {conviction:.2f} < {min_entry_conviction:.2f} required (Extension: {extension_state})"
+
+                                    action_title = "IMPROVEMENT TRIGGERS"
+                                    action_desc = f"Wait for technical metrics to strengthen → conviction ≥{min_entry_conviction:.2f}"
+                                    trigger_list = f"""• RS improvement (vs SPY and/or Sector)
+• Trend confirmation/strengthening
+• Risk metrics improve (Sharpe, volatility)
+• Volume profile turns constructive"""
+
+                                    logic_note = f"Gate 1 block: Tech score {tech_score:.0f} is adequate, but timing components (RS/Trend/Risk) need improvement. Threshold: {min_entry_conviction:.2f} for {extension_state}."
 
                                 # Professional WAIT_TECHNICAL display
                                 st.markdown(f"""
@@ -14746,24 +14809,24 @@ with tab8:
     </div>
     <div style='background: rgba(255,255,255,0.9); padding: 1rem; border-radius: 8px; border-left: 4px solid #5c6bc0; margin-bottom: 1.25rem;'>
         <div style='font-weight: 600; font-size: 0.75rem; color: #5c6bc0; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>
-            PRIMARY BLOCKER
+            PRIMARY BLOCKER: {blocker_type}
         </div>
         <div style='font-size: 0.95rem; color: #3f51b5; font-weight: 500;'>
-            Technical conviction too low: {conviction:.2f} &lt; {min_entry_conviction:.2f} required
+            {blocker_desc}
         </div>
         <div style='font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem;'>
-            Requirements for {extension_state} + {regime_state} + {fund_decision}
+            {blocker_detail}
         </div>
     </div>
     <div style='background: rgba(255,255,255,0.9); padding: 1rem; border-radius: 8px; border-left: 4px solid #7986cb; margin-bottom: 1.25rem;'>
         <div style='font-weight: 600; font-size: 0.75rem; color: #5c6bc0; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>
-            ACTION REQUIRED
+            {action_title}
         </div>
-        <div style='font-size: 0.95rem; color: #3f51b5; font-weight: 500;'>
-            Wait for de-extension OR conviction improvement to ≥{min_entry_conviction:.2f}
+        <div style='font-size: 0.95rem; color: #3f51b5; font-weight: 500; margin-bottom: 0.5rem;'>
+            {action_desc}
         </div>
-        <div style='font-size: 0.85rem; color: #6c757d; margin-top: 0.5rem;'>
-            Set alerts for conviction improvement or price de-extension
+        <div style='font-size: 0.85rem; color: #6c757d; line-height: 1.6; white-space: pre-line;'>
+{trigger_list}
         </div>
     </div>
     <div style='display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem;'>
@@ -14786,7 +14849,7 @@ with tab8:
                 {tech_score:.0f}/100
             </div>
             <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
-                Needs improvement
+                {'Critical - needs rebuild' if tech_score < 50 else 'Adequate structure' if tech_score < 70 else 'Strong'}
             </div>
         </div>
         <div style='background: rgba(255,255,255,0.9); padding: 0.75rem; border-radius: 6px; text-align: center;'>
@@ -14797,13 +14860,13 @@ with tab8:
                 {extension_state}
             </div>
             <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
-                Requires higher conviction
+                {distance_ma200_pct:+.1f}% from MA200
             </div>
         </div>
     </div>
     <div style='background: rgba(255,255,255,0.7); padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(92,107,192,0.3);'>
         <div style='font-size: 0.8rem; color: #495057; line-height: 1.5;'>
-            <strong>Threshold Logic:</strong> {bypass_note}
+            <strong>Logic:</strong> {logic_note}
         </div>
     </div>
 </div>
