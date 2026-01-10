@@ -14738,7 +14738,7 @@ with tab8:
                                     action_title = "REVERSAL TRIGGERS"
                                     action_desc = "Wait for technical structure reconstruction"
                                     trigger_list = f"""• Tech Score improves to ≥60/100
-• Trend: {trend_state} → UPTREND or strong CHOP recovery
+• Trend: {trend} → UPTREND or strong CHOP recovery
 • RS vs SPY: Turns positive or shows clear reversal
 • RS vs Sector: Improves from current negative position"""
 
@@ -14848,7 +14848,7 @@ with tab8:
                 {extension_state}
             </div>
             <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>
-                {distance_ma200_pct:+.1f}% from MA200
+                {distance_ma200:+.1f}% from MA200
             </div>
         </div>
     </div>
