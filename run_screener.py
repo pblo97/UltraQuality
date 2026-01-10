@@ -13500,6 +13500,22 @@ with tab8:
                         metadata = full_analysis.get('metadata', {})
                         distance_ma200 = metadata.get('distance_ma200_pct', 0)
 
+                        # Fallback: Infer trend from trend_structure component if main trend is UNKNOWN
+                        if trend == 'UNKNOWN':
+                            trend_details = full_analysis.get('component_details', {}).get('trend_structure', {})
+                            price_above_ma200 = trend_details.get('price_above_ma200', False)
+                            ma50_above_ma200 = trend_details.get('ma50_above_ma200', False)
+
+                            # Simple inference based on available data
+                            if price_above_ma200 and ma50_above_ma200:
+                                trend = 'UPTREND'
+                            elif not price_above_ma200 and not ma50_above_ma200:
+                                trend = 'DOWNTREND'
+                            elif distance_ma200 > 0:
+                                trend = 'CHOP'  # Price above MA200 but mixed signals
+                            else:
+                                trend = 'CHOP'  # Keep as inferred chop if truly unknown
+
                         volume_profile = full_analysis.get('volume_profile', 'UNKNOWN')
                         components = full_analysis.get('component_scores', {})
                         conviction = full_analysis.get('conviction', 0)
@@ -13629,7 +13645,8 @@ with tab8:
                                 'UPTREND': {'icon': '<i class="bi bi-graph-up"></i>', 'color': '#28a745', 'label': 'UPTREND'},
                                 'DOWNTREND': {'icon': '<i class="bi bi-graph-down"></i>', 'color': '#dc3545', 'label': 'DOWNTREND'},
                                 'STRONG_DOWNTREND': {'icon': '<i class="bi bi-arrow-down"></i>', 'color': '#dc3545', 'label': 'STRONG DOWNTREND'},
-                                'SIDEWAYS': {'icon': '<i class="bi bi-arrow-left-right" style="font-size: 3rem;"></i>', 'color': '#ffc107', 'label': 'SIDEWAYS'}
+                                'SIDEWAYS': {'icon': '<i class="bi bi-arrow-left-right" style="font-size: 3rem;"></i>', 'color': '#ffc107', 'label': 'SIDEWAYS'},
+                                'CHOP': {'icon': '<i class="bi bi-arrow-left-right"></i>', 'color': '#ffc107', 'label': 'CHOPPY'}
                             }
 
                             trend_info = trend_config.get(trend, {'icon': '<i class="bi bi-question-circle" style="font-size: 3rem;"></i>', 'color': '#6c757d', 'label': 'UNKNOWN'})
@@ -13662,17 +13679,17 @@ with tab8:
                                     <div style='font-size: 2.5rem;'>{trend_info['icon']}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
-                                    <div style='font-size: 0.75rem; opacity: 0.9;'>TREND</div>
-                                    <div style='font-size: 1.3rem; font-weight: 700;'>{trend_info['label']}</div>
+                                    <div style='font-size: 0.75rem; opacity: 0.9; color: white;'>TREND</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700; color: white;'>{trend_info['label']}</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
-                                    <div style='font-size: 0.75rem; opacity: 0.9;'>EXTENSION</div>
-                                    <div style='font-size: 1.3rem; font-weight: 700;'>{ext_info['label']}</div>
-                                    <div style='font-size: 1rem; opacity: 0.9;'>{distance_ma200:+.1f}% from MA200</div>
+                                    <div style='font-size: 0.75rem; opacity: 0.9; color: white;'>EXTENSION</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700; color: white;'>{ext_info['label']}</div>
+                                    <div style='font-size: 1rem; opacity: 0.9; color: white;'>{distance_ma200:+.1f}% from MA200</div>
                                 </div>
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px;'>
-                                    <div style='font-size: 0.75rem; opacity: 0.9;'>VOLUME</div>
-                                    <div style='font-size: 1.3rem; font-weight: 700;'>{vol_info['icon']} {volume_profile}</div>
+                                    <div style='font-size: 0.75rem; opacity: 0.9; color: white;'>VOLUME</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700; color: white;'>{vol_info['icon']} {volume_profile}</div>
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
