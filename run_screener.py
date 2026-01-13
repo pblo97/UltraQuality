@@ -3619,12 +3619,19 @@ def display_entry_strategies(current_price, atr_14d_pct=None, position_dollars=0
     comparison_data = {
         "Strategy": ["Pyramiding", "Pullback Limit", "ATR Tranches"],
         "Best For": [
-            "Strong uptrends, momentum",
-            "Sideways/choppy markets",
-            "Volatility-based precision"
+            "Strong uptrends with momentum continuation",
+            "Sideways/choppy markets with range-bound price action",
+            "Data-driven precision with volatility adaptation"
         ],
         "Initial Entry": ["50% NOW", "40% NOW", "33% NOW"],
-        "Risk Profile": ["Medium", "Lower", "Medium-Low"],
+        "Entry Trigger": [
+            "Price confirms upward momentum",
+            "Price pulls back to support/limit",
+            "Price moves -1 ATR from entry"
+        ],
+        "Total Tranches": ["2 entries", "Up to 3 entries", "3 entries"],
+        "Remaining Capital": ["50% (1 add)", "60% (2 adds)", "67% (2 adds)"],
+        "Risk Profile": ["Medium (trend-dependent)", "Lower (buy dips)", "Medium-Low (measured)"],
         "Complexity": ["Simple", "Medium", "Advanced"]
     }
 
