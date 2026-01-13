@@ -3287,6 +3287,348 @@ def display_position_sizing(pos_sizing, stop_loss_data=None, portfolio_size=1000
     """, unsafe_allow_html=True)
 
 
+def display_entry_strategies(current_price, atr_14d_pct=None, position_dollars=0, selected_ticker='', trend_state='UPTREND', extension_state='NORMAL', market_regime='SIDEWAYS'):
+    """
+    Display 3 entry strategy models for position building.
+
+    Args:
+        current_price: Current stock price
+        atr_14d_pct: ATR as % of price (e.g., 2.5 means 2.5%)
+        position_dollars: Recommended total position size in dollars
+        selected_ticker: Stock ticker symbol
+        trend_state: Trend state (UPTREND, DOWNTREND, etc.)
+        extension_state: Extension state (NORMAL, EXTENDED, STRETCHED, OVEREXTENDED)
+        market_regime: Market regime (BULL, SIDEWAYS, BEAR)
+    """
+    st.markdown("""
+    <div style='background: linear-gradient(to right, #f093fb, #f5576c); padding: 1rem;
+                border-radius: 8px; margin-bottom: 1rem; margin-top: 1.5rem;'>
+        <h3 style='margin: 0; color: white;'><i class="bi bi-pie-chart-fill"></i> Entry Strategy Models</h3>
+        <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+            3 Professional Approaches for Position Building
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not current_price or current_price <= 0 or position_dollars <= 0:
+        st.warning("⚠️ Entry strategies require valid price and position size data")
+        return
+
+    # Calculate ATR in dollars
+    atr_dollars = (current_price * atr_14d_pct / 100) if atr_14d_pct else (current_price * 0.025)  # Default 2.5% if no ATR
+
+    # Determine recommended strategy based on context
+    recommended_strategy = None
+    if trend_state in ['UPTREND', 'STRONG_UPTREND'] and extension_state == 'NORMAL':
+        recommended_strategy = 1  # Pyramiding
+    elif extension_state in ['STRETCHED', 'OVEREXTENDED'] or market_regime == 'SIDEWAYS':
+        recommended_strategy = 2  # Pullback
+    else:
+        recommended_strategy = 3  # ATR-based
+
+    # Create 3 tabs for the strategies
+    tab1, tab2, tab3 = st.tabs([
+        "🔺 Pyramiding (Momentum)",
+        "📉 Pullback Limit (Defensive)",
+        "📊 ATR Tranches (Mathematical)"
+    ])
+
+    # ========== STRATEGY 1: PYRAMIDING ==========
+    with tab1:
+        if recommended_strategy == 1:
+            st.success("✅ **RECOMMENDED** for current market conditions")
+
+        st.markdown("""
+        <div style='background: #f0f9ff; padding: 1rem; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 1rem;'>
+            <div style='font-weight: 600; color: #1e40af; margin-bottom: 0.5rem;'>📈 The Pyramiding Model (Trend Confirmation)</div>
+            <div style='font-size: 0.9rem; color: #495057;'>
+                <strong>Best for:</strong> Strong uptrends with momentum<br>
+                <strong>Logic:</strong> "Add to winners" - If price rises, your thesis is confirmed and you increase exposure
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Calculate entry levels
+        entry1_pct = 0.50
+        entry2_pct = 0.30
+        entry3_pct = 0.20
+
+        entry1_dollars = position_dollars * entry1_pct
+        entry2_dollars = position_dollars * entry2_pct
+        entry3_dollars = position_dollars * entry3_pct
+
+        entry1_shares = int(entry1_dollars / current_price)
+        entry2_shares = int(entry2_dollars / current_price)
+        entry3_shares = int(entry3_dollars / current_price)
+
+        # Entry 2 trigger: +1 ATR from Entry 1
+        entry2_trigger_price = current_price + atr_dollars
+        entry2_trigger_pct = (atr_dollars / current_price) * 100
+
+        # Entry 3 trigger: New relative high or key resistance break
+        entry3_trigger_price = current_price * 1.05  # Example: +5% breakout
+
+        # Display entry table
+        st.markdown("""
+        <div style='background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
+        """, unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown(f"""
+            <div style='text-align: center; padding: 1rem; background: #dbeafe; border-radius: 8px;'>
+                <div style='font-size: 0.8rem; color: #1e40af; font-weight: 600; margin-bottom: 0.5rem;'>ENTRY 1: PILOT</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #1e40af;'>{entry1_pct:.0%}</div>
+                <div style='font-size: 1rem; color: #495057; margin-top: 0.5rem;'>${entry1_dollars:,.0f}</div>
+                <div style='font-size: 0.85rem; color: #6c757d;'>{entry1_shares:,} shares</div>
+                <div style='font-size: 0.9rem; color: #1e40af; margin-top: 0.75rem; font-weight: 600;'>NOW (Market Order)</div>
+                <div style='font-size: 0.8rem; color: #6c757d;'>@ ${current_price:.2f}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            st.markdown(f"""
+            <div style='text-align: center; padding: 1rem; background: #e0e7ff; border-radius: 8px;'>
+                <div style='font-size: 0.8rem; color: #4338ca; font-weight: 600; margin-bottom: 0.5rem;'>ENTRY 2: CONFIRMATION</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #4338ca;'>{entry2_pct:.0%}</div>
+                <div style='font-size: 1rem; color: #495057; margin-top: 0.5rem;'>${entry2_dollars:,.0f}</div>
+                <div style='font-size: 0.85rem; color: #6c757d;'>{entry2_shares:,} shares</div>
+                <div style='font-size: 0.9rem; color: #4338ca; margin-top: 0.75rem; font-weight: 600;'>IF +1 ATR</div>
+                <div style='font-size: 0.8rem; color: #6c757d;'>@ ${entry2_trigger_price:.2f} (+{entry2_trigger_pct:.1f}%)</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col3:
+            st.markdown(f"""
+            <div style='text-align: center; padding: 1rem; background: #e0e7ff; border-radius: 8px;'>
+                <div style='font-size: 0.8rem; color: #6366f1; font-weight: 600; margin-bottom: 0.5rem;'>ENTRY 3: ACCELERATION</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #6366f1;'>{entry3_pct:.0%}</div>
+                <div style='font-size: 1rem; color: #495057; margin-top: 0.5rem;'>${entry3_dollars:,.0f}</div>
+                <div style='font-size: 0.85rem; color: #6c757d;'>{entry3_shares:,} shares</div>
+                <div style='font-size: 0.9rem; color: #6366f1; margin-top: 0.75rem; font-weight: 600;'>IF Breakout</div>
+                <div style='font-size: 0.8rem; color: #6c757d;'>New high / resistance break</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Risk management
+        st.markdown(f"""
+        <div style='background: #fef3c7; padding: 1rem; border-radius: 8px; border-left: 4px solid #f59e0b;'>
+            <strong>🛡️ Stop Loss Management:</strong><br>
+            • Entry 1: Set initial stop loss<br>
+            • Entry 2: Move Entry 1 stop to <strong>Break Even</strong><br>
+            • Entry 3: Trail stops for all positions
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ========== STRATEGY 2: PULLBACK LIMIT ==========
+    with tab2:
+        if recommended_strategy == 2:
+            st.success("✅ **RECOMMENDED** for current market conditions")
+
+        st.markdown("""
+        <div style='background: #fef3c7; padding: 1rem; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 1rem;'>
+            <div style='font-weight: 600; color: #92400e; margin-bottom: 0.5rem;'>📉 The Pullback Limit Model (Mean Reversion)</div>
+            <div style='font-size: 0.9rem; color: #495057;'>
+                <strong>Best for:</strong> Sideways markets or stretched extensions<br>
+                <strong>Logic:</strong> Breakouts often fail in choppy markets - better to seek lower average price
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Calculate entry levels
+        entry1_pct = 0.40
+        entry2_pct = 0.30
+        entry3_pct = 0.30
+
+        entry1_dollars = position_dollars * entry1_pct
+        entry2_dollars = position_dollars * entry2_pct
+        entry3_dollars = position_dollars * entry3_pct
+
+        # Estimate EMA20 level (approximate -3% to -5% from current for typical pullback)
+        ema20_estimate = current_price * 0.97  # Conservative -3%
+
+        entry1_shares = int(entry1_dollars / current_price)
+        entry2_shares = int(entry2_dollars / ema20_estimate)
+        entry3_shares = int(entry3_dollars / ema20_estimate)
+
+        # Display entry table
+        st.markdown("""
+        <div style='background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
+        """, unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown(f"""
+            <div style='text-align: center; padding: 1rem; background: #fef3c7; border-radius: 8px;'>
+                <div style='font-size: 0.8rem; color: #92400e; font-weight: 600; margin-bottom: 0.5rem;'>ENTRY 1: ANCHOR</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #92400e;'>{entry1_pct:.0%}</div>
+                <div style='font-size: 1rem; color: #495057; margin-top: 0.5rem;'>${entry1_dollars:,.0f}</div>
+                <div style='font-size: 0.85rem; color: #6c757d;'>{entry1_shares:,} shares</div>
+                <div style='font-size: 0.9rem; color: #92400e; margin-top: 0.75rem; font-weight: 600;'>NOW (Market Order)</div>
+                <div style='font-size: 0.8rem; color: #6c757d;'>@ ${current_price:.2f}</div>
+                <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>Don't miss the move</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            st.markdown(f"""
+            <div style='text-align: center; padding: 1rem; background: #fed7aa; border-radius: 8px;'>
+                <div style='font-size: 0.8rem; color: #9a3412; font-weight: 600; margin-bottom: 0.5rem;'>ENTRY 2: PULLBACK</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #9a3412;'>{entry2_pct:.0%}</div>
+                <div style='font-size: 1rem; color: #495057; margin-top: 0.5rem;'>${entry2_dollars:,.0f}</div>
+                <div style='font-size: 0.85rem; color: #6c757d;'>~{entry2_shares:,} shares</div>
+                <div style='font-size: 0.9rem; color: #9a3412; margin-top: 0.75rem; font-weight: 600;'>LIMIT @ EMA20</div>
+                <div style='font-size: 0.8rem; color: #6c757d;'>~${ema20_estimate:.2f} (-3%)</div>
+                <div style='font-size: 0.75rem; color: #6c757d; margin-top: 0.25rem;'>Or prior support</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col3:
+            st.markdown(f"""
+            <div style='text-align: center; padding: 1rem; background: #fed7aa; border-radius: 8px;'>
+                <div style='font-size: 0.8rem; color: #c2410c; font-weight: 600; margin-bottom: 0.5rem;'>ENTRY 3: BOUNCE</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #c2410c;'>{entry3_pct:.0%}</div>
+                <div style='font-size: 1rem; color: #495057; margin-top: 0.5rem;'>${entry3_dollars:,.0f}</div>
+                <div style='font-size: 0.85rem; color: #6c757d;'>~{entry3_shares:,} shares</div>
+                <div style='font-size: 0.9rem; color: #c2410c; margin-top: 0.75rem; font-weight: 600;'>IF Bounces</div>
+                <div style='font-size: 0.8rem; color: #6c757d;'>From support w/ volume</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Important note
+        st.markdown(f"""
+        <div style='background: #dbeafe; padding: 1rem; border-radius: 8px; border-left: 4px solid #3b82f6;'>
+            <strong>💡 Key Point:</strong><br>
+            If price never touches your limit orders and keeps rising, you stay with just <strong>{entry1_pct:.0%}</strong> ({entry1_shares:,} shares).<br>
+            <em>Better to gain less than buy the top in a sideways market.</em>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ========== STRATEGY 3: ATR TRANCHES ==========
+    with tab3:
+        if recommended_strategy == 3:
+            st.success("✅ **RECOMMENDED** for current market conditions")
+
+        st.markdown("""
+        <div style='background: #f0fdf4; padding: 1rem; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 1rem;'>
+            <div style='font-weight: 600; color: #065f46; margin-bottom: 0.5rem;'>📊 The ATR Tranches Model (Volatility-Based)</div>
+            <div style='font-size: 0.9rem; color: #495057;'>
+                <strong>Best for:</strong> Data-driven traders who want mathematical precision<br>
+                <strong>Logic:</strong> Divide position into equal parts, scale in at volatility-based levels
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Calculate entry levels
+        tranche_pct = 1/3
+
+        tranche_a_dollars = position_dollars * tranche_pct
+        tranche_b_dollars = position_dollars * tranche_pct
+        tranche_c_dollars = position_dollars * tranche_pct
+
+        # ATR-based levels
+        tranche_a_price = current_price
+        tranche_b_price = current_price - (0.5 * atr_dollars)
+        tranche_c_price = current_price - (1.0 * atr_dollars)
+
+        tranche_a_shares = int(tranche_a_dollars / tranche_a_price)
+        tranche_b_shares = int(tranche_b_dollars / tranche_b_price)
+        tranche_c_shares = int(tranche_c_dollars / tranche_c_price)
+
+        tranche_b_pct_change = ((tranche_b_price - current_price) / current_price) * 100
+        tranche_c_pct_change = ((tranche_c_price - current_price) / current_price) * 100
+
+        # Display entry table
+        st.markdown("""
+        <div style='background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 1rem;'>
+        """, unsafe_allow_html=True)
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.markdown(f"""
+            <div style='text-align: center; padding: 1rem; background: #d1fae5; border-radius: 8px;'>
+                <div style='font-size: 0.8rem; color: #065f46; font-weight: 600; margin-bottom: 0.5rem;'>TRANCHE A</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #065f46;'>{tranche_pct:.1%}</div>
+                <div style='font-size: 1rem; color: #495057; margin-top: 0.5rem;'>${tranche_a_dollars:,.0f}</div>
+                <div style='font-size: 0.85rem; color: #6c757d;'>{tranche_a_shares:,} shares</div>
+                <div style='font-size: 0.9rem; color: #065f46; margin-top: 0.75rem; font-weight: 600;'>Market Order</div>
+                <div style='font-size: 0.8rem; color: #6c757d;'>@ ${tranche_a_price:.2f}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col2:
+            st.markdown(f"""
+            <div style='text-align: center; padding: 1rem; background: #a7f3d0; border-radius: 8px;'>
+                <div style='font-size: 0.8rem; color: #047857; font-weight: 600; margin-bottom: 0.5rem;'>TRANCHE B</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #047857;'>{tranche_pct:.1%}</div>
+                <div style='font-size: 1rem; color: #495057; margin-top: 0.5rem;'>${tranche_b_dollars:,.0f}</div>
+                <div style='font-size: 0.85rem; color: #6c757d;'>~{tranche_b_shares:,} shares</div>
+                <div style='font-size: 0.9rem; color: #047857; margin-top: 0.75rem; font-weight: 600;'>Limit -0.5 ATR</div>
+                <div style='font-size: 0.8rem; color: #6c757d;'>@ ${tranche_b_price:.2f} ({tranche_b_pct_change:+.1f}%)</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col3:
+            st.markdown(f"""
+            <div style='text-align: center; padding: 1rem; background: #6ee7b7; border-radius: 8px;'>
+                <div style='font-size: 0.8rem; color: #059669; font-weight: 600; margin-bottom: 0.5rem;'>TRANCHE C</div>
+                <div style='font-size: 1.8rem; font-weight: 700; color: #059669;'>{tranche_pct:.1%}</div>
+                <div style='font-size: 1rem; color: #495057; margin-top: 0.5rem;'>${tranche_c_dollars:,.0f}</div>
+                <div style='font-size: 0.85rem; color: #6c757d;'>~{tranche_c_shares:,} shares</div>
+                <div style='font-size: 0.9rem; color: #059669; margin-top: 0.75rem; font-weight: 600;'>Limit -1.0 ATR</div>
+                <div style='font-size: 0.8rem; color: #6c757d;'>@ ${tranche_c_price:.2f} ({tranche_c_pct_change:+.1f}%)</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Benefits
+        st.markdown(f"""
+        <div style='background: #ecfdf5; padding: 1rem; border-radius: 8px; border-left: 4px solid #10b981;'>
+            <strong>✅ Benefits:</strong><br>
+            • <strong>Lower average price</strong> if volatility continues<br>
+            • <strong>Mathematical discipline</strong> - no emotion<br>
+            • <strong>ATR-based levels</strong> - statistically significant support zones<br>
+            <br>
+            <strong>⚠️ Risk:</strong> If price drops below stop, all tranches close (unified stop loss)
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Summary comparison
+    st.markdown("---")
+    st.markdown("### 📋 Strategy Comparison Summary")
+
+    comparison_data = {
+        "Strategy": ["🔺 Pyramiding", "📉 Pullback Limit", "📊 ATR Tranches"],
+        "Best For": [
+            "Strong uptrends, momentum",
+            "Sideways/choppy markets",
+            "Volatility-based precision"
+        ],
+        "Initial Entry": ["50% NOW", "40% NOW", "33% NOW"],
+        "Risk": ["Medium", "Lower", "Medium-Low"],
+        "Complexity": ["Simple", "Medium", "Advanced"]
+    }
+
+    st.table(comparison_data)
+
+    # Final recommendation
+    rec_text = {
+        1: "**Pyramiding** is recommended given the strong trend and normal extension",
+        2: "**Pullback Limit** is recommended given the stretched extension or sideways market",
+        3: "**ATR Tranches** is recommended as a balanced mathematical approach"
+    }
+
+    st.info(f"💡 **System Recommendation:** {rec_text.get(recommended_strategy, 'Choose based on your risk tolerance')}")
+
+
 def get_market_regime_display(regime: str) -> str:
     """
     Get emoji and formatted display for market regime.
@@ -14013,6 +14355,31 @@ with tab8:
                                 execution_mode=final_action.get('execution', 'ENTER_NOW'),
                                 trigger_data=trigger_data
                             )
+
+                            # Display entry strategies (3 models)
+                            if current_price and current_price > 0:
+                                # Get ATR from stop_loss_data
+                                atr_14d_pct = stop_loss_data.get('atr_14d_pct') if stop_loss_data else None
+
+                                # Get final position dollars from pos_sizing
+                                conviction_scalar = pos_sizing.get('conviction_scalar', 0.5)
+                                position_pct = conviction_scalar * 10.0  # Max 10%
+                                position_dollars = portfolio_capital * (position_pct / 100)
+
+                                # Get market context
+                                trend_state = states_data.get('trend', 'UPTREND')
+                                extension_state = states_data.get('extension', 'NORMAL')
+                                market_regime = states_data.get('regime', 'SIDEWAYS')
+
+                                display_entry_strategies(
+                                    current_price=current_price,
+                                    atr_14d_pct=atr_14d_pct,
+                                    position_dollars=position_dollars,
+                                    selected_ticker=selected_ticker,
+                                    trend_state=trend_state,
+                                    extension_state=extension_state,
+                                    market_regime=market_regime
+                                )
                         else:
                             st.warning("No position sizing data available")
 
