@@ -3301,17 +3301,18 @@ def display_entry_strategies(current_price, atr_14d_pct=None, position_dollars=0
         market_regime: Market regime (BULL, SIDEWAYS, BEAR)
     """
     st.markdown("""
-    <div style='background: linear-gradient(to right, #f093fb, #f5576c); padding: 1rem;
-                border-radius: 8px; margin-bottom: 1rem; margin-top: 1.5rem;'>
-        <h3 style='margin: 0; color: white;'><i class="bi bi-pie-chart-fill"></i> Entry Strategy Models</h3>
-        <p style='margin: 0.25rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
-            3 Professional Approaches for Position Building
+    <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem;
+                border-radius: 10px; margin-bottom: 1.5rem; margin-top: 1.5rem;
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.25);'>
+        <h3 style='margin: 0; color: white; font-weight: 600; letter-spacing: 0.5px;'>Entry Strategy Models</h3>
+        <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.95; font-size: 0.95rem;'>
+            Professional Position Building Approaches
         </p>
     </div>
     """, unsafe_allow_html=True)
 
     if not current_price or current_price <= 0 or position_dollars <= 0:
-        st.warning("⚠️ Entry strategies require valid price and position size data")
+        st.warning("Entry strategies require valid price and position size data")
         return
 
     # Calculate ATR in dollars
@@ -3328,22 +3329,23 @@ def display_entry_strategies(current_price, atr_14d_pct=None, position_dollars=0
 
     # Create 3 tabs for the strategies
     tab1, tab2, tab3 = st.tabs([
-        "🔺 Pyramiding (Momentum)",
-        "📉 Pullback Limit (Defensive)",
-        "📊 ATR Tranches (Mathematical)"
+        "Strategy 1: Pyramiding",
+        "Strategy 2: Pullback Limit",
+        "Strategy 3: ATR Tranches"
     ])
 
     # ========== STRATEGY 1: PYRAMIDING ==========
     with tab1:
         if recommended_strategy == 1:
-            st.success("✅ **RECOMMENDED** for current market conditions")
+            st.info("**RECOMMENDED** for current market conditions")
 
         st.markdown("""
-        <div style='background: #f0f9ff; padding: 1rem; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 1rem;'>
-            <div style='font-weight: 600; color: #1e40af; margin-bottom: 0.5rem;'>📈 The Pyramiding Model (Trend Confirmation)</div>
-            <div style='font-size: 0.9rem; color: #495057;'>
+        <div style='background: #f8f9fa; padding: 1.25rem; border-radius: 8px; border-left: 4px solid #3b82f6; margin-bottom: 1.5rem;'>
+            <div style='font-weight: 600; color: #1e40af; margin-bottom: 0.75rem; font-size: 1.05rem;'>Pyramiding Model: Trend Confirmation</div>
+            <div style='font-size: 0.95rem; color: #495057; line-height: 1.6;'>
                 <strong>Best for:</strong> Strong uptrends with momentum<br>
-                <strong>Logic:</strong> "Add to winners" - If price rises, your thesis is confirmed and you increase exposure
+                <strong>Logic:</strong> Add to winners - If price rises, your thesis is confirmed and you increase exposure<br>
+                <strong>Allocation:</strong> 50% initial / 30% confirmation / 20% acceleration
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -3415,25 +3417,28 @@ def display_entry_strategies(current_price, atr_14d_pct=None, position_dollars=0
 
         # Risk management
         st.markdown(f"""
-        <div style='background: #fef3c7; padding: 1rem; border-radius: 8px; border-left: 4px solid #f59e0b;'>
-            <strong>🛡️ Stop Loss Management:</strong><br>
-            • Entry 1: Set initial stop loss<br>
-            • Entry 2: Move Entry 1 stop to <strong>Break Even</strong><br>
-            • Entry 3: Trail stops for all positions
+        <div style='background: #fff8e6; padding: 1.25rem; border-radius: 8px; border-left: 4px solid #f59e0b; margin-top: 1.5rem;'>
+            <strong style='color: #92400e; font-size: 1rem;'>Stop Loss Management Protocol</strong><br>
+            <div style='margin-top: 0.75rem; font-size: 0.95rem; color: #495057; line-height: 1.7;'>
+                • Entry 1: Set initial stop loss<br>
+                • Entry 2: Move Entry 1 stop to <strong>Break Even</strong><br>
+                • Entry 3: Trail stops for all positions
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
     # ========== STRATEGY 2: PULLBACK LIMIT ==========
     with tab2:
         if recommended_strategy == 2:
-            st.success("✅ **RECOMMENDED** for current market conditions")
+            st.info("**RECOMMENDED** for current market conditions")
 
         st.markdown("""
-        <div style='background: #fef3c7; padding: 1rem; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 1rem;'>
-            <div style='font-weight: 600; color: #92400e; margin-bottom: 0.5rem;'>📉 The Pullback Limit Model (Mean Reversion)</div>
-            <div style='font-size: 0.9rem; color: #495057;'>
+        <div style='background: #f8f9fa; padding: 1.25rem; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 1.5rem;'>
+            <div style='font-weight: 600; color: #92400e; margin-bottom: 0.75rem; font-size: 1.05rem;'>Pullback Limit Model: Mean Reversion</div>
+            <div style='font-size: 0.95rem; color: #495057; line-height: 1.6;'>
                 <strong>Best for:</strong> Sideways markets or stretched extensions<br>
-                <strong>Logic:</strong> Breakouts often fail in choppy markets - better to seek lower average price
+                <strong>Logic:</strong> Breakouts often fail in choppy markets - better to seek lower average price<br>
+                <strong>Allocation:</strong> 40% anchor / 30% pullback / 30% bounce
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -3503,24 +3508,27 @@ def display_entry_strategies(current_price, atr_14d_pct=None, position_dollars=0
 
         # Important note
         st.markdown(f"""
-        <div style='background: #dbeafe; padding: 1rem; border-radius: 8px; border-left: 4px solid #3b82f6;'>
-            <strong>💡 Key Point:</strong><br>
-            If price never touches your limit orders and keeps rising, you stay with just <strong>{entry1_pct:.0%}</strong> ({entry1_shares:,} shares).<br>
-            <em>Better to gain less than buy the top in a sideways market.</em>
+        <div style='background: #e8f4fd; padding: 1.25rem; border-radius: 8px; border-left: 4px solid #3b82f6; margin-top: 1.5rem;'>
+            <strong style='color: #1e40af; font-size: 1rem;'>Important Note</strong><br>
+            <div style='margin-top: 0.75rem; font-size: 0.95rem; color: #495057; line-height: 1.7;'>
+                If price never touches your limit orders and keeps rising, you stay with just <strong>{entry1_pct:.0%}</strong> ({entry1_shares:,} shares).<br>
+                Better to gain less than buy the top in a sideways market.
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
     # ========== STRATEGY 3: ATR TRANCHES ==========
     with tab3:
         if recommended_strategy == 3:
-            st.success("✅ **RECOMMENDED** for current market conditions")
+            st.info("**RECOMMENDED** for current market conditions")
 
         st.markdown("""
-        <div style='background: #f0fdf4; padding: 1rem; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 1rem;'>
-            <div style='font-weight: 600; color: #065f46; margin-bottom: 0.5rem;'>📊 The ATR Tranches Model (Volatility-Based)</div>
-            <div style='font-size: 0.9rem; color: #495057;'>
+        <div style='background: #f8f9fa; padding: 1.25rem; border-radius: 8px; border-left: 4px solid #10b981; margin-bottom: 1.5rem;'>
+            <div style='font-weight: 600; color: #065f46; margin-bottom: 0.75rem; font-size: 1.05rem;'>ATR Tranches Model: Volatility-Based</div>
+            <div style='font-size: 0.95rem; color: #495057; line-height: 1.6;'>
                 <strong>Best for:</strong> Data-driven traders who want mathematical precision<br>
-                <strong>Logic:</strong> Divide position into equal parts, scale in at volatility-based levels
+                <strong>Logic:</strong> Divide position into equal parts, scale in at volatility-based levels<br>
+                <strong>Allocation:</strong> 33.3% per tranche (equal distribution)
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -3591,29 +3599,32 @@ def display_entry_strategies(current_price, atr_14d_pct=None, position_dollars=0
 
         # Benefits
         st.markdown(f"""
-        <div style='background: #ecfdf5; padding: 1rem; border-radius: 8px; border-left: 4px solid #10b981;'>
-            <strong>✅ Benefits:</strong><br>
-            • <strong>Lower average price</strong> if volatility continues<br>
-            • <strong>Mathematical discipline</strong> - no emotion<br>
-            • <strong>ATR-based levels</strong> - statistically significant support zones<br>
-            <br>
-            <strong>⚠️ Risk:</strong> If price drops below stop, all tranches close (unified stop loss)
+        <div style='background: #f0fdf9; padding: 1.25rem; border-radius: 8px; border-left: 4px solid #10b981; margin-top: 1.5rem;'>
+            <strong style='color: #065f46; font-size: 1rem;'>Benefits and Risk Assessment</strong><br>
+            <div style='margin-top: 0.75rem; font-size: 0.95rem; color: #495057; line-height: 1.7;'>
+                <strong>Benefits:</strong><br>
+                • Lower average price if volatility continues<br>
+                • Mathematical discipline - eliminates emotional decision-making<br>
+                • ATR-based levels represent statistically significant support zones<br>
+                <br>
+                <strong>Risk:</strong> If price drops below stop loss, all tranches close (unified stop loss)
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
     # Summary comparison
     st.markdown("---")
-    st.markdown("### 📋 Strategy Comparison Summary")
+    st.markdown("### Strategy Comparison Summary")
 
     comparison_data = {
-        "Strategy": ["🔺 Pyramiding", "📉 Pullback Limit", "📊 ATR Tranches"],
+        "Strategy": ["Pyramiding", "Pullback Limit", "ATR Tranches"],
         "Best For": [
             "Strong uptrends, momentum",
             "Sideways/choppy markets",
             "Volatility-based precision"
         ],
         "Initial Entry": ["50% NOW", "40% NOW", "33% NOW"],
-        "Risk": ["Medium", "Lower", "Medium-Low"],
+        "Risk Profile": ["Medium", "Lower", "Medium-Low"],
         "Complexity": ["Simple", "Medium", "Advanced"]
     }
 
@@ -3626,7 +3637,7 @@ def display_entry_strategies(current_price, atr_14d_pct=None, position_dollars=0
         3: "**ATR Tranches** is recommended as a balanced mathematical approach"
     }
 
-    st.info(f"💡 **System Recommendation:** {rec_text.get(recommended_strategy, 'Choose based on your risk tolerance')}")
+    st.info(f"**System Recommendation:** {rec_text.get(recommended_strategy, 'Choose based on your risk tolerance')}")
 
 
 def get_market_regime_display(regime: str) -> str:
