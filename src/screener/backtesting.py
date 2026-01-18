@@ -61,19 +61,26 @@ class OverextensionBacktester:
 
             prices = hist_data['historical'][::-1]  # Chronological order
 
-            if len(prices) < 250:
-                return {'error': 'Insufficient data (need 250+ days)'}
+            # Reduced minimum for emerging markets with limited data availability
+            min_required = 90  # Allow analysis with ~4 months of data
+            if len(prices) < min_required:
+                return {'error': f'Insufficient data (need {min_required}+ days, got {len(prices)})'}
 
-            # Find all instances where stock was >40% above MA200
+            # Find all instances where stock was >40% above MA200 (or MA50 for limited data)
             overextension_instances = []
 
-            for i in range(250, len(prices)):
-                # Calculate MA200 at this point
-                ma_200 = sum(p['close'] for p in prices[i-200:i]) / 200
-                current_price = prices[i]['close']
-                distance_pct = ((current_price - ma_200) / ma_200 * 100)
+            # Use MA50 for datasets with <250 days (emerging markets)
+            use_ma50 = len(prices) < 250
+            ma_period = 50 if use_ma50 else 200
+            start_index = ma_period + 10  # Add buffer for MA calculation
 
-                # If overextended (>40% above MA200)
+            for i in range(start_index, len(prices)):
+                # Calculate MA (MA200 or MA50 depending on data availability)
+                ma_value = sum(p['close'] for p in prices[i-ma_period:i]) / ma_period
+                current_price = prices[i]['close']
+                distance_pct = ((current_price - ma_value) / ma_value * 100) if ma_value > 0 else 0
+
+                # If overextended (>40% above MA)
                 if distance_pct > 40:
                     # Look ahead to find correction
                     correction_found = False
@@ -87,8 +94,8 @@ class OverextensionBacktester:
                         if drawdown < max_correction:
                             max_correction = drawdown
 
-                        # Correction = pullback to MA200 or -15% drop
-                        if future_price <= ma_200 or drawdown <= -15:
+                        # Correction = pullback to MA or -15% drop
+                        if future_price <= ma_value or drawdown <= -15:
                             correction_found = True
                             days_to_correction = j - i
                             break
@@ -97,7 +104,7 @@ class OverextensionBacktester:
                         overextension_instances.append({
                             'date': prices[i]['date'],
                             'price': current_price,
-                            'ma_200': ma_200,
+                            'ma_200': ma_value,  # Store MA value (could be MA50 or MA200)
                             'distance_pct': distance_pct,
                             'correction_pct': max_correction,
                             'days_to_correction': days_to_correction if correction_found else None,

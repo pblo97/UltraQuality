@@ -14747,7 +14747,7 @@ with tab8:
                                 <div style='font-size: 0.95rem; opacity: 0.95;'>{}</div>
                             </div>
                             """.format(full_analysis['error']), unsafe_allow_html=True)
-                            st.caption("Common causes: API issues, insufficient historical data (<250 days), or missing API key")
+                            st.caption("Common causes: API issues, insufficient historical data (<90 days for emerging markets, <250 days for developed markets), or missing API key")
 
                         warnings = full_analysis.get('warnings', [])
                         if warnings:

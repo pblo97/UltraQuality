@@ -112,6 +112,22 @@ class TechnicalAnalyzerV2:
         'OVEREXTENDED': 0.2,
     }
 
+    # Emerging markets with limited data availability
+    EMERGING_MARKETS = {
+        # Asia-Pacific
+        'IN', 'ID', 'TH', 'MY', 'PH', 'VN', 'PK', 'BD',
+        # Latin America
+        'MX', 'BR', 'CL', 'AR', 'CO',
+        # Eastern Europe
+        'PL', 'CZ', 'HU', 'RU',
+        # Middle East & Africa
+        'ZA', 'EG', 'TR', 'SA', 'AE', 'QA'
+    }
+
+    # Minimum data requirements by market type
+    MIN_DAYS_DEVELOPED = 250  # ~12 months trading days
+    MIN_DAYS_EMERGING = 90    # ~4 months trading days (reduced for data availability)
+
     def __init__(self, fmp_client):
         """
         Args:
@@ -195,16 +211,22 @@ class TechnicalAnalyzerV2:
             logger.info(f"Analyzing {symbol} with TechnicalAnalyzerV2 (orthogonal)")
 
             # ========== STEP 1: Get price data ==========
-            # Need 300 days to ensure 252 trading days for 12-month RS calculation
-            from_date = self._get_from_date(days=365)  # Use 365 calendar days to get 252 trading days
+            # Determine minimum data requirements based on market
+            is_emerging = country in self.EMERGING_MARKETS
+            min_days_required = self.MIN_DAYS_EMERGING if is_emerging else self.MIN_DAYS_DEVELOPED
+            lookback_days = 150 if is_emerging else 365  # Reduced lookback for emerging markets
+
+            logger.info(f"Market type: {'Emerging' if is_emerging else 'Developed'} ({country}), min days: {min_days_required}")
+
+            from_date = self._get_from_date(days=lookback_days)
 
             price_data = self.fmp.get_historical_prices(symbol, from_date=from_date)
             if not price_data or 'historical' not in price_data:
                 return {'error': f'No price data returned for {symbol}'}
 
             prices = price_data.get('historical', [])
-            if not prices or len(prices) < 250:
-                return {'error': f'Insufficient price data for {symbol} (got {len(prices)} days, need 250+)'}
+            if not prices or len(prices) < min_days_required:
+                return {'error': f'Insufficient price data for {symbol} (got {len(prices)} days, need {min_days_required}+ for {country})'}
 
             # Sort by date descending (newest first) - FMP returns oldest first
             prices = sorted(prices, key=lambda x: x['date'], reverse=True)
