@@ -13558,11 +13558,12 @@ with tab8:
                 st.subheader("Detailed Analysis")
 
                 # Helper function: Unified recommendation logic
-                def calculate_final_action(fund_decision: str, conviction: float, extension: str, trend: str, tech_score: float = 0, regime_state: str = 'SIDEWAYS') -> dict:
+                def calculate_final_action(fund_decision: str, conviction: float, extension: str, trend: str, tech_score: float = 0, regime_state: str = 'SIDEWAYS', environment: dict = None, hierarchical_signal: dict = None) -> dict:
                     """
                     Single source of truth for recommendation.
 
                     Gating rules (in order):
+                    0. ENVIRONMENT VETO → AVOID (hierarchical regime veto) [NEW]
                     1. DOWNTREND → AVOID (structure veto)
                     2. conviction < 0.30 → MONITOR/NO_ENTRY (conviction veto)
                     3. extension in STRETCHED/OVEREXTENDED → WAIT_PULLBACK (timing veto)
@@ -13577,6 +13578,28 @@ with tab8:
                             'execution': 'ENTER_NOW' | 'WAIT_TRIGGER' | 'NO_ENTRY'
                         }
                     """
+                    # Kill switch #0: ENVIRONMENT VETO (hierarchical regime system)
+                    if environment and not environment.get('can_trade', True):
+                        vetoes = environment.get('vetoes', [])
+                        veto_reason = vetoes[0] if vetoes else 'Environment veto active'
+                        return {
+                            'action': 'AVOID',
+                            'label': 'AVOID - Environment Veto',
+                            'color': '#dc3545',
+                            'reason': f'🚨 {veto_reason}',
+                            'execution': 'NO_ENTRY'
+                        }
+
+                    # Use hierarchical signal if available and it says AVOID
+                    if hierarchical_signal and hierarchical_signal.get('signal') == 'AVOID':
+                        return {
+                            'action': 'AVOID',
+                            'label': 'AVOID - Regime Block',
+                            'color': '#dc3545',
+                            'reason': hierarchical_signal.get('reason', 'Hierarchical regime block'),
+                            'execution': 'NO_ENTRY'
+                        }
+
                     # Kill switch #1: DOWNTREND vetos all
                     if trend == 'DOWNTREND':
                         return {
@@ -13759,8 +13782,16 @@ with tab8:
                             tech_score = stock_data.get('technical_score', 0)
                             regime_state = stock_data.get('regime_state', 'SIDEWAYS')
 
-                            # Calculate final action using unified logic
-                            final_action = calculate_final_action(fund_signal, conviction, extension, trend, tech_score, regime_state)
+                            # Get hierarchical environment and signal from full_analysis
+                            environment_data = full_analysis.get('environment', {})
+                            hierarchical_signal = full_analysis.get('signal', {})
+
+                            # Calculate final action using unified logic with hierarchical regime
+                            final_action = calculate_final_action(
+                                fund_signal, conviction, extension, trend, tech_score, regime_state,
+                                environment=environment_data,
+                                hierarchical_signal=hierarchical_signal
+                            )
 
                             # Display badge based on final_action
                             if final_action['action'] == 'STRONG_BUY':
