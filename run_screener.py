@@ -14281,46 +14281,31 @@ with tab8:
                                 if env_vetoes:
                                     for veto in env_vetoes:
                                         st.markdown(f"""
-                                        <div style='background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-                                                    padding: 0.75rem 1rem; border-radius: 8px;
-                                                    border-left: 4px solid #dc3545; margin-top: 0.5rem;
-                                                    display: flex; align-items: center; gap: 0.5rem;'>
-                                            <span style='font-size: 1.2rem;'>🚫</span>
-                                            <div>
-                                                <div style='font-size: 0.75rem; color: #721c24; font-weight: 600; text-transform: uppercase;'>Environment Veto</div>
-                                                <div style='font-size: 0.9rem; color: #721c24;'>{veto}</div>
-                                            </div>
+                                        <div style='background: #f8d7da; padding: 0.6rem 0.9rem; border-radius: 6px;
+                                                    border-left: 3px solid #dc3545; margin-top: 0.5rem;'>
+                                            <div style='font-size: 0.65rem; color: #721c24; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.15rem;'>VETO</div>
+                                            <div style='font-size: 0.8rem; color: #721c24;'>{veto}</div>
                                         </div>
                                         """, unsafe_allow_html=True)
                                 elif env_warnings:
                                     for warning in env_warnings:
-                                        # Determine icon and color based on warning type
+                                        # Determine label based on warning type
                                         if 'Sector' in warning or 'sector' in warning:
-                                            icon = '📊'
-                                            label = 'Sector Alert'
+                                            label = 'SECTOR'
                                         elif 'Breadth' in warning or 'breadth' in warning:
-                                            icon = '📉'
-                                            label = 'Breadth Alert'
+                                            label = 'BREADTH'
                                         elif 'Drawdown' in warning:
-                                            icon = '⚡'
-                                            label = 'Risk Alert'
+                                            label = 'RISK'
                                         elif 'Fatigue' in warning:
-                                            icon = '🔋'
-                                            label = 'Fatigue Alert'
+                                            label = 'FATIGUE'
                                         else:
-                                            icon = '⚠️'
-                                            label = 'Environment'
+                                            label = 'ENVIRONMENT'
 
                                         st.markdown(f"""
-                                        <div style='background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
-                                                    padding: 0.75rem 1rem; border-radius: 8px;
-                                                    border-left: 4px solid #ffc107; margin-top: 0.5rem;
-                                                    display: flex; align-items: center; gap: 0.5rem;'>
-                                            <span style='font-size: 1.2rem;'>{icon}</span>
-                                            <div>
-                                                <div style='font-size: 0.7rem; color: #856404; font-weight: 600; text-transform: uppercase;'>{label}</div>
-                                                <div style='font-size: 0.85rem; color: #856404;'>{warning}</div>
-                                            </div>
+                                        <div style='background: #fff3cd; padding: 0.6rem 0.9rem; border-radius: 6px;
+                                                    border-left: 3px solid #ffc107; margin-top: 0.5rem;'>
+                                            <div style='font-size: 0.65rem; color: #856404; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.15rem;'>{label}</div>
+                                            <div style='font-size: 0.8rem; color: #856404;'>{warning}</div>
                                         </div>
                                         """, unsafe_allow_html=True)
 
