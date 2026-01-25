@@ -53,6 +53,14 @@ import logging
 import statistics
 import numpy as np
 
+from .market_regime import (
+    MarketRegimeSystem,
+    GlobalRegime,
+    BreadthState,
+    RegionalRegime,
+    SectorRegime
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -97,11 +105,15 @@ class TechnicalAnalyzerV2:
         'OVEREXTENDED': 100,  # > 55%
     }
 
-    # Regime factors for position sizing
+    # Regime factors for position sizing (updated for hierarchical system)
     REGIME_FACTORS = {
         'BULL': 1.0,
+        'GLOBAL_BULL': 1.0,
         'SIDEWAYS': 0.75,
+        'AMBIGUOUS': 0.7,
+        'GLOBAL_AMBIGUOUS': 0.7,
         'BEAR': 0.5,
+        'GLOBAL_BEAR': 0.0,  # Kill switch
     }
 
     # Extension factors for position sizing
@@ -136,6 +148,8 @@ class TechnicalAnalyzerV2:
         self.fmp = fmp_client
         self._market_regime_cache = None
         self._market_regime_timestamp = None
+        # Hierarchical Market Regime System
+        self.regime_system = MarketRegimeSystem(fmp_client)
 
     def _get_from_date(self, days: int) -> str:
         """
@@ -267,11 +281,18 @@ class TechnicalAnalyzerV2:
             distance_ma200 = ((current_price - ma_200) / ma_200 * 100) if ma_200 > 0 else 0
             extension_state = self._classify_extension_state(distance_ma200)
 
-            # Market Regime
-            regime_state, regime_data = self._detect_market_regime()
+            # Market Regime (hierarchical system)
+            regime_state, regime_data = self._detect_market_regime(country=country, sector=sector)
 
             # Trend State
             trend_state = trend_data['trend_state']
+
+            # ========== STEP 4b: Environment Multiplier (CAPA 7) ==========
+            # Calculate hierarchical environment adjustment
+            environment_multiplier = self.regime_system.calculate_environment_multiplier(
+                country=country,
+                sector=sector
+            )
 
             # ========== STEP 5: Calculate Conviction ==========
             # Get volume profile from volume component
@@ -281,9 +302,19 @@ class TechnicalAnalyzerV2:
                 tech_score=total_score,
                 regime_state=regime_state,
                 extension_state=extension_state,
-                volume_profile=volume_profile
+                volume_profile=volume_profile,
+                environment_multiplier=environment_multiplier
             )
             conviction = conviction_result['conviction']
+
+            # ========== STEP 5b: Generate Signal (CAPA 8) ==========
+            signal_result = self._generate_signal(
+                total_score=total_score,
+                conviction=conviction,
+                regime_state=regime_state,
+                trend_state=trend_state,
+                environment_multiplier=environment_multiplier
+            )
 
             # ========== STEP 6: Position Sizing ==========
             atr_14 = self._calculate_atr(prices, period=14)
@@ -319,7 +350,8 @@ class TechnicalAnalyzerV2:
                 trend_state=trend_state,
                 conviction=conviction,
                 distance_ma200=distance_ma200,
-                risk_data=risk_data
+                risk_data=risk_data,
+                environment_multiplier=environment_multiplier
             )
 
             # ========== STEP 9: Return comprehensive analysis ==========
@@ -342,8 +374,16 @@ class TechnicalAnalyzerV2:
                     'regime': regime_state,
                     'trend': trend_state
                 },
+                'signal': signal_result,  # CAPA 8: Signal generation
                 'conviction': round(conviction, 3),
                 'conviction_breakdown': conviction_result,  # Include full breakdown
+                'environment': {
+                    'can_trade': environment_multiplier['can_trade'],
+                    'multiplier': environment_multiplier['final_multiplier'],
+                    'vetoes': environment_multiplier['vetoes'],
+                    'warnings': environment_multiplier['warnings'],
+                    'components': environment_multiplier['components']
+                },
                 'volume_profile': volume_profile,  # Make available at top level
                 'position_sizing': position_sizing,
                 'stop_loss': stop_loss,
@@ -351,10 +391,11 @@ class TechnicalAnalyzerV2:
                 'metadata': {
                     'symbol': symbol,
                     'sector': sector,
+                    'country': country,
                     'current_price': current_price,
                     'distance_ma200_pct': round(distance_ma200, 1),
                     'regime_data': regime_data,
-                    'analysis_version': 'V2_ORTHOGONAL_INTEGRATED_CONVICTION'
+                    'analysis_version': 'V2_HIERARCHICAL_REGIME'
                 }
             }
 
@@ -850,60 +891,91 @@ class TechnicalAnalyzerV2:
         else:
             return 'OVEREXTENDED'
 
-    def _detect_market_regime(self) -> Tuple[str, Dict]:
+    def _detect_market_regime(self, country: str = 'USA', sector: str = None) -> Tuple[str, Dict]:
         """
-        Detect market regime: BULL / SIDEWAYS / BEAR
+        Detect market regime using hierarchical system.
 
-        Uses SPY vs MA200 and VIX levels.
+        Uses cross-market alignment (not just SPY):
+        - SPY > MA200 (+1)
+        - FEZ > MA200 (+1)
+        - EEM > MA200 (+1)
+        - SPY momentum 3-6M > 0 (+1)
+        - VIX < 25 (+1)
+
+        Score 4-5: GLOBAL_BULL
+        Score 2-3: GLOBAL_AMBIGUOUS
+        Score 0-1: GLOBAL_BEAR
+
         Cached for 6 hours.
         """
         try:
-            # Check cache (6 hour expiry)
-            now = datetime.now()
-            if (self._market_regime_cache and self._market_regime_timestamp and
-                (now - self._market_regime_timestamp).total_seconds() < 6 * 3600):
-                return self._market_regime_cache, {}
+            # Get full hierarchical regime analysis
+            global_regime = self.regime_system.get_global_regime()
 
-            # Get SPY and VIX data
-            from_date = self._get_from_date(days=250)  # 250 calendar days for ~200 trading days
-            spy_data = self.fmp.get_historical_prices('SPY', from_date=from_date)
-            vix_data = self.fmp.get_quote('^VIX')
-
-            if not spy_data or 'historical' not in spy_data:
-                return 'SIDEWAYS', {}
-
-            spy_prices = sorted(spy_data.get('historical', []), key=lambda x: x['date'], reverse=True)
-            if not spy_prices or len(spy_prices) < 200:
-                return 'SIDEWAYS', {}
-
-            spy_price = spy_prices[0]['close']
-            spy_ma200 = statistics.mean(p['close'] for p in spy_prices[:200])
-            spy_vs_ma200 = ((spy_price - spy_ma200) / spy_ma200 * 100) if spy_ma200 > 0 else 0
-
-            vix = vix_data[0]['price'] if vix_data else 20
-
-            # Regime logic
-            if spy_price > spy_ma200 and vix < 20:
+            # Map to legacy format for backwards compatibility
+            regime_enum = global_regime['regime']
+            if regime_enum == GlobalRegime.BULL:
                 regime = 'BULL'
-            elif spy_price < spy_ma200 and vix > 30:
+            elif regime_enum == GlobalRegime.BEAR:
                 regime = 'BEAR'
             else:
-                regime = 'SIDEWAYS'
+                regime = 'AMBIGUOUS'  # Replaces SIDEWAYS
 
-            # Cache result
-            self._market_regime_cache = regime
-            self._market_regime_timestamp = now
-
-            return regime, {
-                'spy_price': round(spy_price, 2),
-                'spy_ma200': round(spy_ma200, 2),
-                'spy_vs_ma200_pct': round(spy_vs_ma200, 1),
-                'vix': round(vix, 1)
+            # Build detailed regime data
+            regime_data = {
+                'global_regime': regime_enum.value,
+                'alignment_score': global_regime['alignment_score'],
+                'max_score': global_regime['max_score'],
+                'components': global_regime['components'],
             }
+
+            # Add SPY details for compatibility
+            spy_details = global_regime.get('details', {}).get('spy', {})
+            if spy_details:
+                regime_data['spy_price'] = spy_details.get('price')
+                regime_data['spy_ma200'] = spy_details.get('ma200')
+                regime_data['spy_vs_ma200_pct'] = spy_details.get('distance_pct')
+
+            vix_details = global_regime.get('details', {}).get('vix', {})
+            if vix_details:
+                regime_data['vix'] = vix_details.get('value')
+
+            # Add regional regime if country specified
+            if country:
+                regional = self.regime_system.get_regional_regime(country)
+                regime_data['regional'] = {
+                    'regime': regional['regime'].value,
+                    'region': regional['region'],
+                    'above_ma200': regional['above_ma200']
+                }
+
+            # Add sector regime if specified
+            if sector:
+                sector_regime = self.regime_system.get_sector_regime(sector)
+                regime_data['sector'] = {
+                    'regime': sector_regime['regime'].value,
+                    'conditions': sector_regime['conditions'],
+                    'all_conditions_met': sector_regime['all_conditions_met']
+                }
+
+            # Add breadth
+            breadth = self.regime_system.get_global_breadth()
+            regime_data['breadth'] = {
+                'state': breadth['state'].value,
+                'pct': breadth['breadth_pct'],
+                'sectors_above': breadth['sectors_above_ma200'],
+                'total': breadth['total_sectors']
+            }
+
+            # Add market context
+            context = self.regime_system.get_market_context()
+            regime_data['context'] = context
+
+            return regime, regime_data
 
         except Exception as e:
             logger.warning(f"Error detecting market regime: {e}")
-            return 'SIDEWAYS', {}
+            return 'AMBIGUOUS', {'error': str(e)}
 
     # ============================================================================
     # CONVICTION & POSITION SIZING
@@ -914,19 +986,21 @@ class TechnicalAnalyzerV2:
         tech_score: float,
         regime_state: str,
         extension_state: str,
-        volume_profile: str
+        volume_profile: str,
+        environment_multiplier: Dict = None
     ) -> Dict:
         """
-        Calculate conviction with integrated factors: setup × market × timing × data.
+        Calculate conviction with integrated factors: setup × market × timing × data × environment.
 
-        Formula:
-        conviction = f(tech_score) × market_factor × timing_factor × data_factor
+        CAPA 7: Ajuste de Convicción por Entorno
+        final_score = raw_score × regime_mult × breadth_mult × drawdown_mult × sector_mult
 
         Args:
             tech_score: Technical score (0-100)
-            regime_state: BULL/SIDEWAYS/BEAR
+            regime_state: BULL/AMBIGUOUS/BEAR
             extension_state: NORMAL/EXTENDED/STRETCHED/OVEREXTENDED
             volume_profile: ACCUMULATION/NEUTRAL/DISTRIBUTION/UNKNOWN
+            environment_multiplier: Dict from MarketRegimeSystem.calculate_environment_multiplier()
 
         Returns:
             Dict with conviction and factors breakdown
@@ -935,7 +1009,7 @@ class TechnicalAnalyzerV2:
         setup_strength = (tech_score - 60) / 30
         setup_strength = max(0.0, min(1.0, setup_strength))
 
-        # 2. Market factor
+        # 2. Market factor (from hierarchical regime)
         market_factor = self.REGIME_FACTORS.get(regime_state, 0.7)
 
         # 3. Timing factor (by extension)
@@ -948,13 +1022,23 @@ class TechnicalAnalyzerV2:
         timing_factor = timing_factors.get(extension_state, 0.8)
 
         # 4. Data quality factor
-        # Start at 1.0, reduce for missing data
         data_factor = 1.0
         if volume_profile == 'UNKNOWN':
             data_factor *= 0.85  # 15% reduction for missing volume
 
-        # Final conviction
-        final_conviction = setup_strength * market_factor * timing_factor * data_factor
+        # 5. Environment factor (CAPA 7 - NEW)
+        # Incorporates: regime, breadth, drawdown, sector
+        if environment_multiplier and environment_multiplier.get('final_multiplier') is not None:
+            env_factor = environment_multiplier['final_multiplier']
+            env_components = environment_multiplier.get('components', {})
+        else:
+            env_factor = 1.0
+            env_components = {}
+
+        # Final conviction = setup × timing × data × environment
+        # Note: market_factor is now embedded in env_factor via regime_multiplier
+        # We keep it separate for backwards compatibility in breakdown
+        final_conviction = setup_strength * timing_factor * data_factor * env_factor
         final_conviction = max(0.0, min(1.0, final_conviction))
 
         return {
@@ -962,7 +1046,9 @@ class TechnicalAnalyzerV2:
             'setup_strength': round(setup_strength, 3),
             'market_factor': round(market_factor, 2),
             'timing_factor': round(timing_factor, 2),
-            'data_factor': round(data_factor, 2)
+            'data_factor': round(data_factor, 2),
+            'environment_factor': round(env_factor, 3),
+            'environment_components': env_components
         }
 
     def _calculate_position_size(
@@ -1112,14 +1198,35 @@ class TechnicalAnalyzerV2:
         trend_state: str,
         conviction: float,
         distance_ma200: float,
-        risk_data: Dict
+        risk_data: Dict,
+        environment_multiplier: Dict = None
     ) -> List[Dict]:
         """
-        Generate warnings for V2 system.
+        Generate warnings for V2 system with hierarchical regime integration.
 
-        Focus on actionable insights, not redundant momentum warnings.
+        Focus on actionable insights from the 8-layer architecture.
         """
         warnings = []
+
+        # ========== ENVIRONMENT VETOES (CAPA 0-5) ==========
+        if environment_multiplier:
+            # Add vetoes as CRITICAL warnings
+            for veto in environment_multiplier.get('vetoes', []):
+                warnings.append({
+                    'type': 'CRITICAL',
+                    'category': 'ENVIRONMENT',
+                    'message': f'🚨 VETO: {veto}',
+                    'action': 'NO new entries allowed. Wait for conditions to improve.'
+                })
+
+            # Add environment warnings as HIGH/MEDIUM
+            for env_warning in environment_multiplier.get('warnings', []):
+                warnings.append({
+                    'type': 'HIGH',
+                    'category': 'ENVIRONMENT',
+                    'message': f'⚠️ {env_warning}',
+                    'action': 'Adjust position size according to environment multiplier.'
+                })
 
         # CRITICAL: DOWNTREND veto
         if trend_state == 'DOWNTREND':
@@ -1194,4 +1301,165 @@ class TechnicalAnalyzerV2:
                 'action': 'Reduce position size (40% of normal). Tight stops. Be ready to exit.'
             })
 
+        # INFO: AMBIGUOUS market context (replaces SIDEWAYS)
+        if regime_state == 'AMBIGUOUS':
+            if total_score >= 90:
+                warnings.append({
+                    'type': 'INFO',
+                    'category': 'REGIME',
+                    'message': f'AMBIGUOUS regime. Exceptional setup (score {total_score:.0f}) may proceed with caution.',
+                    'action': 'Small position only (20-30% normal). Sector must be leading.'
+                })
+            else:
+                warnings.append({
+                    'type': 'MEDIUM',
+                    'category': 'REGIME',
+                    'message': f'AMBIGUOUS regime. Score {total_score:.0f} below 90 threshold.',
+                    'action': 'HOLD - Wait for clearer market alignment or exceptional setup.'
+                })
+
         return warnings
+
+    # ============================================================================
+    # CAPA 8: SIGNAL GENERATION
+    # ============================================================================
+
+    def _generate_signal(
+        self,
+        total_score: float,
+        conviction: float,
+        regime_state: str,
+        trend_state: str,
+        environment_multiplier: Dict
+    ) -> Dict:
+        """
+        CAPA 8: Generate trading signal based on hierarchical rules.
+
+        Rules (hard):
+        - if GLOBAL_AMBIGUOUS and final_score < 90: HOLD
+        - if GLOBAL_BULL and final_score >= 80: BUY
+        - if any veto active: HOLD (or AVOID)
+
+        Returns:
+            {
+                'signal': 'BUY'|'HOLD'|'AVOID',
+                'reason': str,
+                'min_score_required': int,
+                'can_enter': bool,
+                'position_size_pct': int
+            }
+        """
+        vetoes = environment_multiplier.get('vetoes', [])
+        can_trade = environment_multiplier.get('can_trade', True)
+        env_mult = environment_multiplier.get('final_multiplier', 1.0)
+
+        # Default result
+        result = {
+            'signal': 'HOLD',
+            'reason': 'Default HOLD',
+            'min_score_required': 75,
+            'can_enter': False,
+            'position_size_pct': 0
+        }
+
+        # Rule 1: Any veto active -> AVOID
+        if vetoes or not can_trade:
+            result = {
+                'signal': 'AVOID',
+                'reason': f"Environment veto: {vetoes[0] if vetoes else 'No trade allowed'}",
+                'min_score_required': 999,  # Impossible
+                'can_enter': False,
+                'position_size_pct': 0
+            }
+            return result
+
+        # Rule 2: DOWNTREND -> AVOID
+        if trend_state == 'DOWNTREND':
+            result = {
+                'signal': 'AVOID',
+                'reason': 'DOWNTREND detected - broken structure',
+                'min_score_required': 999,
+                'can_enter': False,
+                'position_size_pct': 0
+            }
+            return result
+
+        # Rule 3: BEAR market -> AVOID (should be caught by veto, but safety)
+        if regime_state == 'BEAR':
+            result = {
+                'signal': 'AVOID',
+                'reason': 'BEAR market regime - Kill Switch active',
+                'min_score_required': 999,
+                'can_enter': False,
+                'position_size_pct': 0
+            }
+            return result
+
+        # Rule 4: AMBIGUOUS regime
+        if regime_state == 'AMBIGUOUS':
+            min_score = 90  # Very high bar
+            if total_score >= min_score:
+                result = {
+                    'signal': 'BUY',
+                    'reason': f'Exceptional setup in AMBIGUOUS regime (score {total_score:.0f} >= {min_score})',
+                    'min_score_required': min_score,
+                    'can_enter': True,
+                    'position_size_pct': int(30 * env_mult)  # Small position
+                }
+            else:
+                result = {
+                    'signal': 'HOLD',
+                    'reason': f'AMBIGUOUS regime requires score >= {min_score} (got {total_score:.0f})',
+                    'min_score_required': min_score,
+                    'can_enter': False,
+                    'position_size_pct': 0
+                }
+            return result
+
+        # Rule 5: BULL regime - normal thresholds
+        if regime_state == 'BULL':
+            # Adjust threshold based on conviction
+            if conviction >= 0.7:
+                min_score = 75
+            elif conviction >= 0.5:
+                min_score = 80
+            else:
+                min_score = 85
+
+            if total_score >= min_score:
+                result = {
+                    'signal': 'BUY',
+                    'reason': f'BULL regime + score {total_score:.0f} >= {min_score}',
+                    'min_score_required': min_score,
+                    'can_enter': True,
+                    'position_size_pct': int(100 * env_mult)
+                }
+            else:
+                result = {
+                    'signal': 'HOLD',
+                    'reason': f'Score {total_score:.0f} below threshold {min_score} for current conviction',
+                    'min_score_required': min_score,
+                    'can_enter': False,
+                    'position_size_pct': 0
+                }
+            return result
+
+        # Fallback for UPTREND without clear regime
+        if trend_state == 'UPTREND' and total_score >= 80:
+            result = {
+                'signal': 'BUY',
+                'reason': f'UPTREND + score {total_score:.0f} >= 80',
+                'min_score_required': 80,
+                'can_enter': True,
+                'position_size_pct': int(60 * env_mult)
+            }
+        else:
+            result = {
+                'signal': 'HOLD',
+                'reason': f'Waiting for better setup (score: {total_score:.0f}, trend: {trend_state})',
+                'min_score_required': 80,
+                'can_enter': False,
+                'position_size_pct': 0
+            }
+
+        return result
