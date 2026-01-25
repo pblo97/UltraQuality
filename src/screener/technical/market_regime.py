@@ -699,6 +699,111 @@ class MarketRegimeSystem:
         self._cache[cache_key] = result
         return result
 
+    def get_sector_breadth(self, sector: str) -> Dict:
+        """
+        CAPA 4b: Breadth Sectorial.
+
+        Calcula el breadth dentro de un sector usando sub-ETFs.
+
+        Args:
+            sector: Sector name (Technology, Healthcare, etc.)
+
+        Returns:
+            {
+                'state': BreadthState,
+                'sub_etfs_above': int,
+                'total_sub_etfs': int,
+                'breadth_pct': float,
+                'details': {...}
+            }
+        """
+        # Sub-ETFs por sector (subsectores/industrias)
+        SECTOR_SUB_ETFS = {
+            'Technology': ['SOXX', 'IGV', 'SKYY', 'HACK', 'FINX'],  # Semis, Software, Cloud, Cyber, Fintech
+            'Healthcare': ['IBB', 'XBI', 'IHI', 'XHS'],  # Biotech, Biotech Small, Devices, Services
+            'Financials': ['KBE', 'KIE', 'KRE', 'IAK'],  # Banks, Insurance, Regional Banks, Insurance
+            'Consumer Cyclical': ['XRT', 'XHB', 'IBUY', 'PEJ'],  # Retail, Homebuilders, Online Retail, Leisure
+            'Consumer Defensive': ['PBJ', 'FXG'],  # Food & Bev, Staples
+            'Energy': ['XOP', 'OIH', 'AMLP'],  # E&P, Oil Services, MLPs
+            'Industrials': ['ITA', 'XAR', 'JETS'],  # Aerospace, Aerospace/Defense, Airlines
+            'Basic Materials': ['GDX', 'SLV', 'COPX'],  # Gold Miners, Silver, Copper
+            'Communication Services': ['SOCL', 'NXTG'],  # Social Media, NextGen Comm
+            'Utilities': ['TAN', 'FAN', 'NLR'],  # Solar, Wind, Nuclear
+            'Real Estate': ['VNQ', 'MORT', 'REM'],  # REITs, Mortgage REITs, Mortgage
+        }
+
+        # Aliases
+        SECTOR_SUB_ETFS['Information Technology'] = SECTOR_SUB_ETFS['Technology']
+        SECTOR_SUB_ETFS['Health Care'] = SECTOR_SUB_ETFS['Healthcare']
+
+        cache_key = f'sector_breadth_{sector}'
+        if self._is_cache_valid() and cache_key in self._cache:
+            return self._cache[cache_key]
+
+        sub_etfs = SECTOR_SUB_ETFS.get(sector, [])
+        if not sub_etfs:
+            return {
+                'state': BreadthState.MIXED,
+                'sub_etfs_above': 0,
+                'total_sub_etfs': 0,
+                'breadth_pct': 50.0,
+                'details': {},
+                'note': f'No sub-ETFs defined for {sector}'
+            }
+
+        above_count = 0
+        total_count = 0
+        details = {}
+
+        for etf in sub_etfs:
+            try:
+                prices = self._get_price_data(etf, days=300)
+                if prices and len(prices) >= 200:
+                    current = prices[0]['close']
+                    ma200 = self._calculate_ma(prices, 200)
+                    above = current > ma200 if ma200 else False
+
+                    total_count += 1
+                    if above:
+                        above_count += 1
+
+                    details[etf] = {
+                        'above_ma200': above,
+                        'distance_pct': round(((current - ma200) / ma200 * 100), 1) if ma200 else None
+                    }
+            except Exception as e:
+                logger.warning(f"Error analyzing sector breadth ETF {etf}: {e}")
+
+        if total_count == 0:
+            return {
+                'state': BreadthState.MIXED,
+                'sub_etfs_above': 0,
+                'total_sub_etfs': 0,
+                'breadth_pct': 50.0,
+                'details': {},
+                'note': f'No data available for {sector} sub-ETFs'
+            }
+
+        breadth_pct = (above_count / total_count) * 100
+
+        if breadth_pct >= self.BREADTH_POSITIVE_THRESHOLD:
+            state = BreadthState.POSITIVE
+        elif breadth_pct < self.BREADTH_NEGATIVE_THRESHOLD:
+            state = BreadthState.NEGATIVE
+        else:
+            state = BreadthState.MIXED
+
+        result = {
+            'state': state,
+            'sub_etfs_above': above_count,
+            'total_sub_etfs': total_count,
+            'breadth_pct': round(breadth_pct, 1),
+            'details': details
+        }
+
+        self._cache[cache_key] = result
+        return result
+
     # ============================================================================
     # CAPA 5: CONTEXTO DE MERCADO (Drawdown, Fatiga)
     # ============================================================================
@@ -848,11 +953,19 @@ class MarketRegimeSystem:
         if global_regime['regime'] == GlobalRegime.AMBIGUOUS:
             warnings.append(f"Global Ambiguous (alignment={global_regime['alignment_score']}/5): Higher thresholds required")
 
-        # CAPA 2: Regional Regime (only blocks if BEAR and global is not BULL)
+        # CAPA 2: Regional Regime
+        # Rule: Regional BEAR only blocks if Global is also BEAR
+        # If Global is AMBIGUOUS, regional BEAR becomes a warning, not a veto
         regional = self.get_regional_regime(country)
-        if regional['regime'] == RegionalRegime.BEAR and global_regime['regime'] != GlobalRegime.BULL:
-            vetoes.append(f"Regional Bear Market ({regional['region']})")
-            components['regional_veto'] = True
+        if regional['regime'] == RegionalRegime.BEAR:
+            if global_regime['regime'] == GlobalRegime.BEAR:
+                # Both global and regional are BEAR → hard veto
+                vetoes.append(f"Regional Bear Market ({regional['region']})")
+                components['regional_veto'] = True
+            elif global_regime['regime'] == GlobalRegime.AMBIGUOUS:
+                # Global AMBIGUOUS + Regional BEAR → warning only (not veto)
+                warnings.append(f"Regional weakness ({regional['region']}): Extra caution advised")
+                components['regional_warning'] = True
 
         # CAPA 4: Breadth
         breadth = self.get_global_breadth()
@@ -900,6 +1013,20 @@ class MarketRegimeSystem:
                 failed_conditions = [k for k, v in sector_regime['conditions'].items() if v is False]
                 if failed_conditions:
                     warnings.append(f"Sector conditions not met: {', '.join(failed_conditions)}")
+
+            # CAPA 4b: Sector Breadth
+            sector_breadth = self.get_sector_breadth(sector)
+            if sector_breadth['total_sub_etfs'] > 0:
+                components['sector_breadth'] = {
+                    'state': sector_breadth['state'].value,
+                    'pct': sector_breadth['breadth_pct']
+                }
+                if sector_breadth['state'] == BreadthState.NEGATIVE:
+                    sector_mult *= 0.7
+                    warnings.append(f"Sector breadth weak ({sector}): {sector_breadth['breadth_pct']:.0f}% sub-industries above MA200")
+                elif sector_breadth['state'] == BreadthState.MIXED:
+                    sector_mult *= 0.85
+                    warnings.append(f"Sector breadth mixed ({sector}): {sector_breadth['breadth_pct']:.0f}%")
 
         components['sector_multiplier'] = sector_mult
 
