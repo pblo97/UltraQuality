@@ -14279,23 +14279,35 @@ with tab8:
 
                                 # Show environment vetoes/warnings if any
                                 if env_vetoes:
-                                    st.markdown(f"""
-                                    <div style='background: #f8d7da; padding: 0.75rem; border-radius: 6px;
-                                                border-left: 4px solid #dc3545; margin-top: 0.5rem;'>
-                                        <div style='font-size: 0.85rem; color: #721c24; font-weight: 600;'>
-                                            🚨 Environment Veto: {env_vetoes[0]}
+                                    for veto in env_vetoes:
+                                        st.markdown(f"""
+                                        <div style='background: #f8d7da; padding: 0.6rem 0.9rem; border-radius: 6px;
+                                                    border-left: 3px solid #dc3545; margin-top: 0.5rem;'>
+                                            <div style='font-size: 0.65rem; color: #721c24; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.15rem;'>VETO</div>
+                                            <div style='font-size: 0.8rem; color: #721c24;'>{veto}</div>
                                         </div>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                        """, unsafe_allow_html=True)
                                 elif env_warnings:
-                                    st.markdown(f"""
-                                    <div style='background: #fff3cd; padding: 0.75rem; border-radius: 6px;
-                                                border-left: 4px solid #ffc107; margin-top: 0.5rem;'>
-                                        <div style='font-size: 0.85rem; color: #856404;'>
-                                            ⚠️ {env_warnings[0]}
+                                    for warning in env_warnings:
+                                        # Determine label based on warning type
+                                        if 'Sector' in warning or 'sector' in warning:
+                                            label = 'SECTOR'
+                                        elif 'Breadth' in warning or 'breadth' in warning:
+                                            label = 'BREADTH'
+                                        elif 'Drawdown' in warning:
+                                            label = 'RISK'
+                                        elif 'Fatigue' in warning:
+                                            label = 'FATIGUE'
+                                        else:
+                                            label = 'ENVIRONMENT'
+
+                                        st.markdown(f"""
+                                        <div style='background: #fff3cd; padding: 0.6rem 0.9rem; border-radius: 6px;
+                                                    border-left: 3px solid #ffc107; margin-top: 0.5rem;'>
+                                            <div style='font-size: 0.65rem; color: #856404; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.15rem;'>{label}</div>
+                                            <div style='font-size: 0.8rem; color: #856404;'>{warning}</div>
                                         </div>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                        """, unsafe_allow_html=True)
 
                             # V2: Conviction Badge (replaces consistency)
                             conviction = full_analysis.get('conviction', 0)
