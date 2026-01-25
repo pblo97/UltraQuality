@@ -14015,24 +14015,14 @@ with tab8:
 
                             # Build alignment display
                             if alignment_score is not None:
-                                alignment_display = f"""
-                                <div style='background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem;'>
-                                    <div style='font-size: 0.75rem; opacity: 0.9;'>GLOBAL ALIGNMENT</div>
-                                    <div style='font-size: 1.3rem; font-weight: 700;'>{alignment_score}/{max_alignment}</div>
-                                </div>
-                                """
+                                alignment_display = f"<div style='background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem;'><div style='font-size: 0.75rem; opacity: 0.9;'>GLOBAL ALIGNMENT</div><div style='font-size: 1.3rem; font-weight: 700;'>{alignment_score}/{max_alignment}</div></div>"
                             else:
                                 alignment_display = ""
 
                             # Build breadth display
                             if breadth_pct is not None:
                                 breadth_state = breadth_data.get('state', 'UNKNOWN')
-                                breadth_display = f"""
-                                <div style='background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem;'>
-                                    <div style='font-size: 0.75rem; opacity: 0.9;'>BREADTH ({breadth_state})</div>
-                                    <div style='font-size: 1.3rem; font-weight: 700;'>{breadth_pct:.0f}%</div>
-                                </div>
-                                """
+                                breadth_display = f"<div style='background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem;'><div style='font-size: 0.75rem; opacity: 0.9;'>BREADTH ({breadth_state})</div><div style='font-size: 1.3rem; font-weight: 700;'>{breadth_pct:.0f}%</div></div>"
                             else:
                                 breadth_display = ""
 
