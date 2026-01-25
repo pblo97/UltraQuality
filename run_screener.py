@@ -2614,10 +2614,10 @@ def evaluate_entry_trigger(conviction: float, extension_state: str, rs_12_1_vs_s
         Calculate minimum conviction threshold with partial bypass for BUY fundamentals.
         """
         base_thresholds = {
-            'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
-            'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
-            'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
-            'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
+            'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'AMBIGUOUS': 0.30, 'BEAR': 0.35},
+            'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'AMBIGUOUS': 0.35, 'BEAR': 0.40},
+            'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'AMBIGUOUS': 0.45, 'BEAR': 0.55},
+            'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'AMBIGUOUS': 0.55, 'BEAR': 0.65}
         }
         base_threshold = base_thresholds.get(extension, {}).get(regime, 0.30)
 
@@ -13623,10 +13623,10 @@ with tab8:
                         - NORMAL/EXTENDED: standard thresholds apply
                         """
                         base_thresholds = {
-                            'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
-                            'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
-                            'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
-                            'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
+                            'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'AMBIGUOUS': 0.30, 'BEAR': 0.35},
+                            'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'AMBIGUOUS': 0.35, 'BEAR': 0.40},
+                            'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'AMBIGUOUS': 0.45, 'BEAR': 0.55},
+                            'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'AMBIGUOUS': 0.55, 'BEAR': 0.65}
                         }
                         base_threshold = base_thresholds.get(extension, {}).get(regime, 0.30)
 
@@ -13943,7 +13943,7 @@ with tab8:
                                     'effectiveness': '-60%',
                                     'risk': 'HIGH',
                                     'risk_color': '#dc3545',
-                                    'size_factor': '0.4x'
+                                    'size_factor': '0.0x'
                                 },
                                 'SIDEWAYS': {
                                     'icon': '<i class="bi bi-arrow-left-right" style="font-size: 3rem;"></i>',
@@ -13952,6 +13952,15 @@ with tab8:
                                     'effectiveness': '-30%',
                                     'risk': 'MEDIUM',
                                     'risk_color': '#ffc107',
+                                    'size_factor': '0.7x'
+                                },
+                                'AMBIGUOUS': {
+                                    'icon': '<i class="bi bi-question-diamond" style="font-size: 3rem;"></i>',
+                                    'label': 'AMBIGUOUS REGIME',
+                                    'bg': 'linear-gradient(135deg, #fd7e14 0%, #e65100 100%)',
+                                    'effectiveness': '-30%',
+                                    'risk': 'ELEVATED',
+                                    'risk_color': '#fd7e14',
                                     'size_factor': '0.7x'
                                 }
                             }
@@ -13966,6 +13975,36 @@ with tab8:
                                 'size_factor': 'N/A'
                             })
 
+                            # Get hierarchical regime data if available
+                            regime_data = metadata.get('regime_data', {})
+                            alignment_score = regime_data.get('alignment_score', None)
+                            max_alignment = regime_data.get('max_score', 5)
+                            breadth_data = regime_data.get('breadth', {})
+                            breadth_pct = breadth_data.get('pct', None) if breadth_data else None
+
+                            # Build alignment display
+                            if alignment_score is not None:
+                                alignment_display = f"""
+                                <div style='background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem;'>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>GLOBAL ALIGNMENT</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700;'>{alignment_score}/{max_alignment}</div>
+                                </div>
+                                """
+                            else:
+                                alignment_display = ""
+
+                            # Build breadth display
+                            if breadth_pct is not None:
+                                breadth_state = breadth_data.get('state', 'UNKNOWN')
+                                breadth_display = f"""
+                                <div style='background: rgba(255,255,255,0.15); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.75rem;'>
+                                    <div style='font-size: 0.75rem; opacity: 0.9;'>BREADTH ({breadth_state})</div>
+                                    <div style='font-size: 1.3rem; font-weight: 700;'>{breadth_pct:.0f}%</div>
+                                </div>
+                                """
+                            else:
+                                breadth_display = ""
+
                             st.markdown(f"""
                             <div style='background: {reg_info['bg']};
                                         padding: 1.5rem; border-radius: 12px; color: white;
@@ -13974,6 +14013,8 @@ with tab8:
                                     <div style='font-size: 3rem; margin-bottom: 0.5rem;'>{reg_info['icon']}</div>
                                     <div style='font-size: 1.3rem; font-weight: 700; margin-bottom: 1rem;'>{reg_info['label']}</div>
                                 </div>
+                                {alignment_display}
+                                {breadth_display}
                                 <div style='background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem;'>
                                     <div style='font-size: 0.75rem; opacity: 0.9;'>MOMENTUM EFFECTIVENESS</div>
                                     <div style='font-size: 1.5rem; font-weight: 700;'>{reg_info['effectiveness']}</div>
@@ -14172,6 +14213,7 @@ with tab8:
                                 market_f = conv_breakdown.get('market_factor', 1.0)
                                 timing_f = conv_breakdown.get('timing_factor', 1.0)
                                 data_f = conv_breakdown.get('data_factor', 1.0)
+                                env_f = conv_breakdown.get('environment_factor', 1.0)
                                 final_conv = conv_breakdown.get('conviction', 0)
 
                                 # Get context variables for display
@@ -14181,23 +14223,58 @@ with tab8:
                                 extension_state_val = states_data.get('extension', 'UNKNOWN')
                                 volume_profile_val = full_analysis.get('volume_profile', 'UNKNOWN')
 
+                                # Get environment data for hierarchical regime display
+                                environment_data = full_analysis.get('environment', {})
+                                env_multiplier = environment_data.get('multiplier', 1.0) if environment_data else env_f
+                                env_vetoes = environment_data.get('vetoes', []) if environment_data else []
+                                env_warnings = environment_data.get('warnings', []) if environment_data else []
+
+                                # Determine if we have environment factor in the formula
+                                if env_f < 1.0 or environment_data:
+                                    formula = "conviction = setup × timing × data × environment"
+                                    calc_str = f"<strong>{final_conv:.3f}</strong> = {setup_str:.2f} × {timing_f:.2f} × {data_f:.2f} × {env_f:.2f}"
+                                else:
+                                    formula = "conviction = setup × market × timing × data"
+                                    calc_str = f"<strong>{final_conv:.3f}</strong> = {setup_str:.2f} × {market_f:.2f} × {timing_f:.2f} × {data_f:.2f}"
+
                                 st.markdown(f"""
                                 <div style='background: white; padding: 1rem; border-radius: 8px;
                                             box-shadow: 0 2px 6px rgba(0,0,0,0.08);'>
                                     <div style='font-size: 0.85rem; color: #6c757d; margin-bottom: 0.75rem;'>
-                                        conviction = setup × market × timing × data
+                                        {formula}
                                     </div>
                                     <div style='font-size: 1rem; color: #495057; margin-bottom: 0.5rem;'>
-                                        <strong>{final_conv:.3f}</strong> = {setup_str:.2f} × {market_f:.2f} × {timing_f:.2f} × {data_f:.2f}
+                                        {calc_str}
                                     </div>
                                     <div style='font-size: 0.8rem; color: #6c757d;'>
                                         Setup: {setup_str:.2f} (from tech score {tech_score_val:.0f}/100)<br>
                                         Market: {market_f:.2f} (regime: {market_regime_val})<br>
                                         Timing: {timing_f:.2f} (extension: {extension_state_val})<br>
                                         Data: {data_f:.2f} (volume: {volume_profile_val})
+                                        {"<br>Environment: " + f"{env_f:.2f} (hierarchical)" if env_f < 1.0 else ""}
                                     </div>
                                 </div>
                                 """, unsafe_allow_html=True)
+
+                                # Show environment vetoes/warnings if any
+                                if env_vetoes:
+                                    st.markdown(f"""
+                                    <div style='background: #f8d7da; padding: 0.75rem; border-radius: 6px;
+                                                border-left: 4px solid #dc3545; margin-top: 0.5rem;'>
+                                        <div style='font-size: 0.85rem; color: #721c24; font-weight: 600;'>
+                                            🚨 Environment Veto: {env_vetoes[0]}
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                elif env_warnings:
+                                    st.markdown(f"""
+                                    <div style='background: #fff3cd; padding: 0.75rem; border-radius: 6px;
+                                                border-left: 4px solid #ffc107; margin-top: 0.5rem;'>
+                                        <div style='font-size: 0.85rem; color: #856404;'>
+                                            ⚠️ {env_warnings[0]}
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
 
                             # V2: Conviction Badge (replaces consistency)
                             conviction = full_analysis.get('conviction', 0)
@@ -15058,10 +15135,10 @@ with tab8:
                                 Returns the EFFECTIVE threshold (after any bypass applied).
                                 """
                                 base_thresholds = {
-                                    'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
-                                    'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
-                                    'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
-                                    'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
+                                    'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'AMBIGUOUS': 0.30, 'BEAR': 0.35},
+                                    'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'AMBIGUOUS': 0.35, 'BEAR': 0.40},
+                                    'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'AMBIGUOUS': 0.45, 'BEAR': 0.55},
+                                    'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'AMBIGUOUS': 0.55, 'BEAR': 0.65}
                                 }
                                 base_threshold = base_thresholds.get(extension, {}).get(regime, 0.30)
 
@@ -15157,10 +15234,10 @@ with tab8:
 
                                     # Determine bypass note
                                     base_thresholds = {
-                                        'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'BEAR': 0.35},
-                                        'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'BEAR': 0.40},
-                                        'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'BEAR': 0.55},
-                                        'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'BEAR': 0.65}
+                                        'NORMAL': {'BULL': 0.30, 'SIDEWAYS': 0.30, 'AMBIGUOUS': 0.30, 'BEAR': 0.35},
+                                        'EXTENDED': {'BULL': 0.33, 'SIDEWAYS': 0.35, 'AMBIGUOUS': 0.35, 'BEAR': 0.40},
+                                        'STRETCHED': {'BULL': 0.40, 'SIDEWAYS': 0.45, 'AMBIGUOUS': 0.45, 'BEAR': 0.55},
+                                        'OVEREXTENDED': {'BULL': 0.50, 'SIDEWAYS': 0.55, 'AMBIGUOUS': 0.55, 'BEAR': 0.65}
                                     }
                                     base_threshold = base_thresholds.get(extension_state, {}).get(regime_state, 0.30)
 
