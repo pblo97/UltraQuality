@@ -8,10 +8,23 @@ Basado en evidencia académica 2020-2024:
 - Volume confirmation (básico)
 - Walk-Forward Optimization (Han, Zhou & Zhu 2016)
 - Trailing Stops (Dai 2021)
+
+Hierarchical Market Regime System (2024):
+- Cross-market alignment (Cooper et al. 2004, Blin et al. 2022)
+- 8-layer architecture for signal validation
+- Kill switch, breadth, and environment multipliers
 """
 
 from .analyzer import TechnicalAnalyzer, EnhancedTechnicalAnalyzer
+from .analyzer_v2 import TechnicalAnalyzerV2
 from .backtester import WalkForwardBacktester
+from .market_regime import (
+    MarketRegimeSystem,
+    GlobalRegime,
+    BreadthState,
+    RegionalRegime,
+    SectorRegime
+)
 from .visualizations import (
     create_entry_exit_chart,
     create_equity_curve_chart,
@@ -23,7 +36,13 @@ from .visualizations import (
 __all__ = [
     'TechnicalAnalyzer',
     'EnhancedTechnicalAnalyzer',
+    'TechnicalAnalyzerV2',
     'WalkForwardBacktester',
+    'MarketRegimeSystem',
+    'GlobalRegime',
+    'BreadthState',
+    'RegionalRegime',
+    'SectorRegime',
     'create_entry_exit_chart',
     'create_equity_curve_chart',
     'create_parameter_stability_chart',
