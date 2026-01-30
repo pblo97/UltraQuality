@@ -14919,6 +14919,232 @@ with tab8:
                             </div>
                             """, unsafe_allow_html=True)
 
+                        # ========== EARNINGS RISK SECTION ==========
+                        st.markdown("---")
+                        st.markdown("""
+                        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                    padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; margin-top: 2rem;'>
+                            <h3 style='margin: 0; color: white;'><i class="bi bi-calendar-event"></i> EARNINGS RISK ANALYSIS</h3>
+                            <p style='margin: 0.5rem 0 0 0; color: white; opacity: 0.9; font-size: 0.9rem;'>
+                                Risk assessment for upcoming earnings announcement
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        # Calculate earnings risk
+                        try:
+                            from screener.technical.earnings_risk import EarningsRiskAnalyzer, get_earnings_risk_summary
+                            from screener.technical.earnings_data import fetch_earnings_data, prepare_earnings_analysis_data
+                            import yfinance as yf
+
+                            # Get yfinance ticker
+                            yf_ticker = yf.Ticker(selected_ticker)
+
+                            # Prepare data for earnings risk analysis
+                            price_data_for_earnings = {
+                                'current_price': full_analysis.get('current_price', 0),
+                                'ma200': full_analysis.get('ma_200', full_analysis.get('current_price', 0)),
+                                'ma50': full_analysis.get('ma_50', full_analysis.get('current_price', 0)),
+                                'high_52w': full_analysis.get('high_52w', full_analysis.get('current_price', 0)),
+                                'return_1m': full_analysis.get('momentum_data', {}).get('return_1m', 0),
+                                'return_3m': full_analysis.get('momentum_data', {}).get('return_3m', 0),
+                            }
+
+                            fundamental_data_for_earnings = {
+                                'pe_ratio': stock_data.get('pe_ratio'),
+                                'pe_5y_avg': stock_data.get('pe_5y_avg'),
+                                'ev_ebitda': stock_data.get('ev_ebitda'),
+                                'price_to_sales': stock_data.get('price_to_sales'),
+                            }
+
+                            # Fetch earnings data
+                            earnings_data = fetch_earnings_data(selected_ticker, yf_ticker)
+
+                            # Run earnings risk analysis
+                            earnings_analyzer = EarningsRiskAnalyzer()
+                            earnings_risk = earnings_analyzer.analyze(
+                                selected_ticker,
+                                price_data_for_earnings,
+                                fundamental_data_for_earnings,
+                                earnings_data,
+                                None  # options_data - could add later
+                            )
+
+                            # Display earnings date and days until
+                            if earnings_risk.earnings_date:
+                                days_until = earnings_risk.days_until_earnings
+                                timing = earnings_risk.timing
+
+                                # Determine urgency color
+                                if days_until is not None:
+                                    if days_until <= 7:
+                                        date_color = '#dc3545'  # Red - imminent
+                                        urgency = 'IMMINENT'
+                                    elif days_until <= 14:
+                                        date_color = '#ffc107'  # Yellow - soon
+                                        urgency = 'SOON'
+                                    elif days_until <= 30:
+                                        date_color = '#17a2b8'  # Blue - approaching
+                                        urgency = 'APPROACHING'
+                                    else:
+                                        date_color = '#28a745'  # Green - distant
+                                        urgency = 'DISTANT'
+                                else:
+                                    date_color = '#6c757d'
+                                    urgency = 'UNKNOWN'
+
+                                earnings_date_str = earnings_risk.earnings_date.strftime('%B %d, %Y') if hasattr(earnings_risk.earnings_date, 'strftime') else str(earnings_risk.earnings_date)
+
+                                st.markdown(f"""
+                                <div style='background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-bottom: 1rem;'>
+                                    <div style='display: flex; justify-content: space-between; align-items: center;'>
+                                        <div>
+                                            <div style='font-size: 0.7rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;'>NEXT EARNINGS</div>
+                                            <div style='font-size: 1.1rem; font-weight: 600; color: #212529;'>{earnings_date_str}</div>
+                                            <div style='font-size: 0.8rem; color: #6c757d;'>{timing}</div>
+                                        </div>
+                                        <div style='text-align: right;'>
+                                            <div style='font-size: 2rem; font-weight: 700; color: {date_color};'>{days_until if days_until is not None else "?"}</div>
+                                            <div style='font-size: 0.75rem; color: {date_color}; font-weight: 600;'>DAYS</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown("""
+                                <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;'>
+                                    <div style='color: #6c757d; font-size: 0.9rem;'>No upcoming earnings date found</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                            # Risk Score Display
+                            risk_score = earnings_risk.total_score
+                            risk_level = earnings_risk.risk_level.value
+
+                            # Color based on risk level
+                            risk_colors = {
+                                'LOW': ('#28a745', '#d4edda'),
+                                'MEDIUM': ('#ffc107', '#fff3cd'),
+                                'HIGH': ('#dc3545', '#f8d7da'),
+                                'EXTREME': ('#721c24', '#f5c6cb')
+                            }
+                            risk_color, risk_bg = risk_colors.get(risk_level, ('#6c757d', '#e9ecef'))
+
+                            st.markdown(f"""
+                            <div style='background: {risk_bg}; padding: 1rem; border-radius: 8px; border-left: 4px solid {risk_color}; margin-bottom: 1rem;'>
+                                <div style='display: flex; justify-content: space-between; align-items: center;'>
+                                    <div>
+                                        <div style='font-size: 0.7rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px;'>EARNINGS DROP RISK</div>
+                                        <div style='font-size: 1.3rem; font-weight: 700; color: {risk_color};'>{risk_level}</div>
+                                    </div>
+                                    <div style='text-align: right;'>
+                                        <div style='font-size: 2.5rem; font-weight: 700; color: {risk_color};'>{risk_score:.0f}</div>
+                                        <div style='font-size: 0.7rem; color: #6c757d;'>/ 100</div>
+                                    </div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Risk Components Breakdown
+                            st.markdown("""
+                            <div style='font-size: 0.85rem; font-weight: 600; color: #495057; margin-bottom: 0.75rem;'>Risk Factor Breakdown</div>
+                            """, unsafe_allow_html=True)
+
+                            # Component bars
+                            components = [
+                                ('Extension', earnings_risk.extension_risk.score, earnings_risk.extension_risk.level, f"+{earnings_risk.extension_risk.distance_ma200:.1f}% from MA200", 30),
+                                ('Valuation', earnings_risk.valuation_risk.score, earnings_risk.valuation_risk.level, f"P/E ratio: {earnings_risk.valuation_risk.pe_ratio:.2f}x hist" if earnings_risk.valuation_risk.pe_ratio else "N/A", 25),
+                                ('Momentum', earnings_risk.momentum_risk.score, earnings_risk.momentum_risk.level, f"+{earnings_risk.momentum_risk.return_3m:.1f}% (3mo)", 20),
+                                ('Historical', earnings_risk.historical_risk.score, earnings_risk.historical_risk.level, f"Avg move: ±{earnings_risk.historical_risk.avg_move:.1f}%", 15),
+                                ('Options/IV', earnings_risk.options_risk.score, earnings_risk.options_risk.level, f"Expected: ±{earnings_risk.options_risk.implied_move:.1f}%", 10),
+                            ]
+
+                            for name, score, level, detail, weight in components:
+                                level_color = '#28a745' if level == 'LOW' else '#ffc107' if level == 'MEDIUM' else '#dc3545'
+                                bar_width = min(100, score)
+
+                                st.markdown(f"""
+                                <div style='margin-bottom: 0.75rem;'>
+                                    <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;'>
+                                        <div style='font-size: 0.8rem; color: #495057;'>{name} <span style='color: #adb5bd; font-size: 0.7rem;'>({weight}%)</span></div>
+                                        <div style='font-size: 0.75rem; color: {level_color}; font-weight: 600;'>{level}</div>
+                                    </div>
+                                    <div style='background: #e9ecef; border-radius: 4px; height: 8px; overflow: hidden;'>
+                                        <div style='background: {level_color}; width: {bar_width}%; height: 100%; border-radius: 4px;'></div>
+                                    </div>
+                                    <div style='font-size: 0.7rem; color: #6c757d; margin-top: 0.2rem;'>{detail}</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                            # Historical Earnings Pattern
+                            if earnings_risk.historical_risk.history:
+                                st.markdown("""
+                                <div style='font-size: 0.85rem; font-weight: 600; color: #495057; margin: 1rem 0 0.75rem 0;'>Historical Earnings Reactions</div>
+                                """, unsafe_allow_html=True)
+
+                                history_items = earnings_risk.historical_risk.history[:4]  # Last 4 quarters
+                                cols = st.columns(len(history_items))
+
+                                for i, hist in enumerate(history_items):
+                                    with cols[i]:
+                                        move = hist.move_percent
+                                        move_color = '#28a745' if move > 0 else '#dc3545' if move < 0 else '#6c757d'
+                                        beat_indicator = 'BEAT' if hist.beat else 'MISS' if hist.beat is False else '-'
+                                        beat_color = '#28a745' if hist.beat else '#dc3545' if hist.beat is False else '#6c757d'
+
+                                        date_str = hist.date.strftime('%b %y') if hasattr(hist.date, 'strftime') else str(hist.date)[:7]
+
+                                        st.markdown(f"""
+                                        <div style='background: #f8f9fa; padding: 0.75rem; border-radius: 6px; text-align: center;'>
+                                            <div style='font-size: 0.65rem; color: #6c757d; text-transform: uppercase;'>{date_str}</div>
+                                            <div style='font-size: 1.2rem; font-weight: 700; color: {move_color};'>{move:+.1f}%</div>
+                                            <div style='font-size: 0.65rem; color: {beat_color}; font-weight: 600;'>{beat_indicator}</div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                                # Pattern summary
+                                st.markdown(f"""
+                                <div style='background: #e9ecef; padding: 0.5rem 0.75rem; border-radius: 6px; margin-top: 0.5rem;'>
+                                    <div style='font-size: 0.75rem; color: #495057;'>
+                                        <strong>Pattern:</strong> {earnings_risk.historical_risk.consistency} |
+                                        <strong>Beat Rate:</strong> {earnings_risk.historical_risk.beat_rate:.0f}% |
+                                        <strong>Drop After Beat:</strong> {earnings_risk.historical_risk.drop_after_beat_rate:.0f}%
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                            # Warnings
+                            if earnings_risk.warnings:
+                                st.markdown("""
+                                <div style='font-size: 0.85rem; font-weight: 600; color: #495057; margin: 1rem 0 0.5rem 0;'>Earnings Warnings</div>
+                                """, unsafe_allow_html=True)
+
+                                for warning in earnings_risk.warnings:
+                                    st.markdown(f"""
+                                    <div style='background: #fff3cd; padding: 0.5rem 0.75rem; border-radius: 6px; border-left: 3px solid #ffc107; margin-bottom: 0.5rem;'>
+                                        <div style='font-size: 0.8rem; color: #856404;'>{warning}</div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                            # Position Adjustment Recommendation
+                            st.markdown(f"""
+                            <div style='background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 1rem; border-radius: 8px; margin-top: 1rem;'>
+                                <div style='font-size: 0.7rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.5rem;'>RECOMMENDATION</div>
+                                <div style='font-size: 0.9rem; color: #212529; line-height: 1.5;'>{earnings_risk.recommendation}</div>
+                                <div style='margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #dee2e6;'>
+                                    <span style='font-size: 0.8rem; color: #495057;'>Position Size Adjustment:</span>
+                                    <span style='font-size: 1rem; font-weight: 700; color: {"#dc3545" if earnings_risk.position_adjustment < 0.8 else "#ffc107" if earnings_risk.position_adjustment < 1.0 else "#28a745"};'> {earnings_risk.position_adjustment:.0%}</span>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                        except Exception as e:
+                            st.markdown(f"""
+                            <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
+                                <div style='color: #6c757d; font-size: 0.9rem;'>Earnings risk analysis unavailable: {str(e)}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
                         # ========== RESUMEN EJECUTIVO: RECOMMENDATION ==========
                         st.markdown("---")
                         st.markdown("""
