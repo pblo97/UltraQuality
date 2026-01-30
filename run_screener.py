@@ -14934,20 +14934,27 @@ with tab8:
                         # Calculate earnings risk
                         try:
                             from screener.technical.earnings_risk import EarningsRiskAnalyzer, get_earnings_risk_summary
-                            from screener.technical.earnings_data import fetch_earnings_data, prepare_earnings_analysis_data
+                            from screener.technical.earnings_data import fetch_earnings_data
                             import yfinance as yf
 
                             # Get yfinance ticker
                             yf_ticker = yf.Ticker(selected_ticker)
 
                             # Prepare data for earnings risk analysis
+                            # Get momentum data - try different keys
+                            momentum_data = full_analysis.get('momentum_data', {})
+                            rs_data = full_analysis.get('relative_strength', {})
+
+                            return_1m = momentum_data.get('return_1m', rs_data.get('rs_6_1_spy', 0))
+                            return_3m = momentum_data.get('return_3m', rs_data.get('rs_12_1_spy', 0))
+
                             price_data_for_earnings = {
-                                'current_price': full_analysis.get('current_price', 0),
-                                'ma200': full_analysis.get('ma_200', full_analysis.get('current_price', 0)),
-                                'ma50': full_analysis.get('ma_50', full_analysis.get('current_price', 0)),
-                                'high_52w': full_analysis.get('high_52w', full_analysis.get('current_price', 0)),
-                                'return_1m': full_analysis.get('momentum_data', {}).get('return_1m', 0),
-                                'return_3m': full_analysis.get('momentum_data', {}).get('return_3m', 0),
+                                'current_price': full_analysis.get('current_price', full_analysis.get('metadata', {}).get('current_price', 0)),
+                                'ma200': full_analysis.get('ma_200', full_analysis.get('ma200', 0)),
+                                'ma50': full_analysis.get('ma_50', full_analysis.get('ma50', 0)),
+                                'high_52w': full_analysis.get('high_52w', full_analysis.get('metadata', {}).get('high_52w', 0)),
+                                'return_1m': return_1m,
+                                'return_3m': return_3m,
                             }
 
                             fundamental_data_for_earnings = {
