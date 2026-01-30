@@ -14942,18 +14942,30 @@ with tab8:
                             earnings_risk_success = True
 
                             # Prepare data for earnings risk analysis
-                            # Get momentum data - try different keys
-                            momentum_data = full_analysis.get('momentum_data', {})
-                            rs_data = full_analysis.get('relative_strength', {})
+                            # Extract from correct locations in full_analysis
+                            metadata = full_analysis.get('metadata', {})
+                            component_details = full_analysis.get('component_details', {})
+                            rs_details = component_details.get('relative_strength', {})
 
-                            return_1m = momentum_data.get('return_1m', rs_data.get('rs_6_1_spy', 0))
-                            return_3m = momentum_data.get('return_3m', rs_data.get('rs_12_1_spy', 0))
+                            # Get current price
+                            current_price = metadata.get('current_price', full_analysis.get('current_price', 0))
+
+                            # Get distance from MA200 (already calculated in analyzer)
+                            distance_ma200 = metadata.get('distance_ma200_pct', 0)
+
+                            # Get momentum/RS data
+                            return_1m = rs_details.get('rs_6_1_spy', 0)  # 6-month minus 1 month RS
+                            return_3m = rs_details.get('rs_12_1_spy', 0)  # 12-month minus 1 month RS
+
+                            # Calculate MA values from distance if available
+                            ma200 = current_price / (1 + distance_ma200 / 100) if distance_ma200 != 0 else current_price
+                            ma50 = full_analysis.get('ma_50', current_price * 0.95)  # Estimate if not available
 
                             price_data_for_earnings = {
-                                'current_price': full_analysis.get('current_price', full_analysis.get('metadata', {}).get('current_price', 0)),
-                                'ma200': full_analysis.get('ma_200', full_analysis.get('ma200', 0)),
-                                'ma50': full_analysis.get('ma_50', full_analysis.get('ma50', 0)),
-                                'high_52w': full_analysis.get('high_52w', full_analysis.get('metadata', {}).get('high_52w', 0)),
+                                'current_price': current_price,
+                                'ma200': ma200,
+                                'ma50': ma50,
+                                'high_52w': metadata.get('high_52w', current_price * 1.1),
                                 'return_1m': return_1m,
                                 'return_3m': return_3m,
                             }
