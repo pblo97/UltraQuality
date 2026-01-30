@@ -1,7 +1,7 @@
 """
 Earnings Data Fetcher
 
-Fetches earnings history, estimates, and calendar data from various sources.
+Fetches earnings history, estimates, and calendar data using FMP API.
 """
 
 from datetime import datetime, timedelta
@@ -11,9 +11,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def fetch_earnings_data(ticker: str, yf_ticker=None) -> Dict[str, Any]:
+def fetch_earnings_data(ticker: str, fmp_client=None) -> Dict[str, Any]:
     """
-    Fetch comprehensive earnings data for a ticker.
+    Fetch comprehensive earnings data for a ticker using FMP.
+
+    Args:
+        ticker: Stock symbol
+        fmp_client: FMP client instance (CachedFMPClient or FMPClient)
 
     Returns:
         Dict with:
@@ -22,127 +26,140 @@ def fetch_earnings_data(ticker: str, yf_ticker=None) -> Dict[str, Any]:
         - earnings_history: List of past earnings
         - estimates: Current estimates
     """
+    result = {
+        'next_earnings_date': None,
+        'timing': 'UNKNOWN',
+        'earnings_history': [],
+        'estimates': {}
+    }
+
+    if not fmp_client:
+        logger.warning("No FMP client provided for earnings data")
+        return result
+
     try:
-        import yfinance as yf
+        # Get earnings calendar for next earnings date
+        today = datetime.now()
+        three_months = today + timedelta(days=90)
 
-        if yf_ticker is None:
-            yf_ticker = yf.Ticker(ticker)
+        from_date = today.strftime('%Y-%m-%d')
+        to_date = three_months.strftime('%Y-%m-%d')
 
-        result = {
-            'next_earnings_date': None,
-            'timing': 'UNKNOWN',
-            'earnings_history': [],
-            'estimates': {}
-        }
-
-        # Get earnings calendar
         try:
-            calendar = yf_ticker.calendar
-            if calendar is not None and not calendar.empty if hasattr(calendar, 'empty') else calendar:
-                if isinstance(calendar, dict):
-                    earnings_date = calendar.get('Earnings Date')
-                    if earnings_date:
-                        if isinstance(earnings_date, list) and len(earnings_date) > 0:
-                            result['next_earnings_date'] = earnings_date[0]
+            calendar = fmp_client.get_earnings_calendar(from_date=from_date, to_date=to_date)
+            if calendar:
+                # Filter for this symbol
+                symbol_earnings = [e for e in calendar if e.get('symbol', '').upper() == ticker.upper()]
+                if symbol_earnings:
+                    next_earning = symbol_earnings[0]
+                    earning_date_str = next_earning.get('date')
+                    if earning_date_str:
+                        try:
+                            result['next_earnings_date'] = datetime.strptime(earning_date_str, '%Y-%m-%d')
+                        except:
+                            result['next_earnings_date'] = earning_date_str
+
+                    # Get timing (BMO = Before Market Open, AMC = After Market Close)
+                    timing = next_earning.get('time', 'UNKNOWN')
+                    if timing:
+                        timing_upper = timing.upper()
+                        if 'BMO' in timing_upper or 'BEFORE' in timing_upper:
+                            result['timing'] = 'BMO'
+                        elif 'AMC' in timing_upper or 'AFTER' in timing_upper:
+                            result['timing'] = 'AMC'
                         else:
-                            result['next_earnings_date'] = earnings_date
-                else:
-                    # DataFrame format
-                    if 'Earnings Date' in calendar.columns:
-                        dates = calendar['Earnings Date'].values
-                        if len(dates) > 0:
-                            result['next_earnings_date'] = dates[0]
+                            result['timing'] = timing
         except Exception as e:
-            logger.debug(f"Could not get calendar for {ticker}: {e}")
+            logger.debug(f"Could not get earnings calendar for {ticker}: {e}")
 
-        # Get earnings history
+        # Get historical earnings
         try:
-            earnings = yf_ticker.earnings_history
-            if earnings is not None and not earnings.empty if hasattr(earnings, 'empty') else earnings:
+            # Try to get historical earnings data
+            historical = fmp_client.get_earnings_surprises(ticker)
+            if historical:
                 history = []
-                for idx, row in earnings.iterrows():
+                for item in historical[:8]:  # Last 8 quarters
                     try:
-                        eps_estimate = row.get('epsEstimate', row.get('Earnings Estimate'))
-                        eps_actual = row.get('epsActual', row.get('Reported EPS'))
-                        surprise = row.get('surprisePercent', row.get('Surprise(%)'))
+                        date_str = item.get('date')
+                        eps_estimate = item.get('estimatedEarning')
+                        eps_actual = item.get('actualEarningResult')
 
-                        # Calculate if beat
+                        # Calculate surprise and beat
                         beat = None
+                        surprise_percent = None
                         if eps_estimate is not None and eps_actual is not None:
-                            beat = eps_actual > eps_estimate
+                            try:
+                                eps_est = float(eps_estimate)
+                                eps_act = float(eps_actual)
+                                beat = eps_act > eps_est
+                                if eps_est != 0:
+                                    surprise_percent = ((eps_act - eps_est) / abs(eps_est)) * 100
+                            except:
+                                pass
 
                         history.append({
-                            'date': idx if isinstance(idx, datetime) else datetime.now(),
+                            'date': datetime.strptime(date_str, '%Y-%m-%d') if date_str else datetime.now(),
                             'eps_estimate': float(eps_estimate) if eps_estimate else None,
                             'eps_actual': float(eps_actual) if eps_actual else None,
-                            'surprise_percent': float(surprise) if surprise else None,
+                            'surprise_percent': surprise_percent,
                             'beat': beat,
-                            'price_move': 0,  # Will be filled by price analysis
+                            'price_move': 0,
+                            'move_percent': 0,
                             'price_before': 0,
                             'price_after': 0
                         })
                     except Exception as e:
-                        logger.debug(f"Error parsing earnings row: {e}")
+                        logger.debug(f"Error parsing earnings history item: {e}")
                         continue
 
-                result['earnings_history'] = history[:8]  # Last 8 quarters
+                result['earnings_history'] = history
+
+                # Add price moves around earnings dates
+                result['earnings_history'] = _add_price_moves_fmp(ticker, result['earnings_history'], fmp_client)
         except Exception as e:
             logger.debug(f"Could not get earnings history for {ticker}: {e}")
 
-        # Try to get price moves around historical earnings
-        result['earnings_history'] = _add_price_moves(ticker, result['earnings_history'], yf_ticker)
-
         # Get analyst estimates
         try:
-            info = yf_ticker.info
-            if info:
+            estimates = fmp_client.get_analyst_estimates(ticker)
+            if estimates and len(estimates) > 0:
+                latest = estimates[0]
                 result['estimates'] = {
-                    'eps_estimate': info.get('forwardEps'),
-                    'eps_low': None,
-                    'eps_high': None,
-                    'revenue_estimate': info.get('revenueEstimate'),
-                    'num_analysts': info.get('numberOfAnalystOpinions', 0),
-                    'revision_trend': _determine_revision_trend(info),
+                    'eps_estimate': latest.get('estimatedEpsAvg'),
+                    'eps_low': latest.get('estimatedEpsLow'),
+                    'eps_high': latest.get('estimatedEpsHigh'),
+                    'revenue_estimate': latest.get('estimatedRevenueAvg'),
+                    'num_analysts': latest.get('numberAnalystEstimatedEps', 0),
+                    'revision_trend': 'STABLE',  # Would need historical estimates to determine
                     'revision_30d_change': None
                 }
         except Exception as e:
-            logger.debug(f"Could not get estimates for {ticker}: {e}")
+            logger.debug(f"Could not get analyst estimates for {ticker}: {e}")
 
         return result
 
-    except ImportError:
-        logger.warning("yfinance not available for earnings data")
-        return {
-            'next_earnings_date': None,
-            'timing': 'UNKNOWN',
-            'earnings_history': [],
-            'estimates': {}
-        }
     except Exception as e:
         logger.error(f"Error fetching earnings data for {ticker}: {e}")
-        return {
-            'next_earnings_date': None,
-            'timing': 'UNKNOWN',
-            'earnings_history': [],
-            'estimates': {}
-        }
+        return result
 
 
-def _add_price_moves(ticker: str, history: List[Dict], yf_ticker) -> List[Dict]:
+def _add_price_moves_fmp(ticker: str, history: List[Dict], fmp_client) -> List[Dict]:
     """
-    Add price movement data around each historical earnings date.
+    Add price movement data around each historical earnings date using FMP.
     """
-    if not history:
+    if not history or not fmp_client:
         return history
 
     try:
         # Get enough price history to cover all earnings
         oldest_date = min(h['date'] for h in history if h.get('date'))
-        start_date = oldest_date - timedelta(days=10)
+        start_date = (oldest_date - timedelta(days=10)).strftime('%Y-%m-%d')
 
-        hist = yf_ticker.history(start=start_date, end=datetime.now())
-        if hist.empty:
+        prices = fmp_client.get_historical_prices(ticker, from_date=start_date)
+        if not prices or 'historical' not in prices:
             return history
+
+        price_data = {p['date']: p['close'] for p in prices.get('historical', [])}
 
         for h in history:
             try:
@@ -150,21 +167,19 @@ def _add_price_moves(ticker: str, history: List[Dict], yf_ticker) -> List[Dict]:
                 if not earnings_date:
                     continue
 
-                # Find closest trading days before and after earnings
-                before_date = earnings_date - timedelta(days=1)
-                after_date = earnings_date + timedelta(days=1)
+                earnings_str = earnings_date.strftime('%Y-%m-%d')
 
-                # Get prices (handle weekends/holidays)
-                for offset in range(5):
-                    check_date = before_date - timedelta(days=offset)
-                    if check_date in hist.index:
-                        h['price_before'] = float(hist.loc[check_date, 'Close'])
+                # Find closest trading days before and after earnings
+                for offset in range(1, 6):
+                    before_date = (earnings_date - timedelta(days=offset)).strftime('%Y-%m-%d')
+                    if before_date in price_data:
+                        h['price_before'] = price_data[before_date]
                         break
 
-                for offset in range(5):
-                    check_date = after_date + timedelta(days=offset)
-                    if check_date in hist.index:
-                        h['price_after'] = float(hist.loc[check_date, 'Close'])
+                for offset in range(1, 6):
+                    after_date = (earnings_date + timedelta(days=offset)).strftime('%Y-%m-%d')
+                    if after_date in price_data:
+                        h['price_after'] = price_data[after_date]
                         break
 
                 # Calculate move
@@ -184,64 +199,46 @@ def _add_price_moves(ticker: str, history: List[Dict], yf_ticker) -> List[Dict]:
         return history
 
 
-def _determine_revision_trend(info: Dict) -> str:
-    """Determine analyst revision trend from available data"""
-    # This is a simplified version - would need more data sources for accurate tracking
-    recommendation = info.get('recommendationMean', 3)
-    if recommendation < 2:
-        return 'UP'
-    elif recommendation > 3.5:
-        return 'DOWN'
-    return 'STABLE'
-
-
-def prepare_earnings_analysis_data(
-    ticker: str,
-    price_data: Dict[str, Any],
-    fundamental_data: Dict[str, Any],
-    yf_ticker=None
-) -> tuple:
+def fetch_earnings_data_simple(ticker: str, fmp_client=None, profile_data: Dict = None) -> Dict[str, Any]:
     """
-    Prepare all data needed for earnings risk analysis.
+    Simplified earnings data fetch using profile data that's already available.
+
+    Args:
+        ticker: Stock symbol
+        fmp_client: FMP client (optional, for additional data)
+        profile_data: Profile data from FMP get_profile() call
 
     Returns:
-        Tuple of (price_data, fundamental_data, earnings_data, options_data)
+        Dict with earnings info
     """
-    # Fetch earnings specific data
-    earnings_data = fetch_earnings_data(ticker, yf_ticker)
+    result = {
+        'next_earnings_date': None,
+        'timing': 'UNKNOWN',
+        'earnings_history': [],
+        'estimates': {}
+    }
 
-    # Enhance price data with returns if not present
-    if 'return_1m' not in price_data:
-        price_data['return_1m'] = price_data.get('momentum_1m', 0)
-    if 'return_3m' not in price_data:
-        price_data['return_3m'] = price_data.get('momentum_3m', 0)
+    # Try to get from profile data first (already fetched)
+    if profile_data:
+        earnings_str = profile_data.get('earningsAnnouncement')
+        if earnings_str:
+            try:
+                # Parse the earnings date string
+                result['next_earnings_date'] = datetime.fromisoformat(earnings_str.replace('Z', '+00:00'))
+            except:
+                try:
+                    result['next_earnings_date'] = datetime.strptime(earnings_str[:10], '%Y-%m-%d')
+                except:
+                    pass
 
-    # Options data (would need separate options API)
-    options_data = None
-    try:
-        if yf_ticker:
-            # Try to get options data
-            options = yf_ticker.options
-            if options:
-                # Get nearest expiry
-                nearest = options[0]
-                chain = yf_ticker.option_chain(nearest)
-                if chain:
-                    # Calculate approximate IV from ATM options
-                    calls = chain.calls
-                    current_price = price_data.get('current_price', 0)
-                    if not calls.empty and current_price > 0:
-                        # Find ATM option
-                        atm_idx = (calls['strike'] - current_price).abs().idxmin()
-                        atm_call = calls.loc[atm_idx]
-                        iv = atm_call.get('impliedVolatility', 0) * 100
+    # If we have FMP client, get more data
+    if fmp_client:
+        full_data = fetch_earnings_data(ticker, fmp_client)
+        # Merge, preferring already fetched data
+        if full_data['next_earnings_date'] and not result['next_earnings_date']:
+            result['next_earnings_date'] = full_data['next_earnings_date']
+        result['timing'] = full_data.get('timing', result['timing'])
+        result['earnings_history'] = full_data.get('earnings_history', [])
+        result['estimates'] = full_data.get('estimates', {})
 
-                        options_data = {
-                            'iv_30d': iv,
-                            'iv_percentile': None,  # Would need historical IV data
-                            'expected_move': current_price * (iv / 100) * 0.16  # ~1 week
-                        }
-    except Exception as e:
-        logger.debug(f"Could not fetch options data: {e}")
-
-    return price_data, fundamental_data, earnings_data, options_data
+    return result

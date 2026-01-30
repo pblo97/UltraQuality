@@ -14932,13 +14932,14 @@ with tab8:
                         """, unsafe_allow_html=True)
 
                         # Calculate earnings risk
+                        earnings_risk_success = False
                         try:
                             from screener.technical.earnings_risk import EarningsRiskAnalyzer, get_earnings_risk_summary
                             from screener.technical.earnings_data import fetch_earnings_data
-                            import yfinance as yf
 
-                            # Get yfinance ticker
-                            yf_ticker = yf.Ticker(selected_ticker)
+                            # Use FMP client (already available in context)
+                            # fmp is already defined earlier in this scope
+                            earnings_risk_success = True
 
                             # Prepare data for earnings risk analysis
                             # Get momentum data - try different keys
@@ -14964,8 +14965,8 @@ with tab8:
                                 'price_to_sales': stock_data.get('price_to_sales'),
                             }
 
-                            # Fetch earnings data
-                            earnings_data = fetch_earnings_data(selected_ticker, yf_ticker)
+                            # Fetch earnings data using FMP
+                            earnings_data = fetch_earnings_data(selected_ticker, fmp)
 
                             # Run earnings risk analysis
                             earnings_analyzer = EarningsRiskAnalyzer()
@@ -15146,11 +15147,10 @@ with tab8:
                             """, unsafe_allow_html=True)
 
                         except Exception as e:
-                            st.markdown(f"""
-                            <div style='background: #f8f9fa; padding: 1rem; border-radius: 8px;'>
-                                <div style='color: #6c757d; font-size: 0.9rem;'>Earnings risk analysis unavailable: {str(e)}</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            import traceback
+                            st.error(f"Earnings risk analysis error: {str(e)}")
+                            with st.expander("Show full error"):
+                                st.code(traceback.format_exc())
 
                         # ========== RESUMEN EJECUTIVO: RECOMMENDATION ==========
                         st.markdown("---")
