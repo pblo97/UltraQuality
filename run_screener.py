@@ -14826,16 +14826,6 @@ with tab8:
                         else:
                             st.info("Para ver Insider Trading e Institutional Holdings, primero ejecuta el análisis cualitativo (tab 5) para este ticker.")
 
-                        # ========== EARNINGS CALENDAR ==========
-                        st.markdown("---")
-                        try:
-                            from screener.advanced_ui import render_earnings_calendar_section
-                            render_earnings_calendar_section(selected_ticker, fmp)
-                        except Exception as e:
-                            st.info("Earnings calendar data not available")
-                            if st.checkbox("Show error details", key=f"earnings_error_{selected_ticker}"):
-                                st.error(str(e))
-
                         # ========== RESUMEN EJECUTIVO: WARNINGS & DIAGNOSTICS ==========
                         st.markdown("---")
                         st.markdown("""
