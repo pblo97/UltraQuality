@@ -14937,6 +14937,12 @@ with tab8:
                             component_details = full_analysis.get('component_details', {})
                             rs_details = component_details.get('relative_strength', {})
 
+                            # DEBUG: Show available keys
+                            with st.expander("Debug: Available Data Keys", expanded=False):
+                                st.write("**RS Details keys:**", list(rs_details.keys()) if rs_details else "Empty")
+                                st.write("**RS Details:**", rs_details)
+                                st.write("**Metadata keys:**", list(metadata.keys()) if metadata else "Empty")
+
                             # Get current price
                             current_price = metadata.get('current_price', full_analysis.get('current_price', 0))
 
@@ -14946,7 +14952,7 @@ with tab8:
                             # Get momentum/RS data - use correct keys
                             # stock_ret_6_1 = actual 6-month stock return (not RS)
                             # stock_ret_12_1 = actual 12-month stock return
-                            return_1m = rs_details.get('stock_ret_6_1', 0) / 6  # Approximate 1-month
+                            return_1m = rs_details.get('stock_ret_6_1', 0) / 6 if rs_details.get('stock_ret_6_1') else 0
                             return_3m = rs_details.get('stock_ret_6_1', 0)  # 6-month return as proxy for 3mo
 
                             # Calculate MA values from distance if available
@@ -14974,6 +14980,12 @@ with tab8:
 
                             # Fetch earnings data using FMP
                             earnings_data = fetch_earnings_data(selected_ticker, fmp)
+
+                            # DEBUG: Show earnings data
+                            with st.expander("Debug: Earnings Data from FMP", expanded=False):
+                                st.write("**Earnings History:**", earnings_data.get('earnings_history', []))
+                                st.write("**Next Earnings:**", earnings_data.get('next_earnings_date'))
+                                st.write("**Estimates:**", earnings_data.get('estimates', {}))
 
                             # Run earnings risk analysis
                             earnings_analyzer = EarningsRiskAnalyzer()
