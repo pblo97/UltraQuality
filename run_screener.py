@@ -14943,9 +14943,11 @@ with tab8:
                             # Get distance from MA200 (already calculated in analyzer)
                             distance_ma200 = metadata.get('distance_ma200_pct', 0)
 
-                            # Get momentum/RS data
-                            return_1m = rs_details.get('rs_6_1_spy', 0)  # 6-month minus 1 month RS
-                            return_3m = rs_details.get('rs_12_1_spy', 0)  # 12-month minus 1 month RS
+                            # Get momentum/RS data - use correct keys
+                            # stock_ret_6_1 = actual 6-month stock return (not RS)
+                            # stock_ret_12_1 = actual 12-month stock return
+                            return_1m = rs_details.get('stock_ret_6_1', 0) / 6  # Approximate 1-month
+                            return_3m = rs_details.get('stock_ret_6_1', 0)  # 6-month return as proxy for 3mo
 
                             # Calculate MA values from distance if available
                             ma200 = current_price / (1 + distance_ma200 / 100) if distance_ma200 != 0 else current_price
@@ -14960,11 +14962,14 @@ with tab8:
                                 'return_3m': return_3m,
                             }
 
+                            # Get P/E from various possible sources
+                            pe_ratio = stock_data.get('pe_ratio') or stock_data.get('peRatio') or stock_data.get('pe')
+
                             fundamental_data_for_earnings = {
-                                'pe_ratio': stock_data.get('pe_ratio'),
-                                'pe_5y_avg': stock_data.get('pe_5y_avg'),
-                                'ev_ebitda': stock_data.get('ev_ebitda'),
-                                'price_to_sales': stock_data.get('price_to_sales'),
+                                'pe_ratio': pe_ratio,
+                                'pe_5y_avg': stock_data.get('pe_5y_avg') or stock_data.get('pe_historical'),
+                                'ev_ebitda': stock_data.get('ev_ebitda') or stock_data.get('evToEbitda'),
+                                'price_to_sales': stock_data.get('price_to_sales') or stock_data.get('priceToSales'),
                             }
 
                             # Fetch earnings data using FMP

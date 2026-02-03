@@ -76,13 +76,18 @@ def fetch_earnings_data(ticker: str, fmp_client=None) -> Dict[str, Any]:
         try:
             # Try to get historical earnings data
             historical = fmp_client.get_earnings_surprises(ticker)
-            if historical:
+            if historical and len(historical) > 0:
                 history = []
                 for item in historical[:8]:  # Last 8 quarters
                     try:
                         date_str = item.get('date')
-                        eps_estimate = item.get('estimatedEarning')
-                        eps_actual = item.get('actualEarningResult')
+                        # Try multiple possible key names
+                        eps_estimate = (item.get('estimatedEarning') or
+                                       item.get('epsEstimated') or
+                                       item.get('estimatedEps'))
+                        eps_actual = (item.get('actualEarningResult') or
+                                     item.get('epsActual') or
+                                     item.get('actualEps'))
 
                         # Calculate surprise and beat
                         beat = None
@@ -112,10 +117,10 @@ def fetch_earnings_data(ticker: str, fmp_client=None) -> Dict[str, Any]:
                         logger.debug(f"Error parsing earnings history item: {e}")
                         continue
 
-                result['earnings_history'] = history
-
-                # Add price moves around earnings dates
-                result['earnings_history'] = _add_price_moves_fmp(ticker, result['earnings_history'], fmp_client)
+                if history:
+                    result['earnings_history'] = history
+                    # Add price moves around earnings dates
+                    result['earnings_history'] = _add_price_moves_fmp(ticker, result['earnings_history'], fmp_client)
         except Exception as e:
             logger.debug(f"Could not get earnings history for {ticker}: {e}")
 
